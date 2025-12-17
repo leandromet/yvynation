@@ -519,10 +519,9 @@ with analysis_col:
                 st.warning(f"Could not parse drawn geometry: {e}")
         else:
             st.info("👈 Draw an area on the Map tab first")
-        
-        st.divider()
-        st.markdown("### 🔍 Territory Search & Analysis")
-        
+    
+    # SECTION 1.5: Territory Search & Analysis
+    with st.expander("🔍 Territory Search & Analysis", expanded=True):
         if "app" not in st.session_state or st.session_state.app is None:
             st.error("❌ Please click 'Load Core Data' in the sidebar first")
         else:
@@ -620,10 +619,9 @@ with analysis_col:
                                         st.error(f"Analysis failed: {e}")
             except Exception as e:
                 st.error(f"Error loading territories: {e}")
-        
-        st.divider()
-        st.markdown("### 📈 Multi-Year Territory Analysis")
-        
+    
+    # SECTION 1.7: Multi-Year Territory Analysis
+    with st.expander("📈 Multi-Year Territory Analysis", expanded=True):
         if "app" not in st.session_state or st.session_state.app is None:
             st.info("Load data first to enable multi-year analysis")
         elif st.session_state.last_analyzed_geom is None:
