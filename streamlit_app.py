@@ -54,8 +54,12 @@ if "map_object" not in st.session_state:
     st.session_state.map_object = None
 if "last_analyzed_geom" not in st.session_state:
     st.session_state.last_analyzed_geom = None
-if "last_analyzed_name" not in st.session_state:
-    st.session_state.last_analyzed_name = None
+if "split_compare_mode" not in st.session_state:
+    st.session_state.split_compare_mode = False
+if "split_left_year" not in st.session_state:
+    st.session_state.split_left_year = 1985
+if "split_right_year" not in st.session_state:
+    st.session_state.split_right_year = 2023
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -190,6 +194,88 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     folium.LayerControl().add_to(m)
     return m
 
+def create_split_compare_map(left_year, right_year, center=[-45.3, -4.5], zoom=7):
+    """Create a side-by-side comparison map with Leaflet SideBySide plugin."""
+    m = folium.Map(
+        location=[center[1], center[0]],
+        zoom_start=zoom,
+        tiles='OpenStreetMap'
+    )
+    
+    try:
+        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+        
+        # Build palette
+        palette_list = []
+        max_class = 62
+        for class_id in range(max_class + 1):
+            hex_color = COLOR_MAP.get(class_id, '#808080')
+            palette_list.append(hex_color.lstrip('#'))
+        
+        vis_params = {
+            'min': 0,
+            'max': max_class,
+            'palette': palette_list
+        }
+        
+        # Create left layer
+        band_left = f'classification_{left_year}'
+        classification_left = mapbiomas.select(band_left)
+        mapid_left = ee.Image(classification_left).getMapId(vis_params)
+        
+        try:
+            tile_url_left = mapid_left['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            tile_url_left = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_left["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        left_layer = folium.TileLayer(
+            tiles=tile_url_left,
+            attr='MapBiomas',
+            name=f'MapBiomas {left_year}',
+            overlay=False
+        )
+        left_layer.add_to(m)
+        
+        # Create right layer
+        band_right = f'classification_{right_year}'
+        classification_right = mapbiomas.select(band_right)
+        mapid_right = ee.Image(classification_right).getMapId(vis_params)
+        
+        try:
+            tile_url_right = mapid_right['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            tile_url_right = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_right["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        right_layer = folium.TileLayer(
+            tiles=tile_url_right,
+            attr='MapBiomas',
+            name=f'MapBiomas {right_year}',
+            overlay=False
+        )
+        right_layer.add_to(m)
+        
+        # Add JavaScript for Leaflet-SideBySide plugin
+        m.get_root().html.add_child(folium.Element("""
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-side-by-side@3.2.2/dist/leaflet-side-by-side.css" />
+        <script src="https://unpkg.com/leaflet-side-by-side@3.2.2/dist/leaflet-side-by-side.umd.js"></script>
+        <script>
+            // Wait for map to load then initialize SideBySide
+            setTimeout(function() {
+                if (L && L.Control.SideBySide) {
+                    var leftLayer = arguments[0];
+                    var rightLayer = arguments[1];
+                    L.control.sideBySide(leftLayer, rightLayer).addTo(map);
+                }
+            }, 500);
+        </script>
+        """))
+        
+    except Exception as e:
+        st.warning(f"Could not load split comparison layers: {e}")
+    
+    folium.LayerControl().add_to(m)
+    return m
+
 def get_bounds_from_geometry(geom):
     """Extract bounds from GeoJSON geometry and return as [[south, west], [north, east]]."""
     try:
@@ -290,6 +376,30 @@ with map_col:
         
         zoom = st.slider("Zoom", 4, 13, st.session_state.map_zoom, key="zoom")
         st.session_state.map_zoom = zoom
+        
+        st.divider()
+        
+        # Split Compare Mode
+        if st.checkbox("🔀 Split Compare (Side-by-Side)", value=st.session_state.split_compare_mode):
+            st.session_state.split_compare_mode = True
+            col_left, col_right = st.columns(2)
+            with col_left:
+                st.session_state.split_left_year = st.selectbox(
+                    "Left Year",
+                    range(1985, 2024),
+                    index=0,
+                    key="split_left"
+                )
+            with col_right:
+                st.session_state.split_right_year = st.selectbox(
+                    "Right Year",
+                    range(1985, 2024),
+                    index=38,
+                    key="split_right"
+                )
+            st.info("📌 Drag the vertical line on the map to compare layers")
+        else:
+            st.session_state.split_compare_mode = False
     
     st.markdown("""
     **How to Use:**
@@ -300,34 +410,47 @@ with map_col:
     """)
     
     try:
-        # Only create map AFTER data is confirmed loaded
-        if st.session_state.map_object is None and st.session_state.data_loaded:
-            # Create fresh map with layers since data just loaded
-            st.session_state.map_object = create_ee_folium_map(
-                center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
+        # Determine which map to create based on split compare mode
+        if st.session_state.split_compare_mode:
+            # Create split compare map with selected years
+            m = create_split_compare_map(
+                left_year=st.session_state.split_left_year,
+                right_year=st.session_state.split_right_year,
+                center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
                 zoom=st.session_state.map_zoom
             )
-            st.info("🗺️ Map created with MapBiomas and Indigenous Territories layers")
-        
-        if st.session_state.map_object is not None:
-            m = st.session_state.map_object
-            
-            # Capture map with drawings - use key to prevent rerun issues
-            map_data = st_folium(m, width=None, height=700, key="main_map")
-            
-            # Extract drawn geometry if available and zoom to it
-            if map_data and map_data.get("last_active_drawing"):
-                drawing = map_data["last_active_drawing"]
-                if drawing:
-                    st.session_state.drawn_geometry = drawing
-                    # Zoom to drawn area
-                    bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
-                    if bounds:
-                        zoom_to_bounds(m, bounds)
-                        st.session_state.map_object = m
-                    st.success("✅ Drawing captured! Map zoomed to your area.")
+            st.info(f"🔀 Comparing MapBiomas {st.session_state.split_left_year} (left) vs {st.session_state.split_right_year} (right)")
+            # Capture map - use different key for split mode
+            map_data = st_folium(m, width=None, height=700, key="split_compare_map")
         else:
-            st.warning("⏳ Waiting for map to load...")
+            # Use normal map with drawing tools
+            if st.session_state.map_object is None and st.session_state.data_loaded:
+                # Create fresh map with layers since data just loaded
+                st.session_state.map_object = create_ee_folium_map(
+                    center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
+                    zoom=st.session_state.map_zoom
+                )
+                st.info("🗺️ Map created with MapBiomas and Indigenous Territories layers")
+            
+            if st.session_state.map_object is not None:
+                m = st.session_state.map_object
+                
+                # Capture map with drawings - use key to prevent rerun issues
+                map_data = st_folium(m, width=None, height=700, key="main_map")
+                
+                # Extract drawn geometry if available and zoom to it
+                if map_data and map_data.get("last_active_drawing"):
+                    drawing = map_data["last_active_drawing"]
+                    if drawing:
+                        st.session_state.drawn_geometry = drawing
+                        # Zoom to drawn area
+                        bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
+                        if bounds:
+                            zoom_to_bounds(m, bounds)
+                            st.session_state.map_object = m
+                        st.success("✅ Drawing captured! Map zoomed to your area.")
+            else:
+                st.warning("⏳ Waiting for map to load...")
         
     except Exception as e:
         st.error(f"Map error: {e}")
