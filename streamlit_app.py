@@ -89,9 +89,14 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
-        tiles='OpenStreetMap'
+        tiles='OpenStreetMap',
+        attr='© OpenStreetMap contributors',
+        zindex=100
     )
-    
+    # Set base layer z-index to be lower than overlays
+    for tile_layer in m.tile_layers:
+        if hasattr(tile_layer, 'zindex'):
+            tile_layer.zindex = 100
     try:
         # Add MapBiomas 2023 layer with discrete palette
         mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
@@ -119,7 +124,9 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             attr='MapBiomas Collection 9',
             name='MapBiomas 2023 (Discrete Palette)',
             overlay=True,
-            control=True
+            control=True,
+            show=True,
+            zindex=400
         ).add_to(m)
         
         # Add Indigenous Territories layer
@@ -143,7 +150,9 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             attr='Indigenous Territories',
             name='Indigenous Territories',
             overlay=True,
-            control=True
+            control=True,
+            show=True,
+            zindex=401
         ).add_to(m)
         
     except Exception as e:
