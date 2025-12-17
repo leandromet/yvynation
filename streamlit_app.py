@@ -10,7 +10,6 @@ import folium
 from folium.plugins import Draw, Fullscreen
 import streamlit_folium
 from streamlit_folium import st_folium
-import geojson
 import pandas as pd
 import json
 from config import PROJECT_ID
