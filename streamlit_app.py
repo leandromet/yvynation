@@ -265,66 +265,50 @@ else:
                                     
                                     with col_b:
                                         fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                        st.pyplot(fig)
+                                        if fig:
+                                            st.pyplot(fig)
                                     
                                     # Display drawn area on map
                                     with st.expander("🗺️ View Your Drawn Area on Map", expanded=True):
                                         try:
-                                            # Get bounds of drawn area
-                                            bounds = geom.bounds().getInfo()
+                                            # Get center point using centroid
+                                            geom_centroid = geom.centroid().getInfo()
+                                            center_lon = geom_centroid['coordinates'][0]
+                                            center_lat = geom_centroid['coordinates'][1]
+                                            zoom = 10
                                             
-                                            if bounds and bounds['coordinates']:
-                                                # bounds format: [min_lon, min_lat, max_lon, max_lat]
-                                                coords = bounds['coordinates']
-                                                center_lat = (coords[1][1] + coords[0][1]) / 2
-                                                center_lon = (coords[1][0] + coords[0][0]) / 2
-                                                
-                                                # Calculate zoom based on area size
-                                                lon_range = abs(coords[1][0] - coords[0][0])
-                                                lat_range = abs(coords[1][1] - coords[0][1])
-                                                max_range = max(lon_range, lat_range)
-                                                
-                                                if max_range > 5:
-                                                    zoom = 6
-                                                elif max_range > 2:
-                                                    zoom = 8
-                                                elif max_range > 0.5:
-                                                    zoom = 10
-                                                else:
-                                                    zoom = 12
-                                                
-                                                # Create map
-                                                m = folium.Map(
-                                                    location=[center_lat, center_lon],
-                                                    zoom_start=zoom,
-                                                    tiles='OpenStreetMap'
-                                                )
-                                                
-                                                # Add MapBiomas layer
-                                                mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                                ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
-                                                folium.TileLayer(
-                                                    tiles=ee_tile_url,
-                                                    attr='MapBiomas',
-                                                    name='MapBiomas Collection 9',
-                                                    overlay=True
-                                                ).add_to(m)
-                                                
-                                                # Add drawn area boundary in red
-                                                drawn_geojson = geom.getInfo()
-                                                folium.GeoJson(
-                                                    drawn_geojson,
-                                                    style_function=lambda x: {
-                                                        'color': 'red',
-                                                        'weight': 3,
-                                                        'opacity': 0.8,
-                                                        'fillOpacity': 0.1
-                                                    },
-                                                    name="Your Drawn Area"
-                                                ).add_to(m)
-                                                
-                                                folium.LayerControl().add_to(m)
-                                                st_folium(m, width=1200, height=500)
+                                            # Create map
+                                            m = folium.Map(
+                                                location=[center_lat, center_lon],
+                                                zoom_start=zoom,
+                                                tiles='OpenStreetMap'
+                                            )
+                                            
+                                            # Add MapBiomas layer
+                                            mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
+                                            ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                            folium.TileLayer(
+                                                tiles=ee_tile_url,
+                                                attr='MapBiomas',
+                                                name='MapBiomas Collection 9',
+                                                overlay=True
+                                            ).add_to(m)
+                                            
+                                            # Add drawn area boundary in red
+                                            drawn_geojson = geom.getInfo()
+                                            folium.GeoJson(
+                                                drawn_geojson,
+                                                style_function=lambda x: {
+                                                    'color': 'red',
+                                                    'weight': 3,
+                                                    'opacity': 0.8,
+                                                    'fillOpacity': 0.1
+                                                },
+                                                name="Your Drawn Area"
+                                            ).add_to(m)
+                                            
+                                            folium.LayerControl().add_to(m)
+                                            st_folium(m, width=1200, height=500)
                                         except Exception as map_e:
                                             st.error(f"Could not display map: {map_e}")
                                     
@@ -418,72 +402,56 @@ else:
                                                 
                                                 with col_b:
                                                     fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                                    st.pyplot(fig)
+                                                    if fig:
+                                                        st.pyplot(fig)
                                                 
                                                 # Display territory on map
                                                 with st.expander("🗺️ View Territory on Map", expanded=True):
                                                     try:
-                                                        # Get bounds of territory
-                                                        bounds = territory_geom.bounds().getInfo()
+                                                        # Get center point using centroid
+                                                        geom_centroid = territory_geom.centroid().getInfo()
+                                                        center_lon = geom_centroid['coordinates'][0]
+                                                        center_lat = geom_centroid['coordinates'][1]
+                                                        zoom = 10
                                                         
-                                                        # Create map centered on territory
-                                                        if bounds and bounds['coordinates']:
-                                                            # bounds format: [min_lon, min_lat, max_lon, max_lat]
-                                                            coords = bounds['coordinates']
-                                                            center_lat = (coords[1][1] + coords[0][1]) / 2
-                                                            center_lon = (coords[1][0] + coords[0][0]) / 2
-                                                            
-                                                            # Calculate zoom based on territory size
-                                                            lon_range = abs(coords[1][0] - coords[0][0])
-                                                            lat_range = abs(coords[1][1] - coords[0][1])
-                                                            max_range = max(lon_range, lat_range)
-                                                            
-                                                            if max_range > 5:
-                                                                zoom = 6
-                                                            elif max_range > 2:
-                                                                zoom = 8
-                                                            elif max_range > 0.5:
-                                                                zoom = 10
-                                                            else:
-                                                                zoom = 12
-                                                            
-                                                            # Create map
-                                                            m = folium.Map(
-                                                                location=[center_lat, center_lon],
-                                                                zoom_start=zoom,
-                                                                tiles='OpenStreetMap'
-                                                            )
-                                                            
-                                                            # Add MapBiomas layer
-                                                            mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                                            ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
-                                                            folium.TileLayer(
-                                                                tiles=ee_tile_url,
-                                                                attr='MapBiomas',
-                                                                name='MapBiomas Collection 9',
-                                                                overlay=True
-                                                            ).add_to(m)
-                                                            
-                                                            # Add territory boundary in red
-                                                            territory_geojson = territory_geom.getInfo()
-                                                            folium.GeoJson(
-                                                                territory_geojson,
-                                                                style_function=lambda x: {
-                                                                    'color': 'red',
-                                                                    'weight': 3,
-                                                                    'opacity': 0.8,
-                                                                    'fillOpacity': 0.1
-                                                                },
-                                                                name=selected_territory
-                                                            ).add_to(m)
-                                                            
-                                                            folium.LayerControl().add_to(m)
-                                                            st_folium(m, width=1200, height=500)
+                                                        # Create map
+                                                        m = folium.Map(
+                                                            location=[center_lat, center_lon],
+                                                            zoom_start=zoom,
+                                                            tiles='OpenStreetMap'
+                                                        )
+                                                        
+                                                        # Add MapBiomas layer
+                                                        mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
+                                                        ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                                        folium.TileLayer(
+                                                            tiles=ee_tile_url,
+                                                            attr='MapBiomas',
+                                                            name='MapBiomas Collection 9',
+                                                            overlay=True
+                                                        ).add_to(m)
+                                                        
+                                                        # Add territory boundary in red
+                                                        territory_geojson = territory_geom.getInfo()
+                                                        folium.GeoJson(
+                                                            territory_geojson,
+                                                            style_function=lambda x: {
+                                                                'color': 'red',
+                                                                'weight': 3,
+                                                                'opacity': 0.8,
+                                                                'fillOpacity': 0.1
+                                                            },
+                                                            name=selected_territory
+                                                        ).add_to(m)
+                                                        
+                                                        folium.LayerControl().add_to(m)
+                                                        st_folium(m, width=1200, height=500)
                                                     except Exception as map_e:
                                                         st.error(f"Could not display map: {map_e}")
                                             
                                             except Exception as e:
                                                 st.error(f"Analysis failed: {e}")
+                            
                             else:
                                 st.warning("No territories found in the collection")
                     
@@ -583,7 +551,8 @@ else:
                 
                 with col1:
                     fig = plot_area_changes(comparison, start_year, end_year)
-                    st.pyplot(fig)
+                    if fig:
+                        st.pyplot(fig)
                 
                 with col2:
                     fig2 = plot_temporal_trend(
