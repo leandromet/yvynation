@@ -7,6 +7,7 @@ import streamlit as st
 import ee
 import geemap
 import folium
+from folium.plugins import Draw, Fullscreen
 import streamlit_folium
 import pandas as pd
 from config import PROJECT_ID
@@ -40,7 +41,7 @@ if "results" not in st.session_state:
 st.sidebar.title("🌍 Yvynation Configuration")
 
 def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
-    """Create a folium map with Earth Engine layers."""
+    """Create a folium map with Earth Engine layers and drawing tools."""
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
@@ -52,14 +53,20 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
         mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
         classification_2023 = mapbiomas.select('classification_2023')
         
-        # Create a simple visualization
+        # MapBiomas color palette
+        palette = [
+            '#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000',
+            '#FFFF00', '#00FFFF', '#FF00FF', '#C0C0C0', '#808080',
+            '#800000', '#008000', '#000080', '#808000', '#008080'
+        ]
+        
         vis_params = {
             'min': 0,
             'max': 62,
-            'palette': ['#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000']
+            'palette': palette
         }
         
-        # Get map tile URL
+        # Get map tile URL for MapBiomas
         mapid = ee.Image(classification_2023).getMapId(vis_params)
         folium.TileLayer(
             tiles=mapid['tile_fetcher'].url_format,
@@ -69,8 +76,49 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             control=True
         ).add_to(m)
         
+        # Add Indigenous Territories layer
+        territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
+        
+        # Create simple style for territories (red boundary, no fill)
+        styled_territories = territories.map(lambda f: f.set({'style': {
+            'color': '#FF0000',
+            'fillColor': '#FF0000',
+            'weight': 2,
+            'opacity': 0.6,
+            'fillOpacity': 0.1
+        }}))
+        
+        ee_image_object = ee.Image().paint(territories, 0, 2)
+        mapid_territories = ee_image_object.getMapId({'min': 0, 'max': 1, 'palette': ['red']})
+        
+        folium.TileLayer(
+            tiles=mapid_territories['tile_fetcher'].url_format,
+            attr='Indigenous Territories',
+            name='Indigenous Territories',
+            overlay=True,
+            control=True
+        ).add_to(m)
+        
     except Exception as e:
-        st.warning(f"Could not load MapBiomas layer: {e}")
+        st.warning(f"Could not load Earth Engine layers: {e}")
+    
+    # Add drawing tools
+    draw = Draw(
+        export=True,
+        position='topleft',
+        draw_options={
+            'polyline': False,
+            'polygon': True,
+            'rectangle': True,
+            'circle': False,
+            'marker': False,
+            'circlemarker': False
+        }
+    )
+    draw.add_to(m)
+    
+    # Add fullscreen button
+    Fullscreen().add_to(m)
     
     folium.LayerControl().add_to(m)
     return m
@@ -114,7 +162,7 @@ else:
 
     # TAB 1: Map
     with tab1:
-        st.subheader("MapBiomas 2023 with Earth Engine Tiles")
+        st.subheader("Interactive Map with Drawing Tools")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -124,11 +172,23 @@ else:
         
         zoom = st.slider("Zoom", 4, 13, 7, key="zoom")
         
-        st.info("🗺️ Displaying MapBiomas Collection 9 - 2023 Land Cover Classification")
+        st.markdown("""
+        ### Map Layers & Instructions
+        
+        **Available Layers:**
+        - 🌍 **MapBiomas 2023** - Land cover classification (62 classes)
+        - 🏘️ **Indigenous Territories** - Official boundaries (red)
+        
+        **How to Use:**
+        1. Click the **Rectangle tool** (top-left) to draw your analysis area
+        2. Select layer visibility using layer control (top-right)
+        3. Use **Fullscreen** button for better view
+        4. After drawing, analyze your selected area in the "Area Analysis" tab
+        """)
         
         try:
             m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
-            streamlit_folium.folium_static(m, width=1400, height=600)
+            streamlit_folium.folium_static(m, width=1400, height=700)
         except Exception as e:
             st.error(f"Map error: {e}")
             st.info("Make sure Earth Engine is properly initialized in the sidebar")
