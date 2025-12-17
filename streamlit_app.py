@@ -283,15 +283,15 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             territories = st.session_state.app.territories
             if territories is not None:
                 try:
-                    territories_image = ee.Image().paint(territories, 0, 2)
-                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['ffffff00', '4B0082']})
+                    territories_image = ee.Image().paint(territories, 1, 2)
+                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['00000000', '4B0082']})
                     folium.TileLayer(
                         tiles=map_id_terr['tile_fetcher'].url_format,
                         attr='Map data: Indigenous Territories',
                         name='Indigenous Territories',
                         overlay=True,
                         control=True,
-                        opacity=0.6
+                        opacity=0.7
                     ).add_to(m)
                 except Exception as e:
                     st.warning(f"Could not load territories layer: {e}")
@@ -319,15 +319,15 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             territories = st.session_state.app.territories
             if territories is not None:
                 try:
-                    territories_image = ee.Image().paint(territories, 0, 2)
-                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['ffffff00', '4B0082']})
+                    territories_image = ee.Image().paint(territories, 1, 2)
+                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['00000000', '4B0082']})
                     folium.TileLayer(
                         tiles=map_id_terr['tile_fetcher'].url_format,
                         attr='Map data: Indigenous Territories',
                         name='Indigenous Territories',
                         overlay=True,
                         control=True,
-                        opacity=0.6
+                        opacity=0.7
                     ).add_to(m)
                 except Exception as e:
                     st.warning(f"Could not load territories layer: {e}")
