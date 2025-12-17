@@ -234,6 +234,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             st.error("❌ Data not loaded. Click 'Load Core Data' in the sidebar first.")
             return None
         
+        # Create folium map
         m = folium.Map(
             location=[center[1], center[0]],
             zoom_start=zoom,
@@ -252,28 +253,37 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 layer1_band = f'classification_{layer1_year}'
                 layer1_image = mapbiomas.select(layer1_band)
                 
-                ee_layer = geemap.ee_tile_layer(
+                # Create tile URL from EE image
+                tile_url = geemap.ee_tile_url(
                     ee_object=layer1_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
-                    name=f"MapBiomas {layer1_year}",
-                    shown=True,
-                    opacity=layer1_opacity
+                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
                 )
-                ee_layer.add_to(m)
+                folium.TileLayer(
+                    tiles=tile_url,
+                    attr='Map data: MapBiomas',
+                    name=f"MapBiomas {layer1_year}",
+                    overlay=True,
+                    control=True,
+                    opacity=layer1_opacity
+                ).add_to(m)
             
             # Layer 2 (comparison mode)
             if compare_mode and layer2_year:
                 layer2_band = f'classification_{layer2_year}'
                 layer2_image = mapbiomas.select(layer2_band)
                 
-                ee_layer2 = geemap.ee_tile_layer(
+                tile_url2 = geemap.ee_tile_url(
                     ee_object=layer2_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
-                    name=f"MapBiomas {layer2_year}",
-                    shown=True,
-                    opacity=layer2_opacity
+                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
                 )
-                ee_layer2.add_to(m)
+                folium.TileLayer(
+                    tiles=tile_url2,
+                    attr='Map data: MapBiomas',
+                    name=f"MapBiomas {layer2_year}",
+                    overlay=True,
+                    control=True,
+                    opacity=layer2_opacity
+                ).add_to(m)
         
         elif data_source == "Hansen":
             # Hansen layers
@@ -282,14 +292,18 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             year_key = str(layer1_year) if layer1_year else "2020"
             hansen_image = ee.Image(HANSEN_DATASETS[year_key])
             
-            ee_layer = geemap.ee_tile_layer(
+            tile_url = geemap.ee_tile_url(
                 ee_object=hansen_image,
-                vis_params={'min': 0, 'max': 17, 'palette': 'viridis'},
-                name=f"Hansen {year_key}",
-                shown=True,
-                opacity=layer1_opacity
+                vis_params={'min': 0, 'max': 17, 'palette': 'viridis'}
             )
-            ee_layer.add_to(m)
+            folium.TileLayer(
+                tiles=tile_url,
+                attr='Map data: Hansen/GLAD',
+                name=f"Hansen {year_key}",
+                overlay=True,
+                control=True,
+                opacity=layer1_opacity
+            ).add_to(m)
         
         # Add drawing tools
         Draw(export=True).add_to(m)
