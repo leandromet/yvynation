@@ -98,6 +98,14 @@ if "drawn_areas" not in st.session_state:
     st.session_state.drawn_areas = {}  # {name: geometry_data}
 if "drawn_area_count" not in st.session_state:
     st.session_state.drawn_area_count = 0
+if "hansen_area_result" not in st.session_state:
+    st.session_state.hansen_area_result = None
+if "hansen_area_year" not in st.session_state:
+    st.session_state.hansen_area_year = None
+if "data_source" not in st.session_state:
+    st.session_state.data_source = "MapBiomas (Brazil)"
+if "current_data_source" not in st.session_state:
+    st.session_state.current_data_source = st.session_state.data_source
 if "selected_drawn_area" not in st.session_state:
     st.session_state.selected_drawn_area = None
 if "persistent_drawn_geometry" not in st.session_state:
@@ -642,15 +650,16 @@ with map_col:
         current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
         current_compare_mode = st.session_state.split_compare_mode
         
-        # Track current data source
-        if "current_data_source" not in st.session_state:
-            st.session_state.current_data_source = st.session_state.data_source
-        
         # Check if data source changed
         data_source_changed = st.session_state.current_data_source != st.session_state.data_source
         if data_source_changed:
             st.session_state.current_data_source = st.session_state.data_source
             st.session_state.map_object = None  # Force map refresh
+            # Reset analysis results when switching data sources
+            st.session_state.drawn_area_result = None
+            st.session_state.hansen_area_result = None
+            st.session_state.territory_result = None
+            st.session_state.multiyear_results = None
         
         # Check if layers configuration changed
         config_changed = (
@@ -864,8 +873,8 @@ with analysis_col:
                                 except Exception as e:
                                     st.error(f"Analysis failed: {e}")
                     
-                    # Display Hansen area results if available
-                    if hasattr(st.session_state, 'hansen_area_result') and st.session_state.hansen_area_result is not None:
+                    # Display Hansen area results if available (only when Hansen data source is selected)
+                    if st.session_state.data_source == "Hansen/GLAD (Global)" and st.session_state.hansen_area_result is not None:
                         st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
                         
                         # Create visualization
