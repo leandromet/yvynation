@@ -187,9 +187,14 @@ if st.sidebar.button("Load Core Data", use_container_width=True):
     with st.spinner("📦 Loading MapBiomas and territories..."):
         try:
             app = YvynationApp()
-            st.session_state.app = app
-            st.session_state.data_loaded = True
-            st.sidebar.success("✅ Data loaded successfully!")
+            # Load core data (MapBiomas, territories)
+            success = app.load_core_data()
+            if success:
+                st.session_state.app = app
+                st.session_state.data_loaded = True
+                st.sidebar.success("✅ Data loaded successfully!")
+            else:
+                st.sidebar.error("❌ Failed to load MapBiomas or territories")
         except Exception as e:
             st.sidebar.error(f"❌ Failed to load data: {e}")
 
@@ -224,6 +229,11 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                          layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas"):
     """Create a folium map with Earth Engine layers"""
     try:
+        # Check if app data is loaded
+        if not st.session_state.data_loaded or st.session_state.app is None:
+            st.error("❌ Data not loaded. Click 'Load Core Data' in the sidebar first.")
+            return None
+        
         m = folium.Map(
             location=[center[1], center[0]],
             zoom_start=zoom,
@@ -233,6 +243,9 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
         if data_source == "MapBiomas":
             # MapBiomas layers
             mapbiomas = st.session_state.app.mapbiomas_v9
+            if mapbiomas is None:
+                st.error("❌ MapBiomas data not loaded. Please click 'Load Core Data' again.")
+                return None
             
             # Layer 1
             if isinstance(layer1_year, int):
