@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from google.oauth2 import service_account
 
 # Import modules
-from config import PROJECT_ID
+from config import PROJECT_ID, MAPBIOMAS_PALETTE
 from app_file import YvynationApp
 from mapbiomas_analysis import (
     render_mapbiomas_area_analysis,
@@ -254,7 +254,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 
                 ee_layer = geemap.ee_tile_layer(
                     ee_object=layer1_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
+                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
                     name=f"MapBiomas {layer1_year}",
                     show=True,
                     opacity=layer1_opacity
@@ -268,7 +268,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 
                 ee_layer2 = geemap.ee_tile_layer(
                     ee_object=layer2_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
+                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
                     name=f"MapBiomas {layer2_year}",
                     show=True,
                     opacity=layer2_opacity
