@@ -43,6 +43,8 @@ if "drawn_geometry" not in st.session_state:
     st.session_state.drawn_geometry = None
 if "drawn_bounds" not in st.session_state:
     st.session_state.drawn_bounds = None
+if "results" not in st.session_state:
+    st.session_state.results = None
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
