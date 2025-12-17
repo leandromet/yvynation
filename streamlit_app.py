@@ -98,9 +98,8 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     )
     
     try:
-        # Add MapBiomas 2023 layer
+        # Load MapBiomas collection
         mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
-        classification_2023 = mapbiomas.select('classification_2023')
         
         # Build complete discrete palette from COLOR_MAP (0-62, or max class value)
         # This prevents Earth Engine from interpolating colors
@@ -118,21 +117,34 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             'palette': palette_list
         }
         
-        # Get map tile URL for MapBiomas - use tile_fetcher.url_format if available
-        mapid = ee.Image(classification_2023).getMapId(vis_params)
-        try:
-            tile_url = mapid['tile_fetcher'].url_format
-        except (KeyError, AttributeError):
-            # Fallback to manual URL format if tile_fetcher not available
-            tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-        
-        folium.TileLayer(
-            tiles=tile_url,
-            attr='MapBiomas',
-            name='MapBiomas 2023',
-            overlay=True,
-            control=True
-        ).add_to(m)
+        # Add MapBiomas layers for all years (1985-2023)
+        # 2023 is shown by default (show=True), others are hidden (show=False)
+        for year in range(1985, 2024):
+            band_name = f'classification_{year}'
+            try:
+                classification = mapbiomas.select(band_name)
+                mapid = ee.Image(classification).getMapId(vis_params)
+                
+                try:
+                    tile_url = mapid['tile_fetcher'].url_format
+                except (KeyError, AttributeError):
+                    # Fallback to manual URL format if tile_fetcher not available
+                    tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+                
+                # Show 2023 by default, hide others
+                show_layer = (year == 2023)
+                
+                folium.TileLayer(
+                    tiles=tile_url,
+                    attr='MapBiomas Collection 9',
+                    name=f'MapBiomas {year}',
+                    overlay=True,
+                    control=True,
+                    show=show_layer
+                ).add_to(m)
+            except Exception as e:
+                # Skip if year not available
+                pass
         
         # Add Indigenous Territories layer
         territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
