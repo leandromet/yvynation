@@ -249,49 +249,53 @@ def add_ee_layers_to_map(m, center, zoom, layer1_year, layer1_opacity=1.0,
             if layer1_year:
                 mapbiomas = st.session_state.app.mapbiomas_v9
                 if mapbiomas is not None:
-                    classification = mapbiomas.select('classification').filterMetadata('year', 'equals', int(layer1_year)).first()
-                    if classification is not None:
+                    try:
+                        # MapBiomas has bands named 'classification_YEAR'
+                        band_name = f'classification_{int(layer1_year)}'
+                        classification = mapbiomas.select(band_name)
+                        
                         vis_params = {
                             'min': 0,
                             'max': 60,
                             'palette': MAPBIOMAS_PALETTE
                         }
-                        try:
-                            map_id = classification.getMapId(vis_params)
-                            folium.TileLayer(
-                                tiles=map_id['tile_fetcher'].url_format,
-                                attr='Map data: MapBiomas',
-                                name=f"MapBiomas {layer1_year}",
-                                overlay=True,
-                                control=True,
-                                opacity=layer1_opacity
-                            ).add_to(m)
-                        except Exception as e:
-                            st.warning(f"Could not load MapBiomas layer {layer1_year}: {e}")
+                        map_id = classification.getMapId(vis_params)
+                        folium.TileLayer(
+                            tiles=map_id['tile_fetcher'].url_format,
+                            attr='Map data: MapBiomas',
+                            name=f"MapBiomas {layer1_year}",
+                            overlay=True,
+                            control=True,
+                            opacity=layer1_opacity
+                        ).add_to(m)
+                    except Exception as e:
+                        st.warning(f"Could not load MapBiomas layer {layer1_year}: {e}")
             
             # Layer 2 (comparison mode)
             if compare_mode and layer2_year:
                 mapbiomas = st.session_state.app.mapbiomas_v9
                 if mapbiomas is not None:
-                    classification = mapbiomas.select('classification').filterMetadata('year', 'equals', int(layer2_year)).first()
-                    if classification is not None:
+                    try:
+                        # MapBiomas has bands named 'classification_YEAR'
+                        band_name = f'classification_{int(layer2_year)}'
+                        classification = mapbiomas.select(band_name)
+                        
                         vis_params = {
                             'min': 0,
                             'max': 60,
                             'palette': MAPBIOMAS_PALETTE
                         }
-                        try:
-                            map_id = classification.getMapId(vis_params)
-                            folium.TileLayer(
-                                tiles=map_id['tile_fetcher'].url_format,
-                                attr='Map data: MapBiomas',
-                                name=f"MapBiomas {layer2_year}",
-                                overlay=True,
-                                control=True,
-                                opacity=layer2_opacity
-                            ).add_to(m)
-                        except Exception as e:
-                            st.warning(f"Could not load MapBiomas layer {layer2_year}: {e}")
+                        map_id = classification.getMapId(vis_params)
+                        folium.TileLayer(
+                            tiles=map_id['tile_fetcher'].url_format,
+                            attr='Map data: MapBiomas',
+                            name=f"MapBiomas {layer2_year}",
+                            overlay=True,
+                            control=True,
+                            opacity=layer2_opacity
+                        ).add_to(m)
+                    except Exception as e:
+                        st.warning(f"Could not load MapBiomas layer {layer2_year}: {e}")
             
             # Add indigenous territories layer
             territories = st.session_state.app.territories
