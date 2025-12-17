@@ -5,7 +5,7 @@ Interactive Streamlit web app for MapBiomas and Indigenous Territories analysis
 
 import streamlit as st
 import ee
-import geemap.eefolium as geemap
+import geemap
 import pandas as pd
 from config import PROJECT_ID
 from app_file import YvynationApp
