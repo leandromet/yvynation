@@ -519,19 +519,14 @@ with map_col:
             # Capture map with drawings
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
-            # Extract drawn geometry if available and zoom to it
+            # Extract drawn geometry if available
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
                     st.session_state.drawn_geometry = drawing
                     # Store geometry persistently
                     st.session_state.persistent_drawn_geometry = drawing
-                    # Zoom to drawn area
-                    bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
-                    if bounds:
-                        zoom_to_bounds(m, bounds)
-                        st.session_state.map_object = m
-                    st.success("✅ Drawing captured! Map zoomed to your area.")
+                    st.success("✅ Drawing captured! Use 'Analyze Drawn Area' to analyze.")
             # Keep persistent geometry visible even if no new drawing
             elif st.session_state.persistent_drawn_geometry:
                 st.session_state.drawn_geometry = st.session_state.persistent_drawn_geometry
