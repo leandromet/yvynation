@@ -661,7 +661,7 @@ with analysis_col:
                         year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
                     
                     with col_btn:
-                        analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn", width="stretch")
+                        analyze_btn = st.button("📍 Analyze & Zoom (click twice)", key="btn_drawn", width="stretch")
                     
                     if analyze_btn:
                         with st.spinner("Analyzing your drawn area..."):
@@ -762,7 +762,7 @@ with analysis_col:
                                 year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
                             
                             with col_btn:
-                                analyze_btn = st.button("Analyze Territory", key="btn_analyze_territory", width="stretch")
+                                analyze_btn = st.button("Analyze Territory (click twice)", key="btn_analyze_territory", width="stretch")
                             
                             if analyze_btn:
                                 with st.spinner(f"Analyzing {selected_territory}..."):
