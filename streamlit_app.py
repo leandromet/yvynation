@@ -982,50 +982,70 @@ with analysis_col:
     
     # SECTION 3: About
     with st.expander("ℹ️ About Yvynation", expanded=False):
-        st.markdown('''
-        ### Project Overview
-        
-        **Yvynation** is an Earth Engine analysis application for studying land cover 
-        change in Brazilian Indigenous Territories.
-        
-        ### Data Sources
-        - **MapBiomas Collection 9**
-          - Resolution: 30m
-          - Period: 1985-2023 (annual)
-          - Classes: 62 land cover categories
-          - License: Creative Commons Attribution 4.0
-        
-        - **Indigenous Territories**
-          - 700+ Brazilian territories
-          - Vector boundaries with attributes
-          - MapBiomas Territories Project
-        
-        ### Features
-        
-        ✅ Interactive mapping with geemap
-        ✅ Area calculations and change detection
-        ✅ Territory filtering by state or name
-        ✅ Statistical visualizations
-        ✅ Data export capabilities
-        
-        ### Documentation
-        
-        - [QUICKSTART.md](https://github.com/leandromet/yvynation/blob/master/QUICKSTART.md)
-        - [BUILD_SUMMARY.md](https://github.com/leandromet/yvynation/blob/master/BUILD_SUMMARY.md)
-        - [INDEX.md](https://github.com/leandromet/yvynation/blob/master/INDEX.md)
-        
-        ### Technologies
-        
-        - Python 3.8+
-        - Google Earth Engine API
-        - geemap (interactive mapping)
-        - Streamlit (web interface)
-        - pandas, matplotlib, seaborn (analysis & visualization)
-        
-        ### Repository
-        
-        🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet)
-        ''')
+        st.markdown(
+            '''
+            ### Project Overview
+
+            This land use and land cover analysis tool is part of the research project I am
+            developing to study environmental changes in Brazilian Indigenous Territories using
+            Google Earth Engine and MapBiomas data. This data will be compared with policy
+            changes and deforestation trends to understand the impacts on these critical lands.
+
+            Leandro Meneguelli Biondo - PhD Candidate in Sustainability  - IGS/UBCO
+            Supervisor: Dr. Jon Corbett
+
+
+            **Yvynation** is a name for this app, as it is not the full project content.
+
+            "Yvy" (Tupi–Guarani) means land, earth, or territory — emphasizing the ground we walk
+            on and our sacred connection to nature. It often relates to the concept of
+            "Yvy marãe'ỹ" (Land without evil).
+
+            "Nation" refers to a self-governing community or people with shared culture,
+            history, language, and land. It signifies self-determination and governance.
+            <p style="text-align:center">
+                <img src="image-28.png" alt="Yvynation" style="max-width:80%; height:auto; border-radius:8px;" />
+            </p>
+
+            ### Data Sources
+            - **MapBiomas Collection 9**
+              - Resolution: 30 m
+              - Period: 1985–2023 (annual)
+              - Classes: 62 land cover categories
+              - License: Creative Commons Attribution 4.0
+
+            - **Indigenous Territories**
+              - 700+ Brazilian territories
+              - Vector boundaries with attributes
+              - MapBiomas Territories Project
+
+            ### Features
+
+            ✅ Interactive mapping with geemap  
+            ✅ Area calculations and change detection  
+            ✅ Territory filtering by state or name  
+            ✅ Statistical visualizations  
+            ✅ Data export capabilities
+
+            ### Documentation
+
+            - [QUICKSTART.md](https://github.com/leandromet/yvynation/blob/master/QUICKSTART.md)
+            - [BUILD_SUMMARY.md](https://github.com/leandromet/yvynation/blob/master/BUILD_SUMMARY.md)
+            - [INDEX.md](https://github.com/leandromet/yvynation/blob/master/INDEX.md)
+
+            ### Technologies
+
+            - Python 3.8+
+            - Google Earth Engine API
+            - geemap (interactive mapping)
+            - Streamlit (web interface)
+            - pandas, matplotlib, seaborn (analysis & visualization)
+
+            ### Repository
+
+            🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet)
+            '''
+        )
 
 # Footer
 st.divider()
