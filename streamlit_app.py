@@ -9,8 +9,13 @@ import geemap
 import folium
 from folium.plugins import Draw, Fullscreen
 import streamlit_folium
+from streamlit_folium import st_folium
 import pandas as pd
+import json
 from config import PROJECT_ID
+from app_file import YvynationApp
+from analysis import clip_mapbiomas_to_geometry, calculate_area_by_class
+from plots import plot_area_distribution, plot_area_comparison
 from app_file import YvynationApp
 from analysis import filter_territories_by_state, filter_territories_by_names
 from plots import (
@@ -34,8 +39,10 @@ if "app" not in st.session_state:
     st.session_state.app = None
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
-if "results" not in st.session_state:
-    st.session_state.results = None
+if "drawn_geometry" not in st.session_state:
+    st.session_state.drawn_geometry = None
+if "drawn_bounds" not in st.session_state:
+    st.session_state.drawn_bounds = None
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -183,29 +190,108 @@ else:
         1. Click the **Rectangle tool** (top-left) to draw your analysis area
         2. Select layer visibility using layer control (top-right)
         3. Use **Fullscreen** button for better view
-        4. After drawing, analyze your selected area in the "Area Analysis" tab
+        4. Your drawn area will automatically appear in the "Area Analysis" tab
         """)
         
         try:
             m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
-            streamlit_folium.folium_static(m, width=1400, height=700)
+            
+            # Capture map with drawings
+            map_data = st_folium(m, width=1400, height=700)
+            
+            # Extract drawn geometry if available
+            if map_data and map_data.get("last_active_drawing"):
+                drawing = map_data["last_active_drawing"]
+                if drawing:
+                    st.session_state.drawn_geometry = drawing
+                    st.success("✅ Drawing captured! Go to 'Area Analysis' tab to analyze.")
+                    
+                    # Show drawing info
+                    with st.expander("📍 Drawing Details"):
+                        st.json(drawing)
+            
         except Exception as e:
             st.error(f"Map error: {e}")
             st.info("Make sure Earth Engine is properly initialized in the sidebar")
     
     # TAB 2: Area Analysis
+    with tab2:
         st.subheader("Land Cover Area Distribution")
+        
+        # Check if drawn geometry exists
+        if st.session_state.drawn_geometry:
+            st.info("📍 Analyzing your drawn area...")
+            
+            # Analyze drawn area
+            try:
+                drawing = st.session_state.drawn_geometry
+                geom_type = drawing.get('geometry', {}).get('type')
+                coords = drawing.get('geometry', {}).get('coordinates', [])
+                
+                if geom_type == 'Polygon' and coords:
+                    # Create EE geometry from polygon
+                    geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
+                    
+                    # Analyze the drawn area
+                    mapbiomas = st.session_state.app.mapbiomas['v9']
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        year = st.selectbox("Year to Analyze", range(1985, 2024), index=38)
+                    with col2:
+                        pass
+                    
+                    if st.button("Analyze Drawn Area"):
+                        with st.spinner("Analyzing your drawn area..."):
+                            try:
+                                # Get area for selected year
+                                band = f'classification_{year}'
+                                area_df = calculate_area_by_class(
+                                    mapbiomas.select(band),
+                                    geom,
+                                    year
+                                )
+                                
+                                # Display results
+                                st.success(f"✅ Analysis complete for {year}")
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write(f"**Area Distribution in {year}**")
+                                    st.dataframe(area_df.head(20), use_container_width=True)
+                                
+                                with col2:
+                                    fig = plot_area_distribution(area_df, year=year, top_n=12)
+                                    st.pyplot(fig)
+                                
+                            except Exception as e:
+                                st.error(f"Analysis failed: {e}")
+                                st.info(f"Error: {str(e)}")
+                
+                elif geom_type == 'Rectangle' and coords:
+                    # Handle rectangle coordinates
+                    st.info(f"Rectangle detected: {len(coords)} corners")
+                    
+            except Exception as e:
+                st.warning(f"Could not parse drawn geometry: {e}")
+        
+        else:
+            st.info("👈 Draw an area on the Map tab first to analyze it")
+            st.divider()
+        
+        # Default analysis for all territories
+        st.subheader("All Territories Analysis (Default)")
         
         col1, col2 = st.columns(2)
         with col1:
-            start_year = st.slider("Start Year", 1985, 2023, 1985)
+            start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_all")
         with col2:
-            end_year = st.slider("End Year", 1985, 2023, 2023)
+            end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_all")
         
-        if st.button("Analyze Territories"):
-            with st.spinner("Analyzing land cover..."):
+        if st.button("Analyze All Territories"):
+            with st.spinner("Analyzing all territories..."):
                 try:
-                    results = app.analyze_territories(
+                    results = st.session_state.app.analyze_territories(
                         start_year=start_year,
                         end_year=end_year
                     )
