@@ -388,7 +388,28 @@ with tab_mapbiomas:
     # Map column
     with map_col:
         st.subheader("🗺️ Interactive Map")
-        render_map_controls()
+        
+        # Controls and Load Data button in a row
+        col_controls, col_load = st.columns([3, 1])
+        with col_controls:
+            render_map_controls()
+        with col_load:
+            st.write("")
+            if st.button("📦 Load Data", key="load_data_mapbiomas", use_container_width=True):
+                with st.spinner("📦 Loading MapBiomas and territories..."):
+                    try:
+                        app = YvynationApp()
+                        success = app.load_core_data()
+                        if success:
+                            st.session_state.app = app
+                            st.session_state.data_loaded = True
+                            st.success("✅ Data loaded successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to load MapBiomas or territories")
+                    except Exception as e:
+                        st.error(f"❌ Failed to load data: {e}")
+        
         render_map_instructions()
         
         # Initialize base map if not exists
@@ -513,7 +534,28 @@ with tab_hansen:
     # Map column
     with map_col_h:
         st.subheader("🗺️ Interactive Map")
-        render_hansen_map_controls()
+        
+        # Controls and Load Data button in a row
+        col_controls_h, col_load_h = st.columns([3, 1])
+        with col_controls_h:
+            render_hansen_map_controls()
+        with col_load_h:
+            st.write("")
+            if st.button("📦 Load Data", key="load_data_hansen", use_container_width=True):
+                with st.spinner("📦 Loading MapBiomas and territories..."):
+                    try:
+                        app = YvynationApp()
+                        success = app.load_core_data()
+                        if success:
+                            st.session_state.app = app
+                            st.session_state.data_loaded = True
+                            st.success("✅ Data loaded successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to load MapBiomas or territories")
+                    except Exception as e:
+                        st.error(f"❌ Failed to load data: {e}")
+        
         render_map_instructions()
         
         # Initialize base map if not exists
