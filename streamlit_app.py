@@ -38,6 +38,16 @@ if "results" not in st.session_state:
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
 
+# Helper function to display geemap Map in Streamlit
+def display_geemap(geemap_map, height=600):
+    """Display a geemap.Map in Streamlit by converting to folium."""
+    try:
+        # Get the underlying folium map
+        folium_map = geemap_map.to_folium()
+        streamlit_folium.folium_static(folium_map, width=1400, height=height)
+    except Exception as e:
+        st.error(f"Map display error: {e}")
+
 # Initialize EE
 try:
     ee.Initialize(project=PROJECT_ID)
@@ -95,7 +105,7 @@ else:
                         center=[center_lon, center_lat],
                         zoom=zoom
                     )
-                    streamlit_folium.folium_static(Map, width=1400, height=600)
+                    display_geemap(Map, height=600)
                 except Exception as e:
                     st.error(f"Failed to create map: {e}")
 
@@ -221,7 +231,7 @@ else:
                             state_code=state_code,
                             zoom=7
                         )
-                        streamlit_folium.folium_static(Map, width=1400, height=600)
+                        display_geemap(Map, height=600)
                 except Exception as e:
                     st.error(f"Map creation failed: {e}")
         
@@ -239,7 +249,7 @@ else:
                             territory_names=names_list,
                             zoom=9
                         )
-                        streamlit_folium.folium_static(Map, width=1400, height=600)
+                        display_geemap(Map, height=600)
                 except Exception as e:
                     st.error(f"Map creation failed: {e}")
 
