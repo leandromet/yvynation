@@ -95,10 +95,9 @@ def render_hansen_map_controls():
         st.session_state.hansen_year = hansen_year
         
         st.markdown("**About Hansen/GLAD Data:**")
-        st.caption("- Global coverage (2000-2020)")
-        st.caption("- 30-meter resolution")
-        st.caption("- Land cover & land use classification")
-        st.caption("- Learn more: [glad.umd.edu](https://glad.umd.edu/dataset/GLCLUC2020)")
+        st.caption("- Global coverage (2000-2020)           - 30-meter resolution")
+        st.caption("- Land cover & land use classification  - Learn more: [glad.umd.edu](https://glad.umd.edu/dataset/GLCLUC2020)")
+
 
 
 def render_map_instructions():

@@ -36,7 +36,6 @@ def hansen_histogram_to_dataframe(hist, year):
 
 def render_hansen_area_analysis():
     """Render Hansen drawn area analysis section"""
-    st.markdown("### Analyze Drawn Area")
     
     if not st.session_state.drawn_areas:
         st.info("👈 Draw an area on the map to begin analysis")
@@ -51,7 +50,8 @@ def render_hansen_area_analysis():
             "Select drawn area to analyze",
             list(st.session_state.drawn_areas.keys()),
             index=list(st.session_state.drawn_areas.keys()).index(st.session_state.selected_drawn_area) 
-                if st.session_state.selected_drawn_area in st.session_state.drawn_areas else 0
+                if st.session_state.selected_drawn_area in st.session_state.drawn_areas else 0,
+            key="hansen_area_select"
         )
         st.session_state.selected_drawn_area = selected_area
     
@@ -80,7 +80,7 @@ def render_hansen_area_analysis():
                 )
             
             with col_btn:
-                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn_hansen", width="stretch")
+                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn_hansen", use_container_width=True)
             
             if analyze_btn:
                 with st.spinner("Analyzing your drawn area with Hansen data..."):
@@ -112,10 +112,11 @@ def render_hansen_area_analysis():
         
         # Display Hansen area results if available
         if st.session_state.hansen_area_result is not None:
+            st.divider()
             st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
             
             # Create visualization
-            fig, ax = plt.subplots(figsize=(12, 6))
+            fig, ax = plt.subplots(figsize=(10, 5))
             top_classes = st.session_state.hansen_area_result.head(15)
             ax.barh(top_classes['Class'], top_classes['Area_ha'])
             ax.set_xlabel('Area (hectares)')
@@ -126,16 +127,47 @@ def render_hansen_area_analysis():
             st.pyplot(fig)
             
             st.markdown("#### 📋 Detailed Statistics")
-            st.dataframe(st.session_state.hansen_area_result, width="stretch")
+            st.dataframe(st.session_state.hansen_area_result, use_container_width=True)
             st.success("✅ View the drawn area on the map!")
             
     except Exception as e:
         st.error(f"Error: {e}")
+                        
+        # Store for visualization
+        st.session_state.hansen_area_result = df_hansen
+        st.session_state.hansen_area_year = hansen_year
+        st.session_state.last_analyzed_geom = geom
+        st.session_state.last_analyzed_name = "Your Drawn Area"
+        
+        st.success(f"✅ Hansen {hansen_year} data retrieved for your area")
+                        
+    except Exception as e:
+                st.error(f"Analysis failed: {e}")
+        
+    # Display Hansen area results if available
+    if st.session_state.hansen_area_result is not None:
+        st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
+        
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(12, 6))
+        top_classes = st.session_state.hansen_area_result.head(15)
+        ax.barh(top_classes['Class'], top_classes['Area_ha'])
+        ax.set_xlabel('Area (hectares)')
+        ax.set_ylabel('Land Cover Class')
+        ax.set_title(f'Hansen {st.session_state.hansen_area_year} Land Cover Distribution')
+        ax.invert_yaxis()
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        st.markdown("#### 📋 Detailed Statistics")
+        st.dataframe(st.session_state.hansen_area_result, width="stretch")
+        st.success("✅ View the drawn area on the map!")
+            
+
 
 
 def render_hansen_multiyear_analysis():
     """Render Hansen multi-year snapshot comparison"""
-    st.markdown("### Compare Hansen Snapshots")
     
     if st.session_state.last_analyzed_geom is None:
         st.info("👈 First, analyze a drawn area above")
@@ -240,7 +272,6 @@ def render_hansen_multiyear_analysis():
 
 def render_hansen_change_analysis():
     """Render Hansen change detection"""
-    st.markdown("### Change Analysis")
     
     if st.session_state.multiyear_results is None:
         st.info("Run 'Compare Hansen Snapshots' first")

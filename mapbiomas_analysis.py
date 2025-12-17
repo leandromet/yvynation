@@ -13,7 +13,6 @@ from plots import plot_area_distribution, plot_area_comparison, plot_temporal_tr
 
 def render_mapbiomas_area_analysis():
     """Render MapBiomas drawn area analysis section"""
-    st.markdown("### Analyze Drawn Area")
     
     if not st.session_state.drawn_areas:
         st.info("👈 Draw an area on the map to begin analysis")
@@ -97,8 +96,6 @@ def render_mapbiomas_territory_analysis():
     """Render MapBiomas territory analysis section"""
     from analysis import filter_territories_by_names, calculate_area_by_class
     from plots import plot_area_distribution
-    
-    st.markdown("### Analyze Indigenous Territory")
     
     col_search, col_refresh = st.columns([3, 1])
     with col_search:
@@ -206,7 +203,6 @@ def render_mapbiomas_territory_analysis():
 
 def render_mapbiomas_multiyear_analysis():
     """Render MapBiomas multi-year territory analysis section"""
-    st.markdown("### Multi-Year Territory Analysis")
     
     if "app" not in st.session_state or st.session_state.app is None:
         st.info("Load data first to enable multi-year analysis")
@@ -294,7 +290,6 @@ def render_mapbiomas_multiyear_analysis():
 
 def render_mapbiomas_change_analysis():
     """Render MapBiomas change detection section"""
-    st.markdown("### Change Between Years")
     
     if st.session_state.multiyear_results is None:
         st.info("Run analysis in the 'Multi-Year Territory Analysis' section first")

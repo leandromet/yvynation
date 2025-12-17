@@ -203,24 +203,6 @@ if not st.session_state.data_loaded:
 
 st.sidebar.divider()
 
-# Data info
-if st.session_state.data_loaded:
-    st.sidebar.success("✅ Data is loaded")
-else:
-    st.sidebar.info("Data not yet loaded")
-
-st.sidebar.divider()
-
-# About
-with st.sidebar.expander("ℹ️ About"):
-    st.markdown("""
-    **Yvynation** analyzes land cover change using:
-    - **MapBiomas**: Brazilian classification (1985-2023)
-    - **Hansen/GLAD**: Global snapshots (2000-2020)
-    
-    Select a tab above to get started.
-    """)
-
 # ============================================================================
 # MAP CREATION FUNCTION (MUST BE DEFINED BEFORE TABS)
 # ============================================================================
