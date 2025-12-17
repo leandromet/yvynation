@@ -75,13 +75,25 @@ def render_hansen_map_controls():
         
         col1, col2 = st.columns(2)
         with col1:
-            center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.hansen_center_lat, key="lat_hansen")
+            center_lat = st.slider(
+                "Latitude",
+                -60.0,
+                75.0,
+                float(st.session_state.hansen_center_lat),
+                key="lat_hansen",
+            )
             st.session_state.hansen_center_lat = center_lat
         with col2:
-            center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.hansen_center_lon, key="lon_hansen")
+            center_lon = st.slider(
+                "Longitude",
+                -170.0,
+                -30.0,
+                float(st.session_state.hansen_center_lon),
+                key="lon_hansen",
+            )
             st.session_state.hansen_center_lon = center_lon
         
-        zoom = st.slider("Zoom", 4, 13, st.session_state.hansen_zoom, key="zoom_hansen")
+        zoom = st.slider("Zoom", 2, 10, int(st.session_state.hansen_zoom), key="zoom_hansen")
         st.session_state.hansen_zoom = zoom
         
         st.divider()
