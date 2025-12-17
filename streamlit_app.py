@@ -483,19 +483,19 @@ with tab_mapbiomas:
                     map_data = st_folium(st.session_state.map_object, width=700, height=600)
                     
                     if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                    for idx, drawing in enumerate(map_data["all_drawings"]):
-                        geom_data = drawing["geometry"]
-                        geom_type = geom_data.get("type", "Unknown")
-                        area_name = f"Area {st.session_state.drawn_area_count + idx + 1} ({geom_type})"
-                        
-                        if area_name not in st.session_state.drawn_areas:
-                            st.session_state.drawn_areas[area_name] = geom_data
-                            st.session_state.drawn_area_count += 1
-                            st.session_state.selected_drawn_area = area_name
-                        else:
-                            st.session_state.drawn_areas[area_name] = geom_data
-            except Exception as e:
-                st.warning(f"⏳ Map loading... {str(e)[:50]}")
+                        for idx, drawing in enumerate(map_data["all_drawings"]):
+                            geom_data = drawing["geometry"]
+                            geom_type = geom_data.get("type", "Unknown")
+                            area_name = f"Area {st.session_state.drawn_area_count + idx + 1} ({geom_type})"
+                            
+                            if area_name not in st.session_state.drawn_areas:
+                                st.session_state.drawn_areas[area_name] = geom_data
+                                st.session_state.drawn_area_count += 1
+                                st.session_state.selected_drawn_area = area_name
+                            else:
+                                st.session_state.drawn_areas[area_name] = geom_data
+                except Exception as e:
+                    st.warning(f"⏳ Map loading... {str(e)[:50]}")
         else:
             st.info("Click 'Load Core Data' in the sidebar to enable the map")
     
