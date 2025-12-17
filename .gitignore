@@ -27,3 +27,9 @@ config_local.py
 data/raw/
 output/
 *.ipynb
+*.md
+*.csv
+*.geojson
+*.gpkg
+*.kmz
+.gitkeep
