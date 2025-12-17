@@ -283,7 +283,9 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
     
     fig.update_layout(
         title=f'Land Cover Transitions ({year_start} to {year_end})',
-        font=dict(size=14),
+        font=dict(family="Arial, Helvetica, sans-serif", size=14, color="#111111"),
+        title_font=dict(family="Arial, Helvetica, sans-serif", size=18, color="#111111"),
+        hoverlabel=dict(font=dict(family="Arial, Helvetica, sans-serif", size=12)),
         height=1200,
         width=1200
     )
