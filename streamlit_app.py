@@ -275,71 +275,13 @@ else:
                 st.info("👈 Draw an area on the Map tab first")
         
         with col2:
-            st.markdown("### Option 2: Select from Map")
-            st.info("Click on a territory in the map below to select it for analysis")
-        
-        st.divider()
-        
-        # Territory selection map
-        st.subheader("🗺️ Indigenous Territories Map - Click to Select")
-        
-        try:
-            # Create map centered on Brazil
-            territory_map = folium.Map(
-                location=[-10.0, -55.0],
-                zoom_start=4,
-                tiles='OpenStreetMap'
-            )
-            
-            # Add territories with click popup
-            if st.session_state.app and st.session_state.app.territories:
-                territories_fc = st.session_state.app.territories
-                
-                # Get territory features as GeoJSON
-                geojson_data = territories_fc.getInfo()
-                
-                # Add territories with info popup
-                for feature in geojson_data.get('features', []):
-                    territory_name = feature.get('properties', {}).get('name', 'Unknown')
-                    
-                    # Create popup with territory info and analysis button
-                    popup_text = f"""
-                    <div style="font-size: 12px; width: 150px;">
-                        <b>{territory_name}</b><br/>
-                        <small>Click the map to select this territory</small>
-                    </div>
-                    """
-                    
-                    # Add GeoJSON feature to map
-                    folium.GeoJson(
-                        feature,
-                        style_function=lambda x: {
-                            'fillColor': '#ff6b6b',
-                            'color': '#cc0000',
-                            'weight': 2,
-                            'opacity': 0.8,
-                            'fillOpacity': 0.3
-                        },
-                        popup=folium.Popup(popup_text, max_width=200)
-                    ).add_to(territory_map)
-                
-                Fullscreen().add_to(territory_map)
-                
-            # Display map and capture clicks
-            map_data = st_folium(territory_map, width=1400, height=500)
-            
-            # Check if a territory was clicked/selected
-            if map_data and map_data.get("last_clicked"):
-                clicked_coords = map_data["last_clicked"]
-                st.info(f"📍 Territory selected at coordinates: {clicked_coords}")
-        
-        except Exception as e:
-            st.warning(f"Territory map error: {e}")
+            st.markdown("### Option 2: Quick Territory Search")
+            st.info("Use the search below to find and analyze any territory")
         
         st.divider()
         
         # Quick search and analyze
-        st.subheader("🔍 Quick Territory Search")
+        st.subheader("🔍 Quick Territory Search & Analyze")
         
         col_search1, col_search2 = st.columns([2, 1])
         
@@ -347,17 +289,13 @@ else:
             try:
                 if st.session_state.app and st.session_state.app.territories:
                     territories_fc = st.session_state.app.territories
-                    territory_geojson = territories_fc.getInfo()
                     
-                    # Extract territory names
-                    territory_names = sorted([
-                        f.get('properties', {}).get('name', 'Unknown')
-                        for f in territory_geojson.get('features', [])
-                    ])
+                    # Get territory names from Earth Engine
+                    territory_names = sorted(territories_fc.aggregate_array('name').getInfo())
                     
                     if territory_names:
                         selected_territory = st.selectbox(
-                            "Search and select a territory",
+                            "Search and select a territory (634 territories available)",
                             territory_names,
                             key="territory_search"
                         )
@@ -368,36 +306,31 @@ else:
                             if st.button("Analyze Selected Territory", key="btn_analyze_territory"):
                                 with st.spinner(f"Analyzing {selected_territory}..."):
                                     try:
-                                        # Find the territory geometry
-                                        territory_geom = None
-                                        for feature in territory_geojson.get('features', []):
-                                            if feature.get('properties', {}).get('name') == selected_territory:
-                                                territory_geom = ee.Geometry(feature['geometry'])
-                                                break
+                                        # Filter to selected territory
+                                        territory_geom = territories_fc.filter(
+                                            ee.Filter.eq('name', selected_territory)
+                                        ).first().geometry()
                                         
-                                        if territory_geom:
-                                            # Analyze
-                                            mapbiomas = st.session_state.app.mapbiomas_v9
-                                            band = f'classification_{year}'
-                                            
-                                            area_df = calculate_area_by_class(
-                                                mapbiomas.select(band),
-                                                territory_geom,
-                                                year
-                                            )
-                                            
-                                            st.success(f"✅ Analysis complete for {selected_territory} ({year})")
-                                            
-                                            col_a, col_b = st.columns(2)
-                                            with col_a:
-                                                st.write(f"**Land Cover in {selected_territory} ({year})**")
-                                                st.dataframe(area_df.head(15), use_container_width=True)
-                                            
-                                            with col_b:
-                                                fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                                st.pyplot(fig)
-                                        else:
-                                            st.error(f"Could not find geometry for {selected_territory}")
+                                        # Analyze
+                                        mapbiomas = st.session_state.app.mapbiomas_v9
+                                        band = f'classification_{year}'
+                                        
+                                        area_df = calculate_area_by_class(
+                                            mapbiomas.select(band),
+                                            territory_geom,
+                                            year
+                                        )
+                                        
+                                        st.success(f"✅ Analysis complete for {selected_territory} ({year})")
+                                        
+                                        col_a, col_b = st.columns(2)
+                                        with col_a:
+                                            st.write(f"**Land Cover in {selected_territory} ({year})**")
+                                            st.dataframe(area_df.head(15), use_container_width=True)
+                                        
+                                        with col_b:
+                                            fig = plot_area_distribution(area_df, year=year, top_n=10)
+                                            st.pyplot(fig)
                                     
                                     except Exception as e:
                                         st.error(f"Analysis failed: {e}")
@@ -406,7 +339,6 @@ else:
             
             except Exception as e:
                 st.warning(f"Territory search error: {e}")
-                st.info(f"Details: {str(e)}")
         
         st.divider()
         
