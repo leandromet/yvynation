@@ -1,29 +1,46 @@
 """
-Main entry point for the Yvynation Earth Engine application.
+Main entry point for Yvynation Earth Engine application.
 """
 
 import ee
-from config import PROJECT_ID, REGION_OF_INTEREST
+from config import PROJECT_ID
+from load_data import load_mapbiomas, load_territories, load_spot_analytic, classify_spot_ndvi
+
 
 def initialize_ee():
-    """Initialize Earth Engine."""
+    """Initialize Earth Engine with project credentials."""
     try:
         ee.Initialize(project=PROJECT_ID)
-        print(f"✓ Earth Engine initialized with project: {PROJECT_ID}")
+        print(f"✓ Earth Engine initialized")
+        return True
     except Exception as e:
-        print(f"✗ Failed to initialize Earth Engine: {e}")
-        raise
+        print(f"✗ EE initialization failed: {e}")
+        return False
+
 
 def main():
-    """Main application logic."""
-    initialize_ee()
+    """Main application workflow."""
+    if not initialize_ee():
+        return
     
-    # Example: Load and process a dataset
-    # roi = ee.Geometry.Rectangle(REGION_OF_INTEREST)
-    # dataset = ee.ImageCollection('COPERNICUS/S2').filterBounds(roi)
-    # print(f"✓ Loaded {dataset.size().getInfo()} Sentinel-2 images")
+    print("\n=== Yvynation Earth Engine Application ===\n")
     
-    print("✓ Yvynation Earth Engine app initialized successfully")
+    # Load datasets
+    try:
+        mapbiomas = load_mapbiomas('v9')
+        territories = load_territories('indigenous')
+        spot_image = load_spot_analytic()
+    except Exception as e:
+        print(f"✗ Failed to load data: {e}")
+        return
+    
+    # Example: Classify SPOT data
+    if spot_image:
+        classification = classify_spot_ndvi(spot_image)
+        print(f"✓ Classification bands: {classification.bandNames().getInfo()}")
+    
+    print("\n✓ Application ready for analysis")
+
 
 if __name__ == "__main__":
     main()
