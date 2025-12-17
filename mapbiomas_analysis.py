@@ -113,7 +113,12 @@ def render_mapbiomas_territory_analysis():
             st.rerun()
     
     try:
-        territories_fc = filter_territories_by_state(state)
+        territories = st.session_state.app.territories
+        if territories is None:
+            st.error("Territories not loaded. Please click 'Load Core Data' first.")
+            return
+        
+        territories_fc = filter_territories_by_state(territories, state)
         
         if territories_fc is None:
             st.error(f"No territories found in {state}")
@@ -131,10 +136,11 @@ def render_mapbiomas_territory_analysis():
             with st.spinner(f"Analyzing {territory_name}..."):
                 try:
                     mapbiomas = st.session_state.app.mapbiomas_v9
-                    territories = filter_territories_by_names([territory_name])
+                    territories = st.session_state.app.territories
+                    filtered_territories = filter_territories_by_names(territories, [territory_name])
                     
-                    if territories:
-                        geom = territories.first().geometry()
+                    if filtered_territories:
+                        geom = filtered_territories.first().geometry()
                         band = f'classification_{territory_year}'
                         
                         area_df = calculate_area_by_class(

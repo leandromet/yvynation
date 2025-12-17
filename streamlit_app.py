@@ -355,7 +355,7 @@ with tab_mapbiomas:
                     )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(st.session_state.map_object, width=400, height=500)
+                map_data = st_folium(st.session_state.map_object, width=700, height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     for idx, drawing in enumerate(map_data["all_drawings"]):
@@ -424,7 +424,7 @@ with tab_hansen:
                 )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(hansen_map, width=400, height=500)
+                map_data = st_folium(hansen_map, width=700, height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     for idx, drawing in enumerate(map_data["all_drawings"]):
