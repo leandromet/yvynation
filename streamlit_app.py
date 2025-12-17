@@ -170,38 +170,31 @@ if not st.session_state.data_loaded:
 else:
     app = st.session_state.app
 
-    # Tabs - skip interactive maps for now, focus on working analysis
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["🗺️ Map", "📊 Area Analysis", "📈 Change Detection", "ℹ️ About"]
-    )
-
-    # TAB 1: Map
-    with tab1:
-        st.subheader("Interactive Map with Drawing Tools")
+    # Create two-column layout: Map on left, Analysis on right
+    map_col, analysis_col = st.columns([1.2, 1], gap="medium")
+    
+    # LEFT COLUMN: Interactive Map (stays persistent)
+    with map_col:
+        st.subheader("🗺️ Interactive Map with Drawing Tools")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.map_center_lat, key="lat")
-            st.session_state.map_center_lat = center_lat
-        with col2:
-            center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.map_center_lon, key="lon")
-            st.session_state.map_center_lon = center_lon
-        
-        zoom = st.slider("Zoom", 4, 13, st.session_state.map_zoom, key="zoom")
-        st.session_state.map_zoom = zoom
+        with st.expander("Map Controls", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.map_center_lat, key="lat")
+                st.session_state.map_center_lat = center_lat
+            with col2:
+                center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.map_center_lon, key="lon")
+                st.session_state.map_center_lon = center_lon
+            
+            zoom = st.slider("Zoom", 4, 13, st.session_state.map_zoom, key="zoom")
+            st.session_state.map_zoom = zoom
         
         st.markdown("""
-        ### Map Layers & Instructions
-        
-        **Available Layers:**
-        - 🌍 **MapBiomas 2023** - Land cover classification (62 classes)
-        - 🏘️ **Indigenous Territories** - Official boundaries (red)
-        
         **How to Use:**
-        1. Click the **Rectangle tool** (top-left) to draw your analysis area
-        2. Select layer visibility using layer control (top-right)
-        3. Use **Fullscreen** button for better view
-        4. Your drawn area will automatically appear in the "Area Analysis" tab
+        - Click the **Rectangle tool** (top-left) to draw your analysis area
+        - Select layer visibility using layer control (top-right)
+        - Use **Fullscreen** button for better view
+        - Your drawn area will appear in the analysis tab
         """)
         
         try:
@@ -209,32 +202,37 @@ else:
             m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
             
             # Capture map with drawings - use key to prevent rerun issues
-            map_data = st_folium(m, width=1400, height=700, key="main_map")
+            map_data = st_folium(m, width=None, height=700, key="main_map")
             
             # Extract drawn geometry if available
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
                     st.session_state.drawn_geometry = drawing
-                    st.success("✅ Drawing captured! Go to 'Area Analysis' tab to analyze.")
-                    
-                    # Show drawing info
-                    with st.expander("📍 Drawing Details"):
-                        st.json(drawing)
+                    st.success("✅ Drawing captured!")
             
         except Exception as e:
             st.error(f"Map error: {e}")
             st.info("Make sure Earth Engine is properly initialized in the sidebar")
     
-    # TAB 2: Area Analysis
-    with tab2:
-        st.subheader("Land Cover Area Distribution")
+    # RIGHT COLUMN: Analysis Tabs
+    with analysis_col:
+        st.subheader("📊 Analysis Tools")
         
-        # Option 1: Analyze drawn area
-        col1, col2 = st.columns([1, 1])
+        # Tabs within the right column only
+        tab1, tab2, tab3 = st.tabs(
+            ["Area Analysis", "Change Detection", "About"]
+        )
         
-        with col1:
-            st.markdown("### Option 1: Analyze Drawn Area")
+        # TAB 1: Area Analysis
+        with tab1:
+            st.subheader("Land Cover Area Distribution")
+            
+            # Option 1: Analyze drawn area
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.markdown("### Option 1: Analyze Drawn Area")
             
             if st.session_state.drawn_geometry:
                 st.success("✅ Drawing detected from map")
@@ -322,7 +320,7 @@ else:
                                             st_folium(m, width=1200, height=500)
                                         except Exception as map_e:
                                             st.error(f"Could not display map: {map_e}")
-                                    
+                                
                                 except Exception as e:
                                     st.error(f"Analysis failed: {e}")
                         
@@ -333,28 +331,26 @@ else:
                     st.warning(f"Could not parse drawn geometry: {e}")
             else:
                 st.info("👈 Draw an area on the Map tab first")
-        
-        with col2:
-            st.markdown("### Option 2: Quick Territory Search")
-            st.info("Use the search below to find and analyze any territory")
-        
-        st.divider()
-        
-        # Quick search and analyze
-        st.subheader("🔍 Quick Territory Search & Analyze")
-        
-        col_search1, col_search2 = st.columns([2, 1])
-        
-        with col_search1:
-            try:
-                # Check if app is loaded
+            
+            with col2:
+                st.markdown("### Option 2: Quick Territory Search")
+                st.info("Use the search below to find and analyze any territory")
+            
+            st.divider()
+            
+            # Quick search and analyze
+            st.subheader("🔍 Quick Territory Search & Analyze")
+            
+            col_search1, col_search2 = st.columns([2, 1])
+            
+            with col_search1:
                 if "app" not in st.session_state or st.session_state.app is None:
                     st.error("❌ Please click 'Load Core Data' in the sidebar first")
                 else:
-                    territories_fc = st.session_state.app.territories
-                    
-                    # Debug: Check what properties are available
                     try:
+                        territories_fc = st.session_state.app.territories
+                        
+                        # Debug: Check what properties are available
                         # Get first feature to see what properties exist
                         first_feature = territories_fc.first().getInfo()
                         available_props = list(first_feature.get('properties', {}).keys()) if first_feature else []
@@ -447,7 +443,7 @@ else:
                                                         territory_geojson = territory_geom.getInfo()
                                                         folium.GeoJson(
                                                             territory_geojson,
-                                                            style_function=lambda x: {
+                                                            style_function=lambda feature: {
                                                                 'color': 'red',
                                                                 'weight': 3,
                                                                 'opacity': 0.8,
@@ -460,136 +456,123 @@ else:
                                                         st_folium(m, width=1200, height=500)
                                                     except Exception as map_e:
                                                         st.error(f"Could not display map: {map_e}")
-                                            
                                             except Exception as e:
                                                 st.error(f"Analysis failed: {e}")
-                            
-                            else:
-                                st.warning("No territories found in the collection")
-                    
                     except Exception as e:
-                        st.error(f"Territory search initialization error: {e}")
-                        st.info("This may occur if the territories dataset is not properly loaded.")
+                        st.error(f"Error loading territories: {e}")
+
+            st.divider()
             
-            except Exception as e:
-                st.warning(f"Territory search error: {e}")
-        
-        st.divider()
-        
-        # Option 3: Default analysis for all territories
-        st.markdown("### Option 3: Analyze All Territories")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_all")
-        with col2:
-            end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_all")
-        
-        if st.button("Analyze All Territories"):
-            with st.spinner("Analyzing all territories..."):
-                try:
-                    results = st.session_state.app.analyze_territories(
-                        start_year=start_year,
-                        end_year=end_year
-                    )
-                    st.session_state.results = results
-                    
-                    # Display area tables
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write(f"**Area Distribution in {start_year}**")
-                        st.dataframe(
-                            results["area_start"].head(15),
-                            use_container_width=True
-                        )
-                    
-                    with col2:
-                        st.write(f"**Area Distribution in {end_year}**")
-                        st.dataframe(
-                            results["area_end"].head(15),
-                            use_container_width=True
-                        )
-                except Exception as e:
-                    st.error(f"Analysis failed: {e}")
-        
-        # Display charts if results exist
-        if st.session_state.results:
-            st.subheader("Visualizations")
+            # Option 3: Default analysis for all territories
+            st.markdown("### Option 3: Analyze All Territories")
             
             col1, col2 = st.columns(2)
-            
             with col1:
-                try:
-                    fig1 = plot_area_distribution(
-                        st.session_state.results["area_start"],
-                        year=start_year,
-                        top_n=12
-                    )
-                    st.pyplot(fig1)
-                except Exception as e:
-                    st.warning(f"Chart rendering issue: {e}")
-            
+                start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_all")
             with col2:
-                try:
-                    fig2 = plot_area_comparison(
-                        st.session_state.results["area_start"],
-                        st.session_state.results["area_end"],
-                        start_year,
-                        end_year,
-                        top_n=12
-                    )
-                    st.pyplot(fig2)
-                except Exception as e:
-                    st.warning(f"Chart rendering issue: {e}")
-
-    # TAB 3: Change Detection
-    with tab3:
-        st.subheader("Land Cover Change Analysis")
-        
-        if st.session_state.results is None:
-            st.info("Run analysis in the 'Area Analysis' tab first")
-        else:
-            results = st.session_state.results
+                end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_all")
             
-            # Change table
-            st.write("**Land Cover Changes (km²)**")
-            comparison = results["comparison"].head(20)
-            st.dataframe(comparison, use_container_width=True)
+            if st.button("Analyze All Territories"):
+                with st.spinner("Analyzing all territories..."):
+                    try:
+                        results = st.session_state.app.analyze_territories(
+                            start_year=start_year,
+                            end_year=end_year
+                        )
+                        st.session_state.results = results
+                        
+                        # Display area tables
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.write(f"**Area Distribution in {start_year}**")
+                            st.dataframe(
+                                results["area_start"].head(15),
+                                use_container_width=True
+                            )
+                        
+                        with col2:
+                            st.write(f"**Area Distribution in {end_year}**")
+                            st.dataframe(
+                                results["area_end"].head(15),
+                                use_container_width=True
+                            )
+                    except Exception as e:
+                        st.error(f"Analysis failed: {e}")
             
-            # Change visualization
-            try:
+            # Display charts if results exist
+            if st.session_state.results:
+                st.subheader("Visualizations")
+                
                 col1, col2 = st.columns(2)
                 
                 with col1:
+                    try:
+                        fig1 = plot_area_distribution(
+                            st.session_state.results["area_start"],
+                            year=start_year,
+                            top_n=12
+                        )
+                        st.pyplot(fig1)
+                    except Exception as e:
+                        st.warning(f"Chart rendering issue: {e}")
+                
+                with col2:
+                    try:
+                        fig2 = plot_area_comparison(
+                            st.session_state.results["area_start"],
+                            st.session_state.results["area_end"],
+                            start_year,
+                            end_year,
+                            top_n=12
+                        )
+                        st.pyplot(fig2)
+                    except Exception as e:
+                        st.warning(f"Chart rendering issue: {e}")
+        
+        # TAB 2: Change Detection
+        with tab2:
+            st.subheader("Land Cover Change Analysis")
+            
+            if st.session_state.results is None:
+                st.info("Run analysis in the 'Area Analysis' tab first")
+            else:
+                results = st.session_state.results
+                
+                # Change table
+                st.write("**Land Cover Changes (km²)**")
+                comparison = results["comparison"].head(20)
+                st.dataframe(comparison, use_container_width=True)
+                
+                # Change visualization
+                try:
                     fig = plot_area_changes(comparison, start_year, end_year)
                     if fig:
                         st.pyplot(fig)
-                
-                with col2:
+                    
                     fig2 = plot_temporal_trend(
                         [results["area_start"], results["area_end"]],
                         [start_year, end_year],
                         top_n=8
                     )
                     st.pyplot(fig2)
-            except Exception as e:
-                st.warning(f"Visualization issue: {e}")
+                except Exception as e:
+                    st.warning(f"Visualization issue: {e}")
 
-    # TAB 4: About
-    with tab4:
-        st.subheader("About Yvynation")
-        
-        st.markdown("""
-        ### Project Overview
-        
-        **Yvynation** is an Earth Engine analysis application for studying land cover 
-        change in Brazilian Indigenous Territories.
-        
-        ### Data Sources
-        
-        - **MapBiomas Collection 9**
-          - Resolution: 30m
+        # TAB 3: About
+        with tab3:
+            st.subheader("About Yvynation")
+            
+            st.markdown("""
+            ### Project Overview
+            
+            **Yvynation** is an Earth Engine analysis application for studying land cover 
+            change in Brazilian Indigenous Territories.
+            
+            ### Data Sources
+            
+            - **MapBiomas Collection 9**
+              - Resolution: 30m
           - Period: 1985-2023 (annual)
           - Classes: 62 land cover categories
           - License: Creative Commons Attribution 4.0
