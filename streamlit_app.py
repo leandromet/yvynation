@@ -6,6 +6,7 @@ Interactive Streamlit web app for MapBiomas and Indigenous Territories analysis
 import streamlit as st
 import ee
 import geemap
+import folium
 import streamlit_folium
 import pandas as pd
 from config import PROJECT_ID
@@ -37,6 +38,42 @@ if "results" not in st.session_state:
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
+
+def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
+    """Create a folium map with Earth Engine layers."""
+    m = folium.Map(
+        location=[center[1], center[0]],
+        zoom_start=zoom,
+        tiles='OpenStreetMap'
+    )
+    
+    try:
+        # Add MapBiomas 2023 layer
+        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+        classification_2023 = mapbiomas.select('classification_2023')
+        
+        # Create a simple visualization
+        vis_params = {
+            'min': 0,
+            'max': 62,
+            'palette': ['#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000']
+        }
+        
+        # Get map tile URL
+        mapid = ee.Image(classification_2023).getMapId(vis_params)
+        folium.TileLayer(
+            tiles=mapid['tile_fetcher'].url_format,
+            attr='MapBiomas',
+            name='MapBiomas 2023',
+            overlay=True,
+            control=True
+        ).add_to(m)
+        
+    except Exception as e:
+        st.warning(f"Could not load MapBiomas layer: {e}")
+    
+    folium.LayerControl().add_to(m)
+    return m
 
 # Initialize EE
 try:
@@ -71,12 +108,32 @@ else:
     app = st.session_state.app
 
     # Tabs - skip interactive maps for now, focus on working analysis
-    tab1, tab2, tab3 = st.tabs(
-        ["📊 Area Analysis", "📈 Change Detection", "ℹ️ About"]
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["🗺️ Map", "📊 Area Analysis", "📈 Change Detection", "ℹ️ About"]
     )
 
-    # TAB 1: Area Analysis
+    # TAB 1: Map
     with tab1:
+        st.subheader("MapBiomas 2023 with Earth Engine Tiles")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            center_lat = st.slider("Latitude", -33.0, 5.0, -4.5, key="lat")
+        with col2:
+            center_lon = st.slider("Longitude", -75.0, -35.0, -45.3, key="lon")
+        
+        zoom = st.slider("Zoom", 4, 13, 7, key="zoom")
+        
+        st.info("🗺️ Displaying MapBiomas Collection 9 - 2023 Land Cover Classification")
+        
+        try:
+            m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
+            streamlit_folium.folium_static(m, width=1400, height=600)
+        except Exception as e:
+            st.error(f"Map error: {e}")
+            st.info("Make sure Earth Engine is properly initialized in the sidebar")
+    
+    # TAB 2: Area Analysis
         st.subheader("Land Cover Area Distribution")
         
         col1, col2 = st.columns(2)
@@ -143,8 +200,8 @@ else:
                 except Exception as e:
                     st.warning(f"Chart rendering issue: {e}")
 
-    # TAB 2: Change Detection
-    with tab2:
+    # TAB 3: Change Detection
+    with tab3:
         st.subheader("Land Cover Change Analysis")
         
         if st.session_state.results is None:
@@ -175,8 +232,8 @@ else:
             except Exception as e:
                 st.warning(f"Visualization issue: {e}")
 
-    # TAB 3: About
-    with tab3:
+    # TAB 4: About
+    with tab4:
         st.subheader("About Yvynation")
         
         st.markdown("""
