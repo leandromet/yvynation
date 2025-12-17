@@ -426,6 +426,17 @@ with analysis_col:
                                                     ee.Filter.eq(name_prop, selected_territory)
                                                 ).first().geometry()
                                                 
+                                                # Get bounds and zoom map
+                                                bounds_info = territory_geom.bounds().getInfo()
+                                                if bounds_info and bounds_info.get('coordinates'):
+                                                    coords = bounds_info['coordinates'][0]
+                                                    lons = [c[0] for c in coords]
+                                                    lats = [c[1] for c in coords]
+                                                    bounds = [[min(lats), min(lons)], [max(lats), max(lons)]]
+                                                    
+                                                    if st.session_state.map_object:
+                                                        zoom_to_bounds(st.session_state.map_object, bounds)
+                                                
                                                 # Analyze
                                                 mapbiomas = st.session_state.app.mapbiomas_v9
                                                 band = f'classification_{year}'
@@ -440,7 +451,7 @@ with analysis_col:
                                                 st.session_state.last_analyzed_geom = territory_geom
                                                 st.session_state.last_analyzed_name = selected_territory
                                                 
-                                                st.success(f"✅ Analysis complete for {selected_territory} ({year})")
+                                                st.success(f"✅ Analysis complete for {selected_territory} ({year}) - Map zoomed to territory")
                                                 
                                                 col_a, col_b = st.columns(2)
                                                 with col_a:
