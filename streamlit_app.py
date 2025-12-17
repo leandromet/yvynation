@@ -170,6 +170,36 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     folium.LayerControl().add_to(m)
     return m
 
+def get_bounds_from_geometry(geom):
+    """Extract bounds from GeoJSON geometry and return as [[south, west], [north, east]]."""
+    try:
+        coords = geom.get('coordinates', [])
+        if not coords:
+            return None
+        
+        # Handle Polygon or Rectangle
+        if geom.get('type') in ['Polygon', 'MultiPolygon']:
+            # Flatten all coordinates
+            all_coords = []
+            if geom.get('type') == 'Polygon':
+                all_coords = coords[0] if coords else []
+            else:
+                for poly in coords:
+                    all_coords.extend(poly[0] if poly else [])
+            
+            if all_coords:
+                lons = [c[0] for c in all_coords]
+                lats = [c[1] for c in all_coords]
+                return [[min(lats), min(lons)], [max(lats), max(lons)]]
+    except Exception as e:
+        st.warning(f"Could not extract bounds: {e}")
+    return None
+
+def zoom_to_bounds(m, bounds):
+    """Add fit_bounds to map if bounds available."""
+    if bounds:
+        m.fit_bounds(bounds, padding=(0.1, 0.1))
+
 # Initialize EE
 try:
     ee.Initialize(project=PROJECT_ID)
@@ -250,12 +280,17 @@ with map_col:
             # Capture map with drawings - use key to prevent rerun issues
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
-            # Extract drawn geometry if available
+            # Extract drawn geometry if available and zoom to it
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
                     st.session_state.drawn_geometry = drawing
-                    st.success("✅ Drawing captured!")
+                    # Zoom to drawn area
+                    bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
+                    if bounds:
+                        zoom_to_bounds(m, bounds)
+                        st.session_state.map_object = m
+                    st.success("✅ Drawing captured! Map zoomed to your area.")
         else:
             st.warning("⏳ Waiting for map to load...")
         
