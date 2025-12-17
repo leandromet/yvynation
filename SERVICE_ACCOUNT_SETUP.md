@@ -93,25 +93,29 @@ ee_project_id = "ee-leandromet"
 
 ## Step 8: Update Your Application Code
 
-Your `streamlit_app.py` already imports `ee` and initializes it. Update the initialization at the top:
+Your `streamlit_app.py` is already updated with proper Earth Engine initialization including required OAuth scopes:
 
 ```python
 import ee
 import streamlit as st
-import json
 from google.oauth2 import service_account
 
 # Initialize Earth Engine with service account
 @st.cache_resource
-def init_ee():
+def init_earth_engine():
     """Initialize Earth Engine with service account credentials."""
     try:
-        # Try to get credentials from Streamlit secrets
-        if "google" in st.secrets:
+        if "type" in st.secrets and st.secrets["type"] == "service_account":
+            creds_dict = dict(st.secrets)
+            # Add required Earth Engine scopes
             credentials = service_account.Credentials.from_service_account_info(
-                st.secrets["google"]
+                creds_dict,
+                scopes=[
+                    'https://www.googleapis.com/auth/earthengine',
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ]
             )
-            ee.Initialize(credentials)
+            ee.Initialize(credentials, project=st.secrets.get("ee_project_id"))
         else:
             # Fallback to default authentication (local development)
             ee.Initialize()
@@ -119,8 +123,13 @@ def init_ee():
         st.error(f"Earth Engine initialization failed: {e}")
         st.stop()
 
-init_ee()
+init_earth_engine()
 ```
+
+**Key points:**
+- Scopes are required for Earth Engine API access
+- `earthengine` scope allows Earth Engine API usage
+- `cloud-platform` scope provides general Google Cloud access
 
 ## Step 9: Test Locally (Optional)
 

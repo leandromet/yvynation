@@ -386,7 +386,14 @@ def init_earth_engine():
                 st.sidebar.info("📝 Using service account from secrets (flat format)")
                 try:
                     creds_dict = dict(st.secrets)
-                    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+                    # Add required Earth Engine scopes
+                    credentials = service_account.Credentials.from_service_account_info(
+                        creds_dict,
+                        scopes=[
+                            'https://www.googleapis.com/auth/earthengine',
+                            'https://www.googleapis.com/auth/cloud-platform'
+                        ]
+                    )
                     ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
                     has_credentials = True
                 except Exception as e:
@@ -397,7 +404,14 @@ def init_earth_engine():
                 st.sidebar.info("📝 Using service account from [google] section")
                 try:
                     creds_dict = dict(st.secrets["google"])
-                    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+                    # Add required Earth Engine scopes
+                    credentials = service_account.Credentials.from_service_account_info(
+                        creds_dict,
+                        scopes=[
+                            'https://www.googleapis.com/auth/earthengine',
+                            'https://www.googleapis.com/auth/cloud-platform'
+                        ]
+                    )
                     ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
                     has_credentials = True
                 except Exception as e:
