@@ -58,15 +58,23 @@ if "data_loaded" not in st.session_state:
 if "ee_module" not in st.session_state:
     st.session_state.ee_module = None
 
-# Map state
-if "map_center_lat" not in st.session_state:
-    st.session_state.map_center_lat = -4.5
-if "map_center_lon" not in st.session_state:
-    st.session_state.map_center_lon = -45.3
-if "map_zoom" not in st.session_state:
-    st.session_state.map_zoom = 7
+# Map state - MapBiomas (Brazil)
+if "mapbiomas_center_lat" not in st.session_state:
+    st.session_state.mapbiomas_center_lat = -14.2
+if "mapbiomas_center_lon" not in st.session_state:
+    st.session_state.mapbiomas_center_lon = -51.9
+if "mapbiomas_zoom" not in st.session_state:
+    st.session_state.mapbiomas_zoom = 4
 if "map_object" not in st.session_state:
     st.session_state.map_object = None
+
+# Map state - Hansen (Americas)
+if "hansen_center_lat" not in st.session_state:
+    st.session_state.hansen_center_lat = 0.0
+if "hansen_center_lon" not in st.session_state:
+    st.session_state.hansen_center_lon = -80.0
+if "hansen_zoom" not in st.session_state:
+    st.session_state.hansen_zoom = 3
 
 # Drawn areas
 if "drawn_areas" not in st.session_state:
@@ -376,8 +384,8 @@ with tab_mapbiomas:
                     st.session_state.get('last_layer2_opacity') != current_layer2_opacity):
                     
                     st.session_state.map_object = create_ee_folium_map(
-                        center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
-                        zoom=st.session_state.map_zoom,
+                        center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
+                        zoom=st.session_state.mapbiomas_zoom,
                         layer1_year=current_layer1_year,
                         layer1_opacity=current_layer1_opacity,
                         layer2_year=current_layer2_year,
@@ -456,8 +464,8 @@ with tab_hansen:
             try:
                 # For Hansen, always create fresh map due to different layer structure
                 hansen_map = create_ee_folium_map(
-                    center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
-                    zoom=st.session_state.map_zoom,
+                    center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
+                    zoom=st.session_state.hansen_zoom,
                     layer1_year=st.session_state.hansen_year,
                     data_source="Hansen"
                 )
