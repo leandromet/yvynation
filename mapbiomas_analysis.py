@@ -71,6 +71,11 @@ def render_mapbiomas_area_analysis():
                         st.session_state.last_analyzed_geom = geom
                         st.session_state.last_analyzed_name = "Your Drawn Area"
                         
+                        # Calculate bounds and set zoom flag
+                        bounds = geom.bounds().getInfo()
+                        st.session_state.zoom_bounds = bounds
+                        st.session_state.should_zoom_to_feature = True
+                        
                         st.success(f"✅ Analysis complete for {year}")
                         
                     except Exception as e:

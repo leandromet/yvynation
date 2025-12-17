@@ -75,6 +75,12 @@ if "drawn_area_count" not in st.session_state:
     st.session_state.drawn_area_count = 0
 if "selected_drawn_area" not in st.session_state:
     st.session_state.selected_drawn_area = None
+if "drawn_geometry_hashes" not in st.session_state:
+    st.session_state.drawn_geometry_hashes = set()
+if "should_zoom_to_feature" not in st.session_state:
+    st.session_state.should_zoom_to_feature = False
+if "zoom_bounds" not in st.session_state:
+    st.session_state.zoom_bounds = None
 
 # Analysis results - MapBiomas
 if "drawn_area_result" not in st.session_state:
@@ -393,21 +399,63 @@ with tab_mapbiomas:
                     st.session_state.last_layer1_opacity = current_layer1_opacity
                     st.session_state.last_layer2_opacity = current_layer2_opacity
                 
+                # Apply zoom to feature if needed
+                if st.session_state.should_zoom_to_feature and st.session_state.zoom_bounds:
+                    bounds = st.session_state.zoom_bounds
+                    # bounds is a dict with 'coordinates' key containing [[min_lon, min_lat], [max_lon, max_lat]]
+                    coords = bounds.get('coordinates')
+                    if coords:
+                        min_lon, min_lat = coords[0]
+                        max_lon, max_lat = coords[1]
+                        # Update map center and zoom to fit bounds
+                        center_lon = (min_lon + max_lon) / 2
+                        center_lat = (min_lat + max_lat) / 2
+                        st.session_state.map_center_lon = center_lon
+                        st.session_state.map_center_lat = center_lat
+                        # Calculate appropriate zoom level (rough approximation)
+                        import math
+                        lon_diff = max_lon - min_lon
+                        lat_diff = max_lat - min_lat
+                        max_diff = max(lon_diff, lat_diff)
+                        if max_diff > 0:
+                            zoom = int(12 - math.log2(max_diff * 110))  # 110 km per degree approx
+                            zoom = max(4, min(zoom, 13))  # Clamp between 4 and 13
+                            st.session_state.map_zoom = zoom
+                    st.session_state.should_zoom_to_feature = False
+                    st.session_state.zoom_bounds = None
+                    # Recreate map with new center/zoom
+                    st.session_state.map_object = create_ee_folium_map(
+                        center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
+                        zoom=st.session_state.map_zoom,
+                        layer1_year=current_layer1_year,
+                        layer1_opacity=current_layer1_opacity,
+                        layer2_year=current_layer2_year,
+                        layer2_opacity=current_layer2_opacity,
+                        compare_mode=st.session_state.split_compare_mode,
+                        data_source="MapBiomas"
+                    )
+                
                 # Display map and capture drawn areas
                 map_data = st_folium(st.session_state.map_object, width=700, height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                    import hashlib
+                    import json
+                    
                     for idx, drawing in enumerate(map_data["all_drawings"]):
                         geom_data = drawing["geometry"]
                         geom_type = geom_data.get("type", "Unknown")
-                        area_name = f"Area {st.session_state.drawn_area_count + idx + 1} ({geom_type})"
                         
-                        if area_name not in st.session_state.drawn_areas:
-                            st.session_state.drawn_areas[area_name] = geom_data
+                        # Create a hash of the geometry to prevent duplicates
+                        geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
+                        
+                        # Only add if this geometry hasn't been added before
+                        if geom_hash not in st.session_state.drawn_geometry_hashes:
                             st.session_state.drawn_area_count += 1
-                            st.session_state.selected_drawn_area = area_name
-                        else:
+                            area_name = f"Area {st.session_state.drawn_area_count} ({geom_type})"
                             st.session_state.drawn_areas[area_name] = geom_data
+                            st.session_state.drawn_geometry_hashes.add(geom_hash)
+                            st.session_state.selected_drawn_area = area_name
                 
             except Exception as e:
                 st.warning(f"⏳ Map loading... {str(e)[:50]}")
@@ -454,28 +502,69 @@ with tab_hansen:
         # Create Hansen map
         if st.session_state.data_loaded:
             try:
-                # For Hansen, always create fresh map due to different layer structure
-                hansen_map = create_ee_folium_map(
-                    center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
-                    zoom=st.session_state.map_zoom,
-                    layer1_year=st.session_state.hansen_year,
-                    data_source="Hansen"
-                )
+                # Check if need to recreate map
+                if (st.session_state.map_object is None or
+                    st.session_state.get('last_hansen_year') != st.session_state.hansen_year or
+                    st.session_state.get('last_data_source') != 'Hansen'):
+                    
+                    st.session_state.map_object = create_ee_folium_map(
+                        center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
+                        zoom=st.session_state.map_zoom,
+                        layer1_year=st.session_state.hansen_year,
+                        data_source="Hansen"
+                    )
+                    st.session_state.last_hansen_year = st.session_state.hansen_year
+                    st.session_state.last_data_source = 'Hansen'
+                
+                # Apply zoom to feature if needed
+                if st.session_state.should_zoom_to_feature and st.session_state.zoom_bounds:
+                    bounds = st.session_state.zoom_bounds
+                    coords = bounds.get('coordinates')
+                    if coords:
+                        min_lon, min_lat = coords[0]
+                        max_lon, max_lat = coords[1]
+                        center_lon = (min_lon + max_lon) / 2
+                        center_lat = (min_lat + max_lat) / 2
+                        st.session_state.map_center_lon = center_lon
+                        st.session_state.map_center_lat = center_lat
+                        import math
+                        lon_diff = max_lon - min_lon
+                        lat_diff = max_lat - min_lat
+                        max_diff = max(lon_diff, lat_diff)
+                        if max_diff > 0:
+                            zoom = int(12 - math.log2(max_diff * 110))
+                            zoom = max(4, min(zoom, 13))
+                            st.session_state.map_zoom = zoom
+                    st.session_state.should_zoom_to_feature = False
+                    st.session_state.zoom_bounds = None
+                    st.session_state.map_object = create_ee_folium_map(
+                        center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
+                        zoom=st.session_state.map_zoom,
+                        layer1_year=st.session_state.hansen_year,
+                        data_source="Hansen"
+                    )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(hansen_map, width=700, height=600)
+                map_data = st_folium(st.session_state.map_object, width=700, height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                    import hashlib
+                    import json
+                    
                     for idx, drawing in enumerate(map_data["all_drawings"]):
                         geom_data = drawing["geometry"]
                         geom_type = geom_data.get("type", "Unknown")
-                        area_name = f"Hansen Area {idx + 1} ({geom_type})"
                         
-                        if area_name not in st.session_state.drawn_areas:
+                        # Create a hash of the geometry to prevent duplicates
+                        geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
+                        
+                        # Only add if this geometry hasn't been added before
+                        if geom_hash not in st.session_state.drawn_geometry_hashes:
+                            st.session_state.drawn_area_count += 1
+                            area_name = f"Area {st.session_state.drawn_area_count} ({geom_type})"
                             st.session_state.drawn_areas[area_name] = geom_data
+                            st.session_state.drawn_geometry_hashes.add(geom_hash)
                             st.session_state.selected_drawn_area = area_name
-                        else:
-                            st.session_state.drawn_areas[area_name] = geom_data
                 
             except Exception as e:
                 st.warning(f"⏳ Map loading... {str(e)[:50]}")
