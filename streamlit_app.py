@@ -1008,7 +1008,7 @@ with analysis_col:
         try:
             from PIL import Image
             img = Image.open('image-28.png')
-            col1, col2, col3 = st.columns([1, 2, 1])
+            col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
                 st.image(img, caption='Yvynation', use_column_width=True)
         except FileNotFoundError:
