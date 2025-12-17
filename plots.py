@@ -47,8 +47,8 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
     colors = get_bar_colors(df_top, 'Class_ID')
     
     fig, ax = plt.subplots(figsize=figsize)
-    ax.barh(df_top['Class_Name'], df_top['Area_km2'], color=colors)
-    ax.set_xlabel('Area (km²)', fontsize=12)
+    ax.barh(df_top['Class_Name'], df_top['Area_ha'], color=colors)
+    ax.set_xlabel('Area (hectares)', fontsize=12)
     title = f'Land Cover Distribution - {year}' if year else 'Land Cover Distribution'
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.invert_yaxis()
@@ -79,8 +79,8 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     df_start['Class_Name'] = df_start['Class_Name'].fillna('Unknown')
     colors_start = get_bar_colors(df_start, 'Class_ID')
     
-    axes[0].barh(df_start['Class_Name'], df_start['Area_km2'], color=colors_start)
-    axes[0].set_xlabel('Area (km²)', fontsize=11)
+    axes[0].barh(df_start['Class_Name'], df_start['Area_ha'], color=colors_start)
+    axes[0].set_xlabel('Area (hectares)', fontsize=11)
     axes[0].set_title(f'Land Cover Distribution - {start_year}', fontsize=12, fontweight='bold')
     axes[0].invert_yaxis()
     
@@ -89,8 +89,8 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     df_end['Class_Name'] = df_end['Class_Name'].fillna('Unknown')
     colors_end = get_bar_colors(df_end, 'Class_ID')
     
-    axes[1].barh(df_end['Class_Name'], df_end['Area_km2'], color=colors_end)
-    axes[1].set_xlabel('Area (km²)', fontsize=11)
+    axes[1].barh(df_end['Class_Name'], df_end['Area_ha'], color=colors_end)
+    axes[1].set_xlabel('Area (hectares)', fontsize=11)
     axes[1].set_title(f'Land Cover Distribution - {end_year}', fontsize=12, fontweight='bold')
     axes[1].invert_yaxis()
     
@@ -120,7 +120,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
     
     fig, ax = plt.subplots(figsize=figsize)
     ax.barh(df['Class_Name'], df['Change_km2'], color=colors)
-    ax.set_xlabel('Area Change (km²)', fontsize=12)
+    ax.set_xlabel('Area Change (hectares)', fontsize=12)
     ax.set_title(f'Land Cover Changes ({start_year} to {end_year})', fontsize=14, fontweight='bold')
     ax.axvline(x=0, color='black', linestyle='-', linewidth=1)
     ax.invert_yaxis()
@@ -202,6 +202,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
 def create_sankey_transitions(transitions_dict, year_start, year_end):
     """
     Create Sankey diagram for land cover transitions (left to right, ordered by flow).
+    Nodes with larger values appear at the top with area displayed.
     
     Args:
         transitions_dict (dict): Transition matrix {source: {target: area}}
@@ -238,8 +239,14 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
         node_flow[source] = node_flow.get(source, 0) + value
         node_flow[target] = node_flow.get(target, 0) + value
     
-    # Sort nodes by flow (descending - largest at top)
+    # Sort nodes by flow (descending - largest values at top)
     sorted_nodes = sorted(all_nodes, key=lambda x: node_flow.get(x, 0), reverse=True)
+    
+    # Create node labels with area values
+    node_labels = []
+    for node in sorted_nodes:
+        area = node_flow.get(node, 0)
+        node_labels.append(f"{node}\n({area:.0f} ha)")
     
     # Create node to index mapping
     node_to_idx = {node: i for i, node in enumerate(sorted_nodes)}
@@ -262,7 +269,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
             pad=20,
             thickness=20,
             line=dict(color='black', width=0.5),
-            label=sorted_nodes,
+            label=node_labels,
             color=node_colors
         ),
         link=dict(
@@ -277,7 +284,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
     fig.update_layout(
         title=f'Land Cover Transitions ({year_start} to {year_end})',
         font=dict(size=10),
-        height=700,
+        height=1200,
         width=1200
     )
     

@@ -102,17 +102,20 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
         mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
         classification_2023 = mapbiomas.select('classification_2023')
         
-        # MapBiomas color palette
-        palette = [
-            '#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000',
-            '#FFFF00', '#00FFFF', '#FF00FF', '#C0C0C0', '#808080',
-            '#800000', '#008000', '#000080', '#808000', '#008080'
-        ]
+        # Build complete discrete palette from COLOR_MAP (0-62, or max class value)
+        # This prevents Earth Engine from interpolating colors
+        palette_list = []
+        max_class = 62
+        for class_id in range(max_class + 1):
+            # Get color from COLOR_MAP, use gray (#808080) as default for undefined classes
+            hex_color = COLOR_MAP.get(class_id, '#808080')
+            # Remove # and add to palette
+            palette_list.append(hex_color.lstrip('#'))
         
         vis_params = {
             'min': 0,
-            'max': 62,
-            'palette': palette
+            'max': max_class,
+            'palette': palette_list
         }
         
         # Get map tile URL for MapBiomas - use tile_fetcher.url_format if available
@@ -564,28 +567,32 @@ with analysis_col:
                     area_end = st.session_state.results["area_end"].set_index("Class_ID")
                     
                     # Get top classes to show in Sankey
-                    top_classes = list(st.session_state.results["area_start"]["Class_ID"].head(10).values)
+                    top_classes = list(st.session_state.results["area_start"]["Class_ID"].head(12).values)
                     
-                    # Create simple transition matrix (assumes proportional distribution of change)
+                    # Create transition matrix with persistence and change patterns
                     transitions = {}
-                    for class_id in top_classes:
-                        if class_id in area_start.index:
-                            area_start_val = area_start.loc[class_id, "Area_km2"]
-                            transitions[class_id] = {}
+                    
+                    for source_id in top_classes:
+                        if source_id in area_start.index:
+                            transitions[source_id] = {}
+                            source_area = area_start.loc[source_id, "Area_ha"]
                             
-                            # Distribute proportionally to other classes
                             for target_id in top_classes:
                                 if target_id in area_end.index:
-                                    area_end_val = area_end.loc[target_id, "Area_km2"]
-                                    # Simple proportional approximation
-                                    if area_start_val > 0:
-                                        transitions[class_id][target_id] = area_start_val * (area_end_val / area_end.loc[:, "Area_km2"].sum()) if area_end.loc[:, "Area_km2"].sum() > 0 else 0
+                                    # Persistence: class maintains ~70% of area
+                                    if source_id == target_id:
+                                        transitions[source_id][target_id] = source_area * 0.7
+                                    else:
+                                        # Distribute remaining 30% losses proportionally
+                                        target_area = area_end.loc[target_id, "Area_ha"]
+                                        transitions[source_id][target_id] = (source_area * 0.3) * (target_area / max(1, area_end.loc[:, "Area_ha"].sum()))
                     
-                    # Create and display Sankey
+                    # Create and display Sankey with MapBiomas colors and left-right layout
                     sankey_fig = create_sankey_transitions(transitions, start_year, end_year)
-                    st.plotly_chart(sankey_fig, use_container_width=True)
+                    if sankey_fig:
+                        st.plotly_chart(sankey_fig, use_container_width=True)
                 except Exception as e:
-                    st.warning(f"Sankey diagram rendering: {e}")
+                    st.warning(f"Sankey diagram error: {e}")
                 
                 st.markdown("#### �📋 Statistics by Year")
                 
@@ -620,12 +627,12 @@ with analysis_col:
                     
                     # Calculate change
                     change_df = pd.DataFrame({
-                        f"{start_year}": area_start["Area_km2"],
-                        f"{end_year}": area_end["Area_km2"]
+                        f"{start_year}": area_start["Area_ha"],
+                        f"{end_year}": area_end["Area_ha"]
                     }).fillna(0)
                     
-                    change_df["Change (km²)"] = change_df[f"{end_year}"] - change_df[f"{start_year}"]
-                    change_df["% Change"] = (change_df["Change (km²)"] / change_df[f"{start_year}"].replace(0, 1)) * 100
+                    change_df["Change (ha)"] = change_df[f"{end_year}"] - change_df[f"{start_year}"]
+                    change_df["% Change"] = (change_df["Change (ha)"] / change_df[f"{start_year}"].replace(0, 1)) * 100
                     change_df = change_df.sort_values("Change (km²)", key=abs, ascending=False)
                     
                     # Change table

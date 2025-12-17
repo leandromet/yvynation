@@ -65,10 +65,11 @@ def calculate_area_by_class(image, geometry, year=None, scale=30):
     try:
         result = areas.getInfo()['groups']
         df = pd.DataFrame(result)
-        df.columns = ['Class_ID', 'Area_km2']
+        df.columns = ['Class_ID', 'Area_ha']
+        df['Area_ha'] = df['Area_ha'] * 100  # Convert km² to hectares
         df['Class_Name'] = df['Class_ID'].map(MAPBIOMAS_LABELS)
         df['Year'] = year if year is not None else 'Classification'
-        return df[['Year', 'Class_ID', 'Class_Name', 'Area_km2']].sort_values('Area_km2', ascending=False)
+        return df[['Year', 'Class_ID', 'Class_Name', 'Area_ha']].sort_values('Area_ha', ascending=False)
     except Exception as e:
         print(f"✗ Error calculating areas: {e}")
         return pd.DataFrame()
@@ -182,17 +183,17 @@ def compare_areas(area_df1, area_df2):
     Returns:
         pd.DataFrame: Comparison with changes
     """
-    comparison = area_df1[['Class_ID', 'Class_Name', 'Area_km2']].merge(
-        area_df2[['Class_ID', 'Area_km2']],
+    comparison = area_df1[['Class_ID', 'Class_Name', 'Area_ha']].merge(
+        area_df2[['Class_ID', 'Area_ha']],
         on='Class_ID',
         suffixes=('_start', '_end'),
         how='outer'
     ).fillna(0)
     
-    comparison['Change_km2'] = comparison['Area_km2_end'] - comparison['Area_km2_start']
-    comparison['Change_pct'] = (comparison['Change_km2'] / (comparison['Area_km2_start'] + 0.001)) * 100
+    comparison['Change_ha'] = comparison['Area_ha_end'] - comparison['Area_ha_start']
+    comparison['Change_pct'] = (comparison['Change_ha'] / (comparison['Area_ha_start'] + 0.001)) * 100
     
-    return comparison.sort_values('Change_km2', ascending=False)
+    return comparison.sort_values('Change_ha', ascending=False)
 
 
 def filter_territories_by_state(territories, state_code):
