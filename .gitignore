@@ -26,3 +26,4 @@ Thumbs.db
 config_local.py
 data/raw/
 output/
+*.ipynb
