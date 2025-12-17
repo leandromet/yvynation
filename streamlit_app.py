@@ -252,7 +252,6 @@ with tab_mapbiomas:
                 
                 # Create/update map
                 if st.session_state.map_object is None:
-                    from streamlit_app import create_ee_folium_map
                     st.session_state.map_object = create_ee_folium_map(
                         center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
                         zoom=st.session_state.map_zoom,
@@ -326,7 +325,6 @@ with tab_hansen:
         if st.session_state.data_loaded:
             try:
                 # For Hansen, always create fresh map due to different layer structure
-                from streamlit_app import create_ee_folium_map
                 hansen_map = create_ee_folium_map(
                     center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
                     zoom=st.session_state.map_zoom,
@@ -419,12 +417,14 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
         elif data_source == "Hansen":
             # Hansen layers
             from config import HANSEN_DATASETS
-            hansen_image = ee.Image(HANSEN_DATASETS[layer1_year])
+            # Ensure year is a string for HANSEN_DATASETS
+            year_key = str(layer1_year) if layer1_year else "2020"
+            hansen_image = ee.Image(HANSEN_DATASETS[year_key])
             
             ee_layer = geemap.ee_tile_layer(
                 ee_object=hansen_image,
                 vis_params={'min': 0, 'max': 17, 'palette': 'viridis'},
-                name=f"Hansen {layer1_year}",
+                name=f"Hansen {year_key}",
                 show=True,
                 opacity=layer1_opacity
             )

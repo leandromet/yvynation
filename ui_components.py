@@ -28,7 +28,7 @@ def render_map_controls():
         st.divider()
         
         # Compare Mode
-        if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode):
+        if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode, key="compare_layers_mapbiomas"):
             st.session_state.split_compare_mode = True
             
             col_left, col_right = st.columns(2)
