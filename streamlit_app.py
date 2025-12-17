@@ -259,7 +259,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     shown=True,
                     opacity=layer1_opacity
                 )
-                m.add_child(ee_layer)
+                ee_layer.add_to(m)
             
             # Layer 2 (comparison mode)
             if compare_mode and layer2_year:
@@ -273,7 +273,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     shown=True,
                     opacity=layer2_opacity
                 )
-                m.add_child(ee_layer2)
+                ee_layer2.add_to(m)
         
         elif data_source == "Hansen":
             # Hansen layers
@@ -289,7 +289,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 shown=True,
                 opacity=layer1_opacity
             )
-            m.add_child(ee_layer)
+            ee_layer.add_to(m)
         
         # Add drawing tools
         Draw(export=True).add_to(m)
