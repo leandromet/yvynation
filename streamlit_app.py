@@ -1,7 +1,7 @@
-"""
+'''
 Yvynation Earth Engine Application
 Interactive Streamlit web app for MapBiomas and Indigenous Territories analysis
-"""
+'''
 
 import streamlit as st
 import ee
@@ -126,7 +126,7 @@ LABELS = {
 }
 
 def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7):
-    """Create a folium map with Earth Engine layers and drawing tools.
+    '''Create a folium map with Earth Engine layers and drawing tools.
     
     Args:
         center: [lon, lat] center point
@@ -135,7 +135,7 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         layer1_opacity: opacity of layer 1
         layer2_year: year for the second (bottom) MapBiomas layer (default 1985)
         layer2_opacity: opacity of layer 2
-    """
+    '''
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
@@ -246,7 +246,7 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
 
 
 def get_bounds_from_geometry(geom):
-    """Extract bounds from GeoJSON geometry and return as [[south, west], [north, east]]."""
+    '''Extract bounds from GeoJSON geometry and return as [[south, west], [north, east]].'''
     try:
         coords = geom.get('coordinates', [])
         if not coords:
@@ -271,12 +271,12 @@ def get_bounds_from_geometry(geom):
     return None
 
 def zoom_to_bounds(m, bounds):
-    """Add fit_bounds to map if bounds available."""
+    '''Add fit_bounds to map if bounds available.'''
     if bounds:
         m.fit_bounds(bounds, padding=(0.1, 0.1))
 
 def clean_territory_name(name_with_id):
-    """Extract clean territory name from [name (id)] format, handling encoding issues."""
+    '''Extract clean territory name from [name (id)] format, handling encoding issues.'''
     if not name_with_id:
         return name_with_id
     
@@ -315,10 +315,10 @@ if st.sidebar.button("Load Core Data", help="Load MapBiomas and Indigenous Terri
 # Main content
 st.title("🌍 Yvynation: Indigenous Territories Analysis")
 st.markdown(
-    """
+    '''
     Interactive analysis of land cover change in Brazilian Indigenous Territories
     using MapBiomas Collection 9 (1985-2023) and Indigenous Territories dataset.
-    """
+    '''
 )
 
 if not st.session_state.data_loaded:
@@ -384,13 +384,13 @@ with map_col:
         else:
             st.session_state.split_compare_mode = False
     
-    st.markdown("""
+    st.markdown('''
     **How to Use:**
     - Click the **Rectangle tool** (top-left) to draw your analysis area
     - Select layer visibility using layer control (top-right)
     - Use **Fullscreen** button for better view
     - Your drawn area will appear in the analysis tab
-    """)
+    ''')
     
     try:
         # Determine current layer configuration
@@ -814,7 +814,7 @@ with analysis_col:
     
     # SECTION 3: About
     with st.expander("ℹ️ About Yvynation", expanded=False):
-        st.markdown("""
+        st.markdown('''
         ### Project Overview
         
         **Yvynation** is an Earth Engine analysis application for studying land cover 
@@ -857,12 +857,12 @@ with analysis_col:
         ### Repository
         
         🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet/yvynation)
-        """)
+        ''')
 
 # Footer
 st.divider()
 st.markdown(
-    """
+    '''
     <div style='text-align: center'>
     <small>
     🌍 Yvynation | MapBiomas + Indigenous Territories Analysis
@@ -870,6 +870,6 @@ st.markdown(
     Built with Earth Engine, geemap, and Streamlit
     </small>
     </div>
-    """,
+    ''',
     unsafe_allow_html=True
 )

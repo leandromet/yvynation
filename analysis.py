@@ -1,7 +1,7 @@
-"""
+'''
 Analysis module for Yvynation.
 Handles land cover analysis, change detection, and statistics.
-"""
+'''
 
 import ee
 import pandas as pd
@@ -9,7 +9,7 @@ from config import MAPBIOMAS_LABELS
 
 
 def clip_mapbiomas_to_geometry(mapbiomas, geometry, start_year, end_year):
-    """
+    '''
     Clip MapBiomas data to specific geometry and year range.
     
     Args:
@@ -20,7 +20,7 @@ def clip_mapbiomas_to_geometry(mapbiomas, geometry, start_year, end_year):
     
     Returns:
         ee.Image: Clipped MapBiomas image
-    """
+    '''
     bands = [f'classification_{year}' for year in range(start_year, end_year + 1)]
     clipped = mapbiomas.select(bands).clip(geometry)
     print(f"✓ Clipped MapBiomas data for {start_year}-{end_year}")
@@ -28,7 +28,7 @@ def clip_mapbiomas_to_geometry(mapbiomas, geometry, start_year, end_year):
 
 
 def calculate_area_by_class(image, geometry, year=None, scale=30):
-    """
+    '''
     Calculate area for each land cover class in an image.
     
     Args:
@@ -39,7 +39,7 @@ def calculate_area_by_class(image, geometry, year=None, scale=30):
     
     Returns:
         pd.DataFrame: Area statistics by class
-    """
+    '''
     band_names = image.bandNames().getInfo()
     
     # Determine which band to use
@@ -76,7 +76,7 @@ def calculate_area_by_class(image, geometry, year=None, scale=30):
 
 
 def calculate_land_cover_change(mapbiomas, geometry, start_year, end_year, scale=30):
-    """
+    '''
     Calculate land cover change between two years.
     
     Args:
@@ -88,7 +88,7 @@ def calculate_land_cover_change(mapbiomas, geometry, start_year, end_year, scale
     
     Returns:
         dict: Change statistics and image
-    """
+    '''
     start_band = f'classification_{start_year}'
     end_band = f'classification_{end_year}'
     
@@ -116,7 +116,7 @@ def calculate_land_cover_change(mapbiomas, geometry, start_year, end_year, scale
 
 
 def get_class_specific_change(mapbiomas, geometry, start_year, end_year, class_id, scale=30):
-    """
+    '''
     Calculate area change for a specific land cover class.
     
     Args:
@@ -129,7 +129,7 @@ def get_class_specific_change(mapbiomas, geometry, start_year, end_year, class_i
     
     Returns:
         dict: Class-specific change statistics
-    """
+    '''
     start_band = f'classification_{start_year}'
     end_band = f'classification_{end_year}'
     
@@ -173,7 +173,7 @@ def get_class_specific_change(mapbiomas, geometry, start_year, end_year, class_i
 
 
 def compare_areas(area_df1, area_df2):
-    """
+    '''
     Compare land cover areas between two time periods.
     
     Args:
@@ -182,7 +182,7 @@ def compare_areas(area_df1, area_df2):
     
     Returns:
         pd.DataFrame: Comparison with changes
-    """
+    '''
     comparison = area_df1[['Class_ID', 'Class_Name', 'Area_ha']].merge(
         area_df2[['Class_ID', 'Area_ha']],
         on='Class_ID',
@@ -197,7 +197,7 @@ def compare_areas(area_df1, area_df2):
 
 
 def filter_territories_by_state(territories, state_code):
-    """
+    '''
     Filter territories by Brazilian state code.
     
     Args:
@@ -206,7 +206,7 @@ def filter_territories_by_state(territories, state_code):
     
     Returns:
         ee.FeatureCollection: Filtered territories
-    """
+    '''
     filtered = territories.filter(ee.Filter.eq('uf_sigla', state_code))
     count = filtered.size().getInfo()
     print(f"✓ Filtered to {count} territories in {state_code}")
@@ -214,7 +214,7 @@ def filter_territories_by_state(territories, state_code):
 
 
 def filter_territories_by_names(territories, names_list):
-    """
+    '''
     Filter territories by name.
     
     Args:
@@ -223,7 +223,7 @@ def filter_territories_by_names(territories, names_list):
     
     Returns:
         ee.FeatureCollection: Filtered territories
-    """
+    '''
     filters = [ee.Filter.eq('NAME', name) for name in names_list]
     combined_filter = ee.Filter.Or(*filters)
     filtered = territories.filter(combined_filter)
@@ -233,7 +233,7 @@ def filter_territories_by_names(territories, names_list):
 
 
 def get_territory_info(territories):
-    """
+    '''
     Get information about territories in a collection.
     
     Args:
@@ -241,7 +241,7 @@ def get_territory_info(territories):
     
     Returns:
         dict: Collection size and sample properties
-    """
+    '''
     size = territories.size().getInfo()
     first_feature = territories.first().toDictionary().getInfo()
     

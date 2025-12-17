@@ -1,7 +1,7 @@
-"""
+'''
 Visualization module for Yvynation.
 Handles interactive maps, layers, and legends using geemap.
-"""
+'''
 
 import ee
 import geemap
@@ -10,7 +10,7 @@ from config import MAPBIOMAS_COLOR_MAP, MAPBIOMAS_LABELS, MAPBIOMAS_PALETTE
 
 
 def create_map(center=None, zoom=8):
-    """
+    '''
     Create an interactive geemap Map.
     
     Args:
@@ -19,14 +19,14 @@ def create_map(center=None, zoom=8):
     
     Returns:
         geemap.Map: Interactive map
-    """
+    '''
     default_center = center or [-55.5, -15.8]
     Map = geemap.Map(center=default_center, zoom=zoom)
     return Map
 
 
 def add_mapbiomas_layer(Map, mapbiomas, year, name=None, visible=True):
-    """
+    '''
     Add MapBiomas classification layer to map.
     
     Args:
@@ -38,7 +38,7 @@ def add_mapbiomas_layer(Map, mapbiomas, year, name=None, visible=True):
     
     Returns:
         geemap.Map: Updated map
-    """
+    '''
     band = f'classification_{year}'
     vis_params = {
         'min': 0,
@@ -51,7 +51,7 @@ def add_mapbiomas_layer(Map, mapbiomas, year, name=None, visible=True):
 
 
 def add_territories_layer(Map, territories, name='Indigenous Territories', color='red'):
-    """
+    '''
     Add territories as vector layer to map.
     
     Args:
@@ -62,7 +62,7 @@ def add_territories_layer(Map, territories, name='Indigenous Territories', color
     
     Returns:
         geemap.Map: Updated map
-    """
+    '''
     style = {
         'color': color,
         'fillColor': 'rgba(255,0,0,0.1)',
@@ -73,7 +73,7 @@ def add_territories_layer(Map, territories, name='Indigenous Territories', color
 
 
 def add_change_layer(Map, change_image, name='Land Cover Change', visible=False):
-    """
+    '''
     Add change detection layer to map.
     
     Args:
@@ -84,7 +84,7 @@ def add_change_layer(Map, change_image, name='Land Cover Change', visible=False)
     
     Returns:
         geemap.Map: Updated map
-    """
+    '''
     vis_params = {
         'min': 0,
         'max': 1,
@@ -95,7 +95,7 @@ def add_change_layer(Map, change_image, name='Land Cover Change', visible=False)
 
 
 def add_classification_layer(Map, classification, name='Classification', visible=True):
-    """
+    '''
     Add generic classification layer to map.
     
     Args:
@@ -106,7 +106,7 @@ def add_classification_layer(Map, classification, name='Classification', visible
     
     Returns:
         geemap.Map: Updated map
-    """
+    '''
     vis_params = {
         'min': 0,
         'max': 33,
@@ -117,12 +117,12 @@ def add_classification_layer(Map, classification, name='Classification', visible
 
 
 def create_mapbiomas_legend():
-    """
+    '''
     Create HTML legend for main MapBiomas classes.
     
     Returns:
         HTML: Interactive legend
-    """
+    '''
     legend_html = '<div style="background:white; padding:12px; border-radius:5px; border: 2px solid #ccc;">'
     legend_html += '<h4 style="margin-top:0;">MapBiomas Land Cover Classes</h4>'
     
@@ -140,7 +140,7 @@ def create_mapbiomas_legend():
 
 
 def create_comparison_map(mapbiomas, year1, year2, territories, center=None, zoom=8):
-    """
+    '''
     Create a map with layers for comparing two years.
     
     Args:
@@ -153,7 +153,7 @@ def create_comparison_map(mapbiomas, year1, year2, territories, center=None, zoo
     
     Returns:
         geemap.Map: Comparison map
-    """
+    '''
     Map = create_map(center=center, zoom=zoom)
     Map = add_mapbiomas_layer(Map, mapbiomas, year1, f'MapBiomas {year1}', visible=True)
     Map = add_mapbiomas_layer(Map, mapbiomas, year2, f'MapBiomas {year2}', visible=False)
@@ -162,7 +162,7 @@ def create_comparison_map(mapbiomas, year1, year2, territories, center=None, zoo
 
 
 def create_temporal_map(mapbiomas, years, territories, center=None, zoom=8):
-    """
+    '''
     Create a map with multiple years for temporal analysis.
     
     Args:
@@ -174,7 +174,7 @@ def create_temporal_map(mapbiomas, years, territories, center=None, zoom=8):
     
     Returns:
         geemap.Map: Temporal map
-    """
+    '''
     Map = create_map(center=center, zoom=zoom)
     
     for year in years:

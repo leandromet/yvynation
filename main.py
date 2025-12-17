@@ -1,7 +1,7 @@
-"""
+'''
 Plotting module for Yvynation.
 Handles charts, graphs, and visualizations for analysis results.
-"""
+'''
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,7 +10,7 @@ from config import MAPBIOMAS_COLOR_MAP
 
 
 def get_bar_colors(df, id_column='Class_ID'):
-    """
+    '''
     Get colors for bar chart based on MapBiomas class IDs.
     
     Args:
@@ -19,7 +19,7 @@ def get_bar_colors(df, id_column='Class_ID'):
     
     Returns:
         list: Colors for each class
-    """
+    '''
     colors = []
     for class_id in df[id_column]:
         if class_id in MAPBIOMAS_COLOR_MAP:
@@ -30,7 +30,7 @@ def get_bar_colors(df, id_column='Class_ID'):
 
 
 def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
-    """
+    '''
     Plot horizontal bar chart of land cover areas.
     
     Args:
@@ -41,7 +41,7 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
     
     Returns:
         matplotlib figure object for rendering with st.pyplot()
-    """
+    '''
     df_top = area_df.head(top_n).copy()
     df_top['Class_Name'] = df_top['Class_Name'].fillna('Unknown')
     colors = get_bar_colors(df_top, 'Class_ID')
@@ -58,7 +58,7 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
 
 
 def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, figsize=(16, 6)):
-    """
+    '''
     Plot side-by-side comparison of land cover distributions.
     
     Args:
@@ -71,7 +71,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     
     Returns:
         matplotlib figure object for rendering with st.pyplot()
-    """
+    '''
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     
     # Start year
@@ -99,7 +99,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
 
 
 def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6)):
-    """
+    '''
     Plot land cover changes as diverging bar chart.
     
     Args:
@@ -111,7 +111,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
     
     Returns:
         matplotlib figure object for rendering with st.pyplot()
-    """
+    '''
     df = comparison.head(top_n).copy()
     df['Class_Name'] = df['Class_Name'].fillna('Unknown')
     
@@ -130,7 +130,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
 
 
 def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(12, 6)):
-    """
+    '''
     Plot percentage changes in land cover.
     
     Args:
@@ -142,7 +142,7 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
     
     Returns:
         matplotlib figure object for rendering with st.pyplot()
-    """
+    '''
     df = comparison.dropna(subset=['Change_pct']).head(top_n).copy()
     df['Class_Name'] = df['Class_Name'].fillna('Unknown')
     
@@ -161,7 +161,7 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
 
 
 def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6)):
-    """
+    '''
     Plot temporal trends for selected land cover classes.
     
     Args:
@@ -172,7 +172,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
     
     Returns:
         matplotlib figure object for rendering with st.pyplot()
-    """
+    '''
     if len(df_list) != len(years):
         raise ValueError("df_list and years must have same length")
     
@@ -200,7 +200,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
 
 
 def create_sankey_transitions(transitions_dict, year_start, year_end):
-    """
+    '''
     Create Sankey diagram for land cover transitions (left to right, ordered by flow).
     Nodes with larger values appear at the top with area displayed.
     
@@ -211,7 +211,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
     
     Returns:
         plotly.graph_objects.Figure: Sankey diagram with left-right layout
-    """
+    '''
     # Prepare nodes and links
     sources = []
     targets = []
