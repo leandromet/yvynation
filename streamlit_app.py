@@ -64,6 +64,14 @@ if "split_left_opacity" not in st.session_state:
     st.session_state.split_left_opacity = 1.0
 if "split_right_opacity" not in st.session_state:
     st.session_state.split_right_opacity = 0.7
+if "map_layers_config" not in st.session_state:
+    st.session_state.map_layers_config = {
+        'layer1_year': 1985,
+        'layer1_opacity': 1.0,
+        'layer2_year': 2023,
+        'layer2_opacity': 0.7,
+        'compare_mode': False
+    }
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -97,8 +105,17 @@ LABELS = {
     466: "Other Classification"
 }
 
-def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
-    """Create a folium map with Earth Engine layers and drawing tools."""
+def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7):
+    """Create a folium map with Earth Engine layers and drawing tools.
+    
+    Args:
+        center: [lon, lat] center point
+        zoom: zoom level
+        layer1_year: year for the first (top) MapBiomas layer (default 2023)
+        layer1_opacity: opacity of layer 1
+        layer2_year: year for the second (bottom) MapBiomas layer (default 1985)
+        layer2_opacity: opacity of layer 2
+    """
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
@@ -125,23 +142,42 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             'palette': palette_list
         }
         
-        # Add only 2023 MapBiomas layer (to avoid slowness)
-        classification_2023 = mapbiomas.select('classification_2023')
-        mapid = ee.Image(classification_2023).getMapId(vis_params)
+        # Add Layer 1 (top layer, default 2023)
+        classification_1 = mapbiomas.select(f'classification_{layer1_year}')
+        mapid_1 = ee.Image(classification_1).getMapId(vis_params)
         
         try:
-            tile_url = mapid['tile_fetcher'].url_format
+            tile_url_1 = mapid_1['tile_fetcher'].url_format
         except (KeyError, AttributeError):
-            # Fallback to manual URL format if tile_fetcher not available
-            tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+            tile_url_1 = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_1["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         
         folium.TileLayer(
-            tiles=tile_url,
+            tiles=tile_url_1,
             attr='MapBiomas Collection 9',
-            name='MapBiomas 2023',
+            name=f'MapBiomas {layer1_year}',
             overlay=True,
-            control=True
+            control=True,
+            opacity=layer1_opacity
         ).add_to(m)
+        
+        # Add Layer 2 (bottom layer, default 1985)
+        if layer2_year != layer1_year:
+            classification_2 = mapbiomas.select(f'classification_{layer2_year}')
+            mapid_2 = ee.Image(classification_2).getMapId(vis_params)
+            
+            try:
+                tile_url_2 = mapid_2['tile_fetcher'].url_format
+            except (KeyError, AttributeError):
+                tile_url_2 = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_2["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+            
+            folium.TileLayer(
+                tiles=tile_url_2,
+                attr='MapBiomas Collection 9',
+                name=f'MapBiomas {layer2_year}',
+                overlay=True,
+                control=True,
+                opacity=layer2_opacity
+            ).add_to(m)
         
         # Add Indigenous Territories layer
         territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
@@ -187,95 +223,7 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     folium.LayerControl().add_to(m)
     return m
 
-def create_split_compare_map(left_year, right_year, left_opacity=1.0, right_opacity=0.7, center=[-45.3, -4.5], zoom=7):
-    """Create a map with two selectable MapBiomas layers with opacity control."""
-    m = folium.Map(
-        location=[center[1], center[0]],
-        zoom_start=zoom,
-        tiles='OpenStreetMap'
-    )
-    
-    try:
-        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
-        
-        # Build palette
-        palette_list = []
-        max_class = 62
-        for class_id in range(max_class + 1):
-            hex_color = COLOR_MAP.get(class_id, '#808080')
-            palette_list.append(hex_color.lstrip('#'))
-        
-        vis_params = {
-            'min': 0,
-            'max': max_class,
-            'palette': palette_list
-        }
-        
-        # Create left layer
-        band_left = f'classification_{left_year}'
-        classification_left = mapbiomas.select(band_left)
-        mapid_left = ee.Image(classification_left).getMapId(vis_params)
-        
-        try:
-            tile_url_left = mapid_left['tile_fetcher'].url_format
-        except (KeyError, AttributeError):
-            tile_url_left = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_left["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-        
-        left_layer = folium.TileLayer(
-            tiles=tile_url_left,
-            attr='MapBiomas',
-            name=f'MapBiomas {left_year}',
-            overlay=True,
-            control=True,
-            opacity=left_opacity
-        )
-        left_layer.add_to(m)
-        
-        # Create right layer
-        band_right = f'classification_{right_year}'
-        classification_right = mapbiomas.select(band_right)
-        mapid_right = ee.Image(classification_right).getMapId(vis_params)
-        
-        try:
-            tile_url_right = mapid_right['tile_fetcher'].url_format
-        except (KeyError, AttributeError):
-            tile_url_right = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_right["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-        
-        right_layer = folium.TileLayer(
-            tiles=tile_url_right,
-            attr='MapBiomas',
-            name=f'MapBiomas {right_year}',
-            overlay=True,
-            control=True,
-            opacity=right_opacity
-        )
-        right_layer.add_to(m)
-        
-        # Add Indigenous Territories layer
-        territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
-        ee_image_object = ee.Image().paint(territories, 0, 2)
-        mapid_territories = ee_image_object.getMapId({'min': 0, 'max': 1, 'palette': ['FF0000']})
-        
-        try:
-            tile_url_territories = mapid_territories['tile_fetcher'].url_format
-        except (KeyError, AttributeError):
-            tile_url_territories = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_territories["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-        
-        territories_layer = folium.TileLayer(
-            tiles=tile_url_territories,
-            attr='Indigenous Territories',
-            name='Indigenous Territories',
-            overlay=True,
-            control=True,
-            opacity=0.6
-        )
-        territories_layer.add_to(m)
-        
-    except Exception as e:
-        st.warning(f"Could not load comparison layers: {e}")
-    
-    folium.LayerControl().add_to(m)
-    return m
+
 
 def get_bounds_from_geometry(geom):
     """Extract bounds from GeoJSON geometry and return as [[south, west], [north, east]]."""
@@ -386,32 +334,32 @@ with map_col:
             col_left, col_right = st.columns(2)
             with col_left:
                 st.session_state.split_left_year = st.selectbox(
-                    "Layer 1",
+                    "Layer 1 Year",
                     range(1985, 2024),
-                    index=0,
+                    index=38,
                     key="split_left"
                 )
             with col_right:
                 st.session_state.split_right_year = st.selectbox(
-                    "Layer 2",
+                    "Layer 2 Year",
                     range(1985, 2024),
-                    index=38,
+                    index=0,
                     key="split_right"
                 )
             
-            # Opacity sliders
+            # Opacity sliders for comparison
             col_op1, col_op2 = st.columns(2)
             with col_op1:
                 st.session_state.split_left_opacity = st.slider(
-                    f"Layer 1 Opacity",
+                    "Layer 1 Opacity",
                     0.0, 1.0, 1.0, 0.1,
-                    key="left_opacity"
+                    key="opacity_1"
                 )
             with col_op2:
                 st.session_state.split_right_opacity = st.slider(
-                    f"Layer 2 Opacity",
+                    "Layer 2 Opacity",
                     0.0, 1.0, 0.7, 0.1,
-                    key="right_opacity"
+                    key="opacity_2"
                 )
         else:
             st.session_state.split_compare_mode = False
@@ -425,49 +373,80 @@ with map_col:
     """)
     
     try:
-        # Determine which map to create based on split compare mode
-        if st.session_state.split_compare_mode:
-            # Create split compare map with selected years
-            m = create_split_compare_map(
-                left_year=st.session_state.split_left_year,
-                right_year=st.session_state.split_right_year,
-                left_opacity=st.session_state.split_left_opacity,
-                right_opacity=st.session_state.split_right_opacity,
-                center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
-                zoom=st.session_state.map_zoom
+        # Determine current layer configuration
+        current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
+        current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
+        current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
+        current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
+        current_compare_mode = st.session_state.split_compare_mode
+        
+        # Check if layers configuration changed
+        config_changed = (
+            st.session_state.map_layers_config['layer1_year'] != current_layer1_year or
+            st.session_state.map_layers_config['layer2_year'] != current_layer2_year or
+            st.session_state.map_layers_config['compare_mode'] != current_compare_mode
+        )
+        
+        # Create or recreate map only if layers changed or map doesn't exist
+        if st.session_state.map_object is None and st.session_state.data_loaded:
+            st.session_state.map_object = create_ee_folium_map(
+                center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
+                zoom=st.session_state.map_zoom,
+                layer1_year=current_layer1_year,
+                layer1_opacity=current_layer1_opacity,
+                layer2_year=current_layer2_year,
+                layer2_opacity=current_layer2_opacity
             )
-            st.info(f"🔀 Comparing MapBiomas {st.session_state.split_left_year} (left) vs {st.session_state.split_right_year} (right)")
-            # Capture map - use different key for split mode
-            map_data = st_folium(m, width=None, height=700, key="split_compare_map")
-        else:
-            # Use normal map with drawing tools
-            if st.session_state.map_object is None and st.session_state.data_loaded:
-                # Create fresh map with layers since data just loaded
-                st.session_state.map_object = create_ee_folium_map(
-                    center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
-                    zoom=st.session_state.map_zoom
-                )
-                st.info("🗺️ Map created with MapBiomas and Indigenous Territories layers")
+            st.info("🗺️ Map created with MapBiomas (2023 + 1985) and Indigenous Territories layers")
+            # Update saved config
+            st.session_state.map_layers_config = {
+                'layer1_year': current_layer1_year,
+                'layer1_opacity': current_layer1_opacity,
+                'layer2_year': current_layer2_year,
+                'layer2_opacity': current_layer2_opacity,
+                'compare_mode': current_compare_mode
+            }
+        
+        # Only recreate map if LAYERS changed (not opacity)
+        elif config_changed and st.session_state.map_object is not None:
+            st.session_state.map_object = create_ee_folium_map(
+                center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
+                zoom=st.session_state.map_zoom,
+                layer1_year=current_layer1_year,
+                layer1_opacity=current_layer1_opacity,
+                layer2_year=current_layer2_year,
+                layer2_opacity=current_layer2_opacity
+            )
+            # Update saved config
+            st.session_state.map_layers_config = {
+                'layer1_year': current_layer1_year,
+                'layer1_opacity': current_layer1_opacity,
+                'layer2_year': current_layer2_year,
+                'layer2_opacity': current_layer2_opacity,
+                'compare_mode': current_compare_mode
+            }
+        
+        # Display map if it exists
+        
+        if st.session_state.map_object is not None:
+            m = st.session_state.map_object
             
-            if st.session_state.map_object is not None:
-                m = st.session_state.map_object
-                
-                # Capture map with drawings - use key to prevent rerun issues
-                map_data = st_folium(m, width=None, height=700, key="main_map")
-                
-                # Extract drawn geometry if available and zoom to it
-                if map_data and map_data.get("last_active_drawing"):
-                    drawing = map_data["last_active_drawing"]
-                    if drawing:
-                        st.session_state.drawn_geometry = drawing
-                        # Zoom to drawn area
-                        bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
-                        if bounds:
-                            zoom_to_bounds(m, bounds)
-                            st.session_state.map_object = m
-                        st.success("✅ Drawing captured! Map zoomed to your area.")
-            else:
-                st.warning("⏳ Waiting for map to load...")
+            # Capture map with drawings
+            map_data = st_folium(m, width=None, height=700, key="main_map")
+            
+            # Extract drawn geometry if available and zoom to it
+            if map_data and map_data.get("last_active_drawing"):
+                drawing = map_data["last_active_drawing"]
+                if drawing:
+                    st.session_state.drawn_geometry = drawing
+                    # Zoom to drawn area
+                    bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
+                    if bounds:
+                        zoom_to_bounds(m, bounds)
+                        st.session_state.map_object = m
+                    st.success("✅ Drawing captured! Map zoomed to your area.")
+        else:
+            st.warning("⏳ Waiting for map to load...")
         
     except Exception as e:
         st.error(f"Map error: {e}")
