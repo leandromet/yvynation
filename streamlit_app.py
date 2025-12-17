@@ -92,6 +92,8 @@ if "multiyear_end_year" not in st.session_state:
     st.session_state.multiyear_end_year = None
 if "persistent_drawn_geometry" not in st.session_state:
     st.session_state.persistent_drawn_geometry = None
+if "drawn_layer_added_to_map" not in st.session_state:
+    st.session_state.drawn_layer_added_to_map = False
 
 # Sidebar
 st.sidebar.title("🌎 Yvynation Land Use")
@@ -279,6 +281,16 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         }
     )
     draw.add_to(m)
+    
+    # Add persistent drawn geometry if provided
+    if persistent_geometry:
+        geom_data = persistent_geometry.get('geometry', {})
+        if geom_data.get('type') == 'Polygon':
+            folium.GeoJson(
+                {'type': 'Feature', 'geometry': geom_data},
+                style_function=lambda x: {'color': 'blue', 'weight': 3, 'opacity': 0.7, 'fillOpacity': 0.1},
+                name='Drawn Area'
+            ).add_to(m)
     
     # Add fullscreen button
     Fullscreen().add_to(m)
@@ -496,38 +508,20 @@ with map_col:
         if st.session_state.map_object is not None:
             m = st.session_state.map_object
             
-            # Always add persistent drawn geometry as a visible layer if it exists
-            # But only if not already on the map (check if any GeoJson layers exist)
-            if st.session_state.persistent_drawn_geometry:
-                try:
-                    geom_data = st.session_state.persistent_drawn_geometry.get('geometry', {})
-                    if geom_data.get('type') == 'Polygon':
-                        # Check if this geometry layer is already on map
-                        geojson_exists = any(hasattr(layer, 'data') and isinstance(getattr(layer, 'data', None), dict) 
-                                            for layer in m._children.values())
-                        
-                        if not geojson_exists:
-                            # Add as GeoJSON layer (blue outline)
-                            folium.GeoJson(
-                                {'type': 'Feature', 'geometry': geom_data},
-                                style_function=lambda x: {'color': 'blue', 'weight': 3, 'opacity': 0.7, 'fillOpacity': 0.1},
-                                name='Drawn Area'
-                            ).add_to(m)
-                except Exception as e:
-                    pass
-            
             # Capture map with drawings
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
-            # Extract drawn geometry if available
+            # Extract drawn geometry if available and store it
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
                     st.session_state.drawn_geometry = drawing
-                    # Store geometry persistently
+                    # Store geometry persistently for next rerun
                     st.session_state.persistent_drawn_geometry = drawing
-                    st.success("✅ Drawing captured! Use 'Analyze Drawn Area' to analyze.")
-            # Keep persistent geometry visible even if no new drawing
+                    # Mark that we need to add the layer on next render
+                    st.session_state.drawn_layer_added_to_map = False
+                    st.success("✅ Drawing captured!")
+            # Keep drawn_geometry in sync with persistent version
             elif st.session_state.persistent_drawn_geometry:
                 st.session_state.drawn_geometry = st.session_state.persistent_drawn_geometry
         else:
