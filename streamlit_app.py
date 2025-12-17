@@ -994,7 +994,6 @@ with analysis_col:
             Leandro Meneguelli Biondo - PhD Candidate in Sustainability  - IGS/UBCO
             Supervisor: Dr. Jon Corbett
 
-
             **Yvynation** is a name for this app, as it is not the full project content.
 
             "Yvy" (Tupi–Guarani) means land, earth, or territory — emphasizing the ground we walk
