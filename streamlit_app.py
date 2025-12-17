@@ -401,8 +401,6 @@ with tab_mapbiomas:
                     if success:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
-                        st.session_state.map_object = None  # Reset map to recreate with data
-                        st.session_state.map_has_data_layers = False
                         st.success("✅ Data loaded successfully!")
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
@@ -547,8 +545,6 @@ with tab_hansen:
                     if success:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
-                        st.session_state.hansen_map_object = None  # Reset map to recreate with data
-                        st.session_state.hansen_map_has_data_layers = False
                         st.success("✅ Data loaded successfully!")
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
