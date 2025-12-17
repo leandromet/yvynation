@@ -23,6 +23,7 @@ Thumbs.db
 # Project specific
 *.log
 .env
+.env.local
 config_local.py
 data/raw/
 output/
@@ -32,3 +33,11 @@ output/
 *.gpkg
 *.kmz
 .gitkeep
+
+# Streamlit secrets (local only)
+.streamlit/secrets.toml
+.streamlit/.secrets/
+
+# Earth Engine credentials
+.earthengine/
+~/.config/earthengine/

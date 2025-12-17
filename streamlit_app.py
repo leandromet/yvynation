@@ -12,6 +12,7 @@ import streamlit_folium
 from streamlit_folium import st_folium
 import pandas as pd
 import json
+from google.oauth2 import service_account
 from config import PROJECT_ID
 from app_file import YvynationApp
 from analysis import clip_mapbiomas_to_geometry, calculate_area_by_class
@@ -370,9 +371,28 @@ def clean_territory_name(name_with_id):
     except Exception:
         return name_with_id
 
+# Initialize Earth Engine with service account support
+@st.cache_resource
+def init_earth_engine():
+    """Initialize Earth Engine with service account credentials (Streamlit Cloud) or default auth (local)."""
+    try:
+        # Try to use service account credentials from Streamlit secrets (Streamlit Cloud)
+        if "google" in st.secrets:
+            credentials = service_account.Credentials.from_service_account_info(
+                dict(st.secrets["google"])
+            )
+            ee.Initialize(credentials, project=PROJECT_ID)
+        else:
+            # Fallback to default authentication (local development with earthengine authenticate)
+            ee.Initialize(project=PROJECT_ID)
+        return True
+    except Exception as e:
+        st.sidebar.error(f"❌ EE initialization failed: {e}")
+        st.stop()
+
 # Initialize EE
 try:
-    ee.Initialize(project=PROJECT_ID)
+    init_earth_engine()
     st.sidebar.success("✅ Earth Engine initialized")
 except Exception as e:
     st.sidebar.error(f"❌ EE initialization failed: {e}")
