@@ -10,7 +10,7 @@ from folium.plugins import Draw, Fullscreen
 import streamlit_folium
 import pandas as pd
 import json
-from config import PROJECT_ID
+from yvynation_config import PROJECT_ID
 from app_file import YvynationApp
 from analysis import clip_mapbiomas_to_geometry, calculate_area_by_class
 from plots import plot_area_distribution, plot_area_comparison

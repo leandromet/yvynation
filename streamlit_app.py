@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from google.oauth2 import service_account
 
 # Import modules
-from config import PROJECT_ID, MAPBIOMAS_PALETTE
+from yvynation_config import PROJECT_ID, MAPBIOMAS_PALETTE
 from app_file import YvynationApp
 from mapbiomas_analysis import (
     render_mapbiomas_area_analysis,
@@ -238,7 +238,7 @@ def add_ee_layers_to_map(m, center, zoom, layer1_year, layer1_opacity=1.0,
             return m
         
         if data_source == "MapBiomas":
-            from config import MAPBIOMAS_PALETTE
+            from yvynation_config import MAPBIOMAS_PALETTE
             
             # Layer 1
             if layer1_year:
@@ -310,7 +310,7 @@ def add_ee_layers_to_map(m, center, zoom, layer1_year, layer1_opacity=1.0,
         
         elif data_source == "Hansen":
             # Hansen/GLAD layers with ocean mask and proper palette
-            from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
+            from yvynation_config import HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
             
             # Ensure year is a string for HANSEN_DATASETS
             year_key = str(layer1_year) if layer1_year else "2020"
