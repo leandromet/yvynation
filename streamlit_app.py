@@ -23,6 +23,7 @@ from plots import (
     plot_area_comparison,
     plot_area_changes,
     plot_temporal_trend,
+    create_sankey_transitions,
 )
 from visualization import create_mapbiomas_legend
 
@@ -203,6 +204,21 @@ def zoom_to_bounds(m, bounds):
     """Add fit_bounds to map if bounds available."""
     if bounds:
         m.fit_bounds(bounds, padding=(0.1, 0.1))
+
+def clean_territory_name(name_with_id):
+    """Extract clean territory name from [name (id)] format, handling encoding issues."""
+    if not name_with_id:
+        return name_with_id
+    
+    try:
+        # Try to extract name from [name (id)] format
+        if name_with_id.startswith('[') and '(' in name_with_id:
+            # Extract the part between [ and (
+            name = name_with_id.split('(')[0].replace('[', '').strip()
+            return name if name else name_with_id
+        return name_with_id
+    except Exception:
+        return name_with_id
 
 # Initialize EE
 try:
@@ -402,13 +418,23 @@ with analysis_col:
                     territory_names = sorted(territories_fc.aggregate_array(name_prop).getInfo())
                     
                     if territory_names:
-                        selected_territory = st.selectbox(
+                        # Create mapping: clean_name -> original_name for lookup
+                        clean_to_original = {}
+                        clean_names = []
+                        for orig_name in territory_names:
+                            clean_name = clean_territory_name(orig_name)
+                            clean_to_original[clean_name] = orig_name
+                            clean_names.append(clean_name)
+                        
+                        selected_clean = st.selectbox(
                             "Search and select a territory (634 territories available)",
-                            territory_names,
+                            sorted(clean_names),
                             key="territory_search"
                         )
                         
-                        if selected_territory:
+                        if selected_clean:
+                            # Get the original name for filtering
+                            selected_territory = clean_to_original.get(selected_clean, selected_clean)
                             col_year, col_btn = st.columns([2, 1])
                             with col_year:
                                 year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
@@ -530,7 +556,38 @@ with analysis_col:
                 except Exception as e:
                     st.warning(f"Chart rendering issue: {e}")
                 
-                st.markdown("#### 📋 Statistics by Year")
+                st.markdown("#### � Land Cover Transitions (Sankey Diagram)")
+                try:
+                    # Create transition matrix from start to end year
+                    # Approximate transitions based on area changes in top classes
+                    area_start = st.session_state.results["area_start"].set_index("Class_ID")
+                    area_end = st.session_state.results["area_end"].set_index("Class_ID")
+                    
+                    # Get top classes to show in Sankey
+                    top_classes = list(st.session_state.results["area_start"]["Class_ID"].head(10).values)
+                    
+                    # Create simple transition matrix (assumes proportional distribution of change)
+                    transitions = {}
+                    for class_id in top_classes:
+                        if class_id in area_start.index:
+                            area_start_val = area_start.loc[class_id, "Area_km2"]
+                            transitions[class_id] = {}
+                            
+                            # Distribute proportionally to other classes
+                            for target_id in top_classes:
+                                if target_id in area_end.index:
+                                    area_end_val = area_end.loc[target_id, "Area_km2"]
+                                    # Simple proportional approximation
+                                    if area_start_val > 0:
+                                        transitions[class_id][target_id] = area_start_val * (area_end_val / area_end.loc[:, "Area_km2"].sum()) if area_end.loc[:, "Area_km2"].sum() > 0 else 0
+                    
+                    # Create and display Sankey
+                    sankey_fig = create_sankey_transitions(transitions, start_year, end_year)
+                    st.plotly_chart(sankey_fig, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Sankey diagram rendering: {e}")
+                
+                st.markdown("#### �📋 Statistics by Year")
                 
                 col_start, col_end = st.columns(2)
                 with col_start:

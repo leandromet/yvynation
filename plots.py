@@ -201,7 +201,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
 
 def create_sankey_transitions(transitions_dict, year_start, year_end):
     """
-    Create Sankey diagram for land cover transitions.
+    Create Sankey diagram for land cover transitions (left to right, ordered by flow).
     
     Args:
         transitions_dict (dict): Transition matrix {source: {target: area}}
@@ -209,46 +209,76 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
         year_end (int): End year
     
     Returns:
-        plotly.graph_objects.Figure: Sankey diagram
+        plotly.graph_objects.Figure: Sankey diagram with left-right layout
     """
-    # Prepare data for Sankey
+    # Prepare nodes and links
     sources = []
     targets = []
     values = []
-    colors = []
+    source_colors = []
     
-    for source, targets_dict in transitions_dict.items():
-        for target, area in targets_dict.items():
+    for source_id, targets_dict in transitions_dict.items():
+        for target_id, area in targets_dict.items():
             if area > 0:
-                sources.append(source)
-                targets.append(target)
+                sources.append(f"{source_id} ({year_start})")
+                targets.append(f"{target_id} ({year_end})")
                 values.append(area)
-                # Color based on source
-                if source in MAPBIOMAS_COLOR_MAP:
-                    colors.append(MAPBIOMAS_COLOR_MAP[source])
-                else:
-                    colors.append('#cccccc')
+                # Color from source class
+                source_colors.append(MAPBIOMAS_COLOR_MAP.get(source_id, '#cccccc'))
     
+    if not sources:
+        return None
+    
+    # Get all unique nodes
+    all_nodes = list(set(sources + targets))
+    
+    # Calculate node flow for ordering
+    node_flow = {}
+    for source, target, value in zip(sources, targets, values):
+        node_flow[source] = node_flow.get(source, 0) + value
+        node_flow[target] = node_flow.get(target, 0) + value
+    
+    # Sort nodes by flow (descending - largest at top)
+    sorted_nodes = sorted(all_nodes, key=lambda x: node_flow.get(x, 0), reverse=True)
+    
+    # Create node to index mapping
+    node_to_idx = {node: i for i, node in enumerate(sorted_nodes)}
+    
+    # Get node colors
+    node_colors = []
+    for node in sorted_nodes:
+        # Extract class ID from node label
+        class_id_str = node.split(' (')[0]
+        try:
+            class_id = int(class_id_str)
+            color = MAPBIOMAS_COLOR_MAP.get(class_id, '#cccccc')
+        except:
+            color = '#cccccc'
+        node_colors.append(color)
+    
+    # Create Sankey
     fig = go.Figure(data=[go.Sankey(
         node=dict(
-            pad=15,
+            pad=20,
             thickness=20,
             line=dict(color='black', width=0.5),
-            label=list(set(sources + targets))
+            label=sorted_nodes,
+            color=node_colors
         ),
         link=dict(
-            source=[sources.index(s) for s in sources],
-            target=[list(set(sources + targets)).index(t) for t in targets],
+            source=[node_to_idx[s] for s in sources],
+            target=[node_to_idx[t] for t in targets],
             value=values,
-            color=colors
+            color=source_colors,
+            label=[f"{s} → {t} ({v:.1f} km²)" for s, t, v in zip(sources, targets, values)]
         )
     )])
     
     fig.update_layout(
         title=f'Land Cover Transitions ({year_start} to {year_end})',
         font=dict(size=10),
-        height=600,
-        width=1000
+        height=700,
+        width=1200
     )
     
     return fig
