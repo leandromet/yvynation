@@ -49,6 +49,8 @@ if "map_zoom" not in st.session_state:
     st.session_state.map_zoom = 7
 if "results" not in st.session_state:
     st.session_state.results = None
+if "map_object" not in st.session_state:
+    st.session_state.map_object = None
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -152,6 +154,7 @@ if st.sidebar.button("Load Core Data"):
             st.session_state.app = YvynationApp()
             st.session_state.app.load_core_data()
             st.session_state.data_loaded = True
+            st.session_state.map_object = None  # Reset map to force recreation with layers
             st.sidebar.success("✅ Data loaded successfully!")
         except Exception as e:
             st.sidebar.error(f"❌ Failed to load data: {e}")
@@ -198,8 +201,14 @@ else:
         """)
         
         try:
-            # Create map once and keep it fresh
-            m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
+            # Create map only once and cache it in session state
+            if st.session_state.map_object is None:
+                st.session_state.map_object = create_ee_folium_map(
+                    center=[st.session_state.map_center_lon, st.session_state.map_center_lat], 
+                    zoom=st.session_state.map_zoom
+                )
+            
+            m = st.session_state.map_object
             
             # Capture map with drawings - use key to prevent rerun issues
             map_data = st_folium(m, width=None, height=700, key="main_map")
