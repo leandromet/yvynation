@@ -633,10 +633,10 @@ with analysis_col:
                     
                     change_df["Change (ha)"] = change_df[f"{end_year}"] - change_df[f"{start_year}"]
                     change_df["% Change"] = (change_df["Change (ha)"] / change_df[f"{start_year}"].replace(0, 1)) * 100
-                    change_df = change_df.sort_values("Change (km²)", key=abs, ascending=False)
+                    change_df = change_df.sort_values("Change (ha)", key=abs, ascending=False)
                     
                     # Change table
-                    st.write("**Land Cover Changes (km²)**")
+                    st.write("**Land Cover Changes (hectares)**")
                     st.dataframe(change_df.head(20), use_container_width=True)
                 else:
                     st.warning("Results format not recognized")
