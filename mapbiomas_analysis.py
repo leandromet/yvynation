@@ -153,7 +153,9 @@ def render_mapbiomas_territory_analysis():
                 key="territory_select"
             )
         with col_year:
-            territory_year = st.selectbox("Year", range(1985, 2024), index=38, key="territory_year")
+            years = list(range(1985, 2024))
+            default_index = years.index(st.session_state.get("territory_year", 2023))
+            territory_year = st.selectbox("Year", years, index=default_index, key="territory_year")
         
         if st.button("📍 Analyze Territory", key="btn_territory", width="stretch"):
             with st.spinner(f"Analyzing {territory_name}..."):
