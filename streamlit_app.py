@@ -12,6 +12,7 @@ import streamlit_folium
 from streamlit_folium import st_folium
 import pandas as pd
 import json
+import matplotlib.pyplot as plt
 from google.oauth2 import service_account
 from config import PROJECT_ID
 from app_file import YvynationApp
@@ -641,6 +642,16 @@ with map_col:
         current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
         current_compare_mode = st.session_state.split_compare_mode
         
+        # Track current data source
+        if "current_data_source" not in st.session_state:
+            st.session_state.current_data_source = st.session_state.data_source
+        
+        # Check if data source changed
+        data_source_changed = st.session_state.current_data_source != st.session_state.data_source
+        if data_source_changed:
+            st.session_state.current_data_source = st.session_state.data_source
+            st.session_state.map_object = None  # Force map refresh
+        
         # Check if layers configuration changed
         config_changed = (
             st.session_state.map_layers_config['layer1_year'] != current_layer1_year or
@@ -833,11 +844,43 @@ with analysis_col:
                                         maxPixels=1e9
                                     ).getInfo()
                                     
-                                    st.success(f"✅ Hansen {hansen_year} data retrieved for your area")
-                                    st.json(stats)
+                                    # Convert Hansen stats to DataFrame for visualization
+                                    if stats and 'b1' in stats:
+                                        hansen_data = stats['b1']
+                                        # Convert to DataFrame
+                                        df_hansen = pd.DataFrame([
+                                            {'Class': int(k), 'Area (pixels)': v}
+                                            for k, v in hansen_data.items()
+                                        ]).sort_values('Area (pixels)', ascending=False)
+                                        
+                                        # Store for visualization
+                                        st.session_state.hansen_area_result = df_hansen
+                                        st.session_state.hansen_area_year = hansen_year
+                                        
+                                        st.success(f"✅ Hansen {hansen_year} data retrieved for your area")
+                                    else:
+                                        st.warning("No data found in selected area")
                                     
                                 except Exception as e:
                                     st.error(f"Analysis failed: {e}")
+                    
+                    # Display Hansen area results if available
+                    if hasattr(st.session_state, 'hansen_area_result') and st.session_state.hansen_area_result is not None:
+                        st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
+                        
+                        # Create visualization
+                        fig, ax = plt.subplots(figsize=(12, 6))
+                        top_classes = st.session_state.hansen_area_result.head(15)
+                        ax.barh(top_classes['Class'].astype(str), top_classes['Area (pixels)'])
+                        ax.set_xlabel('Area (pixels)')
+                        ax.set_ylabel('Land Cover Class')
+                        ax.set_title(f'Hansen {st.session_state.hansen_area_year} Land Cover Distribution')
+                        ax.invert_yaxis()
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        
+                        st.markdown("#### 📋 Detailed Statistics")
+                        st.dataframe(st.session_state.hansen_area_result, width="stretch")
                     
                     # Display drawn area results if available (persists even when switching sections)
                     if st.session_state.drawn_area_result is not None and st.session_state.data_source == "MapBiomas (Brazil)":
