@@ -40,7 +40,7 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
         figsize (tuple): Figure size
     
     Returns:
-        None (displays plot)
+        matplotlib figure object for rendering with st.pyplot()
     """
     df_top = area_df.head(top_n).copy()
     df_top['Class_Name'] = df_top['Class_Name'].fillna('Unknown')
@@ -54,7 +54,7 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
     ax.invert_yaxis()
     
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, figsize=(16, 6)):
@@ -70,7 +70,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
         figsize (tuple): Figure size
     
     Returns:
-        None (displays plots)
+        matplotlib figure object for rendering with st.pyplot()
     """
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     
@@ -95,7 +95,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     axes[1].invert_yaxis()
     
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6)):
@@ -110,7 +110,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
         figsize (tuple): Figure size
     
     Returns:
-        None (displays plot)
+        matplotlib figure object for rendering with st.pyplot()
     """
     df = comparison.head(top_n).copy()
     df['Class_Name'] = df['Class_Name'].fillna('Unknown')
@@ -126,7 +126,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
     ax.invert_yaxis()
     
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(12, 6)):
@@ -141,7 +141,7 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
         figsize (tuple): Figure size
     
     Returns:
-        None (displays plot)
+        matplotlib figure object for rendering with st.pyplot()
     """
     df = comparison.dropna(subset=['Change_pct']).head(top_n).copy()
     df['Class_Name'] = df['Class_Name'].fillna('Unknown')
@@ -157,7 +157,7 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
     ax.invert_yaxis()
     
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6)):
@@ -171,7 +171,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
         figsize (tuple): Figure size
     
     Returns:
-        None (displays plot)
+        matplotlib figure object for rendering with st.pyplot()
     """
     if len(df_list) != len(years):
         raise ValueError("df_list and years must have same length")
@@ -196,7 +196,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 def create_sankey_transitions(transitions_dict, year_start, year_end):

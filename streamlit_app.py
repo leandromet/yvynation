@@ -51,6 +51,10 @@ if "results" not in st.session_state:
     st.session_state.results = None
 if "map_object" not in st.session_state:
     st.session_state.map_object = None
+if "last_analyzed_geom" not in st.session_state:
+    st.session_state.last_analyzed_geom = None
+if "last_analyzed_name" not in st.session_state:
+    st.session_state.last_analyzed_name = None
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -467,20 +471,44 @@ with analysis_col:
         
         if "app" not in st.session_state or st.session_state.app is None:
             st.info("Load data first to enable multi-year analysis")
+        elif st.session_state.last_analyzed_geom is None:
+            st.info("👈 First, analyze a drawn area or select a territory above")
         else:
+            st.info(f"📍 Analyzing: **{st.session_state.last_analyzed_name}**")
+            
             col1, col2 = st.columns(2)
             with col1:
-                start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_all")
+                start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_current")
             with col2:
-                end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_all")
+                end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
             
-            if st.button("Analyze All Territories", use_container_width=True):
-                with st.spinner("Analyzing all territories..."):
+            if st.button("Analyze Multi-Year Changes", use_container_width=True):
+                with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
                     try:
-                        results = st.session_state.app.analyze_territories(
-                            start_year=start_year,
-                            end_year=end_year
+                        mapbiomas = st.session_state.app.mapbiomas_v9
+                        geom = st.session_state.last_analyzed_geom
+                        
+                        # Get data for both years
+                        start_band = f'classification_{start_year}'
+                        end_band = f'classification_{end_year}'
+                        
+                        area_start = calculate_area_by_class(
+                            mapbiomas.select(start_band),
+                            geom,
+                            start_year
                         )
+                        
+                        area_end = calculate_area_by_class(
+                            mapbiomas.select(end_band),
+                            geom,
+                            end_year
+                        )
+                        
+                        # Store results
+                        results = {
+                            "area_start": area_start,
+                            "area_end": area_end
+                        }
                         st.session_state.results = results
                         st.success(f"✅ Analysis complete for {start_year}-{end_year}")
                     except Exception as e:
@@ -528,10 +556,26 @@ with analysis_col:
             else:
                 results = st.session_state.results
                 
-                # Change table
-                st.write("**Land Cover Changes (km²)**")
-                comparison = results["comparison"].head(20)
-                st.dataframe(comparison, use_container_width=True)
+                # Calculate change between years
+                if "area_start" in results and "area_end" in results:
+                    area_start = results["area_start"].set_index("Class_ID")
+                    area_end = results["area_end"].set_index("Class_ID")
+                    
+                    # Calculate change
+                    change_df = pd.DataFrame({
+                        f"{start_year}": area_start["Area_km2"],
+                        f"{end_year}": area_end["Area_km2"]
+                    }).fillna(0)
+                    
+                    change_df["Change (km²)"] = change_df[f"{end_year}"] - change_df[f"{start_year}"]
+                    change_df["% Change"] = (change_df["Change (km²)"] / change_df[f"{start_year}"].replace(0, 1)) * 100
+                    change_df = change_df.sort_values("Change (km²)", key=abs, ascending=False)
+                    
+                    # Change table
+                    st.write("**Land Cover Changes (km²)**")
+                    st.dataframe(change_df.head(20), use_container_width=True)
+                else:
+                    st.warning("Results format not recognized")
                 
                 # Change visualization
                 try:
