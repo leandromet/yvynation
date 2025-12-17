@@ -39,8 +39,7 @@ st.sidebar.title("🌍 Yvynation Configuration")
 
 # Initialize EE
 try:
-    if not ee.data._initialized:
-        ee.Initialize(project=PROJECT_ID)
+    ee.Initialize(project=PROJECT_ID)
     st.sidebar.success("✅ Earth Engine initialized")
 except Exception as e:
     st.sidebar.error(f"❌ EE initialization failed: {e}")
