@@ -7,7 +7,7 @@ import streamlit as st
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
-from yvynation_config import HANSEN_DATASETS
+from config import HANSEN_DATASETS
 
 
 def hansen_histogram_to_dataframe(hist, year):

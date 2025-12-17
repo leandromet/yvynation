@@ -6,7 +6,7 @@ Handles charts, graphs, and visualizations for analysis results.
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
-from yvynation_config import MAPBIOMAS_COLOR_MAP
+from config import MAPBIOMAS_COLOR_MAP
 
 
 def get_bar_colors(df, id_column='Class_ID'):
