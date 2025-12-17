@@ -217,6 +217,79 @@ with st.sidebar.expander("ℹ️ About"):
     """)
 
 # ============================================================================
+# MAP CREATION FUNCTION (MUST BE DEFINED BEFORE TABS)
+# ============================================================================
+
+def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0, 
+                         layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas"):
+    """Create a folium map with Earth Engine layers"""
+    try:
+        m = folium.Map(
+            location=[center[1], center[0]],
+            zoom_start=zoom,
+            tiles="OpenStreetMap"
+        )
+        
+        if data_source == "MapBiomas":
+            # MapBiomas layers
+            mapbiomas = st.session_state.app.mapbiomas_v9
+            
+            # Layer 1
+            if isinstance(layer1_year, int):
+                layer1_band = f'classification_{layer1_year}'
+                layer1_image = mapbiomas.select(layer1_band)
+                
+                ee_layer = geemap.ee_tile_layer(
+                    ee_object=layer1_image,
+                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
+                    name=f"MapBiomas {layer1_year}",
+                    show=True,
+                    opacity=layer1_opacity
+                )
+                m.add_child(ee_layer)
+            
+            # Layer 2 (comparison mode)
+            if compare_mode and layer2_year:
+                layer2_band = f'classification_{layer2_year}'
+                layer2_image = mapbiomas.select(layer2_band)
+                
+                ee_layer2 = geemap.ee_tile_layer(
+                    ee_object=layer2_image,
+                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
+                    name=f"MapBiomas {layer2_year}",
+                    show=True,
+                    opacity=layer2_opacity
+                )
+                m.add_child(ee_layer2)
+        
+        elif data_source == "Hansen":
+            # Hansen layers
+            from config import HANSEN_DATASETS
+            # Ensure year is a string for HANSEN_DATASETS
+            year_key = str(layer1_year) if layer1_year else "2020"
+            hansen_image = ee.Image(HANSEN_DATASETS[year_key])
+            
+            ee_layer = geemap.ee_tile_layer(
+                ee_object=hansen_image,
+                vis_params={'min': 0, 'max': 17, 'palette': 'viridis'},
+                name=f"Hansen {year_key}",
+                show=True,
+                opacity=layer1_opacity
+            )
+            m.add_child(ee_layer)
+        
+        # Add drawing tools
+        Draw(export=True).add_to(m)
+        Fullscreen().add_to(m)
+        folium.LayerControl().add_to(m)
+        
+        return m
+    
+    except Exception as e:
+        st.error(f"Map creation error: {e}")
+        return None
+
+# ============================================================================
 # MAIN CONTENT - TABS
 # ============================================================================
 
@@ -367,77 +440,4 @@ with tab_hansen:
         # Change detection
         with st.expander("📊 Change Analysis"):
             render_hansen_change_analysis()
-
-# ============================================================================
-# MAP CREATION FUNCTION
-# ============================================================================
-
-def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0, 
-                         layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas"):
-    """Create a folium map with Earth Engine layers"""
-    try:
-        m = folium.Map(
-            location=[center[1], center[0]],
-            zoom_start=zoom,
-            tiles="OpenStreetMap"
-        )
-        
-        if data_source == "MapBiomas":
-            # MapBiomas layers
-            mapbiomas = st.session_state.app.mapbiomas_v9
-            
-            # Layer 1
-            if isinstance(layer1_year, int):
-                layer1_band = f'classification_{layer1_year}'
-                layer1_image = mapbiomas.select(layer1_band)
-                
-                ee_layer = geemap.ee_tile_layer(
-                    ee_object=layer1_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
-                    name=f"MapBiomas {layer1_year}",
-                    show=True,
-                    opacity=layer1_opacity
-                )
-                m.add_child(ee_layer)
-            
-            # Layer 2 (comparison mode)
-            if compare_mode and layer2_year:
-                layer2_band = f'classification_{layer2_year}'
-                layer2_image = mapbiomas.select(layer2_band)
-                
-                ee_layer2 = geemap.ee_tile_layer(
-                    ee_object=layer2_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': create_mapbiomas_legend()[1]},
-                    name=f"MapBiomas {layer2_year}",
-                    show=True,
-                    opacity=layer2_opacity
-                )
-                m.add_child(ee_layer2)
-        
-        elif data_source == "Hansen":
-            # Hansen layers
-            from config import HANSEN_DATASETS
-            # Ensure year is a string for HANSEN_DATASETS
-            year_key = str(layer1_year) if layer1_year else "2020"
-            hansen_image = ee.Image(HANSEN_DATASETS[year_key])
-            
-            ee_layer = geemap.ee_tile_layer(
-                ee_object=hansen_image,
-                vis_params={'min': 0, 'max': 17, 'palette': 'viridis'},
-                name=f"Hansen {year_key}",
-                show=True,
-                opacity=layer1_opacity
-            )
-            m.add_child(ee_layer)
-        
-        # Add drawing tools
-        Draw(export=True).add_to(m)
-        Fullscreen().add_to(m)
-        folium.LayerControl().add_to(m)
-        
-        return m
-    
-    except Exception as e:
-        st.error(f"Map creation error: {e}")
-        return None
 
