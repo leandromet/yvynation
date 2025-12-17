@@ -41,8 +41,12 @@ if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 if "drawn_geometry" not in st.session_state:
     st.session_state.drawn_geometry = None
-if "drawn_bounds" not in st.session_state:
-    st.session_state.drawn_bounds = None
+if "map_center_lat" not in st.session_state:
+    st.session_state.map_center_lat = -4.5
+if "map_center_lon" not in st.session_state:
+    st.session_state.map_center_lon = -45.3
+if "map_zoom" not in st.session_state:
+    st.session_state.map_zoom = 7
 if "results" not in st.session_state:
     st.session_state.results = None
 
@@ -177,11 +181,14 @@ else:
         
         col1, col2 = st.columns(2)
         with col1:
-            center_lat = st.slider("Latitude", -33.0, 5.0, -4.5, key="lat")
+            center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.map_center_lat, key="lat")
+            st.session_state.map_center_lat = center_lat
         with col2:
-            center_lon = st.slider("Longitude", -75.0, -35.0, -45.3, key="lon")
+            center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.map_center_lon, key="lon")
+            st.session_state.map_center_lon = center_lon
         
-        zoom = st.slider("Zoom", 4, 13, 7, key="zoom")
+        zoom = st.slider("Zoom", 4, 13, st.session_state.map_zoom, key="zoom")
+        st.session_state.map_zoom = zoom
         
         st.markdown("""
         ### Map Layers & Instructions
@@ -198,10 +205,11 @@ else:
         """)
         
         try:
+            # Create map once and keep it fresh
             m = create_ee_folium_map(center=[center_lon, center_lat], zoom=zoom)
             
-            # Capture map with drawings
-            map_data = st_folium(m, width=1400, height=700)
+            # Capture map with drawings - use key to prevent rerun issues
+            map_data = st_folium(m, width=1400, height=700, key="main_map")
             
             # Extract drawn geometry if available
             if map_data and map_data.get("last_active_drawing"):
