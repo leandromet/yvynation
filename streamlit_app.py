@@ -1003,9 +1003,8 @@ with analysis_col:
 
             "Nation" refers to a self-governing community or people with shared culture,
             history, language, and land. It signifies self-determination and governance.
-            <p style="text-align:center">
-                <img src="image-28.png" alt="Yvynation" style="max-width:80%; height:auto; border-radius:8px;" />
-            </p>
+            
+            ![Yvynation](./image-28.png)
 
             ### Data Sources
             - **MapBiomas Collection 9**
