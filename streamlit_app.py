@@ -287,7 +287,10 @@ else:
         
         with col_search1:
             try:
-                if st.session_state.app and st.session_state.app.territories:
+                # Check if app is loaded
+                if "app" not in st.session_state or st.session_state.app is None:
+                    st.error("❌ Please click 'Load Core Data' in the sidebar first")
+                else:
                     territories_fc = st.session_state.app.territories
                     
                     # Get territory names from Earth Engine
