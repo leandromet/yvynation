@@ -248,7 +248,7 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
             try:
                 tile_url_1 = mapid_1['tile_fetcher'].url_format
             except (KeyError, AttributeError):
-            tile_url_1 = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_1["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+                tile_url_1 = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_1["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         
         folium.TileLayer(
             tiles=tile_url_1,
