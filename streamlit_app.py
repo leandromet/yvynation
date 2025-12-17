@@ -804,8 +804,7 @@ with analysis_col:
             try:
                     fig2 = plot_temporal_trend(
                         [results["area_start"], results["area_end"]],
-                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year],
-                        top_n=8
+                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year]
                     )
                     st.pyplot(fig2)
             except Exception as e:
@@ -856,7 +855,7 @@ with analysis_col:
         
         ### Repository
         
-        🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet/yvynation)
+        🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet)
         ''')
 
 # Footer
