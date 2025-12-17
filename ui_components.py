@@ -8,7 +8,7 @@ import streamlit as st
 
 def render_map_controls():
     """Render map controls for MapBiomas"""
-    with st.expander("Map Controls", expanded=True):
+    with st.expander("Map Controls", expanded=False):
         st.subheader("🇧🇷 MapBiomas (Brazil) Layers")
         st.info("Data: MapBiomas Collection 9 - Brazilian land cover classification")
         
@@ -67,7 +67,7 @@ def render_map_controls():
 
 def render_hansen_map_controls():
     """Render map controls for Hansen"""
-    with st.expander("Map Controls", expanded=True):
+    with st.expander("Map Controls", expanded=False):
         st.subheader("🌍 Hansen/GLAD (Global) Layers")
         st.info("Data: Global Land Analysis and Discovery (GLAD) Lab, University of Maryland")
         
