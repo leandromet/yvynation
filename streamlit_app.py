@@ -297,15 +297,23 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     st.warning(f"Could not load territories layer: {e}")
         
         elif data_source == "Hansen":
-            # Hansen layers
-            from config import HANSEN_DATASETS
+            # Hansen/GLAD layers with ocean mask and proper palette
+            from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
+            
             # Ensure year is a string for HANSEN_DATASETS
             year_key = str(layer1_year) if layer1_year else "2020"
-            hansen_image = ee.Image(HANSEN_DATASETS[year_key])
             
-            # Use a proper color palette for Hansen visualization
-            hansen_palette = ['000000', '1a1a1a', '333333', '4d4d4d', '666666', '808080', '999999', 'b3b3b3', 'cccccc', 'e6e6e6', 'ffffff']
-            map_id = hansen_image.getMapId({'min': 0, 'max': 17, 'palette': hansen_palette})
+            # Apply ocean mask to the Hansen image
+            landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+            hansen_image = ee.Image(HANSEN_DATASETS[year_key]).updateMask(landmask)
+            
+            # Use proper HANSEN_PALETTE (256 colors)
+            vis_params = {
+                'min': 0,
+                'max': 255,
+                'palette': HANSEN_PALETTE
+            }
+            map_id = hansen_image.getMapId(vis_params)
             folium.TileLayer(
                 tiles=map_id['tile_fetcher'].url_format,
                 attr='Map data: Hansen/GLAD',
