@@ -38,16 +38,6 @@ if "results" not in st.session_state:
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
 
-# Helper function to display geemap Map in Streamlit
-def display_geemap(geemap_map, height=600):
-    """Display a geemap.Map in Streamlit."""
-    try:
-        # geemap.Map is already a folium map, display directly
-        streamlit_folium.folium_static(geemap_map, width=1400, height=height)
-    except Exception as e:
-        st.error(f"Map display error: {e}")
-        st.info("Try refreshing the page or checking the browser console.")
-
 # Initialize EE
 try:
     ee.Initialize(project=PROJECT_ID)
@@ -80,37 +70,13 @@ if not st.session_state.data_loaded:
 else:
     app = st.session_state.app
 
-    # Tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["🗺️ Interactive Map", "📊 Area Analysis", "📈 Change Detection", 
-         "🔍 Territory Filter", "ℹ️ About"]
+    # Tabs - skip interactive maps for now, focus on working analysis
+    tab1, tab2, tab3 = st.tabs(
+        ["📊 Area Analysis", "📈 Change Detection", "ℹ️ About"]
     )
 
-    # TAB 1: Interactive Map
+    # TAB 1: Area Analysis
     with tab1:
-        st.subheader("Interactive Map with MapBiomas and Territories")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            center_lat = st.slider("Center Latitude", -33.0, 5.0, -4.5)
-        with col2:
-            center_lon = st.slider("Center Longitude", -75.0, -35.0, -45.3)
-        
-        zoom = st.slider("Zoom Level", 4, 13, 7)
-        
-        if st.button("Create Map"):
-            with st.spinner("Creating interactive map..."):
-                try:
-                    Map = app.create_basic_map(
-                        center=[center_lon, center_lat],
-                        zoom=zoom
-                    )
-                    display_geemap(Map, height=600)
-                except Exception as e:
-                    st.error(f"Failed to create map: {e}")
-
-    # TAB 2: Area Analysis
-    with tab2:
         st.subheader("Land Cover Area Distribution")
         
         col1, col2 = st.columns(2)
@@ -177,8 +143,8 @@ else:
                 except Exception as e:
                     st.warning(f"Chart rendering issue: {e}")
 
-    # TAB 3: Change Detection
-    with tab3:
+    # TAB 2: Change Detection
+    with tab2:
         st.subheader("Land Cover Change Analysis")
         
         if st.session_state.results is None:
@@ -209,52 +175,8 @@ else:
             except Exception as e:
                 st.warning(f"Visualization issue: {e}")
 
-    # TAB 4: Territory Filter
-    with tab4:
-        st.subheader("Filter Specific Territories")
-        
-        filter_type = st.radio(
-            "Filter by:",
-            ["State Code", "Territory Name"]
-        )
-        
-        if filter_type == "State Code":
-            state_code = st.text_input(
-                "State Code (e.g., MA, AM, TO)",
-                value="MA"
-            ).upper()
-            
-            if st.button("Create Territory Map"):
-                try:
-                    with st.spinner(f"Creating map for {state_code}..."):
-                        Map = app.create_territory_map(
-                            state_code=state_code,
-                            zoom=7
-                        )
-                        display_geemap(Map, height=600)
-                except Exception as e:
-                    st.error(f"Map creation failed: {e}")
-        
-        else:
-            territory_names = st.text_area(
-                "Territory Names (comma-separated)",
-                placeholder="Bacurizinho, Porquinhos"
-            )
-            
-            if st.button("Create Territory Map"):
-                try:
-                    names_list = [n.strip() for n in territory_names.split(",")]
-                    with st.spinner("Creating map..."):
-                        Map = app.create_territory_map(
-                            territory_names=names_list,
-                            zoom=9
-                        )
-                        display_geemap(Map, height=600)
-                except Exception as e:
-                    st.error(f"Map creation failed: {e}")
-
-    # TAB 5: About
-    with tab5:
+    # TAB 3: About
+    with tab3:
         st.subheader("About Yvynation")
         
         st.markdown("""
