@@ -238,7 +238,7 @@ if not st.session_state.data_loaded:
 app = st.session_state.app
 
 # Create two-column layout: Map on left, Analysis on right
-map_col, analysis_col = st.columns([1.2, 1], gap="medium")
+map_col, analysis_col = st.columns([1, 1.6], gap="large")
 
 # LEFT COLUMN: Interactive Map (stays persistent)
 with map_col:
@@ -309,13 +309,7 @@ with analysis_col:
     
     # TAB 1: Area Analysis
     with tab1:
-        st.subheader("Land Cover Area Distribution")
-        
-        # Option 1: Analyze drawn area
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.markdown("### Option 1: Analyze Drawn Area")
+        st.markdown("### 📍 Analyze Drawn Area")
         
         if st.session_state.drawn_geometry:
             st.success("✅ Drawing detected from map")
@@ -329,9 +323,14 @@ with analysis_col:
                     # Create EE geometry from polygon
                     geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
                     
-                    year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
+                    col_year, col_btn = st.columns([2, 1])
+                    with col_year:
+                        year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
                     
-                    if st.button("Analyze Drawn Area", key="btn_drawn"):
+                    with col_btn:
+                        analyze_btn = st.button("Analyze Drawn Area", key="btn_drawn", use_container_width=True)
+                    
+                    if analyze_btn:
                         with st.spinner("Analyzing your drawn area..."):
                             try:
                                 # Use mapbiomas_v9
@@ -350,14 +349,14 @@ with analysis_col:
                                 st.session_state.last_analyzed_geom = geom
                                 st.session_state.last_analyzed_name = "Your Drawn Area"
                                 
-                                col_a, col_b = st.columns(2)
-                                with col_a:
-                                    st.dataframe(area_df.head(15), use_container_width=True)
+                                # Display results in full width
+                                st.markdown("#### 📊 Land Cover Distribution Chart")
+                                fig = plot_area_distribution(area_df, year=year, top_n=15)
+                                if fig:
+                                    st.pyplot(fig, use_container_width=True)
                                 
-                                with col_b:
-                                    fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                    if fig:
-                                        st.pyplot(fig)
+                                st.markdown("#### 📋 Detailed Statistics")
+                                st.dataframe(area_df.head(20), use_container_width=True)
                                 
                                 st.success("✅ View the drawn area on the map on the left!")
                                 
@@ -372,116 +371,110 @@ with analysis_col:
         else:
             st.info("👈 Draw an area on the Map tab first")
         
-        with col2:
-            st.markdown("### Option 2: Quick Territory Search")
-            st.info("Use the search below to find and analyze any territory")
-            
-            st.divider()
-            
-            # Quick search and analyze
-            st.subheader("🔍 Quick Territory Search & Analyze")
-            
-            col_search1, col_search2 = st.columns([2, 1])
-            
-            with col_search1:
-                if "app" not in st.session_state or st.session_state.app is None:
-                    st.error("❌ Please click 'Load Core Data' in the sidebar first")
+        st.divider()
+        st.markdown("### 🔍 Territory Search & Analysis")
+        
+        if "app" not in st.session_state or st.session_state.app is None:
+            st.error("❌ Please click 'Load Core Data' in the sidebar first")
+        else:
+            try:
+                territories_fc = st.session_state.app.territories
+                
+                # Get first feature to see what properties exist
+                first_feature = territories_fc.first().getInfo()
+                available_props = list(first_feature.get('properties', {}).keys()) if first_feature else []
+                
+                # Try different property names
+                name_prop = None
+                for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
+                    if prop in available_props:
+                        name_prop = prop
+                        break
+                
+                if not name_prop:
+                    st.error(f"❌ Territory name property not found. Available properties: {available_props}")
                 else:
-                    try:
-                        territories_fc = st.session_state.app.territories
+                    # Get territory names from Earth Engine
+                    territory_names = sorted(territories_fc.aggregate_array(name_prop).getInfo())
+                    
+                    if territory_names:
+                        selected_territory = st.selectbox(
+                            "Search and select a territory (634 territories available)",
+                            territory_names,
+                            key="territory_search"
+                        )
                         
-                        # Debug: Check what properties are available
-                        # Get first feature to see what properties exist
-                        first_feature = territories_fc.first().getInfo()
-                        available_props = list(first_feature.get('properties', {}).keys()) if first_feature else []
-                        
-                        # Try different property names
-                        name_prop = None
-                        for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
-                            if prop in available_props:
-                                name_prop = prop
-                                break
-                        
-                        if not name_prop:
-                            st.error(f"❌ Territory name property not found. Available properties: {available_props}")
-                        else:
-                            # Get territory names from Earth Engine
-                            territory_names = sorted(territories_fc.aggregate_array(name_prop).getInfo())
+                        if selected_territory:
+                            col_year, col_btn = st.columns([2, 1])
+                            with col_year:
+                                year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
                             
-                            if territory_names:
-                                selected_territory = st.selectbox(
-                                    "Search and select a territory (634 territories available)",
-                                    territory_names,
-                                    key="territory_search"
-                                )
-                                
-                                if selected_territory:
-                                    year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
-                                    
-                                    if st.button("Analyze Selected Territory", key="btn_analyze_territory"):
-                                        with st.spinner(f"Analyzing {selected_territory}..."):
-                                            try:
-                                                # Filter to selected territory
-                                                territory_geom = territories_fc.filter(
-                                                    ee.Filter.eq(name_prop, selected_territory)
-                                                ).first().geometry()
-                                                
-                                                # Get bounds and zoom map
-                                                bounds_info = territory_geom.bounds().getInfo()
-                                                if bounds_info and bounds_info.get('coordinates'):
-                                                    coords = bounds_info['coordinates'][0]
-                                                    lons = [c[0] for c in coords]
-                                                    lats = [c[1] for c in coords]
-                                                    bounds = [[min(lats), min(lons)], [max(lats), max(lons)]]
-                                                    
-                                                    if st.session_state.map_object:
-                                                        zoom_to_bounds(st.session_state.map_object, bounds)
-                                                
-                                                # Analyze
-                                                mapbiomas = st.session_state.app.mapbiomas_v9
-                                                band = f'classification_{year}'
-                                                
-                                                area_df = calculate_area_by_class(
-                                                    mapbiomas.select(band),
-                                                    territory_geom,
-                                                    year
-                                                )
-                                                
-                                                # Store geometry for map display
-                                                st.session_state.last_analyzed_geom = territory_geom
-                                                st.session_state.last_analyzed_name = selected_territory
-                                                
-                                                st.success(f"✅ Analysis complete for {selected_territory} ({year}) - Map zoomed to territory")
-                                                
-                                                col_a, col_b = st.columns(2)
-                                                with col_a:
-                                                    st.write(f"**Land Cover in {selected_territory} ({year})**")
-                                                    st.dataframe(area_df.head(15), use_container_width=True)
-                                                
-                                                with col_b:
-                                                    fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                                    if fig:
-                                                        st.pyplot(fig)
-                                                
-                                                st.success(f"✅ View {selected_territory} on the map on the left - use the search box to highlight it!")
+                            with col_btn:
+                                analyze_btn = st.button("Analyze Territory", key="btn_analyze_territory", use_container_width=True)
+                            
+                            if analyze_btn:
+                                with st.spinner(f"Analyzing {selected_territory}..."):
+                                    try:
+                                        # Filter to selected territory
+                                        territory_geom = territories_fc.filter(
+                                            ee.Filter.eq(name_prop, selected_territory)
+                                        ).first().geometry()
+                                        
+                                        # Get bounds and zoom map
+                                        bounds_info = territory_geom.bounds().getInfo()
+                                        if bounds_info and bounds_info.get('coordinates'):
+                                            coords = bounds_info['coordinates'][0]
+                                            lons = [c[0] for c in coords]
+                                            lats = [c[1] for c in coords]
+                                            bounds = [[min(lats), min(lons)], [max(lats), max(lons)]]
                                             
-                                            except Exception as e:
-                                                st.error(f"Analysis failed: {e}")
-                    except Exception as e:
-                        st.error(f"Error loading territories: {e}")
-
-            st.divider()
-            
-            # Option 3: Default analysis for all territories
-            st.markdown("### Option 3: Analyze All Territories")
-            
+                                            if st.session_state.map_object:
+                                                zoom_to_bounds(st.session_state.map_object, bounds)
+                                        
+                                        # Analyze
+                                        mapbiomas = st.session_state.app.mapbiomas_v9
+                                        band = f'classification_{year}'
+                                        
+                                        area_df = calculate_area_by_class(
+                                            mapbiomas.select(band),
+                                            territory_geom,
+                                            year
+                                        )
+                                        
+                                        # Store geometry for map display
+                                        st.session_state.last_analyzed_geom = territory_geom
+                                        st.session_state.last_analyzed_name = selected_territory
+                                        
+                                        st.success(f"✅ Analysis complete for {selected_territory} ({year}) - Map zoomed to territory")
+                                        
+                                        st.markdown(f"#### 📊 Land Cover Distribution in {selected_territory}")
+                                        fig = plot_area_distribution(area_df, year=year, top_n=15)
+                                        if fig:
+                                            st.pyplot(fig, use_container_width=True)
+                                        
+                                        st.markdown("#### 📋 Detailed Statistics")
+                                        st.dataframe(area_df.head(20), use_container_width=True)
+                                        
+                                        st.success(f"✅ View {selected_territory} on the map on the left!")
+                                        
+                                    except Exception as e:
+                                        st.error(f"Analysis failed: {e}")
+            except Exception as e:
+                st.error(f"Error loading territories: {e}")
+        
+        st.divider()
+        st.markdown("### 📈 Multi-Year Territory Analysis")
+        
+        if "app" not in st.session_state or st.session_state.app is None:
+            st.info("Load data first to enable multi-year analysis")
+        else:
             col1, col2 = st.columns(2)
             with col1:
                 start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_all")
             with col2:
                 end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_all")
             
-            if st.button("Analyze All Territories"):
+            if st.button("Analyze All Territories", use_container_width=True):
                 with st.spinner("Analyzing all territories..."):
                     try:
                         results = st.session_state.app.analyze_territories(
@@ -489,55 +482,42 @@ with analysis_col:
                             end_year=end_year
                         )
                         st.session_state.results = results
-                        
-                        # Display area tables
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.write(f"**Area Distribution in {start_year}**")
-                            st.dataframe(
-                                results["area_start"].head(15),
-                                use_container_width=True
-                            )
-                        
-                        with col2:
-                            st.write(f"**Area Distribution in {end_year}**")
-                            st.dataframe(
-                                results["area_end"].head(15),
-                                use_container_width=True
-                            )
+                        st.success(f"✅ Analysis complete for {start_year}-{end_year}")
                     except Exception as e:
                         st.error(f"Analysis failed: {e}")
             
             # Display charts if results exist
             if st.session_state.results:
-                st.subheader("Visualizations")
+                st.markdown(f"#### 📊 Land Cover Distribution Comparison ({start_year} vs {end_year})")
                 
-                col1, col2 = st.columns(2)
+                try:
+                    fig = plot_area_comparison(
+                        st.session_state.results["area_start"],
+                        st.session_state.results["area_end"],
+                        start_year,
+                        end_year,
+                        top_n=15
+                    )
+                    st.pyplot(fig, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Chart rendering issue: {e}")
                 
-                with col1:
-                    try:
-                        fig1 = plot_area_distribution(
-                            st.session_state.results["area_start"],
-                            year=start_year,
-                            top_n=12
-                        )
-                        st.pyplot(fig1)
-                    except Exception as e:
-                        st.warning(f"Chart rendering issue: {e}")
+                st.markdown("#### 📋 Statistics by Year")
                 
-                with col2:
-                    try:
-                        fig2 = plot_area_comparison(
-                            st.session_state.results["area_start"],
-                            st.session_state.results["area_end"],
-                            start_year,
-                            end_year,
-                            top_n=12
-                        )
-                        st.pyplot(fig2)
-                    except Exception as e:
-                        st.warning(f"Chart rendering issue: {e}")
+                col_start, col_end = st.columns(2)
+                with col_start:
+                    st.write(f"**{start_year} Distribution**")
+                    st.dataframe(
+                        st.session_state.results["area_start"].head(15),
+                        use_container_width=True
+                    )
+                
+                with col_end:
+                    st.write(f"**{end_year} Distribution**")
+                    st.dataframe(
+                        st.session_state.results["area_end"].head(15),
+                        use_container_width=True
+                    )
         
         # TAB 2: Change Detection
         with tab2:
