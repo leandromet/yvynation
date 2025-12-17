@@ -90,10 +90,18 @@ if "multiyear_start_year" not in st.session_state:
     st.session_state.multiyear_start_year = None
 if "multiyear_end_year" not in st.session_state:
     st.session_state.multiyear_end_year = None
+
+# Multiple drawn areas tracking
+if "drawn_areas" not in st.session_state:
+    st.session_state.drawn_areas = {}  # {name: geometry_data}
+if "drawn_area_count" not in st.session_state:
+    st.session_state.drawn_area_count = 0
+if "selected_drawn_area" not in st.session_state:
+    st.session_state.selected_drawn_area = None
 if "persistent_drawn_geometry" not in st.session_state:
     st.session_state.persistent_drawn_geometry = None
-if "drawn_layer_added_to_map" not in st.session_state:
-    st.session_state.drawn_layer_added_to_map = False
+if "last_drawn_geometry" not in st.session_state:
+    st.session_state.last_drawn_geometry = None  # Track last drawing to avoid duplicates
 
 # Sidebar
 st.sidebar.title("🌎 Yvynation Land Use")
@@ -282,15 +290,30 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
     )
     draw.add_to(m)
     
-    # Add persistent drawn geometry if provided
+    # Add all saved drawn areas with darker colors and labels
+    colors = ['darkblue', 'darkred', 'darkgreen', 'purple', 'orange', 'brown', 'cadetblue', 'darkviolet']
     if persistent_geometry:
-        geom_data = persistent_geometry.get('geometry', {})
-        if geom_data.get('type') == 'Polygon':
-            folium.GeoJson(
-                {'type': 'Feature', 'geometry': geom_data},
-                style_function=lambda x: {'color': 'blue', 'weight': 3, 'opacity': 0.7, 'fillOpacity': 0.1},
-                name='Drawn Area'
-            ).add_to(m)
+        for idx, (area_name, geom_data) in enumerate(persistent_geometry.items()):
+            if geom_data.get('type') == 'Polygon':
+                color = colors[idx % len(colors)]
+                # Create GeoJSON with popup and tooltip showing the area name
+                feature = {
+                    'type': 'Feature',
+                    'geometry': geom_data,
+                    'properties': {'name': area_name}
+                }
+                folium.GeoJson(
+                    feature,
+                    style_function=lambda x, c=color: {
+                        'color': c,
+                        'weight': 4,
+                        'opacity': 0.9,
+                        'fillOpacity': 0.3
+                    },
+                    name=area_name,
+                    popup=folium.Popup(f"<b>{area_name}</b>", max_width=200),
+                    tooltip=folium.Tooltip(area_name, sticky=False)
+                ).add_to(m)
     
     # Add fullscreen button
     Fullscreen().add_to(m)
@@ -471,7 +494,7 @@ with map_col:
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
                 layer2_opacity=current_layer2_opacity,
-                persistent_geometry=st.session_state.persistent_drawn_geometry
+                persistent_geometry=st.session_state.drawn_areas if st.session_state.drawn_areas else None
             )
             st.info("🗺️ Map created with MapBiomas (2023 + 1985) and Indigenous Territories layers")
             # Update saved config
@@ -492,7 +515,7 @@ with map_col:
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
                 layer2_opacity=current_layer2_opacity,
-                persistent_geometry=st.session_state.persistent_drawn_geometry
+                persistent_geometry=st.session_state.drawn_areas if st.session_state.drawn_areas else None
             )
             # Update saved config
             st.session_state.map_layers_config = {
@@ -511,19 +534,25 @@ with map_col:
             # Capture map with drawings
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
-            # Extract drawn geometry if available and store it
+            # Extract drawn geometry if available and store it with numbering (only if NEW)
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
-                    st.session_state.drawn_geometry = drawing
-                    # Store geometry persistently for next rerun
-                    st.session_state.persistent_drawn_geometry = drawing
-                    # Mark that we need to add the layer on next render
-                    st.session_state.drawn_layer_added_to_map = False
-                    st.success("✅ Drawing captured!")
-            # Keep drawn_geometry in sync with persistent version
-            elif st.session_state.persistent_drawn_geometry:
-                st.session_state.drawn_geometry = st.session_state.persistent_drawn_geometry
+                    geom_data = drawing.get('geometry', {})
+                    # Only process if this is a NEW drawing (different from last one)
+                    geom_str = str(geom_data)  # Convert to string for comparison
+                    if geom_data.get('type') == 'Polygon' and geom_str != str(st.session_state.last_drawn_geometry):
+                        # Create new drawn area with increment
+                        st.session_state.drawn_area_count += 1
+                        area_name = f"Drawn Area {st.session_state.drawn_area_count}"
+                        
+                        # Store in drawn_areas dictionary
+                        st.session_state.drawn_areas[area_name] = geom_data
+                        st.session_state.selected_drawn_area = area_name
+                        st.session_state.last_drawn_geometry = geom_data  # Track this drawing
+                        
+                        st.success(f"✅ {area_name} captured!")
+                        st.rerun()
         else:
             st.warning("⏳ Waiting for map to load...")
         
@@ -539,15 +568,31 @@ with analysis_col:
     with st.expander("📍 Area Analysis", expanded=True):
         st.markdown("### Analyze Drawn Area")
         
-        if st.session_state.drawn_geometry:
-            st.success("✅ Drawing detected from map")
+        if st.session_state.drawn_areas:
+            st.success(f"✅ {len(st.session_state.drawn_areas)} drawing(s) captured")
+            
+            # Select which drawn area to analyze
+            col_select, col_delete = st.columns([3, 1])
+            with col_select:
+                selected_area = st.selectbox(
+                    "Select drawn area to analyze",
+                    list(st.session_state.drawn_areas.keys()),
+                    index=list(st.session_state.drawn_areas.keys()).index(st.session_state.selected_drawn_area) if st.session_state.selected_drawn_area in st.session_state.drawn_areas else 0
+                )
+                st.session_state.selected_drawn_area = selected_area
+            
+            with col_delete:
+                if st.button("🗑️ Clear All", key="clear_drawn"):
+                    st.session_state.drawn_areas = {}
+                    st.session_state.drawn_area_count = 0
+                    st.session_state.selected_drawn_area = None
+                    st.rerun()
             
             try:
-                drawing = st.session_state.drawn_geometry
-                geom_type = drawing.get('geometry', {}).get('type')
-                coords = drawing.get('geometry', {}).get('coordinates', [])
+                geom_data = st.session_state.drawn_areas[st.session_state.selected_drawn_area]
+                coords = geom_data.get('coordinates', [])
                 
-                if geom_type == 'Polygon' and coords:
+                if coords:
                     # Create EE geometry from polygon
                     geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
                     
@@ -556,11 +601,16 @@ with analysis_col:
                         year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
                     
                     with col_btn:
-                        analyze_btn = st.button("Analyze Drawn Area", key="btn_drawn", width="stretch")
+                        analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn", width="stretch")
                     
                     if analyze_btn:
                         with st.spinner("Analyzing your drawn area..."):
                             try:
+                                # Get bounds and zoom to drawn area
+                                bounds = get_bounds_from_geometry(geom_data)
+                                if bounds and st.session_state.map_object is not None:
+                                    zoom_to_bounds(st.session_state.map_object, bounds)
+                                
                                 # Use mapbiomas_v9
                                 mapbiomas = st.session_state.app.mapbiomas_v9
                                 band = f'classification_{year}'
