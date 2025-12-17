@@ -70,7 +70,7 @@ if "map_object" not in st.session_state:
 
 # Map state - Hansen (Americas)
 if "hansen_center_lat" not in st.session_state:
-    st.session_state.hansen_center_lat = 0.0
+    st.session_state.hansen_center_lat = 10.0
 if "hansen_center_lon" not in st.session_state:
     st.session_state.hansen_center_lon = -80.0
 if "hansen_zoom" not in st.session_state:
@@ -201,6 +201,7 @@ if st.sidebar.button("Load Core Data", use_container_width=True):
                 st.session_state.app = app
                 st.session_state.data_loaded = True
                 st.sidebar.success("✅ Data loaded successfully!")
+                st.rerun()
             else:
                 st.sidebar.error("❌ Failed to load MapBiomas or territories")
         except Exception as e:
