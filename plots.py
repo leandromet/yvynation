@@ -120,7 +120,7 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
     
     fig, ax = plt.subplots(figsize=figsize)
     ax.barh(df['Class_Name'], df['Change_km2'], color=colors)
-    ax.set_xlabel('Area Change (hectares)', fontsize=12)
+    ax.set_xlabel('Area Change (hectares)', fontsize=13)
     ax.set_title(f'Land Cover Changes ({start_year} to {end_year})', fontsize=14, fontweight='bold')
     ax.axvline(x=0, color='black', linestyle='-', linewidth=1)
     ax.invert_yaxis()
@@ -192,7 +192,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
     ax.set_xlabel('Year', fontsize=12)
     ax.set_ylabel('Area (km²)', fontsize=12)
     ax.set_title('Temporal Trends in Land Cover', fontsize=14, fontweight='bold')
-    ax.legend(loc='best', fontsize=10)
+    ax.legend(loc='best', fontsize=12)
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -247,6 +247,8 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
     for node in sorted_nodes:
         area = node_flow.get(node, 0)
         node_labels.append(f"{node}\n({area:.0f} ha)")
+    # Force solid black labels for Sankey nodes (use as node.font in the Sankey trace)
+    node_label_font = dict(color='black', size=12)
     
     # Create node to index mapping
     node_to_idx = {node: i for i, node in enumerate(sorted_nodes)}
