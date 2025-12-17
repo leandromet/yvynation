@@ -60,6 +60,10 @@ if "split_left_year" not in st.session_state:
     st.session_state.split_left_year = 1985
 if "split_right_year" not in st.session_state:
     st.session_state.split_right_year = 2023
+if "split_left_opacity" not in st.session_state:
+    st.session_state.split_left_opacity = 1.0
+if "split_right_opacity" not in st.session_state:
+    st.session_state.split_right_opacity = 0.7
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
@@ -121,34 +125,23 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
             'palette': palette_list
         }
         
-        # Add MapBiomas layers for all years (1985-2023)
-        # 2023 is shown by default (show=True), others are hidden (show=False)
-        for year in range(1985, 2024):
-            band_name = f'classification_{year}'
-            try:
-                classification = mapbiomas.select(band_name)
-                mapid = ee.Image(classification).getMapId(vis_params)
-                
-                try:
-                    tile_url = mapid['tile_fetcher'].url_format
-                except (KeyError, AttributeError):
-                    # Fallback to manual URL format if tile_fetcher not available
-                    tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-                
-                # Show 2023 by default, hide others
-                show_layer = (year == 2023)
-                
-                folium.TileLayer(
-                    tiles=tile_url,
-                    attr='MapBiomas Collection 9',
-                    name=f'MapBiomas {year}',
-                    overlay=True,
-                    control=True,
-                    show=show_layer
-                ).add_to(m)
-            except Exception as e:
-                # Skip if year not available
-                pass
+        # Add only 2023 MapBiomas layer (to avoid slowness)
+        classification_2023 = mapbiomas.select('classification_2023')
+        mapid = ee.Image(classification_2023).getMapId(vis_params)
+        
+        try:
+            tile_url = mapid['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            # Fallback to manual URL format if tile_fetcher not available
+            tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        folium.TileLayer(
+            tiles=tile_url,
+            attr='MapBiomas Collection 9',
+            name='MapBiomas 2023',
+            overlay=True,
+            control=True
+        ).add_to(m)
         
         # Add Indigenous Territories layer
         territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
@@ -194,8 +187,8 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     folium.LayerControl().add_to(m)
     return m
 
-def create_split_compare_map(left_year, right_year, center=[-45.3, -4.5], zoom=7):
-    """Create a side-by-side comparison map with Leaflet SideBySide plugin."""
+def create_split_compare_map(left_year, right_year, left_opacity=1.0, right_opacity=0.7, center=[-45.3, -4.5], zoom=7):
+    """Create a map with two selectable MapBiomas layers with opacity control."""
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
@@ -232,7 +225,9 @@ def create_split_compare_map(left_year, right_year, center=[-45.3, -4.5], zoom=7
             tiles=tile_url_left,
             attr='MapBiomas',
             name=f'MapBiomas {left_year}',
-            overlay=False
+            overlay=True,
+            control=True,
+            opacity=left_opacity
         )
         left_layer.add_to(m)
         
@@ -250,28 +245,34 @@ def create_split_compare_map(left_year, right_year, center=[-45.3, -4.5], zoom=7
             tiles=tile_url_right,
             attr='MapBiomas',
             name=f'MapBiomas {right_year}',
-            overlay=False
+            overlay=True,
+            control=True,
+            opacity=right_opacity
         )
         right_layer.add_to(m)
         
-        # Add JavaScript for Leaflet-SideBySide plugin
-        m.get_root().html.add_child(folium.Element("""
-        <link rel="stylesheet" href="https://unpkg.com/leaflet-side-by-side@3.2.2/dist/leaflet-side-by-side.css" />
-        <script src="https://unpkg.com/leaflet-side-by-side@3.2.2/dist/leaflet-side-by-side.umd.js"></script>
-        <script>
-            // Wait for map to load then initialize SideBySide
-            setTimeout(function() {
-                if (L && L.Control.SideBySide) {
-                    var leftLayer = arguments[0];
-                    var rightLayer = arguments[1];
-                    L.control.sideBySide(leftLayer, rightLayer).addTo(map);
-                }
-            }, 500);
-        </script>
-        """))
+        # Add Indigenous Territories layer
+        territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
+        ee_image_object = ee.Image().paint(territories, 0, 2)
+        mapid_territories = ee_image_object.getMapId({'min': 0, 'max': 1, 'palette': ['FF0000']})
+        
+        try:
+            tile_url_territories = mapid_territories['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            tile_url_territories = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_territories["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        territories_layer = folium.TileLayer(
+            tiles=tile_url_territories,
+            attr='Indigenous Territories',
+            name='Indigenous Territories',
+            overlay=True,
+            control=True,
+            opacity=0.6
+        )
+        territories_layer.add_to(m)
         
     except Exception as e:
-        st.warning(f"Could not load split comparison layers: {e}")
+        st.warning(f"Could not load comparison layers: {e}")
     
     folium.LayerControl().add_to(m)
     return m
@@ -379,25 +380,39 @@ with map_col:
         
         st.divider()
         
-        # Split Compare Mode
-        if st.checkbox("🔀 Split Compare (Side-by-Side)", value=st.session_state.split_compare_mode):
+        # Compare Mode - Add two layers with opacity control
+        if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode):
             st.session_state.split_compare_mode = True
             col_left, col_right = st.columns(2)
             with col_left:
                 st.session_state.split_left_year = st.selectbox(
-                    "Left Year",
+                    "Layer 1",
                     range(1985, 2024),
                     index=0,
                     key="split_left"
                 )
             with col_right:
                 st.session_state.split_right_year = st.selectbox(
-                    "Right Year",
+                    "Layer 2",
                     range(1985, 2024),
                     index=38,
                     key="split_right"
                 )
-            st.info("📌 Drag the vertical line on the map to compare layers")
+            
+            # Opacity sliders
+            col_op1, col_op2 = st.columns(2)
+            with col_op1:
+                st.session_state.split_left_opacity = st.slider(
+                    f"Layer 1 Opacity",
+                    0.0, 1.0, 1.0, 0.1,
+                    key="left_opacity"
+                )
+            with col_op2:
+                st.session_state.split_right_opacity = st.slider(
+                    f"Layer 2 Opacity",
+                    0.0, 1.0, 0.7, 0.1,
+                    key="right_opacity"
+                )
         else:
             st.session_state.split_compare_mode = False
     
