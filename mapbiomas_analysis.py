@@ -48,10 +48,10 @@ def render_mapbiomas_area_analysis():
             
             col_year, col_btn = st.columns([2, 1])
             with col_year:
-                year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn_mapbiomas")
+                year = st.selectbox("Year", range(1985, 2024), index=38, key="year_mapbiomas_drawn")
             
             with col_btn:
-                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn_mapbiomas", width="stretch")
+                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_mapbiomas_drawn", width="stretch")
             
             if analyze_btn:
                 with st.spinner("Analyzing your drawn area..."):

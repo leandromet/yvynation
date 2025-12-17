@@ -76,11 +76,11 @@ def render_hansen_area_analysis():
                     "Select Year", 
                     ["2000", "2005", "2010", "2015", "2020"],
                     index=4,
-                    key="year_drawn_hansen"
+                    key="year_hansen_drawn"
                 )
             
             with col_btn:
-                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn_hansen", use_container_width=True)
+                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_hansen_drawn", use_container_width=True)
             
             if analyze_btn:
                 with st.spinner("Analyzing your drawn area with Hansen data..."):

@@ -123,6 +123,10 @@ if "split_right_opacity" not in st.session_state:
     st.session_state.split_right_opacity = 0.7
 if "hansen_year" not in st.session_state:
     st.session_state.hansen_year = "2020"
+if "last_hansen_year" not in st.session_state:
+    st.session_state.last_hansen_year = None
+if "last_data_source" not in st.session_state:
+    st.session_state.last_data_source = None
 
 # ============================================================================
 # EARTH ENGINE INITIALIZATION
