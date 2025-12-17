@@ -248,7 +248,24 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 st.error("❌ MapBiomas data not loaded. Please click 'Load Core Data' again.")
                 return None
             
-            # Layer 1
+            # Add indigenous territories layer
+            territories = st.session_state.app.territories
+            if territories is not None:
+                try:
+                    territories_image = ee.Image().paint(territories, 0, 2)
+                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['ffffff00', 'ff0000']})
+                    folium.TileLayer(
+                        tiles=map_id_terr['tile_fetcher'].url_format,
+                        attr='Map data: Indigenous Territories',
+                        name='Indigenous Territories',
+                        overlay=True,
+                        control=True,
+                        opacity=0.5
+                    ).add_to(m)
+                except Exception as e:
+                    st.warning(f"Could not load territories layer: {e}")
+            
+            # Layer 1 (default: 2023)
             if isinstance(layer1_year, int):
                 layer1_band = f'classification_{layer1_year}'
                 layer1_image = mapbiomas.select(layer1_band)
@@ -264,7 +281,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     opacity=layer1_opacity
                 ).add_to(m)
             
-            # Layer 2 (comparison mode)
+            # Layer 2 (comparison mode, default: 1985)
             if compare_mode and layer2_year:
                 layer2_band = f'classification_{layer2_year}'
                 layer2_image = mapbiomas.select(layer2_band)
@@ -341,8 +358,14 @@ with tab_mapbiomas:
                 current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
                 current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
                 
-                # Create/update map
-                if st.session_state.map_object is None:
+                # Recreate map if layers or compare mode changed
+                if (st.session_state.map_object is None or 
+                    st.session_state.get('last_layer1_year') != current_layer1_year or
+                    st.session_state.get('last_layer2_year') != current_layer2_year or
+                    st.session_state.get('last_compare_mode') != st.session_state.split_compare_mode or
+                    st.session_state.get('last_layer1_opacity') != current_layer1_opacity or
+                    st.session_state.get('last_layer2_opacity') != current_layer2_opacity):
+                    
                     st.session_state.map_object = create_ee_folium_map(
                         center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
                         zoom=st.session_state.map_zoom,
@@ -353,6 +376,13 @@ with tab_mapbiomas:
                         compare_mode=st.session_state.split_compare_mode,
                         data_source="MapBiomas"
                     )
+                    
+                    # Remember current settings
+                    st.session_state.last_layer1_year = current_layer1_year
+                    st.session_state.last_layer2_year = current_layer2_year
+                    st.session_state.last_compare_mode = st.session_state.split_compare_mode
+                    st.session_state.last_layer1_opacity = current_layer1_opacity
+                    st.session_state.last_layer2_opacity = current_layer2_opacity
                 
                 # Display map and capture drawn areas
                 map_data = st_folium(st.session_state.map_object, width=700, height=600)
