@@ -255,6 +255,10 @@ else:
                                     
                                     st.success(f"✅ Analysis complete for {year}")
                                     
+                                    # Store geometry for map display
+                                    st.session_state.last_analyzed_geom = geom
+                                    st.session_state.last_analyzed_name = "Your Drawn Area"
+                                    
                                     col_a, col_b = st.columns(2)
                                     with col_a:
                                         st.dataframe(area_df.head(15), use_container_width=True)
@@ -262,6 +266,67 @@ else:
                                     with col_b:
                                         fig = plot_area_distribution(area_df, year=year, top_n=10)
                                         st.pyplot(fig)
+                                    
+                                    # Display drawn area on map
+                                    with st.expander("🗺️ View Your Drawn Area on Map", expanded=True):
+                                        try:
+                                            # Get bounds of drawn area
+                                            bounds = geom.bounds().getInfo()
+                                            
+                                            if bounds and bounds['coordinates']:
+                                                # bounds format: [min_lon, min_lat, max_lon, max_lat]
+                                                coords = bounds['coordinates']
+                                                center_lat = (coords[1][1] + coords[0][1]) / 2
+                                                center_lon = (coords[1][0] + coords[0][0]) / 2
+                                                
+                                                # Calculate zoom based on area size
+                                                lon_range = abs(coords[1][0] - coords[0][0])
+                                                lat_range = abs(coords[1][1] - coords[0][1])
+                                                max_range = max(lon_range, lat_range)
+                                                
+                                                if max_range > 5:
+                                                    zoom = 6
+                                                elif max_range > 2:
+                                                    zoom = 8
+                                                elif max_range > 0.5:
+                                                    zoom = 10
+                                                else:
+                                                    zoom = 12
+                                                
+                                                # Create map
+                                                m = folium.Map(
+                                                    location=[center_lat, center_lon],
+                                                    zoom_start=zoom,
+                                                    tiles='OpenStreetMap'
+                                                )
+                                                
+                                                # Add MapBiomas layer
+                                                mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
+                                                ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                                folium.TileLayer(
+                                                    tiles=ee_tile_url,
+                                                    attr='MapBiomas',
+                                                    name='MapBiomas Collection 9',
+                                                    overlay=True
+                                                ).add_to(m)
+                                                
+                                                # Add drawn area boundary in red
+                                                drawn_geojson = geom.getInfo()
+                                                folium.GeoJson(
+                                                    drawn_geojson,
+                                                    style_function=lambda x: {
+                                                        'color': 'red',
+                                                        'weight': 3,
+                                                        'opacity': 0.8,
+                                                        'fillOpacity': 0.1
+                                                    },
+                                                    name="Your Drawn Area"
+                                                ).add_to(m)
+                                                
+                                                folium.LayerControl().add_to(m)
+                                                st_folium(m, width=1200, height=500)
+                                        except Exception as map_e:
+                                            st.error(f"Could not display map: {map_e}")
                                     
                                 except Exception as e:
                                     st.error(f"Analysis failed: {e}")
@@ -293,52 +358,138 @@ else:
                 else:
                     territories_fc = st.session_state.app.territories
                     
-                    # Get territory names from Earth Engine
-                    territory_names = sorted(territories_fc.aggregate_array('name').getInfo())
-                    
-                    if territory_names:
-                        selected_territory = st.selectbox(
-                            "Search and select a territory (634 territories available)",
-                            territory_names,
-                            key="territory_search"
-                        )
+                    # Debug: Check what properties are available
+                    try:
+                        # Get first feature to see what properties exist
+                        first_feature = territories_fc.first().getInfo()
+                        available_props = list(first_feature.get('properties', {}).keys()) if first_feature else []
                         
-                        if selected_territory:
-                            year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
+                        # Try different property names
+                        name_prop = None
+                        for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
+                            if prop in available_props:
+                                name_prop = prop
+                                break
+                        
+                        if not name_prop:
+                            st.error(f"❌ Territory name property not found. Available properties: {available_props}")
+                        else:
+                            # Get territory names from Earth Engine
+                            territory_names = sorted(territories_fc.aggregate_array(name_prop).getInfo())
                             
-                            if st.button("Analyze Selected Territory", key="btn_analyze_territory"):
-                                with st.spinner(f"Analyzing {selected_territory}..."):
-                                    try:
-                                        # Filter to selected territory
-                                        territory_geom = territories_fc.filter(
-                                            ee.Filter.eq('name', selected_territory)
-                                        ).first().geometry()
-                                        
-                                        # Analyze
-                                        mapbiomas = st.session_state.app.mapbiomas_v9
-                                        band = f'classification_{year}'
-                                        
-                                        area_df = calculate_area_by_class(
-                                            mapbiomas.select(band),
-                                            territory_geom,
-                                            year
-                                        )
-                                        
-                                        st.success(f"✅ Analysis complete for {selected_territory} ({year})")
-                                        
-                                        col_a, col_b = st.columns(2)
-                                        with col_a:
-                                            st.write(f"**Land Cover in {selected_territory} ({year})**")
-                                            st.dataframe(area_df.head(15), use_container_width=True)
-                                        
-                                        with col_b:
-                                            fig = plot_area_distribution(area_df, year=year, top_n=10)
-                                            st.pyplot(fig)
+                            if territory_names:
+                                selected_territory = st.selectbox(
+                                    "Search and select a territory (634 territories available)",
+                                    territory_names,
+                                    key="territory_search"
+                                )
+                                
+                                if selected_territory:
+                                    year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
                                     
-                                    except Exception as e:
-                                        st.error(f"Analysis failed: {e}")
-                    else:
-                        st.warning("No territories found")
+                                    if st.button("Analyze Selected Territory", key="btn_analyze_territory"):
+                                        with st.spinner(f"Analyzing {selected_territory}..."):
+                                            try:
+                                                # Filter to selected territory
+                                                territory_geom = territories_fc.filter(
+                                                    ee.Filter.eq(name_prop, selected_territory)
+                                                ).first().geometry()
+                                                
+                                                # Analyze
+                                                mapbiomas = st.session_state.app.mapbiomas_v9
+                                                band = f'classification_{year}'
+                                                
+                                                area_df = calculate_area_by_class(
+                                                    mapbiomas.select(band),
+                                                    territory_geom,
+                                                    year
+                                                )
+                                                
+                                                # Store geometry for map display
+                                                st.session_state.last_analyzed_geom = territory_geom
+                                                st.session_state.last_analyzed_name = selected_territory
+                                                
+                                                st.success(f"✅ Analysis complete for {selected_territory} ({year})")
+                                                
+                                                col_a, col_b = st.columns(2)
+                                                with col_a:
+                                                    st.write(f"**Land Cover in {selected_territory} ({year})**")
+                                                    st.dataframe(area_df.head(15), use_container_width=True)
+                                                
+                                                with col_b:
+                                                    fig = plot_area_distribution(area_df, year=year, top_n=10)
+                                                    st.pyplot(fig)
+                                                
+                                                # Display territory on map
+                                                with st.expander("🗺️ View Territory on Map", expanded=True):
+                                                    try:
+                                                        # Get bounds of territory
+                                                        bounds = territory_geom.bounds().getInfo()
+                                                        
+                                                        # Create map centered on territory
+                                                        if bounds and bounds['coordinates']:
+                                                            # bounds format: [min_lon, min_lat, max_lon, max_lat]
+                                                            coords = bounds['coordinates']
+                                                            center_lat = (coords[1][1] + coords[0][1]) / 2
+                                                            center_lon = (coords[1][0] + coords[0][0]) / 2
+                                                            
+                                                            # Calculate zoom based on territory size
+                                                            lon_range = abs(coords[1][0] - coords[0][0])
+                                                            lat_range = abs(coords[1][1] - coords[0][1])
+                                                            max_range = max(lon_range, lat_range)
+                                                            
+                                                            if max_range > 5:
+                                                                zoom = 6
+                                                            elif max_range > 2:
+                                                                zoom = 8
+                                                            elif max_range > 0.5:
+                                                                zoom = 10
+                                                            else:
+                                                                zoom = 12
+                                                            
+                                                            # Create map
+                                                            m = folium.Map(
+                                                                location=[center_lat, center_lon],
+                                                                zoom_start=zoom,
+                                                                tiles='OpenStreetMap'
+                                                            )
+                                                            
+                                                            # Add MapBiomas layer
+                                                            mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
+                                                            ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                                            folium.TileLayer(
+                                                                tiles=ee_tile_url,
+                                                                attr='MapBiomas',
+                                                                name='MapBiomas Collection 9',
+                                                                overlay=True
+                                                            ).add_to(m)
+                                                            
+                                                            # Add territory boundary in red
+                                                            territory_geojson = territory_geom.getInfo()
+                                                            folium.GeoJson(
+                                                                territory_geojson,
+                                                                style_function=lambda x: {
+                                                                    'color': 'red',
+                                                                    'weight': 3,
+                                                                    'opacity': 0.8,
+                                                                    'fillOpacity': 0.1
+                                                                },
+                                                                name=selected_territory
+                                                            ).add_to(m)
+                                                            
+                                                            folium.LayerControl().add_to(m)
+                                                            st_folium(m, width=1200, height=500)
+                                                    except Exception as map_e:
+                                                        st.error(f"Could not display map: {map_e}")
+                                            
+                                            except Exception as e:
+                                                st.error(f"Analysis failed: {e}")
+                            else:
+                                st.warning("No territories found in the collection")
+                    
+                    except Exception as e:
+                        st.error(f"Territory search initialization error: {e}")
+                        st.info("This may occur if the territories dataset is not properly loaded.")
             
             except Exception as e:
                 st.warning(f"Territory search error: {e}")
