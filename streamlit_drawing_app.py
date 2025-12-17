@@ -1,7 +1,7 @@
-"""
+'''
 Advanced Streamlit app with interactive drawing and area analysis.
 Uses streamlit-folium with drawing tools for custom area selection.
-"""
+'''
 
 import streamlit as st
 import ee
@@ -63,7 +63,7 @@ else:
     with col1:
         st.subheader("Draw Your Analysis Area")
         
-        st.markdown("""
+        st.markdown('''
         ### Instructions:
         1. Use the **Rectangle tool** (top-left) to draw your analysis area
         2. You can draw **multiple rectangles** or **polygons**
@@ -73,7 +73,7 @@ else:
         ### Visible Layers:
         - 🌍 **MapBiomas 2023** - Land cover classification
         - 🏘️ **Indigenous Territories** - Official boundaries
-        """)
+        ''')
         
         # Create map
         m = folium.Map(
@@ -140,13 +140,13 @@ else:
         
         if st.button("📊 Analyze Drawn Area", use_container_width=True):
             st.info("⚠️ Note: Drawing exports work best in full-screen mode")
-            st.info("""
+            st.info('''
             **To analyze a drawn area:**
             1. Draw a rectangle/polygon on the map
             2. Click the export button (⬇️ icon in toolbar)
             3. Save the GeoJSON file
             4. Upload it below
-            """)
+            ''')
         
         st.divider()
         

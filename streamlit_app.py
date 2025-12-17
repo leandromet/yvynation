@@ -30,7 +30,7 @@ from visualization import create_mapbiomas_legend
 # Page config
 st.set_page_config(
     page_title="Yvynation - Earth Engine Analysis",
-    page_icon="🌍",
+    page_icon="🌎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -91,8 +91,22 @@ if "multiyear_start_year" not in st.session_state:
 if "multiyear_end_year" not in st.session_state:
     st.session_state.multiyear_end_year = None
 
+# Multiple drawn areas tracking
+if "drawn_areas" not in st.session_state:
+    st.session_state.drawn_areas = {}  # {name: geometry_data}
+if "drawn_area_count" not in st.session_state:
+    st.session_state.drawn_area_count = 0
+if "selected_drawn_area" not in st.session_state:
+    st.session_state.selected_drawn_area = None
+if "persistent_drawn_geometry" not in st.session_state:
+    st.session_state.persistent_drawn_geometry = None
+if "last_drawn_geometry" not in st.session_state:
+    st.session_state.last_drawn_geometry = None  # Track last drawing to avoid duplicates
+if "previous_selected_area" not in st.session_state:
+    st.session_state.previous_selected_area = None  # Track to detect area selection changes
+
 # Sidebar
-st.sidebar.title("🌍 Yvynation Land Use")
+st.sidebar.title("🌎 Yvynation Land Use")
 st.sidebar.subheader("Interactive Analysis with MapBiomas & Indigenous Territories \n  Leandro Meneguelli Biondo")
 st.sidebar.subheader(" UBCO - University of British Columbia Okanagan \n INMA/MCTI || SFB/MMA")
 
@@ -125,7 +139,7 @@ LABELS = {
     466: "Other Classification"
 }
 
-def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7):
+def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7, persistent_geometry=None):
     '''Create a folium map with Earth Engine layers and drawing tools.
     
     Args:
@@ -135,12 +149,37 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         layer1_opacity: opacity of layer 1
         layer2_year: year for the second (bottom) MapBiomas layer (default 1985)
         layer2_opacity: opacity of layer 2
+        persistent_geometry: previously drawn geometry to restore
     '''
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
         tiles='OpenStreetMap'
     )
+    
+    # Add satellite baseLayers
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri',
+        name='Esri Satellite',
+        overlay=False,
+        control=True
+    ).add_to(m)
+    
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Satellite',
+        overlay=False,
+        control=True
+    ).add_to(m)
+    
+    folium.TileLayer(
+        tiles='OpenStreetMap',
+        name='OpenStreetMap',
+        overlay=False,
+        control=True
+    )  # Keep OSM as default (already added above)
     
     try:
         # Load MapBiomas collection
@@ -222,6 +261,22 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
     except Exception as e:
         st.warning(f"Could not load Earth Engine layers: {e}")
     
+    # Restore persistent drawn geometry if available
+    if persistent_geometry:
+        try:
+            geom_data = persistent_geometry.get('geometry', {})
+            geom_type = geom_data.get('type', '')
+            coords = geom_data.get('coordinates', [])
+            
+            if geom_type == 'Polygon' and coords:
+                # Draw polygon on map in blue
+                folium.GeoJson(
+                    {'type': 'Feature', 'geometry': geom_data},
+                    style_function=lambda x: {'color': 'blue', 'weight': 2, 'opacity': 0.7}
+                ).add_to(m)
+        except Exception as e:
+            pass  # Silently fail if geometry cannot be restored
+    
     # Add drawing tools
     draw = Draw(
         export=True,
@@ -236,6 +291,31 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         }
     )
     draw.add_to(m)
+    
+    # Add all saved drawn areas with darker colors and labels
+    colors = ['darkblue', 'darkred', 'darkgreen', 'purple', 'orange', 'brown', 'cadetblue', 'darkviolet']
+    if persistent_geometry:
+        for idx, (area_name, geom_data) in enumerate(persistent_geometry.items()):
+            if geom_data.get('type') == 'Polygon':
+                color = colors[idx % len(colors)]
+                # Create GeoJSON with popup and tooltip showing the area name
+                feature = {
+                    'type': 'Feature',
+                    'geometry': geom_data,
+                    'properties': {'name': area_name}
+                }
+                folium.GeoJson(
+                    feature,
+                    style_function=lambda x, c=color: {
+                        'color': c,
+                        'weight': 4,
+                        'opacity': 0.9,
+                        'fillOpacity': 0.3
+                    },
+                    name=area_name,
+                    popup=folium.Popup(f"<b>{area_name}</b>", max_width=200),
+                    tooltip=folium.Tooltip(area_name, sticky=False)
+                ).add_to(m)
     
     # Add fullscreen button
     Fullscreen().add_to(m)
@@ -313,7 +393,7 @@ if st.sidebar.button("Load Core Data", help="Load MapBiomas and Indigenous Terri
 
 
 # Main content
-st.title("🌍 Yvynation: Indigenous Territories Analysis")
+st.title("🌎 Yvynation: Indigenous Territories Analysis")
 st.markdown(
     '''
     Interactive analysis of land cover change in Brazilian Indigenous Territories
@@ -415,7 +495,8 @@ with map_col:
                 layer1_year=current_layer1_year,
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
-                layer2_opacity=current_layer2_opacity
+                layer2_opacity=current_layer2_opacity,
+                persistent_geometry=st.session_state.drawn_areas if st.session_state.drawn_areas else None
             )
             st.info("🗺️ Map created with MapBiomas (2023 + 1985) and Indigenous Territories layers")
             # Update saved config
@@ -435,7 +516,8 @@ with map_col:
                 layer1_year=current_layer1_year,
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
-                layer2_opacity=current_layer2_opacity
+                layer2_opacity=current_layer2_opacity,
+                persistent_geometry=st.session_state.drawn_areas if st.session_state.drawn_areas else None
             )
             # Update saved config
             st.session_state.map_layers_config = {
@@ -454,17 +536,25 @@ with map_col:
             # Capture map with drawings
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
-            # Extract drawn geometry if available and zoom to it
+            # Extract drawn geometry if available and store it with numbering (only if NEW)
             if map_data and map_data.get("last_active_drawing"):
                 drawing = map_data["last_active_drawing"]
                 if drawing:
-                    st.session_state.drawn_geometry = drawing
-                    # Zoom to drawn area
-                    bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
-                    if bounds:
-                        zoom_to_bounds(m, bounds)
-                        st.session_state.map_object = m
-                    st.success("✅ Drawing captured! Map zoomed to your area.")
+                    geom_data = drawing.get('geometry', {})
+                    # Only process if this is a NEW drawing (different from last one)
+                    geom_str = str(geom_data)  # Convert to string for comparison
+                    if geom_data.get('type') == 'Polygon' and geom_str != str(st.session_state.last_drawn_geometry):
+                        # Create new drawn area with increment
+                        st.session_state.drawn_area_count += 1
+                        area_name = f"Drawn Area {st.session_state.drawn_area_count}"
+                        
+                        # Store in drawn_areas dictionary
+                        st.session_state.drawn_areas[area_name] = geom_data
+                        st.session_state.selected_drawn_area = area_name
+                        st.session_state.last_drawn_geometry = geom_data  # Track this drawing
+                        
+                        st.success(f"✅ {area_name} captured!")
+                        st.rerun()
         else:
             st.warning("⏳ Waiting for map to load...")
         
@@ -480,15 +570,31 @@ with analysis_col:
     with st.expander("📍 Area Analysis", expanded=True):
         st.markdown("### Analyze Drawn Area")
         
-        if st.session_state.drawn_geometry:
-            st.success("✅ Drawing detected from map")
+        if st.session_state.drawn_areas:
+            st.success(f"✅ {len(st.session_state.drawn_areas)} drawing(s) captured")
+            
+            # Select which drawn area to analyze
+            col_select, col_delete = st.columns([3, 1])
+            with col_select:
+                selected_area = st.selectbox(
+                    "Select drawn area to analyze",
+                    list(st.session_state.drawn_areas.keys()),
+                    index=list(st.session_state.drawn_areas.keys()).index(st.session_state.selected_drawn_area) if st.session_state.selected_drawn_area in st.session_state.drawn_areas else 0
+                )
+                st.session_state.selected_drawn_area = selected_area
+            
+            with col_delete:
+                if st.button("🗑️ Clear All", key="clear_drawn"):
+                    st.session_state.drawn_areas = {}
+                    st.session_state.drawn_area_count = 0
+                    st.session_state.selected_drawn_area = None
+                    st.rerun()
             
             try:
-                drawing = st.session_state.drawn_geometry
-                geom_type = drawing.get('geometry', {}).get('type')
-                coords = drawing.get('geometry', {}).get('coordinates', [])
+                geom_data = st.session_state.drawn_areas[st.session_state.selected_drawn_area]
+                coords = geom_data.get('coordinates', [])
                 
-                if geom_type == 'Polygon' and coords:
+                if coords:
                     # Create EE geometry from polygon
                     geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
                     
@@ -497,11 +603,16 @@ with analysis_col:
                         year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
                     
                     with col_btn:
-                        analyze_btn = st.button("Analyze Drawn Area", key="btn_drawn", use_container_width=True)
+                        analyze_btn = st.button("📍 Analyze & Zoom", key="btn_drawn", width="stretch")
                     
                     if analyze_btn:
                         with st.spinner("Analyzing your drawn area..."):
                             try:
+                                # Get bounds and zoom to drawn area
+                                bounds = get_bounds_from_geometry(geom_data)
+                                if bounds and st.session_state.map_object is not None:
+                                    zoom_to_bounds(st.session_state.map_object, bounds)
+                                
                                 # Use mapbiomas_v9
                                 mapbiomas = st.session_state.app.mapbiomas_v9
                                 band = f'classification_{year}'
@@ -530,10 +641,10 @@ with analysis_col:
                         st.markdown(f"#### 📊 Land Cover Distribution Chart (Drawn Area - {st.session_state.drawn_area_year})")
                         fig = plot_area_distribution(st.session_state.drawn_area_result, year=st.session_state.drawn_area_year, top_n=15)
                         if fig:
-                            st.pyplot(fig, use_container_width=True)
+                            st.pyplot(fig, width="stretch")
                         
                         st.markdown("#### 📋 Detailed Statistics")
-                        st.dataframe(st.session_state.drawn_area_result.head(20), use_container_width=True)
+                        st.dataframe(st.session_state.drawn_area_result.head(20), width="stretch")
                         
                         st.success("✅ View the drawn area on the map on the left!")
                     
@@ -593,7 +704,7 @@ with analysis_col:
                                 year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
                             
                             with col_btn:
-                                analyze_btn = st.button("Analyze Territory", key="btn_analyze_territory", use_container_width=True)
+                                analyze_btn = st.button("Analyze Territory", key="btn_analyze_territory", width="stretch")
                             
                             if analyze_btn:
                                 with st.spinner(f"Analyzing {selected_territory}..."):
@@ -643,10 +754,10 @@ with analysis_col:
                         st.markdown(f"#### 📊 Land Cover Distribution in {st.session_state.territory_name}")
                         fig = plot_area_distribution(st.session_state.territory_result, year=st.session_state.territory_year, top_n=15)
                         if fig:
-                            st.pyplot(fig, use_container_width=True)
+                            st.pyplot(fig, width="stretch")
                         
                         st.markdown("#### 📋 Detailed Statistics")
-                        st.dataframe(st.session_state.territory_result.head(20), use_container_width=True)
+                        st.dataframe(st.session_state.territory_result.head(20), width="stretch")
                         
                         st.success(f"✅ View {st.session_state.territory_name} on the map on the left!")
                         
@@ -668,7 +779,7 @@ with analysis_col:
             with col2:
                 end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
             
-            if st.button("Analyze Multi-Year Changes", use_container_width=True, key="btn_multiyear"):
+            if st.button("Analyze Multi-Year Changes", width="stretch", key="btn_multiyear"):
                 with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
                     try:
                         mapbiomas = st.session_state.app.mapbiomas_v9
@@ -714,7 +825,7 @@ with analysis_col:
                         st.session_state.multiyear_end_year,
                         top_n=15
                     )
-                    st.pyplot(fig, use_container_width=True)
+                    st.pyplot(fig, width="stretch")
                 except Exception as e:
                     st.warning(f"Chart rendering issue: {e}")
                 
@@ -749,7 +860,7 @@ with analysis_col:
                     # Create and display Sankey with MapBiomas colors and left-right layout
                     sankey_fig = create_sankey_transitions(transitions, st.session_state.multiyear_start_year, st.session_state.multiyear_end_year)
                     if sankey_fig:
-                        st.plotly_chart(sankey_fig, use_container_width=True)
+                        st.plotly_chart(sankey_fig, width="stretch")
                 except Exception as e:
                     st.warning(f"Sankey diagram error: {e}")
                 
@@ -760,14 +871,14 @@ with analysis_col:
                     st.write(f"**{st.session_state.multiyear_start_year} Distribution**")
                     st.dataframe(
                         st.session_state.multiyear_results["area_start"].head(15),
-                        use_container_width=True
+                        width="stretch"
                     )
                 
                 with col_end:
                     st.write(f"**{st.session_state.multiyear_end_year} Distribution**")
                     st.dataframe(
                         st.session_state.multiyear_results["area_end"].head(15),
-                        use_container_width=True
+                        width="stretch"
                     )
     
     # SECTION 2: Change Detection
@@ -796,7 +907,7 @@ with analysis_col:
                     
                     # Change table
                     st.write("**Land Cover Changes (hectares)**")
-                    st.dataframe(change_df.head(20), use_container_width=True)
+                    st.dataframe(change_df.head(20), width="stretch")
             else:
                     st.warning("Results format not recognized")
                 
@@ -804,8 +915,7 @@ with analysis_col:
             try:
                     fig2 = plot_temporal_trend(
                         [results["area_start"], results["area_end"]],
-                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year],
-                        top_n=8
+                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year]
                     )
                     st.pyplot(fig2)
             except Exception as e:
@@ -856,7 +966,7 @@ with analysis_col:
         
         ### Repository
         
-        🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet/yvynation)
+        🔗 [Yvynation on Earth Engine](https://code.earthengine.google.com/?accept_repo=users/leandromet)
         ''')
 
 # Footer
@@ -865,7 +975,7 @@ st.markdown(
     '''
     <div style='text-align: center'>
     <small>
-    🌍 Yvynation | MapBiomas + Indigenous Territories Analysis
+    🌎 Yvynation | MapBiomas + Indigenous Territories Analysis
     <br/>
     Built with Earth Engine, geemap, and Streamlit
     </small>

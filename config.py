@@ -1,6 +1,6 @@
-"""
+'''
 Configuration and constants for the Yvynation Earth Engine application.
-"""
+'''
 
 import ee
 

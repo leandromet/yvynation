@@ -26,8 +26,7 @@ Thumbs.db
 config_local.py
 data/raw/
 output/
-*.ipynb
-*.md
+#*.ipynb
 *.csv
 *.geojson
 *.gpkg

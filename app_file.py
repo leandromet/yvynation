@@ -1,7 +1,7 @@
-"""
+'''
 Core Earth Engine app for Yvynation.
 Integrated workflows for maps, analysis, and visualization.
-"""
+'''
 
 import ee
 from config import OUTPUT_BUCKET, OUTPUT_PREFIX, OUTPUT_SCALE, MAPBIOMAS_LABELS
@@ -34,13 +34,13 @@ from spot_module import check_spot_access, load_spot_data, classify_spot_ndvi
 
 
 class YvynationApp:
-    """
+    '''
     Main Yvynation application for Earth Engine geospatial analysis.
     Integrates MapBiomas, territories, and optional SPOT data.
-    """
+    '''
     
     def __init__(self):
-        """Initialize the application."""
+        '''Initialize the application.'''
         self.mapbiomas_v9 = None
         self.mapbiomas_v8 = None
         self.territories = None
@@ -49,7 +49,7 @@ class YvynationApp:
         self.spot_visual = None
     
     def load_core_data(self):
-        """Load core MapBiomas and territory datasets."""
+        '''Load core MapBiomas and territory datasets.'''
         print("\n📦 Loading core datasets...\n")
         try:
             self.mapbiomas_v9 = load_mapbiomas('v9')
@@ -62,7 +62,7 @@ class YvynationApp:
             return False
     
     def load_spot_if_available(self):
-        """Load SPOT data if accessible (restricted)."""
+        '''Load SPOT data if accessible (restricted).'''
         print("\n🛰️  Checking SPOT data access...\n")
         if check_spot_access():
             self.spot_analytic, self.spot_visual = load_spot_data()
@@ -72,7 +72,7 @@ class YvynationApp:
             self.spot_available = False
     
     def create_basic_map(self, center=None, zoom=8):
-        """
+        '''
         Create a basic interactive map with MapBiomas and territories.
         
         Args:
@@ -81,7 +81,7 @@ class YvynationApp:
         
         Returns:
             geemap.Map: Interactive map
-        """
+        '''
         if self.mapbiomas_v9 is None or self.territories is None:
             print("✗ Load data first with load_core_data()")
             return None
@@ -94,7 +94,7 @@ class YvynationApp:
         return Map
     
     def analyze_territories(self, start_year=1985, end_year=2023):
-        """
+        '''
         Perform comprehensive analysis on selected territories.
         
         Args:
@@ -103,7 +103,7 @@ class YvynationApp:
         
         Returns:
             dict: Analysis results
-        """
+        '''
         if self.territories is None:
             print("✗ Load data first with load_core_data()")
             return None
@@ -138,7 +138,7 @@ class YvynationApp:
         return results
     
     def create_comparison_visualization(self, analysis_results, year1=1985, year2=2023):
-        """
+        '''
         Create side-by-side comparison visualization.
         
         Args:
@@ -148,7 +148,7 @@ class YvynationApp:
         
         Returns:
             None (displays plots)
-        """
+        '''
         print(f"\n📊 Creating comparison visualization ({year1} vs {year2})...\n")
         
         # Area distribution comparison
@@ -168,7 +168,7 @@ class YvynationApp:
     
     def create_territory_map(self, state_code=None, territory_names=None, 
                             years_to_show=[1985, 2008, 2023], center=None, zoom=8):
-        """
+        '''
         Create interactive map for specific territories.
         
         Args:
@@ -180,7 +180,7 @@ class YvynationApp:
         
         Returns:
             geemap.Map: Interactive territory map
-        """
+        '''
         if self.territories is None:
             print("✗ Load data first")
             return None
@@ -205,7 +205,7 @@ class YvynationApp:
         return Map
     
     def export_results(self, image, name, description=""):
-        """
+        '''
         Export analysis results to Cloud Storage.
         
         Args:
@@ -215,7 +215,7 @@ class YvynationApp:
         
         Returns:
             ee.batch.Task: Export task
-        """
+        '''
         task = ee.batch.Export.image.toCloudStorage(
             image=image,
             description=description or name,
