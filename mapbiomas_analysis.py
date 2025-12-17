@@ -95,18 +95,30 @@ def render_mapbiomas_area_analysis():
 
 def render_mapbiomas_territory_analysis():
     """Render MapBiomas territory analysis section"""
-    from analysis import filter_territories_by_state, filter_territories_by_names
+    from analysis import filter_territories_by_state, filter_territories_by_names, calculate_area_by_class
     from plots import plot_area_distribution
     
     st.markdown("### Analyze Indigenous Territory")
     
+    # Map state names to state codes
+    STATE_CODES = {
+        "Amazonas": "AM",
+        "Rondônia": "RO",
+        "Mato Grosso": "MT",
+        "Pará": "PA",
+        "Bahia": "BA",
+        "Roraima": "RR",
+        "Maranhão": "MA"
+    }
+    
     col_state, col_refresh = st.columns([3, 1])
     with col_state:
-        state = st.selectbox(
+        state_name = st.selectbox(
             "State",
-            ["Amazonas", "Rondônia", "Mato Grosso", "Pará", "Bahia", "Roraima", "Maranhão"],
+            list(STATE_CODES.keys()),
             key="state_select"
         )
+        state_code = STATE_CODES[state_name]
     
     with col_refresh:
         if st.button("🔄 Refresh", key="refresh_territories_mapbiomas"):
@@ -118,16 +130,16 @@ def render_mapbiomas_territory_analysis():
             st.error("Territories not loaded. Please click 'Load Core Data' first.")
             return
         
-        territories_fc = filter_territories_by_state(territories, state)
+        territories_fc = filter_territories_by_state(territories, state_code)
         
         if territories_fc is None:
-            st.error(f"No territories found in {state}")
+            st.error(f"No territories found in {state_name}")
             return
         
         # Get features to extract territory names
         features = territories_fc.getInfo()["features"]
         if not features:
-            st.error(f"No territory features found in {state}")
+            st.error(f"No territory features found in {state_name}")
             return
         
         # Detect the correct property name for territory names
@@ -142,7 +154,18 @@ def render_mapbiomas_territory_analysis():
             st.error(f"Could not find territory name property. Available: {list(first_props.keys())}")
             return
         
-        territory_names = sorted([f["properties"][name_prop] for f in features])
+        # Extract and clean territory names (remove outer brackets like "[Name (ID)]" -> "Name (ID)")
+        territory_names_raw = [f["properties"][name_prop] for f in features]
+        territory_names = []
+        clean_to_raw = {}  # Map clean names back to raw names for filtering
+        for name in territory_names_raw:
+            # Clean format: [Name (ID)] -> Name (ID)
+            clean_name = name.strip('[]') if '[' in name else name
+            if clean_name not in clean_to_raw:  # Keep first occurrence
+                clean_to_raw[clean_name] = name
+            territory_names.append(clean_name)
+        
+        territory_names = sorted(list(set(territory_names)))  # Remove duplicates and sort
         
         col_terr, col_year = st.columns([2, 1])
         with col_terr:
@@ -155,7 +178,9 @@ def render_mapbiomas_territory_analysis():
                 try:
                     mapbiomas = st.session_state.app.mapbiomas_v9
                     territories = st.session_state.app.territories
-                    filtered_territories = filter_territories_by_names(territories, [territory_name], name_prop)
+                    # Use the raw name from the mapping for filtering
+                    raw_name = clean_to_raw.get(territory_name, territory_name)
+                    filtered_territories = filter_territories_by_names(territories, [raw_name], name_prop)
                     
                     if filtered_territories:
                         geom = filtered_territories.first().geometry()
