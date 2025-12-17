@@ -201,7 +201,6 @@ if st.sidebar.button("Load Core Data", use_container_width=True):
                 st.session_state.app = app
                 st.session_state.data_loaded = True
                 st.sidebar.success("✅ Data loaded successfully!")
-                st.rerun()
             else:
                 st.sidebar.error("❌ Failed to load MapBiomas or territories")
         except Exception as e:
@@ -399,7 +398,6 @@ with tab_mapbiomas:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
                         st.success("✅ Data loaded successfully!")
-                        st.rerun()
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
                 except Exception as e:
@@ -541,7 +539,6 @@ with tab_hansen:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
                         st.success("✅ Data loaded successfully!")
-                        st.rerun()
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
                 except Exception as e:
