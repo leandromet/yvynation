@@ -73,8 +73,28 @@ if "map_layers_config" not in st.session_state:
         'compare_mode': False
     }
 
+# Separate result containers for each analysis type (to keep them all visible)
+if "drawn_area_result" not in st.session_state:
+    st.session_state.drawn_area_result = None
+if "drawn_area_year" not in st.session_state:
+    st.session_state.drawn_area_year = None
+if "territory_result" not in st.session_state:
+    st.session_state.territory_result = None
+if "territory_name" not in st.session_state:
+    st.session_state.territory_name = None
+if "territory_year" not in st.session_state:
+    st.session_state.territory_year = None
+if "multiyear_results" not in st.session_state:
+    st.session_state.multiyear_results = None
+if "multiyear_start_year" not in st.session_state:
+    st.session_state.multiyear_start_year = None
+if "multiyear_end_year" not in st.session_state:
+    st.session_state.multiyear_end_year = None
+
 # Sidebar
-st.sidebar.title("🌍 Yvynation Configuration")
+st.sidebar.title("🌍 Yvynation Land Use")
+st.sidebar.subheader("Interactive Analysis with MapBiomas & Indigenous Territories \n  Leandro Meneguelli Biondo")
+st.sidebar.subheader(" UBCO - University of British Columbia Okanagan \n INMA/MCTI || SFB/MMA")
 
 # MapBiomas Collection 9 discrete palette - REQUIRED for proper colors
 COLOR_MAP = {
@@ -492,25 +512,30 @@ with analysis_col:
                                     year
                                 )
                                 
-                                st.success(f"✅ Analysis complete for {year}")
+                                # Store results in separate drawn_area_result
+                                st.session_state.drawn_area_result = area_df
+                                st.session_state.drawn_area_year = year
                                 
                                 # Store geometry for map display
                                 st.session_state.last_analyzed_geom = geom
                                 st.session_state.last_analyzed_name = "Your Drawn Area"
                                 
-                                # Display results in full width
-                                st.markdown("#### 📊 Land Cover Distribution Chart")
-                                fig = plot_area_distribution(area_df, year=year, top_n=15)
-                                if fig:
-                                    st.pyplot(fig, use_container_width=True)
-                                
-                                st.markdown("#### 📋 Detailed Statistics")
-                                st.dataframe(area_df.head(20), use_container_width=True)
-                                
-                                st.success("✅ View the drawn area on the map on the left!")
+                                st.success(f"✅ Analysis complete for {year}")
                                 
                             except Exception as e:
                                 st.error(f"Analysis failed: {e}")
+                    
+                    # Display drawn area results if available (persists even when switching sections)
+                    if st.session_state.drawn_area_result is not None:
+                        st.markdown(f"#### 📊 Land Cover Distribution Chart (Drawn Area - {st.session_state.drawn_area_year})")
+                        fig = plot_area_distribution(st.session_state.drawn_area_result, year=st.session_state.drawn_area_year, top_n=15)
+                        if fig:
+                            st.pyplot(fig, use_container_width=True)
+                        
+                        st.markdown("#### 📋 Detailed Statistics")
+                        st.dataframe(st.session_state.drawn_area_result.head(20), use_container_width=True)
+                        
+                        st.success("✅ View the drawn area on the map on the left!")
                     
                 elif geom_type == 'Rectangle' and coords:
                     st.info(f"Rectangle detected with {len(coords)} corners")
@@ -599,24 +624,32 @@ with analysis_col:
                                             year
                                         )
                                         
-                                        # Store geometry for map display
+                                        # Store results in separate territory_result
+                                        st.session_state.territory_result = area_df
+                                        st.session_state.territory_name = selected_territory
+                                        st.session_state.territory_year = year
+                                        
+                                        # Store geometry for map display and multi-year analysis
                                         st.session_state.last_analyzed_geom = territory_geom
                                         st.session_state.last_analyzed_name = selected_territory
                                         
                                         st.success(f"✅ Analysis complete for {selected_territory} ({year}) - Map zoomed to territory")
                                         
-                                        st.markdown(f"#### 📊 Land Cover Distribution in {selected_territory}")
-                                        fig = plot_area_distribution(area_df, year=year, top_n=15)
-                                        if fig:
-                                            st.pyplot(fig, use_container_width=True)
-                                        
-                                        st.markdown("#### 📋 Detailed Statistics")
-                                        st.dataframe(area_df.head(20), use_container_width=True)
-                                        
-                                        st.success(f"✅ View {selected_territory} on the map on the left!")
-                                        
                                     except Exception as e:
                                         st.error(f"Analysis failed: {e}")
+                    
+                    # Display territory results if available (persists even when switching sections)
+                    if st.session_state.territory_result is not None:
+                        st.markdown(f"#### 📊 Land Cover Distribution in {st.session_state.territory_name}")
+                        fig = plot_area_distribution(st.session_state.territory_result, year=st.session_state.territory_year, top_n=15)
+                        if fig:
+                            st.pyplot(fig, use_container_width=True)
+                        
+                        st.markdown("#### 📋 Detailed Statistics")
+                        st.dataframe(st.session_state.territory_result.head(20), use_container_width=True)
+                        
+                        st.success(f"✅ View {st.session_state.territory_name} on the map on the left!")
+                        
             except Exception as e:
                 st.error(f"Error loading territories: {e}")
     
@@ -635,7 +668,7 @@ with analysis_col:
             with col2:
                 end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
             
-            if st.button("Analyze Multi-Year Changes", use_container_width=True):
+            if st.button("Analyze Multi-Year Changes", use_container_width=True, key="btn_multiyear"):
                 with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
                     try:
                         mapbiomas = st.session_state.app.mapbiomas_v9
@@ -657,41 +690,43 @@ with analysis_col:
                             end_year
                         )
                         
-                        # Store results
-                        results = {
+                        # Store results in separate multiyear_results
+                        st.session_state.multiyear_results = {
                             "area_start": area_start,
                             "area_end": area_end
                         }
-                        st.session_state.results = results
+                        st.session_state.multiyear_start_year = start_year
+                        st.session_state.multiyear_end_year = end_year
+                        
                         st.success(f"✅ Analysis complete for {start_year}-{end_year}")
                     except Exception as e:
                         st.error(f"Analysis failed: {e}")
             
-            # Display charts if results exist
-            if st.session_state.results:
-                st.markdown(f"#### 📊 Land Cover Distribution Comparison ({start_year} vs {end_year})")
+            # Display charts if results exist (persists even when switching sections)
+            if st.session_state.multiyear_results:
+                st.markdown(f"#### 📊 Land Cover Distribution Comparison ({st.session_state.multiyear_start_year} vs {st.session_state.multiyear_end_year})")
                 
                 try:
                     fig = plot_area_comparison(
-                        st.session_state.results["area_start"],
-                        st.session_state.results["area_end"],
-                        start_year,
-                        end_year,
+                        st.session_state.multiyear_results["area_start"],
+                        st.session_state.multiyear_results["area_end"],
+                        st.session_state.multiyear_start_year,
+                        st.session_state.multiyear_end_year,
                         top_n=15
                     )
                     st.pyplot(fig, use_container_width=True)
                 except Exception as e:
                     st.warning(f"Chart rendering issue: {e}")
                 
-                st.markdown("#### � Land Cover Transitions (Sankey Diagram)")
+                st.markdown("#### 🔄 Land Cover Transitions (Sankey Diagram)")
                 try:
                     # Create transition matrix from start to end year
                     # Approximate transitions based on area changes in top classes
-                    area_start = st.session_state.results["area_start"].set_index("Class_ID")
-                    area_end = st.session_state.results["area_end"].set_index("Class_ID")
+                    area_start = st.session_state.multiyear_results["area_start"].set_index("Class_ID")
+                    area_end = st.session_state.multiyear_results["area_end"].set_index("Class_ID")
                     
                     # Get top classes to show in Sankey
-                    top_classes = list(st.session_state.results["area_start"]["Class_ID"].head(12).values)
+                    top_classes = list(st.session_state.multiyear_results["area_start"]["Class_ID"].head(12).values)
                     
                     # Create transition matrix with persistence and change patterns
                     transitions = {}
@@ -712,26 +747,26 @@ with analysis_col:
                                         transitions[source_id][target_id] = (source_area * 0.3) * (target_area / max(1, area_end.loc[:, "Area_ha"].sum()))
                     
                     # Create and display Sankey with MapBiomas colors and left-right layout
-                    sankey_fig = create_sankey_transitions(transitions, start_year, end_year)
+                    sankey_fig = create_sankey_transitions(transitions, st.session_state.multiyear_start_year, st.session_state.multiyear_end_year)
                     if sankey_fig:
                         st.plotly_chart(sankey_fig, use_container_width=True)
                 except Exception as e:
                     st.warning(f"Sankey diagram error: {e}")
                 
-                st.markdown("#### �📋 Statistics by Year")
+                st.markdown("#### 📋 Statistics by Year")
                 
                 col_start, col_end = st.columns(2)
                 with col_start:
-                    st.write(f"**{start_year} Distribution**")
+                    st.write(f"**{st.session_state.multiyear_start_year} Distribution**")
                     st.dataframe(
-                        st.session_state.results["area_start"].head(15),
+                        st.session_state.multiyear_results["area_start"].head(15),
                         use_container_width=True
                     )
                 
                 with col_end:
-                    st.write(f"**{end_year} Distribution**")
+                    st.write(f"**{st.session_state.multiyear_end_year} Distribution**")
                     st.dataframe(
-                        st.session_state.results["area_end"].head(15),
+                        st.session_state.multiyear_results["area_end"].head(15),
                         use_container_width=True
                     )
     
@@ -739,10 +774,10 @@ with analysis_col:
     with st.expander("📈 Land Cover Change Analysis", expanded=True):
         st.markdown("### Change Between Years")
         
-        if st.session_state.results is None:
-            st.info("Run analysis in the 'Area Analysis' section first")
+        if st.session_state.multiyear_results is None:
+            st.info("Run analysis in the 'Multi-Year Territory Analysis' section first")
         else:
-            results = st.session_state.results
+            results = st.session_state.multiyear_results
             
             # Calculate change between years
             if "area_start" in results and "area_end" in results:
@@ -751,12 +786,12 @@ with analysis_col:
                     
                     # Calculate change
                     change_df = pd.DataFrame({
-                        f"{start_year}": area_start["Area_ha"],
-                        f"{end_year}": area_end["Area_ha"]
+                        f"{st.session_state.multiyear_start_year}": area_start["Area_ha"],
+                        f"{st.session_state.multiyear_end_year}": area_end["Area_ha"]
                     }).fillna(0)
                     
-                    change_df["Change (ha)"] = change_df[f"{end_year}"] - change_df[f"{start_year}"]
-                    change_df["% Change"] = (change_df["Change (ha)"] / change_df[f"{start_year}"].replace(0, 1)) * 100
+                    change_df["Change (ha)"] = change_df[f"{st.session_state.multiyear_end_year}"] - change_df[f"{st.session_state.multiyear_start_year}"]
+                    change_df["% Change"] = (change_df["Change (ha)"] / change_df[f"{st.session_state.multiyear_start_year}"].replace(0, 1)) * 100
                     change_df = change_df.sort_values("Change (ha)", key=abs, ascending=False)
                     
                     # Change table
@@ -767,13 +802,9 @@ with analysis_col:
                 
                 # Change visualization
             try:
-                    fig = plot_area_changes(comparison, start_year, end_year)
-                    if fig:
-                        st.pyplot(fig)
-                    
                     fig2 = plot_temporal_trend(
                         [results["area_start"], results["area_end"]],
-                        [start_year, end_year],
+                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year],
                         top_n=8
                     )
                     st.pyplot(fig2)
