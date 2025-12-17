@@ -276,50 +276,7 @@ else:
                                         if fig:
                                             st.pyplot(fig)
                                     
-                                    # Display drawn area on map
-                                    with st.expander("🗺️ View Your Drawn Area on Map", expanded=True):
-                                        try:
-                                            # Get center point using centroid
-                                            geom_centroid = geom.centroid().getInfo()
-                                            center_lon = geom_centroid['coordinates'][0]
-                                            center_lat = geom_centroid['coordinates'][1]
-                                            zoom = 10
-                                            
-                                            # Create map
-                                            m = folium.Map(
-                                                location=[center_lat, center_lon],
-                                                zoom_start=zoom,
-                                                tiles='OpenStreetMap'
-                                            )
-                                            
-                                            # Add MapBiomas layer
-                                            mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                            map_id = mapbiomas_map.getMapId()
-                                            ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{map_id["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-                                            folium.TileLayer(
-                                                tiles=ee_tile_url,
-                                                attr='MapBiomas',
-                                                name='MapBiomas Collection 9',
-                                                overlay=True
-                                            ).add_to(m)
-                                            
-                                            # Add drawn area boundary in red
-                                            drawn_geojson = geom.getInfo()
-                                            folium.GeoJson(
-                                                drawn_geojson,
-                                                style_function=lambda x: {
-                                                    'color': 'red',
-                                                    'weight': 3,
-                                                    'opacity': 0.8,
-                                                    'fillOpacity': 0.1
-                                                },
-                                                name="Your Drawn Area"
-                                            ).add_to(m)
-                                            
-                                            folium.LayerControl().add_to(m)
-                                            st_folium(m, width=1200, height=500)
-                                        except Exception as map_e:
-                                            st.error(f"Could not display map: {map_e}")
+                                    st.success("✅ View the drawn area on the map on the left!")
                                 
                                 except Exception as e:
                                     st.error(f"Analysis failed: {e}")
@@ -412,50 +369,8 @@ else:
                                                     if fig:
                                                         st.pyplot(fig)
                                                 
-                                                # Display territory on map
-                                                with st.expander("🗺️ View Territory on Map", expanded=True):
-                                                    try:
-                                                        # Get center point using centroid
-                                                        geom_centroid = territory_geom.centroid().getInfo()
-                                                        center_lon = geom_centroid['coordinates'][0]
-                                                        center_lat = geom_centroid['coordinates'][1]
-                                                        zoom = 10
-                                                        
-                                                        # Create map
-                                                        m = folium.Map(
-                                                            location=[center_lat, center_lon],
-                                                            zoom_start=zoom,
-                                                            tiles='OpenStreetMap'
-                                                        )
-                                                        
-                                                        # Add MapBiomas layer
-                                                        mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                                        map_id = mapbiomas_map.getMapId()
-                                                        ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{map_id["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
-                                                        folium.TileLayer(
-                                                            tiles=ee_tile_url,
-                                                            attr='MapBiomas',
-                                                            name='MapBiomas Collection 9',
-                                                            overlay=True
-                                                        ).add_to(m)
-                                                        
-                                                        # Add territory boundary in red
-                                                        territory_geojson = territory_geom.getInfo()
-                                                        folium.GeoJson(
-                                                            territory_geojson,
-                                                            style_function=lambda feature: {
-                                                                'color': 'red',
-                                                                'weight': 3,
-                                                                'opacity': 0.8,
-                                                                'fillOpacity': 0.1
-                                                            },
-                                                            name=selected_territory
-                                                        ).add_to(m)
-                                                        
-                                                        folium.LayerControl().add_to(m)
-                                                        st_folium(m, width=1200, height=500)
-                                                    except Exception as map_e:
-                                                        st.error(f"Could not display map: {map_e}")
+                                                st.success(f"✅ View {selected_territory} on the map on the left - use the search box to highlight it!")
+                                            
                                             except Exception as e:
                                                 st.error(f"Analysis failed: {e}")
                     except Exception as e:
