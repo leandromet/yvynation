@@ -86,7 +86,7 @@ if "territory_result" not in st.session_state:
 if "territory_name" not in st.session_state:
     st.session_state.territory_name = None
 if "territory_year" not in st.session_state:
-    st.session_state.territory_year = None
+    st.session_state.territory_year = 2023
 if "multiyear_results" not in st.session_state:
     st.session_state.multiyear_results = None
 if "multiyear_start_year" not in st.session_state:
@@ -340,7 +340,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
 st.title("🌎 Yvynation - Land Cover Analysis")
 
 # Create tabs for MapBiomas and Hansen
-tab_mapbiomas, tab_hansen = st.tabs(["🇧🇷 MapBiomas (Brazil)", "🌍 Hansen/GLAD (Global)"])
+tab_hansen, tab_mapbiomas = st.tabs(["🌍 Hansen/GLAD (Global)", "🇧🇷 MapBiomas (Brazil)"])
 
 # ============================================================================
 # TAB 1: MAPBIOMAS
