@@ -1,7 +1,7 @@
-"""
+'''
 Data loading and Earth Engine asset management for Yvynation.
 Provides functions to load MapBiomas, SPOT, and satellite imagery.
-"""
+'''
 
 import ee
 import pandas as pd
@@ -21,7 +21,7 @@ from config import (
 # ==============================================================================
 
 def load_mapbiomas(version='v9'):
-    """Load MapBiomas Brazil Collection."""
+    '''Load MapBiomas Brazil Collection.'''
     if version not in MAPBIOMAS_COLLECTIONS:
         raise ValueError(f"Unsupported version: {version}")
     
@@ -36,7 +36,7 @@ def load_mapbiomas(version='v9'):
 
 
 def load_territories(territory_type='indigenous'):
-    """Load MapBiomas official territories."""
+    '''Load MapBiomas official territories.'''
     if territory_type not in TERRITORY_COLLECTIONS:
         raise ValueError(f"Unsupported type: {territory_type}")
     
@@ -56,7 +56,7 @@ def load_territories(territory_type='indigenous'):
 # ==============================================================================
 
 def load_sentinel2(roi, start_date, end_date, cloud_filter=20):
-    """Load Sentinel-2 imagery."""
+    '''Load Sentinel-2 imagery.'''
     collection = (
         ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
         .filterBounds(roi)
@@ -69,7 +69,7 @@ def load_sentinel2(roi, start_date, end_date, cloud_filter=20):
 
 
 def load_spot_visual():
-    """Load SPOT visual (RGB) basemap."""
+    '''Load SPOT visual (RGB) basemap.'''
     try:
         image = ee.Image(SPOT_VISUAL_ASSET)
         print(f"✓ Loaded SPOT visual basemap")
@@ -80,7 +80,7 @@ def load_spot_visual():
 
 
 def load_spot_analytic():
-    """Load SPOT analytic (multispectral) data."""
+    '''Load SPOT analytic (multispectral) data.'''
     try:
         image = ee.Image(SPOT_ANALYTIC_ASSET)
         print(f"✓ Loaded SPOT analytic image")
@@ -95,7 +95,7 @@ def load_spot_analytic():
 # ==============================================================================
 
 def classify_spot_ndvi(spot_image):
-    """Create land cover classification from SPOT using NDVI."""
+    '''Create land cover classification from SPOT using NDVI.'''
     if spot_image is None:
         print("✗ Cannot classify: SPOT image is None")
         return ee.Image.constant(0).rename('classification')
@@ -122,7 +122,7 @@ def classify_spot_ndvi(spot_image):
 # ==============================================================================
 
 def calculate_area_by_class(image, geometry, year=None, scale=30):
-    """Calculate area for each land cover class."""
+    '''Calculate area for each land cover class.'''
     area_image = ee.Image.pixelArea().divide(1e6)
     classified = image.clip(geometry)
 
@@ -147,7 +147,7 @@ def calculate_area_by_class(image, geometry, year=None, scale=30):
 
 
 def get_deforestation(mapbiomas_v9, mapbiomas_v8, roi, forest_class=3, scale=30):
-    """Calculate deforestation between MapBiomas versions."""
+    '''Calculate deforestation between MapBiomas versions.'''
     forest_v9 = mapbiomas_v9.eq(forest_class).clip(roi)
     forest_v8 = mapbiomas_v8.eq(forest_class).clip(roi)
     deforestation = forest_v8.And(forest_v9.Not())
@@ -168,7 +168,7 @@ def get_deforestation(mapbiomas_v9, mapbiomas_v8, roi, forest_class=3, scale=30)
 
 
 def filter_territories_by_state(territories, state_code):
-    """Filter territories by Brazilian state code."""
+    '''Filter territories by Brazilian state code.'''
     filtered = territories.filter(ee.Filter.eq('uf_sigla', state_code))
     count = filtered.size().getInfo()
     print(f"✓ Filtered to {count} territories in {state_code}")
