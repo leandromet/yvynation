@@ -124,7 +124,25 @@ def render_mapbiomas_territory_analysis():
             st.error(f"No territories found in {state}")
             return
         
-        territory_names = [f["properties"]["TERR_NAME"] for f in territories_fc.getInfo()["features"]]
+        # Get features to extract territory names
+        features = territories_fc.getInfo()["features"]
+        if not features:
+            st.error(f"No territory features found in {state}")
+            return
+        
+        # Detect the correct property name for territory names
+        first_props = features[0]["properties"]
+        name_prop = None
+        for prop in ['NAME', 'name', 'TERR_NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME', 'NOME']:
+            if prop in first_props:
+                name_prop = prop
+                break
+        
+        if name_prop is None:
+            st.error(f"Could not find territory name property. Available: {list(first_props.keys())}")
+            return
+        
+        territory_names = sorted([f["properties"][name_prop] for f in features])
         
         col_terr, col_year = st.columns([2, 1])
         with col_terr:
@@ -137,7 +155,7 @@ def render_mapbiomas_territory_analysis():
                 try:
                     mapbiomas = st.session_state.app.mapbiomas_v9
                     territories = st.session_state.app.territories
-                    filtered_territories = filter_territories_by_names(territories, [territory_name])
+                    filtered_territories = filter_territories_by_names(territories, [territory_name], name_prop)
                     
                     if filtered_territories:
                         geom = filtered_territories.first().geometry()

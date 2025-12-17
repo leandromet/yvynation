@@ -213,18 +213,19 @@ def filter_territories_by_state(territories, state_code):
     return filtered
 
 
-def filter_territories_by_names(territories, names_list):
+def filter_territories_by_names(territories, names_list, property_name='NAME'):
     '''
     Filter territories by name.
     
     Args:
         territories (ee.FeatureCollection): Territory features
         names_list (list): Territory names to filter
+        property_name (str): Property name to filter by (default: 'NAME')
     
     Returns:
         ee.FeatureCollection: Filtered territories
     '''
-    filters = [ee.Filter.eq('NAME', name) for name in names_list]
+    filters = [ee.Filter.eq(property_name, name) for name in names_list]
     combined_filter = ee.Filter.Or(*filters)
     filtered = territories.filter(combined_filter)
     count = filtered.size().getInfo()
