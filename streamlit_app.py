@@ -1002,19 +1002,20 @@ with analysis_col:
 
             "Nation" refers to a self-governing community or people with shared culture,
             history, language, and land. It signifies self-determination and governance.
-            """)
+            '''        )
             
-            # Display image
-            try:
-                from PIL import Image
-                img = Image.open('image-28.png')
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    st.image(img, caption='Yvynation', use_column_width=True)
-            except FileNotFoundError:
-                st.warning("Image file 'image-28.png' not found")
+        # Display image
+        try:
+            from PIL import Image
+            img = Image.open('image-28.png')
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.image(img, caption='Yvynation', use_column_width=True)
+        except FileNotFoundError:
+            st.warning("Image file 'image-28.png' not found")
             
-            st.markdown("""
+        st.markdown(
+            '''
             ### Data Sources
             - **MapBiomas Collection 9**
               - Resolution: 30 m
