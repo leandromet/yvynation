@@ -55,6 +55,35 @@ if "map_object" not in st.session_state:
 # Sidebar
 st.sidebar.title("🌍 Yvynation Configuration")
 
+# MapBiomas Collection 9 discrete palette - REQUIRED for proper colors
+COLOR_MAP = {
+    0: "#ffffff", 1: "#1f8d49", 2: "#1f8d49", 3: "#1f8d49", 4: "#7dc975", 5: "#04381d", 6: "#007785",
+    7: "#005544", 8: "#33a02c", 9: "#7a5900", 10: "#d6bc74", 11: "#519799", 12: "#d6bc74", 13: "#ffffff",
+    14: "#ffefc3", 15: "#edde8e", 16: "#e974ed", 17: "#d082de", 18: "#e974ed", 19: "#c27ba0", 20: "#db7093",
+    21: "#ffefc3", 22: "#d4271e", 23: "#ffa07a", 24: "#d4271e", 25: "#db4d4f", 26: "#2532e4", 27: "#ffffff",
+    28: "#ffaa5f", 29: "#ffaa5f", 30: "#9c0027", 31: "#091077", 32: "#fc8114", 33: "#259fe4", 34: "#259fe4",
+    35: "#9065d0", 36: "#d082de", 37: "#d082de", 38: "#c27ba0", 39: "#f5b3c8", 40: "#c71585", 41: "#f54ca9",
+    42: "#f54ca9", 43: "#d082de", 44: "#d082de", 45: "#d68fe2", 46: "#d68fe2", 47: "#9932cc", 48: "#e6ccff",
+    49: "#02d659", 50: "#ad5100", 51: "#fc8114", 52: "#fc8114", 62: "#ff69b4", 146: "#ffefc3", 435: "#cccccc",
+    466: "#999999"
+}
+
+LABELS = {
+    0: "No data", 1: "Forest", 2: "Natural Forest", 3: "Forest Formation", 4: "Savanna Formation", 
+    5: "Mangrove", 6: "Floodable Forest", 7: "Flooded Forest", 8: "Wooded Restinga", 9: "Forest Plantation",
+    10: "Herbaceous", 11: "Wetland", 12: "Grassland", 13: "Other Natural Formation", 14: "Farming",
+    15: "Pasture", 16: "Agriculture", 17: "Perennial Crop", 18: "Agri", 19: "Temporary Crop",
+    20: "Sugar Cane", 21: "Mosaic of Uses", 22: "Non vegetated", 23: "Beach and Sand", 24: "Urban Area",
+    25: "Other non Vegetated Areas", 26: "Water", 27: "Not Observed", 28: "Rocky Outcrop", 29: "Rocky Outcrop",
+    30: "Mining", 31: "Aquaculture", 32: "Hypersaline Tidal Flat", 33: "River Lake and Ocean", 34: "Reservoir",
+    35: "Palm Oil", 36: "Perennial Crop", 37: "Semi-Perennial Crop", 38: "Annual Crop", 39: "Soybean",
+    40: "Rice", 41: "Other Temporary Crops", 42: "Other Annual Crop", 43: "Other Semi-Perennial Crop",
+    44: "Other Perennial Crop", 45: "Coffee", 46: "Coffee", 47: "Citrus", 48: "Other Perennial Crops",
+    49: "Wooded Sandbank Vegetation", 50: "Herbaceous Sandbank Vegetation", 51: "Salt Flat",
+    52: "Apicuns and Salines", 62: "Cotton", 146: "Other Land Use", 435: "Other Transition",
+    466: "Other Classification"
+}
+
 def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     """Create a folium map with Earth Engine layers and drawing tools."""
     m = folium.Map(
@@ -64,30 +93,31 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
     )
     
     try:
-        # Add MapBiomas 2023 layer
+        # Add MapBiomas 2023 layer with discrete palette
         mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
         classification_2023 = mapbiomas.select('classification_2023')
         
-        # MapBiomas color palette
-        palette = [
-            '#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000',
-            '#FFFF00', '#00FFFF', '#FF00FF', '#C0C0C0', '#808080',
-            '#800000', '#008000', '#000080', '#808000', '#008080'
-        ]
+        # Convert COLOR_MAP to proper palette list (must be ordered by key)
+        # Build palette with max 62 colors since MapBiomas goes to class 62
+        palette_list = []
+        for i in range(63):
+            hex_color = COLOR_MAP.get(i, "#ffffff")
+            # Remove # from hex color for EE palette
+            palette_list.append(hex_color.lstrip('#'))
         
         vis_params = {
             'min': 0,
             'max': 62,
-            'palette': palette
+            'palette': palette_list
         }
         
-        # Get map tile URL for MapBiomas
+        # Get map tile URL for MapBiomas with discrete palette
         mapid = ee.Image(classification_2023).getMapId(vis_params)
         ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         folium.TileLayer(
             tiles=ee_tile_url,
-            attr='MapBiomas',
-            name='MapBiomas 2023',
+            attr='MapBiomas Collection 9',
+            name='MapBiomas 2023 (Discrete Palette)',
             overlay=True,
             control=True
         ).add_to(m)
