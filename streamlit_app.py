@@ -376,24 +376,48 @@ def clean_territory_name(name_with_id):
 def init_earth_engine():
     """Initialize Earth Engine with service account credentials (Streamlit Cloud) or default auth (local)."""
     try:
-        # Try to use service account credentials from Streamlit secrets (Streamlit Cloud)
-        if "google" in st.secrets:
-            credentials = service_account.Credentials.from_service_account_info(
-                dict(st.secrets["google"])
-            )
-            ee.Initialize(credentials, project=PROJECT_ID)
-        else:
-            # Fallback to default authentication (local development with earthengine authenticate)
-            ee.Initialize(project=PROJECT_ID)
+        with st.spinner("🔄 Initializing Earth Engine..."):
+            # Check if we have service account credentials in secrets
+            has_credentials = False
+            
+            # Try to get credentials from Streamlit secrets (flat format for Streamlit Cloud)
+            if "type" in st.secrets and st.secrets["type"] == "service_account":
+                # Streamlit Cloud format: secrets are flat, not nested under [google]
+                st.sidebar.info("📝 Using service account from secrets (flat format)")
+                try:
+                    creds_dict = dict(st.secrets)
+                    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+                    ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
+                    has_credentials = True
+                except Exception as e:
+                    st.sidebar.warning(f"⚠️ Failed to load flat secrets: {e}")
+            
+            # Fallback: try nested [google] format
+            elif "google" in st.secrets:
+                st.sidebar.info("📝 Using service account from [google] section")
+                try:
+                    creds_dict = dict(st.secrets["google"])
+                    credentials = service_account.Credentials.from_service_account_info(creds_dict)
+                    ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
+                    has_credentials = True
+                except Exception as e:
+                    st.sidebar.warning(f"⚠️ Failed to load [google] secrets: {e}")
+            
+            # If no service account credentials, try default auth (local development)
+            if not has_credentials:
+                st.sidebar.info("📝 No service account found, using default authentication")
+                ee.Initialize(project=PROJECT_ID)
+        
         return True
     except Exception as e:
         st.sidebar.error(f"❌ EE initialization failed: {e}")
         st.stop()
 
 # Initialize EE
+st.sidebar.info("⏳ Starting Earth Engine initialization...")
 try:
     init_earth_engine()
-    st.sidebar.success("✅ Earth Engine initialized")
+    st.sidebar.success("✅ Earth Engine initialized successfully!")
 except Exception as e:
     st.sidebar.error(f"❌ EE initialization failed: {e}")
 

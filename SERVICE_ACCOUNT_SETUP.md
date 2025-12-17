@@ -26,7 +26,11 @@ This guide walks you through creating and configuring a Google Cloud service acc
    - Click **CREATE AND CONTINUE**
 5. Grant roles (on the next screen):
    - Click **+ GRANT ROLE**
-   - Search for and select **Editor** role (gives full access)
+   - Search for and select one of:
+     - **Earth Engine Resource Admin** ✅ (recommended)
+     - **Earth Engine Resource Editor** ✅ (also works)
+     - **Editor** ✅ (works but overly permissive)
+   - **DO NOT use** "Earth Engine Resource Viewer" - it's read-only and won't work
    - Click **CONTINUE**
 6. Click **DONE**
 
@@ -69,10 +73,9 @@ If you're using a specific Earth Engine project, add the service account email:
 2. Find your app in the list
 3. Click the three dots menu → **Settings**
 4. Go to the **Secrets** section
-5. In the text editor, add:
+5. In the text editor, paste the **entire contents** of your service account JSON file (flat format, NOT nested):
 
 ```toml
-[google]
 type = "service_account"
 project_id = "your-project-id"
 private_key_id = "your-private-key-id"
@@ -83,15 +86,10 @@ auth_uri = "https://accounts.google.com/o/oauth2/auth"
 token_uri = "https://oauth2.googleapis.com/token"
 auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/..."
-
-[ee_project_id]
-value = "ee-leandromet"
+ee_project_id = "ee-leandromet"
 ```
 
-**To get these values:**
-- Open your downloaded JSON file
-- Copy all the content except the `type` field (keep it as "service_account")
-- Add `ee_project_id` from your Earth Engine project
+**Important:** Paste the JSON content at the **TOP level** (flat), not nested under `[google]`. Each line should start directly with the key name.
 
 ## Step 8: Update Your Application Code
 
@@ -131,12 +129,19 @@ init_ee()
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 ```
 
-2. Copy your JSON service account key content into it:
+2. Paste your service account JSON key content into it (flat format):
 ```toml
-[google]
 type = "service_account"
 project_id = "..."
-# ... (rest of the JSON)
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "..."
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+ee_project_id = "ee-leandromet"
 ```
 
 3. Run locally:
@@ -156,8 +161,19 @@ git push
 Your Streamlit Cloud app will automatically use the secrets you configured in the dashboard.
 
 ## Troubleshooting
-
+**Check IAM Role:** The service account needs "Earth Engine Resource Editor" or "Editor" role
+  - "Earth Engine Resource Viewer" is **read-only** and won't work
+  - Go to Cloud Console → **IAM & Admin** → **IAM**
+  - Find your service account
+  - Click the pencil icon to edit
+  - If it only has "Earth Engine Resource Viewer", add "Earth Engine Resource Admin" or "Earth Engine Resource Editor"
+- 
 ### "Earth Engine is not initialized" Error
+- **Check IAM Role:** The service account needs one of these roles:
+  - "Earth Engine Resource Admin" ✅ (recommended)
+  - "Earth Engine Resource Editor" ✅ (works)
+  - "Editor" ✅ (works but overly permissive)
+  - "Earth Engine Resource Viewer" ❌ (read-only, won't work)
 - Check that the service account email is registered with Earth Engine
 - Wait a few minutes after registration (it can take time to activate)
 - Verify the service account has Earth Engine API access
