@@ -253,13 +253,10 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 layer1_band = f'classification_{layer1_year}'
                 layer1_image = mapbiomas.select(layer1_band)
                 
-                # Create tile URL from EE image
-                tile_url = geemap.ee_tile_url(
-                    ee_object=layer1_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
-                )
+                # Get tile URL from EE image
+                map_id = layer1_image.getMapId({'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE})
                 folium.TileLayer(
-                    tiles=tile_url,
+                    tiles=map_id['tile_fetcher'].url_format,
                     attr='Map data: MapBiomas',
                     name=f"MapBiomas {layer1_year}",
                     overlay=True,
@@ -272,12 +269,9 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 layer2_band = f'classification_{layer2_year}'
                 layer2_image = mapbiomas.select(layer2_band)
                 
-                tile_url2 = geemap.ee_tile_url(
-                    ee_object=layer2_image,
-                    vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
-                )
+                map_id2 = layer2_image.getMapId({'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE})
                 folium.TileLayer(
-                    tiles=tile_url2,
+                    tiles=map_id2['tile_fetcher'].url_format,
                     attr='Map data: MapBiomas',
                     name=f"MapBiomas {layer2_year}",
                     overlay=True,
@@ -292,12 +286,9 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             year_key = str(layer1_year) if layer1_year else "2020"
             hansen_image = ee.Image(HANSEN_DATASETS[year_key])
             
-            tile_url = geemap.ee_tile_url(
-                ee_object=hansen_image,
-                vis_params={'min': 0, 'max': 17, 'palette': 'viridis'}
-            )
+            map_id = hansen_image.getMapId({'min': 0, 'max': 17, 'palette': 'viridis'})
             folium.TileLayer(
-                tiles=tile_url,
+                tiles=map_id['tile_fetcher'].url_format,
                 attr='Map data: Hansen/GLAD',
                 name=f"Hansen {year_key}",
                 overlay=True,
