@@ -329,7 +329,7 @@ else:
         st.divider()
         
         # Option 3: Default analysis for all territories
-        st.markdown("### Option 3: Analyze All Territories
+        st.markdown("### Option 3: Analyze All Territories")
         
         col1, col2 = st.columns(2)
         with col1:
