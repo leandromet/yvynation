@@ -256,7 +256,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     ee_object=layer1_image,
                     vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
                     name=f"MapBiomas {layer1_year}",
-                    show=True,
+                    shown=True,
                     opacity=layer1_opacity
                 )
                 m.add_child(ee_layer)
@@ -270,7 +270,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     ee_object=layer2_image,
                     vis_params={'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE},
                     name=f"MapBiomas {layer2_year}",
-                    show=True,
+                    shown=True,
                     opacity=layer2_opacity
                 )
                 m.add_child(ee_layer2)
@@ -286,7 +286,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 ee_object=hansen_image,
                 vis_params={'min': 0, 'max': 17, 'palette': 'viridis'},
                 name=f"Hansen {year_key}",
-                show=True,
+                shown=True,
                 opacity=layer1_opacity
             )
             m.add_child(ee_layer)
