@@ -183,32 +183,71 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
     )  # Keep OSM as default (already added above)
     
     try:
-        # Load MapBiomas collection
-        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+        # Check which data source to use
+        if 'data_source' in st.session_state and st.session_state.data_source == "Hansen/GLAD (Global)":
+            # Load Hansen/GLAD data
+            from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
+            
+            # Get ocean mask
+            landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+            
+            # Load the Hansen dataset for the selected year
+            hansen_year = getattr(st.session_state, 'hansen_year', '2020')
+            if hansen_year == "2000-2020 Change":
+                hansen_image = ee.Image(HANSEN_DATASETS['change']).updateMask(landmask)
+                layer_name = "Hansen 2000-2020 Change"
+            else:
+                hansen_image = ee.Image(HANSEN_DATASETS[hansen_year]).updateMask(landmask)
+                layer_name = f"Hansen {hansen_year}"
+            
+            vis_params_hansen = {
+                'min': 0,
+                'max': 255,
+                'palette': HANSEN_PALETTE
+            }
+            
+            mapid = ee.Image(hansen_image).getMapId(vis_params_hansen)
+            try:
+                tile_url = mapid['tile_fetcher'].url_format
+            except (KeyError, AttributeError):
+                tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+            
+            folium.TileLayer(
+                tiles=tile_url,
+                attr='GLAD Lab (University of Maryland)',
+                name=layer_name,
+                overlay=True,
+                control=True,
+                opacity=1.0
+            ).add_to(m)
         
-        # Build complete discrete palette from COLOR_MAP (0-62, or max class value)
-        # This prevents Earth Engine from interpolating colors
-        palette_list = []
-        max_class = 62
-        for class_id in range(max_class + 1):
-            # Get color from COLOR_MAP, use gray (#808080) as default for undefined classes
-            hex_color = COLOR_MAP.get(class_id, '#808080')
-            # Remove # and add to palette
-            palette_list.append(hex_color.lstrip('#'))
-        
-        vis_params = {
-            'min': 0,
-            'max': max_class,
-            'palette': palette_list
-        }
-        
-        # Add Layer 1 (top layer, default 2023)
-        classification_1 = mapbiomas.select(f'classification_{layer1_year}')
-        mapid_1 = ee.Image(classification_1).getMapId(vis_params)
-        
-        try:
-            tile_url_1 = mapid_1['tile_fetcher'].url_format
-        except (KeyError, AttributeError):
+        else:
+            # Load MapBiomas collection (original code)
+            mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+            
+            # Build complete discrete palette from COLOR_MAP (0-62, or max class value)
+            # This prevents Earth Engine from interpolating colors
+            palette_list = []
+            max_class = 62
+            for class_id in range(max_class + 1):
+                # Get color from COLOR_MAP, use gray (#808080) as default for undefined classes
+                hex_color = COLOR_MAP.get(class_id, '#808080')
+                # Remove # and add to palette
+                palette_list.append(hex_color.lstrip('#'))
+            
+            vis_params = {
+                'min': 0,
+                'max': max_class,
+                'palette': palette_list
+            }
+            
+            # Add Layer 1 (top layer, default 2023)
+            classification_1 = mapbiomas.select(f'classification_{layer1_year}')
+            mapid_1 = ee.Image(classification_1).getMapId(vis_params)
+            
+            try:
+                tile_url_1 = mapid_1['tile_fetcher'].url_format
+            except (KeyError, AttributeError):
             tile_url_1 = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_1["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         
         folium.TileLayer(
@@ -460,7 +499,18 @@ st.markdown(
 )
 
 if not st.session_state.data_loaded:
-    st.info("👈 Click 'Load Core Data' in the sidebar to begin")
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if st.button("📊 Load Core Data", help="Load MapBiomas and Indigenous Territories datasets", key="main_load_button"):
+            with st.spinner("📦 Loading MapBiomas and territories..."):
+                try:
+                    st.session_state.app = YvynationApp()
+                    st.session_state.data_loaded = True
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to load data: {e}")
+    with col2:
+        st.info("👈 Click the button to load core data and begin analysis")
     st.stop()
 
 app = st.session_state.app
@@ -473,6 +523,21 @@ with map_col:
     st.subheader("🗺️ Interactive Map with Drawing Tools")
     
     with st.expander("Map Controls", expanded=True):
+        # Data Source Selection
+        data_source = st.radio(
+            "📊 Data Source",
+            ["MapBiomas (Brazil)", "Hansen/GLAD (Global)"],
+            horizontal=True,
+            help="Choose between regional (MapBiomas) or global (Hansen) land cover data"
+        )
+        
+        if "data_source" not in st.session_state:
+            st.session_state.data_source = data_source
+        else:
+            st.session_state.data_source = data_source
+        
+        st.divider()
+        
         col1, col2 = st.columns(2)
         with col1:
             center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.map_center_lat, key="lat")
@@ -486,17 +551,46 @@ with map_col:
         
         st.divider()
         
+        # Data-specific controls
+        if st.session_state.data_source == "Hansen/GLAD (Global)":
+            st.subheader("🌍 Hansen/GLAD Layer Options")
+            st.info("Data: Global Land Analysis and Discovery (GLAD) Lab, University of Maryland")
+            
+            hansen_year = st.selectbox(
+                "Select Year",
+                ["2000", "2005", "2010", "2015", "2020", "2000-2020 Change"],
+                help="Available years from Hansen dataset"
+            )
+            st.session_state.hansen_year = hansen_year
+            
+            st.markdown("**About Hansen/GLAD Data:**")
+            st.caption("- Global coverage (2000-2020)")
+            st.caption("- 30-meter resolution")
+            st.caption("- Land cover & land use classification")
+            st.caption("- Learn more: [glad.umd.edu](https://glad.umd.edu/dataset/GLCLUC2020)")
+        
         # Compare Mode - Add two layers with opacity control
         if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode):
             st.session_state.split_compare_mode = True
-            col_left, col_right = st.columns(2)
-            with col_left:
-                st.session_state.split_left_year = st.selectbox(
-                    "Layer 1 Year",
-                    range(1985, 2024),
-                    index=38,
-                    key="split_left"
-                )
+            
+            if st.session_state.data_source == "MapBiomas (Brazil)":
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.session_state.split_left_year = st.selectbox(
+                        "Layer 1 Year",
+                        range(1985, 2024),
+                        index=38,
+                        key="split_left"
+                    )
+            else:
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.session_state.split_left_year = st.selectbox(
+                        "Layer 1 Year",
+                        ["2000", "2005", "2010", "2015", "2020"],
+                        index=4,
+                        key="split_left_hansen"
+                    )
             with col_right:
                 st.session_state.split_right_year = st.selectbox(
                     "Layer 2 Year",
