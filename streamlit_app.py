@@ -6,6 +6,7 @@ Interactive Streamlit web app for MapBiomas and Indigenous Territories analysis
 import streamlit as st
 import ee
 import geemap
+import streamlit_folium
 import pandas as pd
 from config import PROJECT_ID
 from app_file import YvynationApp
@@ -94,7 +95,7 @@ else:
                         center=[center_lon, center_lat],
                         zoom=zoom
                     )
-                    Map.to_streamlit(height=600)
+                    streamlit_folium.folium_static(Map, width=1400, height=600)
                 except Exception as e:
                     st.error(f"Failed to create map: {e}")
 
@@ -220,7 +221,7 @@ else:
                             state_code=state_code,
                             zoom=7
                         )
-                        Map.to_streamlit(height=600)
+                        streamlit_folium.folium_static(Map, width=1400, height=600)
                 except Exception as e:
                     st.error(f"Map creation failed: {e}")
         
@@ -238,7 +239,7 @@ else:
                             territory_names=names_list,
                             zoom=9
                         )
-                        Map.to_streamlit(height=600)
+                        streamlit_folium.folium_static(Map, width=1400, height=600)
                 except Exception as e:
                     st.error(f"Map creation failed: {e}")
 

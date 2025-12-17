@@ -10,3 +10,4 @@ seaborn==0.12.2
 requests==2.31.0
 ipython==8.15.0
 streamlit==1.28.1
+streamlit-folium==0.15.0
