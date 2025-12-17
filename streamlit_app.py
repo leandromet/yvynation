@@ -496,6 +496,19 @@ with map_col:
         if st.session_state.map_object is not None:
             m = st.session_state.map_object
             
+            # Always add persistent drawn geometry as a visible layer if it exists
+            if st.session_state.persistent_drawn_geometry:
+                try:
+                    geom_data = st.session_state.persistent_drawn_geometry.get('geometry', {})
+                    if geom_data.get('type') == 'Polygon':
+                        # Add as GeoJSON layer (blue outline)
+                        folium.GeoJson(
+                            {'type': 'Feature', 'geometry': geom_data},
+                            style_function=lambda x: {'color': 'blue', 'weight': 3, 'opacity': 0.7, 'fillOpacity': 0.1}
+                        ).add_to(m)
+                except Exception as e:
+                    pass
+            
             # Capture map with drawings
             map_data = st_folium(m, width=None, height=700, key="main_map")
             
