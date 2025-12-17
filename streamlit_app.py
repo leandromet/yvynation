@@ -70,11 +70,11 @@ if "map_object" not in st.session_state:
 
 # Map state - Hansen (Americas)
 if "hansen_center_lat" not in st.session_state:
-    st.session_state.hansen_center_lat = 10.0
+    st.session_state.hansen_center_lat = 0.0
 if "hansen_center_lon" not in st.session_state:
-    st.session_state.hansen_center_lon = -80.0
+    st.session_state.hansen_center_lon = 0.0
 if "hansen_zoom" not in st.session_state:
-    st.session_state.hansen_zoom = 3
+    st.session_state.hansen_zoom = 2
 
 # Drawn areas
 if "drawn_areas" not in st.session_state:
