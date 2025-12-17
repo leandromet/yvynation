@@ -1010,7 +1010,7 @@ with analysis_col:
             img = Image.open('image-28.png')
             col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
-                st.image(img, caption='Yvynation', use_column_width=True)
+                st.image(img, caption='Historical deforestation and land use change in restricted areas and their surroundings.', use_column_width=True)
         except FileNotFoundError:
             st.warning("Image file 'image-28.png' not found")
             
