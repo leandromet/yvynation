@@ -102,6 +102,8 @@ if "persistent_drawn_geometry" not in st.session_state:
     st.session_state.persistent_drawn_geometry = None
 if "last_drawn_geometry" not in st.session_state:
     st.session_state.last_drawn_geometry = None  # Track last drawing to avoid duplicates
+if "previous_selected_area" not in st.session_state:
+    st.session_state.previous_selected_area = None  # Track to detect area selection changes
 
 # Sidebar
 st.sidebar.title("🌎 Yvynation Land Use")
