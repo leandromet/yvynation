@@ -406,25 +406,32 @@ with tab_mapbiomas:
                 # Apply zoom to feature if needed
                 if st.session_state.should_zoom_to_feature and st.session_state.zoom_bounds:
                     bounds = st.session_state.zoom_bounds
-                    # bounds is a dict with 'coordinates' key containing [[min_lon, min_lat], [max_lon, max_lat]]
                     coords = bounds.get('coordinates')
-                    if coords:
-                        min_lon, min_lat = coords[0]
-                        max_lon, max_lat = coords[1]
-                        # Update map center and zoom to fit bounds
-                        center_lon = (min_lon + max_lon) / 2
-                        center_lat = (min_lat + max_lat) / 2
-                        st.session_state.map_center_lon = center_lon
-                        st.session_state.map_center_lat = center_lat
-                        # Calculate appropriate zoom level (rough approximation)
-                        import math
-                        lon_diff = max_lon - min_lon
-                        lat_diff = max_lat - min_lat
-                        max_diff = max(lon_diff, lat_diff)
-                        if max_diff > 0:
-                            zoom = int(12 - math.log2(max_diff * 110))  # 110 km per degree approx
-                            zoom = max(4, min(zoom, 13))  # Clamp between 4 and 13
-                            st.session_state.map_zoom = zoom
+                    if coords and len(coords) > 0:
+                        try:
+                            # Extract all coordinate pairs from the polygon ring
+                            coord_list = coords[0] if isinstance(coords[0][0], (list, tuple)) else coords
+                            lons = [c[0] for c in coord_list]
+                            lats = [c[1] for c in coord_list]
+                            min_lon, max_lon = min(lons), max(lons)
+                            min_lat, max_lat = min(lats), max(lats)
+                            
+                            # Update map center and zoom to fit bounds
+                            center_lon = (min_lon + max_lon) / 2
+                            center_lat = (min_lat + max_lat) / 2
+                            st.session_state.map_center_lon = center_lon
+                            st.session_state.map_center_lat = center_lat
+                            # Calculate appropriate zoom level (rough approximation)
+                            import math
+                            lon_diff = max_lon - min_lon
+                            lat_diff = max_lat - min_lat
+                            max_diff = max(lon_diff, lat_diff)
+                            if max_diff > 0:
+                                zoom = int(12 - math.log2(max_diff * 110))  # 110 km per degree approx
+                                zoom = max(4, min(zoom, 13))  # Clamp between 4 and 13
+                                st.session_state.map_zoom = zoom
+                        except (IndexError, TypeError, ValueError) as e:
+                            st.warning(f"Could not parse bounds: {e}")
                     st.session_state.should_zoom_to_feature = False
                     st.session_state.zoom_bounds = None
                     # Recreate map with new center/zoom
@@ -524,21 +531,29 @@ with tab_hansen:
                 if st.session_state.should_zoom_to_feature and st.session_state.zoom_bounds:
                     bounds = st.session_state.zoom_bounds
                     coords = bounds.get('coordinates')
-                    if coords:
-                        min_lon, min_lat = coords[0]
-                        max_lon, max_lat = coords[1]
-                        center_lon = (min_lon + max_lon) / 2
-                        center_lat = (min_lat + max_lat) / 2
-                        st.session_state.map_center_lon = center_lon
-                        st.session_state.map_center_lat = center_lat
-                        import math
-                        lon_diff = max_lon - min_lon
-                        lat_diff = max_lat - min_lat
-                        max_diff = max(lon_diff, lat_diff)
-                        if max_diff > 0:
-                            zoom = int(12 - math.log2(max_diff * 110))
-                            zoom = max(4, min(zoom, 13))
-                            st.session_state.map_zoom = zoom
+                    if coords and len(coords) > 0:
+                        try:
+                            # Extract all coordinate pairs from the polygon ring
+                            coord_list = coords[0] if isinstance(coords[0][0], (list, tuple)) else coords
+                            lons = [c[0] for c in coord_list]
+                            lats = [c[1] for c in coord_list]
+                            min_lon, max_lon = min(lons), max(lons)
+                            min_lat, max_lat = min(lats), max(lats)
+                            
+                            center_lon = (min_lon + max_lon) / 2
+                            center_lat = (min_lat + max_lat) / 2
+                            st.session_state.map_center_lon = center_lon
+                            st.session_state.map_center_lat = center_lat
+                            import math
+                            lon_diff = max_lon - min_lon
+                            lat_diff = max_lat - min_lat
+                            max_diff = max(lon_diff, lat_diff)
+                            if max_diff > 0:
+                                zoom = int(12 - math.log2(max_diff * 110))
+                                zoom = max(4, min(zoom, 13))
+                                st.session_state.map_zoom = zoom
+                        except (IndexError, TypeError, ValueError) as e:
+                            st.warning(f"Could not parse bounds: {e}")
                     st.session_state.should_zoom_to_feature = False
                     st.session_state.zoom_bounds = None
                     st.session_state.map_object = create_ee_folium_map(
