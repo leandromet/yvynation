@@ -592,12 +592,21 @@ with map_col:
                         key="split_left_hansen"
                     )
             with col_right:
-                st.session_state.split_right_year = st.selectbox(
-                    "Layer 2 Year",
-                    range(1985, 2024),
-                    index=0,
-                    key="split_right"
-                )
+                # Layer 2 options depend on data source
+                if st.session_state.data_source == "MapBiomas (Brazil)":
+                    st.session_state.split_right_year = st.selectbox(
+                        "Layer 2 Year",
+                        range(1985, 2024),
+                        index=0,
+                        key="split_right"
+                    )
+                else:
+                    st.session_state.split_right_year = st.selectbox(
+                        "Layer 2 Year",
+                        ["2000", "2005", "2010", "2015", "2020"],
+                        index=0,
+                        key="split_right_hansen"
+                    )
             
             # Opacity sliders for comparison
             col_op1, col_op2 = st.columns(2)
@@ -750,46 +759,88 @@ with analysis_col:
                     # Create EE geometry from polygon
                     geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
                     
-                    col_year, col_btn = st.columns([2, 1])
-                    with col_year:
-                        year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
+                    # Year/layer selection depends on data source
+                    if st.session_state.data_source == "MapBiomas (Brazil)":
+                        col_year, col_btn = st.columns([2, 1])
+                        with col_year:
+                            year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
+                        
+                        with col_btn:
+                            analyze_btn = st.button("📍 Analyze & Zoom (click twice)", key="btn_drawn", width="stretch")
+                        
+                        if analyze_btn:
+                            with st.spinner("Analyzing your drawn area..."):
+                                try:
+                                    # Get bounds and zoom to drawn area
+                                    bounds = get_bounds_from_geometry(geom_data)
+                                    if bounds and st.session_state.map_object is not None:
+                                        zoom_to_bounds(st.session_state.map_object, bounds)
+                                    
+                                    # Use mapbiomas_v9
+                                    mapbiomas = st.session_state.app.mapbiomas_v9
+                                    band = f'classification_{year}'
+                                    
+                                    area_df = calculate_area_by_class(
+                                        mapbiomas.select(band),
+                                        geom,
+                                        year
+                                    )
+                                    
+                                    # Store results in separate drawn_area_result
+                                    st.session_state.drawn_area_result = area_df
+                                    st.session_state.drawn_area_year = year
+                                    
+                                    # Store geometry for map display
+                                    st.session_state.last_analyzed_geom = geom
+                                    st.session_state.last_analyzed_name = "Your Drawn Area"
+                                    
+                                    st.success(f"✅ Analysis complete for {year}")
+                                    
+                                except Exception as e:
+                                    st.error(f"Analysis failed: {e}")
                     
-                    with col_btn:
-                        analyze_btn = st.button("📍 Analyze & Zoom (click twice)", key="btn_drawn", width="stretch")
-                    
-                    if analyze_btn:
-                        with st.spinner("Analyzing your drawn area..."):
-                            try:
-                                # Get bounds and zoom to drawn area
-                                bounds = get_bounds_from_geometry(geom_data)
-                                if bounds and st.session_state.map_object is not None:
-                                    zoom_to_bounds(st.session_state.map_object, bounds)
-                                
-                                # Use mapbiomas_v9
-                                mapbiomas = st.session_state.app.mapbiomas_v9
-                                band = f'classification_{year}'
-                                
-                                area_df = calculate_area_by_class(
-                                    mapbiomas.select(band),
-                                    geom,
-                                    year
-                                )
-                                
-                                # Store results in separate drawn_area_result
-                                st.session_state.drawn_area_result = area_df
-                                st.session_state.drawn_area_year = year
-                                
-                                # Store geometry for map display
-                                st.session_state.last_analyzed_geom = geom
-                                st.session_state.last_analyzed_name = "Your Drawn Area"
-                                
-                                st.success(f"✅ Analysis complete for {year}")
-                                
-                            except Exception as e:
-                                st.error(f"Analysis failed: {e}")
+                    else:  # Hansen/GLAD data
+                        from config import HANSEN_DATASETS
+                        
+                        col_year, col_btn = st.columns([2, 1])
+                        with col_year:
+                            hansen_year = st.selectbox(
+                                "Select Year", 
+                                ["2000", "2005", "2010", "2015", "2020"],
+                                index=4,
+                                key="year_drawn_hansen"
+                            )
+                        
+                        with col_btn:
+                            analyze_btn = st.button("📍 Analyze & Zoom (click twice)", key="btn_drawn_hansen", width="stretch")
+                        
+                        if analyze_btn:
+                            with st.spinner("Analyzing your drawn area with Hansen data..."):
+                                try:
+                                    # Get bounds and zoom to drawn area
+                                    bounds = get_bounds_from_geometry(geom_data)
+                                    if bounds and st.session_state.map_object is not None:
+                                        zoom_to_bounds(st.session_state.map_object, bounds)
+                                    
+                                    # Load Hansen data
+                                    hansen_image = ee.Image(HANSEN_DATASETS[hansen_year])
+                                    
+                                    # Get statistics from drawn area
+                                    stats = hansen_image.reduceRegion(
+                                        reducer=ee.Reducer.frequencyHistogram(),
+                                        geometry=geom,
+                                        scale=30,
+                                        maxPixels=1e9
+                                    ).getInfo()
+                                    
+                                    st.success(f"✅ Hansen {hansen_year} data retrieved for your area")
+                                    st.json(stats)
+                                    
+                                except Exception as e:
+                                    st.error(f"Analysis failed: {e}")
                     
                     # Display drawn area results if available (persists even when switching sections)
-                    if st.session_state.drawn_area_result is not None:
+                    if st.session_state.drawn_area_result is not None and st.session_state.data_source == "MapBiomas (Brazil)":
                         st.markdown(f"#### 📊 Land Cover Distribution Chart (Drawn Area - {st.session_state.drawn_area_year})")
                         fig = plot_area_distribution(st.session_state.drawn_area_result, year=st.session_state.drawn_area_year, top_n=15)
                         if fig:
@@ -810,7 +861,9 @@ with analysis_col:
     
     # SECTION 1.5: Territory Search & Analysis
     with st.expander("🔍 Territory Search & Analysis", expanded=True):
-        if "app" not in st.session_state or st.session_state.app is None:
+        if st.session_state.data_source == "Hansen/GLAD (Global)":
+            st.info("ℹ️ Territory analysis is only available with MapBiomas data (regional analysis). Switch to 'MapBiomas (Brazil)' in Map Controls to analyze Indigenous Territories.")
+        elif "app" not in st.session_state or st.session_state.app is None:
             st.error("❌ Please click 'Load Core Data' in the sidebar first")
         else:
             try:
