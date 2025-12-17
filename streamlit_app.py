@@ -459,36 +459,42 @@ with tab_hansen:
         render_hansen_map_controls()
         render_map_instructions()
         
+        # Map container - keeps controls visible
+        map_container = st.container()
+        
         # Create Hansen map
         if st.session_state.data_loaded:
-            try:
-                # For Hansen, always create fresh map due to different layer structure
-                hansen_map = create_ee_folium_map(
-                    center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
-                    zoom=st.session_state.hansen_zoom,
-                    layer1_year=st.session_state.hansen_year,
-                    data_source="Hansen"
-                )
-                
-                # Display map and capture drawn areas
-                map_data = st_folium(hansen_map, width=700, height=600)
-                
-                if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                    for idx, drawing in enumerate(map_data["all_drawings"]):
-                        geom_data = drawing["geometry"]
-                        geom_type = geom_data.get("type", "Unknown")
-                        area_name = f"Hansen Area {idx + 1} ({geom_type})"
-                        
-                        if area_name not in st.session_state.drawn_areas:
-                            st.session_state.drawn_areas[area_name] = geom_data
-                            st.session_state.selected_drawn_area = area_name
-                        else:
-                            st.session_state.drawn_areas[area_name] = geom_data
-                
-            except Exception as e:
-                st.warning(f"⏳ Map loading... {str(e)[:50]}")
+            with map_container:
+                try:
+                    with st.spinner("🔄 Loading map..."):
+                        # For Hansen, always create fresh map due to different layer structure
+                        hansen_map = create_ee_folium_map(
+                            center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
+                            zoom=st.session_state.hansen_zoom,
+                            layer1_year=st.session_state.hansen_year,
+                            data_source="Hansen"
+                        )
+                    
+                    # Display map and capture drawn areas
+                    map_data = st_folium(hansen_map, width=700, height=600)
+                    
+                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                        for idx, drawing in enumerate(map_data["all_drawings"]):
+                            geom_data = drawing["geometry"]
+                            geom_type = geom_data.get("type", "Unknown")
+                            area_name = f"Hansen Area {idx + 1} ({geom_type})"
+                            
+                            if area_name not in st.session_state.drawn_areas:
+                                st.session_state.drawn_areas[area_name] = geom_data
+                                st.session_state.selected_drawn_area = area_name
+                            else:
+                                st.session_state.drawn_areas[area_name] = geom_data
+                    
+                except Exception as e:
+                    st.warning(f"⏳ Map loading... {str(e)[:50]}")
         else:
-            st.info("Click 'Load Core Data' in the sidebar to enable the map")
+            with map_container:
+                st.info("Click 'Load Core Data' in the sidebar to enable the map")
     
     # Analysis column
     with analysis_col_h:
