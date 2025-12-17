@@ -243,18 +243,18 @@ def add_ee_layers_to_map(m, center, zoom, layer1_year, layer1_opacity=1.0,
             return m
         
         if data_source == "MapBiomas":
-            from config import MAPBIOMAS_YEAR_PALETTE_MAP
+            from config import MAPBIOMAS_PALETTE
             
             # Layer 1
             if layer1_year:
-                mapbiomas = st.session_state.app.mapbiomas
+                mapbiomas = st.session_state.app.mapbiomas_v9
                 if mapbiomas is not None:
                     classification = mapbiomas.select('classification').filterMetadata('year', 'equals', int(layer1_year)).first()
                     if classification is not None:
                         vis_params = {
                             'min': 0,
                             'max': 60,
-                            'palette': MAPBIOMAS_YEAR_PALETTE_MAP.get(int(layer1_year), [])
+                            'palette': MAPBIOMAS_PALETTE
                         }
                         try:
                             map_id = classification.getMapId(vis_params)
@@ -271,14 +271,14 @@ def add_ee_layers_to_map(m, center, zoom, layer1_year, layer1_opacity=1.0,
             
             # Layer 2 (comparison mode)
             if compare_mode and layer2_year:
-                mapbiomas = st.session_state.app.mapbiomas
+                mapbiomas = st.session_state.app.mapbiomas_v9
                 if mapbiomas is not None:
                     classification = mapbiomas.select('classification').filterMetadata('year', 'equals', int(layer2_year)).first()
                     if classification is not None:
                         vis_params = {
                             'min': 0,
                             'max': 60,
-                            'palette': MAPBIOMAS_YEAR_PALETTE_MAP.get(int(layer2_year), [])
+                            'palette': MAPBIOMAS_PALETTE
                         }
                         try:
                             map_id = classification.getMapId(vis_params)
