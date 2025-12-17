@@ -77,8 +77,9 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
         
         # Get map tile URL for MapBiomas
         mapid = ee.Image(classification_2023).getMapId(vis_params)
+        ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         folium.TileLayer(
-            tiles=mapid['tile_fetcher'].url_format,
+            tiles=ee_tile_url,
             attr='MapBiomas',
             name='MapBiomas 2023',
             overlay=True,
@@ -100,8 +101,9 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
         ee_image_object = ee.Image().paint(territories, 0, 2)
         mapid_territories = ee_image_object.getMapId({'min': 0, 'max': 1, 'palette': ['red']})
         
+        ee_tile_url_territories = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_territories["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
         folium.TileLayer(
-            tiles=mapid_territories['tile_fetcher'].url_format,
+            tiles=ee_tile_url_territories,
             attr='Indigenous Territories',
             name='Indigenous Territories',
             overlay=True,
@@ -286,7 +288,8 @@ else:
                                             
                                             # Add MapBiomas layer
                                             mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                            ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                            map_id = mapbiomas_map.getMapId()
+                                            ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{map_id["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
                                             folium.TileLayer(
                                                 tiles=ee_tile_url,
                                                 attr='MapBiomas',
@@ -423,7 +426,8 @@ else:
                                                         
                                                         # Add MapBiomas layer
                                                         mapbiomas_map = st.session_state.app.mapbiomas_v9.select(band)
-                                                        ee_tile_url = mapbiomas_map.getMapId().tile_fetcher.url_format
+                                                        map_id = mapbiomas_map.getMapId()
+                                                        ee_tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{map_id["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
                                                         folium.TileLayer(
                                                             tiles=ee_tile_url,
                                                             attr='MapBiomas',
