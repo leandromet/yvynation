@@ -14,7 +14,7 @@ import pandas as pd
 import json
 import matplotlib.pyplot as plt
 from google.oauth2 import service_account
-from config import PROJECT_ID
+from config import PROJECT_ID, HANSEN_DATASETS
 from app_file import YvynationApp
 from analysis import clip_mapbiomas_to_geometry, calculate_area_by_class
 from plots import plot_area_distribution, plot_area_comparison
@@ -1025,45 +1025,47 @@ with analysis_col:
         else:
             st.info(f"📍 Analyzing: **{st.session_state.last_analyzed_name}**")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_current")
-            with col2:
-                end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
-            
-            if st.button("Analyze Multi-Year Changes", width="stretch", key="btn_multiyear"):
-                with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
-                    try:
-                        mapbiomas = st.session_state.app.mapbiomas_v9
-                        geom = st.session_state.last_analyzed_geom
+            if st.session_state.data_source == "MapBiomas (Brazil)":
+                # MapBiomas: yearly analysis
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_year = st.slider("Start Year", 1985, 2023, 1985, key="start_year_current")
+                with col2:
+                    end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
+                
+                if st.button("Analyze Multi-Year Changes", width="stretch", key="btn_multiyear"):
+                    with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
+                        try:
+                            mapbiomas = st.session_state.app.mapbiomas_v9
+                            geom = st.session_state.last_analyzed_geom
+                            
+                            # Get data for both years
+                            start_band = f'classification_{start_year}'
+                            end_band = f'classification_{end_year}'
+                            
+                            area_start = calculate_area_by_class(
+                                mapbiomas.select(start_band),
+                                geom,
+                                start_year
+                            )
                         
-                        # Get data for both years
-                        start_band = f'classification_{start_year}'
-                        end_band = f'classification_{end_year}'
-                        
-                        area_start = calculate_area_by_class(
-                            mapbiomas.select(start_band),
-                            geom,
-                            start_year
-                        )
-                        
-                        area_end = calculate_area_by_class(
-                            mapbiomas.select(end_band),
-                            geom,
-                            end_year
-                        )
-                        
-                        # Store results in separate multiyear_results
-                        st.session_state.multiyear_results = {
-                            "area_start": area_start,
-                            "area_end": area_end
-                        }
-                        st.session_state.multiyear_start_year = start_year
-                        st.session_state.multiyear_end_year = end_year
-                        
-                        st.success(f"✅ Analysis complete for {start_year}-{end_year}")
-                    except Exception as e:
-                        st.error(f"Analysis failed: {e}")
+                            area_end = calculate_area_by_class(
+                                mapbiomas.select(end_band),
+                                geom,
+                                end_year
+                            )
+                            
+                            # Store results in separate multiyear_results
+                            st.session_state.multiyear_results = {
+                                "area_start": area_start,
+                                "area_end": area_end
+                            }
+                            st.session_state.multiyear_start_year = start_year
+                            st.session_state.multiyear_end_year = end_year
+                            
+                            st.success(f"✅ Analysis complete for {start_year}-{end_year}")
+                        except Exception as e:
+                            st.error(f"Analysis failed: {e}")
             
             # Display charts if results exist (persists even when switching sections)
             if st.session_state.multiyear_results:
@@ -1132,6 +1134,124 @@ with analysis_col:
                         st.session_state.multiyear_results["area_end"].head(15),
                         width="stretch"
                     )
+            
+            else:
+                # Hansen: Compare two snapshots
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_year = st.selectbox("Start Year", [2000, 2005, 2010, 2015, 2020], index=0, key="hansen_start_year_current")
+                with col2:
+                    end_year = st.selectbox("End Year", [2000, 2005, 2010, 2015, 2020], index=4, key="hansen_end_year_current")
+                
+                if st.button("Analyze Multi-Year Changes", width="stretch", key="btn_hansen_multiyear"):
+                    with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
+                        try:
+                            ee = st.session_state.ee_module
+                            geom = st.session_state.last_analyzed_geom
+                            
+                            # Get Hansen data for both years
+                            hansen_start = ee.ImageCollection(HANSEN_DATASETS[str(start_year)])
+                            hansen_end = ee.ImageCollection(HANSEN_DATASETS[str(end_year)])
+                            
+                            # Calculate frequency distribution for each year
+                            start_histogram = hansen_start.filterBounds(geom).first().reduceRegion(
+                                reducer=ee.Reducer.frequencyHistogram(),
+                                geometry=geom,
+                                scale=30,
+                                maxPixels=1e13
+                            ).getInfo()
+                            
+                            end_histogram = hansen_end.filterBounds(geom).first().reduceRegion(
+                                reducer=ee.Reducer.frequencyHistogram(),
+                                geometry=geom,
+                                scale=30,
+                                maxPixels=1e13
+                            ).getInfo()
+                            
+                            # Convert to DataFrames
+                            def histogram_to_dataframe(hist, year):
+                                if hist and 'b1' in hist:
+                                    data = hist['b1']
+                                    classes = {
+                                        0: "No Data", 1: "Water", 2: "Evergreen Needleleaf", 
+                                        3: "Evergreen Broadleaf", 4: "Deciduous Needleleaf", 5: "Deciduous Broadleaf",
+                                        6: "Mixed Forest", 7: "Closed Shrublands", 8: "Open Shrublands", 
+                                        9: "Woody Savannas", 10: "Savannas", 11: "Grasslands",
+                                        12: "Permanent Wetlands", 13: "Croplands", 14: "Urban & Built-up",
+                                        15: "Cropland/Natural", 16: "Snow & Ice", 17: "Barren"
+                                    }
+                                    records = []
+                                    for class_id, count in data.items():
+                                        records.append({
+                                            "Class_ID": int(class_id),
+                                            "Class": classes.get(int(class_id), f"Class {class_id}"),
+                                            "Pixels": count,
+                                            "Area_ha": count * 0.9  # 30m pixels ≈ 0.9 ha
+                                        })
+                                    return pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+                                return pd.DataFrame()
+                            
+                            area_start = histogram_to_dataframe(start_histogram, start_year)
+                            area_end = histogram_to_dataframe(end_histogram, end_year)
+                            
+                            # Store results
+                            st.session_state.multiyear_results = {
+                                "area_start": area_start,
+                                "area_end": area_end
+                            }
+                            st.session_state.multiyear_start_year = start_year
+                            st.session_state.multiyear_end_year = end_year
+                            
+                            st.success(f"✅ Analysis complete for {start_year}-{end_year}")
+                        except Exception as e:
+                            st.error(f"Analysis failed: {e}")
+                
+                # Display Hansen comparison results
+                if st.session_state.multiyear_results:
+                    st.markdown(f"#### 🌍 Land Cover Distribution Comparison ({st.session_state.multiyear_start_year} vs {st.session_state.multiyear_end_year})")
+                    
+                    try:
+                        area_start = st.session_state.multiyear_results["area_start"]
+                        area_end = st.session_state.multiyear_results["area_end"]
+                        
+                        # Create comparison visualization
+                        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+                        
+                        # Start year
+                        top_start = area_start.head(10)
+                        ax1.barh(top_start["Class"], top_start["Area_ha"], color="steelblue")
+                        ax1.set_xlabel("Area (hectares)")
+                        ax1.set_title(f"{st.session_state.multiyear_start_year}")
+                        ax1.invert_yaxis()
+                        
+                        # End year
+                        top_end = area_end.head(10)
+                        ax2.barh(top_end["Class"], top_end["Area_ha"], color="coral")
+                        ax2.set_xlabel("Area (hectares)")
+                        ax2.set_title(f"{st.session_state.multiyear_end_year}")
+                        ax2.invert_yaxis()
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                    except Exception as e:
+                        st.warning(f"Chart rendering issue: {e}")
+                    
+                    st.markdown("#### 📋 Statistics by Year")
+                    
+                    col_start, col_end = st.columns(2)
+                    with col_start:
+                        st.write(f"**{st.session_state.multiyear_start_year} Distribution**")
+                        st.dataframe(
+                            st.session_state.multiyear_results["area_start"].head(15),
+                            width="stretch"
+                        )
+                    
+                    with col_end:
+                        st.write(f"**{st.session_state.multiyear_end_year} Distribution**")
+                        st.dataframe(
+                            st.session_state.multiyear_results["area_end"].head(15),
+                            width="stretch"
+                        )
     
     # SECTION 2: Change Detection
     with st.expander("📈 Land Cover Change Analysis", expanded=True):
@@ -1160,18 +1280,34 @@ with analysis_col:
                     # Change table
                     st.write("**Land Cover Changes (hectares)**")
                     st.dataframe(change_df.head(20), width="stretch")
+                    
+                    # Change visualization
+                    try:
+                        if st.session_state.data_source == "MapBiomas (Brazil)":
+                            # MapBiomas: Use Sankey and temporal trend
+                            fig2 = plot_temporal_trend(
+                                [results["area_start"], results["area_end"]],
+                                [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year]
+                            )
+                            st.pyplot(fig2)
+                        else:
+                            # Hansen: Use change bars
+                            st.markdown("#### 📊 Largest Changes")
+                            top_changes = change_df.head(10)
+                            
+                            fig, ax = plt.subplots(figsize=(12, 6))
+                            colors = ['green' if x > 0 else 'red' for x in top_changes["Change (ha)"]]
+                            ax.barh(range(len(top_changes)), top_changes["Change (ha)"], color=colors)
+                            ax.set_yticks(range(len(top_changes)))
+                            ax.set_yticklabels(top_changes.index)
+                            ax.set_xlabel("Change (hectares)")
+                            ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                    except Exception as e:
+                        st.warning(f"Visualization issue: {e}")
             else:
                     st.warning("Results format not recognized")
-                
-                # Change visualization
-            try:
-                    fig2 = plot_temporal_trend(
-                        [results["area_start"], results["area_end"]],
-                        [st.session_state.multiyear_start_year, st.session_state.multiyear_end_year]
-                    )
-                    st.pyplot(fig2)
-            except Exception as e:
-                    st.warning(f"Visualization issue: {e}")
 
     
     # SECTION 3: About
