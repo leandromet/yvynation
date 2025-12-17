@@ -397,62 +397,35 @@ with tab_mapbiomas:
                     if success:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
+                        st.session_state.map_object = None  # Reset map to recreate with data
+                        st.session_state.map_has_data_layers = False
                         st.success("✅ Data loaded successfully!")
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
                 except Exception as e:
                     st.error(f"❌ Failed to load data: {e}")
         
-        render_map_controls()
         render_map_instructions()
         
-        # Initialize base map if not exists
-        if st.session_state.map_object is None:
-            st.session_state.map_object = create_base_folium_map(
-                center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
-                zoom=st.session_state.mapbiomas_zoom
-            )
-            st.session_state.map_has_data_layers = False
-        
-        # Add data layers if data is loaded and layers haven't been added
-        if st.session_state.data_loaded and not st.session_state.get('map_has_data_layers', False):
-            current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
-            current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
-            current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
-            current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
+        # Only show controls and map after data is loaded
+        if st.session_state.data_loaded:
+            render_map_controls()
             
-            st.session_state.map_object = add_ee_layers_to_map(
-                st.session_state.map_object,
-                center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
-                zoom=st.session_state.mapbiomas_zoom,
-                layer1_year=current_layer1_year,
-                layer1_opacity=current_layer1_opacity,
-                layer2_year=current_layer2_year,
-                layer2_opacity=current_layer2_opacity,
-                compare_mode=st.session_state.split_compare_mode,
-                data_source="MapBiomas"
-            )
-            st.session_state.map_has_data_layers = True
-        
-        # Update layers if settings changed
-        elif st.session_state.data_loaded and st.session_state.get('map_has_data_layers', False):
-            current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
-            current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
-            current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
-            current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
-            
-            # Check if we need to recreate the map with new layers
-            if (st.session_state.get('last_layer1_year') != current_layer1_year or
-                st.session_state.get('last_layer2_year') != current_layer2_year or
-                st.session_state.get('last_compare_mode') != st.session_state.split_compare_mode or
-                st.session_state.get('last_layer1_opacity') != current_layer1_opacity or
-                st.session_state.get('last_layer2_opacity') != current_layer2_opacity):
-                
-                # Recreate base map and add new layers
+            # Initialize map if not exists
+            if st.session_state.map_object is None:
                 st.session_state.map_object = create_base_folium_map(
                     center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
                     zoom=st.session_state.mapbiomas_zoom
                 )
+                st.session_state.map_has_data_layers = False
+            
+            # Add data layers if layers haven't been added
+            if not st.session_state.get('map_has_data_layers', False):
+                current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
+                current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
+                current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
+                current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
+                
                 st.session_state.map_object = add_ee_layers_to_map(
                     st.session_state.map_object,
                     center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
@@ -464,20 +437,52 @@ with tab_mapbiomas:
                     compare_mode=st.session_state.split_compare_mode,
                     data_source="MapBiomas"
                 )
+                st.session_state.map_has_data_layers = True
+            
+            # Update layers if settings changed
+            elif st.session_state.get('map_has_data_layers', False):
+                current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
+                current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
+                current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
+                current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
                 
-                # Remember current settings
-                st.session_state.last_layer1_year = current_layer1_year
-                st.session_state.last_layer2_year = current_layer2_year
-                st.session_state.last_compare_mode = st.session_state.split_compare_mode
-                st.session_state.last_layer1_opacity = current_layer1_opacity
-                st.session_state.last_layer2_opacity = current_layer2_opacity
-        
-        # Display map and capture drawn areas
-        if st.session_state.map_object:
-            try:
-                map_data = st_folium(st.session_state.map_object, width=700, height=600)
-                
-                if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                # Check if we need to recreate the map with new layers
+                if (st.session_state.get('last_layer1_year') != current_layer1_year or
+                    st.session_state.get('last_layer2_year') != current_layer2_year or
+                    st.session_state.get('last_compare_mode') != st.session_state.split_compare_mode or
+                    st.session_state.get('last_layer1_opacity') != current_layer1_opacity or
+                    st.session_state.get('last_layer2_opacity') != current_layer2_opacity):
+                    
+                    # Recreate base map and add new layers
+                    st.session_state.map_object = create_base_folium_map(
+                        center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
+                        zoom=st.session_state.mapbiomas_zoom
+                    )
+                    st.session_state.map_object = add_ee_layers_to_map(
+                        st.session_state.map_object,
+                        center=[st.session_state.mapbiomas_center_lon, st.session_state.mapbiomas_center_lat],
+                        zoom=st.session_state.mapbiomas_zoom,
+                        layer1_year=current_layer1_year,
+                        layer1_opacity=current_layer1_opacity,
+                        layer2_year=current_layer2_year,
+                        layer2_opacity=current_layer2_opacity,
+                        compare_mode=st.session_state.split_compare_mode,
+                        data_source="MapBiomas"
+                    )
+                    
+                    # Remember current settings
+                    st.session_state.last_layer1_year = current_layer1_year
+                    st.session_state.last_layer2_year = current_layer2_year
+                    st.session_state.last_compare_mode = st.session_state.split_compare_mode
+                    st.session_state.last_layer1_opacity = current_layer1_opacity
+                    st.session_state.last_layer2_opacity = current_layer2_opacity
+            
+            # Display map and capture drawn areas
+            if st.session_state.map_object:
+                try:
+                    map_data = st_folium(st.session_state.map_object, width=700, height=600)
+                    
+                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     for idx, drawing in enumerate(map_data["all_drawings"]):
                         geom_data = drawing["geometry"]
                         geom_type = geom_data.get("type", "Unknown")
@@ -538,42 +543,30 @@ with tab_hansen:
                     if success:
                         st.session_state.app = app
                         st.session_state.data_loaded = True
+                        st.session_state.hansen_map_object = None  # Reset map to recreate with data
+                        st.session_state.hansen_map_has_data_layers = False
                         st.success("✅ Data loaded successfully!")
                     else:
                         st.error("❌ Failed to load MapBiomas or territories")
                 except Exception as e:
                     st.error(f"❌ Failed to load data: {e}")
         
-        render_hansen_map_controls()
         render_map_instructions()
         
-        # Initialize base map if not exists
-        if st.session_state.get('hansen_map_object') is None:
-            st.session_state.hansen_map_object = create_base_folium_map(
-                center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
-                zoom=st.session_state.hansen_zoom
-            )
-            st.session_state.hansen_map_has_data_layers = False
-        
-        # Add data layers if data is loaded and layers haven't been added
-        if st.session_state.data_loaded and not st.session_state.get('hansen_map_has_data_layers', False):
-            st.session_state.hansen_map_object = add_ee_layers_to_map(
-                st.session_state.hansen_map_object,
-                center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
-                zoom=st.session_state.hansen_zoom,
-                layer1_year=st.session_state.hansen_year,
-                data_source="Hansen"
-            )
-            st.session_state.hansen_map_has_data_layers = True
-        
-        # Update layers if year changed
-        elif st.session_state.data_loaded and st.session_state.get('hansen_map_has_data_layers', False):
-            if st.session_state.get('last_hansen_year') != st.session_state.hansen_year:
-                # Recreate base map and add new layers
+        # Only show controls and map after data is loaded
+        if st.session_state.data_loaded:
+            render_hansen_map_controls()
+            
+            # Initialize map if not exists
+            if st.session_state.get('hansen_map_object') is None:
                 st.session_state.hansen_map_object = create_base_folium_map(
                     center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
                     zoom=st.session_state.hansen_zoom
                 )
+                st.session_state.hansen_map_has_data_layers = False
+            
+            # Add data layers if layers haven't been added
+            if not st.session_state.get('hansen_map_has_data_layers', False):
                 st.session_state.hansen_map_object = add_ee_layers_to_map(
                     st.session_state.hansen_map_object,
                     center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
@@ -581,13 +574,30 @@ with tab_hansen:
                     layer1_year=st.session_state.hansen_year,
                     data_source="Hansen"
                 )
-                st.session_state.last_hansen_year = st.session_state.hansen_year
-        
-        # Display map and capture drawn areas
-        if st.session_state.get('hansen_map_object'):
-            try:
-                map_data = st_folium(st.session_state.hansen_map_object, width=700, height=600)
-                
+                st.session_state.hansen_map_has_data_layers = True
+            
+            # Update layers if year changed
+            elif st.session_state.get('hansen_map_has_data_layers', False):
+                if st.session_state.get('last_hansen_year') != st.session_state.hansen_year:
+                    # Recreate base map and add new layers
+                    st.session_state.hansen_map_object = create_base_folium_map(
+                        center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
+                        zoom=st.session_state.hansen_zoom
+                    )
+                    st.session_state.hansen_map_object = add_ee_layers_to_map(
+                        st.session_state.hansen_map_object,
+                        center=[st.session_state.hansen_center_lon, st.session_state.hansen_center_lat],
+                        zoom=st.session_state.hansen_zoom,
+                        layer1_year=st.session_state.hansen_year,
+                        data_source="Hansen"
+                    )
+                    st.session_state.last_hansen_year = st.session_state.hansen_year
+            
+            # Display map and capture drawn areas
+            if st.session_state.get('hansen_map_object'):
+                try:
+                    map_data = st_folium(st.session_state.hansen_map_object, width=700, height=600)
+                    
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     for idx, drawing in enumerate(map_data["all_drawings"]):
                         geom_data = drawing["geometry"]
