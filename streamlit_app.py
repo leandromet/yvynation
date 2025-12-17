@@ -10,6 +10,7 @@ import folium
 from folium.plugins import Draw, Fullscreen
 import streamlit_folium
 from streamlit_folium import st_folium
+import geojson
 import pandas as pd
 import json
 from config import PROJECT_ID
@@ -30,7 +31,7 @@ from visualization import create_mapbiomas_legend
 # Page config
 st.set_page_config(
     page_title="Yvynation - Earth Engine Analysis",
-    page_icon="🌍",
+    page_icon="🌎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -90,6 +91,8 @@ if "multiyear_start_year" not in st.session_state:
     st.session_state.multiyear_start_year = None
 if "multiyear_end_year" not in st.session_state:
     st.session_state.multiyear_end_year = None
+if "persistent_drawn_geometry" not in st.session_state:
+    st.session_state.persistent_drawn_geometry = None
 
 # Sidebar
 st.sidebar.title("🌍 Yvynation Land Use")
@@ -125,7 +128,7 @@ LABELS = {
     466: "Other Classification"
 }
 
-def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7):
+def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7, persistent_geometry=None):
     '''Create a folium map with Earth Engine layers and drawing tools.
     
     Args:
@@ -135,12 +138,37 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         layer1_opacity: opacity of layer 1
         layer2_year: year for the second (bottom) MapBiomas layer (default 1985)
         layer2_opacity: opacity of layer 2
+        persistent_geometry: previously drawn geometry to restore
     '''
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
         tiles='OpenStreetMap'
     )
+    
+    # Add satellite baseLayers
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri',
+        name='Esri Satellite',
+        overlay=False,
+        control=True
+    ).add_to(m)
+    
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Satellite',
+        overlay=False,
+        control=True
+    ).add_to(m)
+    
+    folium.TileLayer(
+        tiles='OpenStreetMap',
+        name='OpenStreetMap',
+        overlay=False,
+        control=True
+    )  # Keep OSM as default (already added above)
     
     try:
         # Load MapBiomas collection
@@ -221,6 +249,22 @@ def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_
         
     except Exception as e:
         st.warning(f"Could not load Earth Engine layers: {e}")
+    
+    # Restore persistent drawn geometry if available
+    if persistent_geometry:
+        try:
+            geom_data = persistent_geometry.get('geometry', {})
+            geom_type = geom_data.get('type', '')
+            coords = geom_data.get('coordinates', [])
+            
+            if geom_type == 'Polygon' and coords:
+                # Draw polygon on map in blue
+                folium.GeoJson(
+                    {'type': 'Feature', 'geometry': geom_data},
+                    style_function=lambda x: {'color': 'blue', 'weight': 2, 'opacity': 0.7}
+                ).add_to(m)
+        except Exception as e:
+            pass  # Silently fail if geometry cannot be restored
     
     # Add drawing tools
     draw = Draw(
@@ -415,7 +459,8 @@ with map_col:
                 layer1_year=current_layer1_year,
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
-                layer2_opacity=current_layer2_opacity
+                layer2_opacity=current_layer2_opacity,
+                persistent_geometry=st.session_state.persistent_drawn_geometry
             )
             st.info("🗺️ Map created with MapBiomas (2023 + 1985) and Indigenous Territories layers")
             # Update saved config
@@ -435,7 +480,8 @@ with map_col:
                 layer1_year=current_layer1_year,
                 layer1_opacity=current_layer1_opacity,
                 layer2_year=current_layer2_year,
-                layer2_opacity=current_layer2_opacity
+                layer2_opacity=current_layer2_opacity,
+                persistent_geometry=st.session_state.persistent_drawn_geometry
             )
             # Update saved config
             st.session_state.map_layers_config = {
@@ -459,12 +505,17 @@ with map_col:
                 drawing = map_data["last_active_drawing"]
                 if drawing:
                     st.session_state.drawn_geometry = drawing
+                    # Store geometry persistently
+                    st.session_state.persistent_drawn_geometry = drawing
                     # Zoom to drawn area
                     bounds = get_bounds_from_geometry(drawing.get('geometry', {}))
                     if bounds:
                         zoom_to_bounds(m, bounds)
                         st.session_state.map_object = m
                     st.success("✅ Drawing captured! Map zoomed to your area.")
+            # Keep persistent geometry visible even if no new drawing
+            elif st.session_state.persistent_drawn_geometry:
+                st.session_state.drawn_geometry = st.session_state.persistent_drawn_geometry
         else:
             st.warning("⏳ Waiting for map to load...")
         
