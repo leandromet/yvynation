@@ -592,7 +592,7 @@ with map_col:
             m = st.session_state.map_object
             
             # Capture map with drawings
-            map_data = st_folium(m, width=None, height=700, key="main_map")
+            map_data = st_folium(m, width=None, height=800, key="main_map")
             
             # Extract drawn geometry if available and store it with numbering (only if NEW)
             if map_data and map_data.get("last_active_drawing"):
@@ -1003,9 +1003,19 @@ with analysis_col:
 
             "Nation" refers to a self-governing community or people with shared culture,
             history, language, and land. It signifies self-determination and governance.
+            """)
             
-            ![Yvynation](./image-28.png)
-
+            # Display image
+            try:
+                from PIL import Image
+                img = Image.open('image-28.png')
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    st.image(img, caption='Yvynation', use_column_width=True)
+            except FileNotFoundError:
+                st.warning("Image file 'image-28.png' not found")
+            
+            st.markdown("""
             ### Data Sources
             - **MapBiomas Collection 9**
               - Resolution: 30 m
