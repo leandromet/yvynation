@@ -57,9 +57,9 @@ if "last_analyzed_geom" not in st.session_state:
 if "split_compare_mode" not in st.session_state:
     st.session_state.split_compare_mode = False
 if "split_left_year" not in st.session_state:
-    st.session_state.split_left_year = 1985
+    st.session_state.split_left_year = 2023
 if "split_right_year" not in st.session_state:
-    st.session_state.split_right_year = 2023
+    st.session_state.split_right_year = 1985
 if "split_left_opacity" not in st.session_state:
     st.session_state.split_left_opacity = 1.0
 if "split_right_opacity" not in st.session_state:
@@ -452,18 +452,13 @@ with map_col:
         st.error(f"Map error: {e}")
         st.info("Make sure Earth Engine is properly initialized in the sidebar")
 
-# RIGHT COLUMN: Analysis Tabs
+# RIGHT COLUMN: Analysis Sections (Expandable)
 with analysis_col:
     st.subheader("📊 Analysis Tools")
     
-    # Tabs within the right column only
-    tab1, tab2, tab3 = st.tabs(
-        ["Area Analysis", "Change Detection", "About"]
-    )
-    
-    # TAB 1: Area Analysis
-    with tab1:
-        st.markdown("### 📍 Analyze Drawn Area")
+    # SECTION 1: Area Analysis
+    with st.expander("📍 Area Analysis", expanded=True):
+        st.markdown("### Analyze Drawn Area")
         
         if st.session_state.drawn_geometry:
             st.success("✅ Drawing detected from map")
@@ -741,18 +736,18 @@ with analysis_col:
                         st.session_state.results["area_end"].head(15),
                         use_container_width=True
                     )
+    
+    # SECTION 2: Change Detection
+    with st.expander("📈 Land Cover Change Analysis", expanded=True):
+        st.markdown("### Change Between Years")
         
-        # TAB 2: Change Detection
-        with tab2:
-            st.subheader("Land Cover Change Analysis")
+        if st.session_state.results is None:
+            st.info("Run analysis in the 'Area Analysis' section first")
+        else:
+            results = st.session_state.results
             
-            if st.session_state.results is None:
-                st.info("Run analysis in the 'Area Analysis' tab first")
-            else:
-                results = st.session_state.results
-                
-                # Calculate change between years
-                if "area_start" in results and "area_end" in results:
+            # Calculate change between years
+            if "area_start" in results and "area_end" in results:
                     area_start = results["area_start"].set_index("Class_ID")
                     area_end = results["area_end"].set_index("Class_ID")
                     
@@ -769,11 +764,11 @@ with analysis_col:
                     # Change table
                     st.write("**Land Cover Changes (hectares)**")
                     st.dataframe(change_df.head(20), use_container_width=True)
-                else:
+            else:
                     st.warning("Results format not recognized")
                 
                 # Change visualization
-                try:
+            try:
                     fig = plot_area_changes(comparison, start_year, end_year)
                     if fig:
                         st.pyplot(fig)
@@ -784,23 +779,21 @@ with analysis_col:
                         top_n=8
                     )
                     st.pyplot(fig2)
-                except Exception as e:
+            except Exception as e:
                     st.warning(f"Visualization issue: {e}")
 
-        # TAB 3: About
-        with tab3:
-            st.subheader("About Yvynation")
-            
-            st.markdown("""
-            ### Project Overview
-            
-            **Yvynation** is an Earth Engine analysis application for studying land cover 
-            change in Brazilian Indigenous Territories.
-            
-            ### Data Sources
-            
-            - **MapBiomas Collection 9**
-              - Resolution: 30m
+    
+    # SECTION 3: About
+    with st.expander("ℹ️ About Yvynation", expanded=False):
+        st.markdown("""
+        ### Project Overview
+        
+        **Yvynation** is an Earth Engine analysis application for studying land cover 
+        change in Brazilian Indigenous Territories.
+        
+        ### Data Sources
+        - **MapBiomas Collection 9**
+          - Resolution: 30m
           - Period: 1985-2023 (annual)
           - Classes: 62 land cover categories
           - License: Creative Commons Attribution 4.0
