@@ -16,14 +16,14 @@ def render_map_controls():
         
         col1, col2 = st.columns(2)
         with col1:
-            center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.map_center_lat, key="lat")
-            st.session_state.map_center_lat = center_lat
+            center_lat = st.slider("Latitude", -33.0, 5.0, st.session_state.mapbiomas_center_lat, key="lat")
+            st.session_state.mapbiomas_center_lat = center_lat
         with col2:
-            center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.map_center_lon, key="lon")
-            st.session_state.map_center_lon = center_lon
+            center_lon = st.slider("Longitude", -75.0, -35.0, st.session_state.mapbiomas_center_lon, key="lon")
+            st.session_state.mapbiomas_center_lon = center_lon
         
-        zoom = st.slider("Zoom", 4, 13, st.session_state.map_zoom, key="zoom")
-        st.session_state.map_zoom = zoom
+        zoom = st.slider("Zoom", 4, 13, st.session_state.mapbiomas_zoom, key="zoom")
+        st.session_state.mapbiomas_zoom = zoom
         
         st.divider()
         
