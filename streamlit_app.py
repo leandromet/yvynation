@@ -85,15 +85,69 @@ LABELS = {
 }
 
 def create_ee_folium_map(center=[-45.3, -4.5], zoom=7):
-    """Create a folium map with drawing tools."""
+    """Create a folium map with Earth Engine layers and drawing tools."""
     m = folium.Map(
         location=[center[1], center[0]],
         zoom_start=zoom,
         tiles='OpenStreetMap'
     )
     
-    # TODO: Add Earth Engine layers once we verify tile URL format works
-    # For now, keep map simple and functional with just base layer
+    try:
+        # Add MapBiomas 2023 layer
+        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+        classification_2023 = mapbiomas.select('classification_2023')
+        
+        # MapBiomas color palette
+        palette = [
+            '#000000', '#228B22', '#00FF00', '#0000FF', '#FF0000',
+            '#FFFF00', '#00FFFF', '#FF00FF', '#C0C0C0', '#808080',
+            '#800000', '#008000', '#000080', '#808000', '#008080'
+        ]
+        
+        vis_params = {
+            'min': 0,
+            'max': 62,
+            'palette': palette
+        }
+        
+        # Get map tile URL for MapBiomas - use tile_fetcher.url_format if available
+        mapid = ee.Image(classification_2023).getMapId(vis_params)
+        try:
+            tile_url = mapid['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            # Fallback to manual URL format if tile_fetcher not available
+            tile_url = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        folium.TileLayer(
+            tiles=tile_url,
+            attr='MapBiomas',
+            name='MapBiomas 2023',
+            overlay=True,
+            control=True
+        ).add_to(m)
+        
+        # Add Indigenous Territories layer
+        territories = ee.FeatureCollection('projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES')
+        
+        ee_image_object = ee.Image().paint(territories, 0, 2)
+        mapid_territories = ee_image_object.getMapId({'min': 0, 'max': 1, 'palette': ['red']})
+        
+        try:
+            tile_url_territories = mapid_territories['tile_fetcher'].url_format
+        except (KeyError, AttributeError):
+            # Fallback to manual URL format
+            tile_url_territories = f'https://earthengine.googleapis.com/v1alpha/projects/earthengine-public/maps/{mapid_territories["mapid"]}/tiles/{{z}}/{{x}}/{{y}}'
+        
+        folium.TileLayer(
+            tiles=tile_url_territories,
+            attr='Indigenous Territories',
+            name='Indigenous Territories',
+            overlay=True,
+            control=True
+        ).add_to(m)
+        
+    except Exception as e:
+        st.warning(f"Could not load Earth Engine layers: {e}")
     
     # Add drawing tools
     draw = Draw(
