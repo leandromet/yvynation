@@ -40,13 +40,13 @@ st.sidebar.title("🌍 Yvynation Configuration")
 
 # Helper function to display geemap Map in Streamlit
 def display_geemap(geemap_map, height=600):
-    """Display a geemap.Map in Streamlit by converting to folium."""
+    """Display a geemap.Map in Streamlit."""
     try:
-        # Get the underlying folium map
-        folium_map = geemap_map.to_folium()
-        streamlit_folium.folium_static(folium_map, width=1400, height=height)
+        # geemap.Map is already a folium map, display directly
+        streamlit_folium.folium_static(geemap_map, width=1400, height=height)
     except Exception as e:
         st.error(f"Map display error: {e}")
+        st.info("Try refreshing the page or checking the browser console.")
 
 # Initialize EE
 try:
