@@ -220,69 +220,116 @@ else:
     with tab2:
         st.subheader("Land Cover Area Distribution")
         
-        # Check if drawn geometry exists
-        if st.session_state.drawn_geometry:
-            st.info("📍 Analyzing your drawn area...")
+        # Option 1: Analyze drawn area
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.markdown("### Option 1: Analyze Drawn Area")
             
-            # Analyze drawn area
-            try:
-                drawing = st.session_state.drawn_geometry
-                geom_type = drawing.get('geometry', {}).get('type')
-                coords = drawing.get('geometry', {}).get('coordinates', [])
+            if st.session_state.drawn_geometry:
+                st.success("✅ Drawing detected from map")
                 
-                if geom_type == 'Polygon' and coords:
-                    # Create EE geometry from polygon
-                    geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
+                try:
+                    drawing = st.session_state.drawn_geometry
+                    geom_type = drawing.get('geometry', {}).get('type')
+                    coords = drawing.get('geometry', {}).get('coordinates', [])
                     
-                    # Analyze the drawn area
-                    mapbiomas = st.session_state.app.mapbiomas['v9']
+                    if geom_type == 'Polygon' and coords:
+                        # Create EE geometry from polygon
+                        geom = ee.Geometry.Polygon(coords[0] if isinstance(coords[0][0], list) else coords)
+                        
+                        year = st.selectbox("Year", range(1985, 2024), index=38, key="year_drawn")
+                        
+                        if st.button("Analyze Drawn Area", key="btn_drawn"):
+                            with st.spinner("Analyzing your drawn area..."):
+                                try:
+                                    # Use mapbiomas_v9
+                                    mapbiomas = st.session_state.app.mapbiomas_v9
+                                    band = f'classification_{year}'
+                                    
+                                    area_df = calculate_area_by_class(
+                                        mapbiomas.select(band),
+                                        geom,
+                                        year
+                                    )
+                                    
+                                    st.success(f"✅ Analysis complete for {year}")
+                                    
+                                    col_a, col_b = st.columns(2)
+                                    with col_a:
+                                        st.dataframe(area_df.head(15), use_container_width=True)
+                                    
+                                    with col_b:
+                                        fig = plot_area_distribution(area_df, year=year, top_n=10)
+                                        st.pyplot(fig)
+                                    
+                                except Exception as e:
+                                    st.error(f"Analysis failed: {e}")
+                        
+                    elif geom_type == 'Rectangle' and coords:
+                        st.info(f"Rectangle detected with {len(coords)} corners")
+                        
+                except Exception as e:
+                    st.warning(f"Could not parse drawn geometry: {e}")
+            else:
+                st.info("👈 Draw an area on the Map tab first")
+        
+        with col2:
+            st.markdown("### Option 2: Select Indigenous Territory")
+            
+            try:
+                # Get list of territories
+                territories = st.session_state.app.territories
+                territory_names = sorted(territories.aggregate_array('name').getInfo())
+                
+                selected_territory = st.selectbox(
+                    "Select a territory",
+                    territory_names,
+                    key="territory_select"
+                )
+                
+                if selected_territory:
+                    year = st.selectbox("Year", range(1985, 2024), index=38, key="year_territory")
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        year = st.selectbox("Year to Analyze", range(1985, 2024), index=38)
-                    with col2:
-                        pass
-                    
-                    if st.button("Analyze Drawn Area"):
-                        with st.spinner("Analyzing your drawn area..."):
+                    if st.button("Analyze Territory", key="btn_territory"):
+                        with st.spinner(f"Analyzing {selected_territory}..."):
                             try:
-                                # Get area for selected year
+                                # Filter to selected territory
+                                territory_geom = territories.filter(
+                                    ee.Filter.eq('name', selected_territory)
+                                ).first().geometry()
+                                
+                                # Analyze
+                                mapbiomas = st.session_state.app.mapbiomas_v9
                                 band = f'classification_{year}'
+                                
                                 area_df = calculate_area_by_class(
                                     mapbiomas.select(band),
-                                    geom,
+                                    territory_geom,
                                     year
                                 )
                                 
-                                # Display results
-                                st.success(f"✅ Analysis complete for {year}")
+                                st.success(f"✅ Analysis complete for {selected_territory} ({year})")
                                 
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.write(f"**Area Distribution in {year}**")
-                                    st.dataframe(area_df.head(20), use_container_width=True)
+                                col_a, col_b = st.columns(2)
+                                with col_a:
+                                    st.dataframe(area_df.head(15), use_container_width=True)
                                 
-                                with col2:
-                                    fig = plot_area_distribution(area_df, year=year, top_n=12)
+                                with col_b:
+                                    fig = plot_area_distribution(area_df, year=year, top_n=10)
                                     st.pyplot(fig)
                                 
                             except Exception as e:
                                 st.error(f"Analysis failed: {e}")
-                                st.info(f"Error: {str(e)}")
-                
-                elif geom_type == 'Rectangle' and coords:
-                    # Handle rectangle coordinates
-                    st.info(f"Rectangle detected: {len(coords)} corners")
-                    
+                                st.info(str(e))
+            
             except Exception as e:
-                st.warning(f"Could not parse drawn geometry: {e}")
+                st.warning(f"Could not load territories: {e}")
         
-        else:
-            st.info("👈 Draw an area on the Map tab first to analyze it")
-            st.divider()
+        st.divider()
         
-        # Default analysis for all territories
-        st.subheader("All Territories Analysis (Default)")
+        # Option 3: Default analysis for all territories
+        st.markdown("### Option 3: Analyze All Territories
         
         col1, col2 = st.columns(2)
         with col1:
