@@ -431,6 +431,8 @@ with map_col:
             m = create_split_compare_map(
                 left_year=st.session_state.split_left_year,
                 right_year=st.session_state.split_right_year,
+                left_opacity=st.session_state.split_left_opacity,
+                right_opacity=st.session_state.split_right_opacity,
                 center=[st.session_state.map_center_lon, st.session_state.map_center_lat],
                 zoom=st.session_state.map_zoom
             )
