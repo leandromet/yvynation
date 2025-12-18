@@ -269,6 +269,16 @@ def render_hansen_change_analysis():
     
     results = st.session_state.multiyear_results
     
+    # Hansen class names mapping
+    hansen_classes = {
+        0: "No Data", 1: "Water", 2: "Evergreen Needleleaf", 
+        3: "Evergreen Broadleaf", 4: "Deciduous Needleleaf", 5: "Deciduous Broadleaf",
+        6: "Mixed Forest", 7: "Closed Shrublands", 8: "Open Shrublands", 
+        9: "Woody Savannas", 10: "Savannas", 11: "Grasslands",
+        12: "Permanent Wetlands", 13: "Croplands", 14: "Urban & Built-up",
+        15: "Cropland/Natural", 16: "Snow & Ice", 17: "Barren"
+    }
+    
     # Calculate change between years
     if "area_start" in results and "area_end" in results:
         area_start = results["area_start"].set_index("Class_ID")
@@ -293,18 +303,13 @@ def render_hansen_change_analysis():
         top_changes = change_df.head(10)
         
         fig, ax = plt.subplots(figsize=(12, 6))
-        # Use class colors, but shade them for positive (lighter) and negative (darker) changes
-        colors = []
-        for class_id, change in zip(top_changes.index, top_changes["Change (ha)"]):
-            base_color = get_hansen_color(class_id)
-            if change > 0:
-                colors.append(base_color)  # Keep original color for gains
-            else:
-                colors.append(base_color)  # Keep original color for losses too
+        # Get class names and colors for visualization
+        class_names = [hansen_classes.get(int(class_id), f"Class {class_id}") for class_id in top_changes.index]
+        colors = [get_hansen_color(class_id) for class_id in top_changes.index]
         
         ax.barh(range(len(top_changes)), top_changes["Change (ha)"], color=colors)
         ax.set_yticks(range(len(top_changes)))
-        ax.set_yticklabels(top_changes.index)
+        ax.set_yticklabels(class_names)
         ax.set_xlabel("Change (hectares)")
         ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5)
         plt.tight_layout()
