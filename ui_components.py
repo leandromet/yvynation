@@ -185,7 +185,7 @@ def render_mapbiomas_legend():
 
 def render_hansen_legend():
     """Render Hansen/GLAD land cover legend"""
-    from config import HANSEN_PALETTE
+    from config import HANSEN_COLOR_MAP
     
     st.subheader("🎨 Land Cover Legend")
     
@@ -213,9 +213,8 @@ def render_hansen_legend():
     
     with st.container():
         for class_id, label in hansen_classes.items():
-            if 0 <= class_id < len(HANSEN_PALETTE):
-                hex_color = HANSEN_PALETTE[class_id]
-                color = f"#{hex_color}"
+            if class_id in HANSEN_COLOR_MAP:
+                color = HANSEN_COLOR_MAP[class_id]
                 
                 col_color, col_label = st.columns([0.15, 0.85])
                 with col_color:

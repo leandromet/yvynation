@@ -7,14 +7,15 @@ import streamlit as st
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
-from config import HANSEN_DATASETS, HANSEN_PALETTE
+from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP
 
 
 def get_hansen_color(class_id):
-    """Get hex color for Hansen class ID from palette"""
-    if 0 <= class_id < len(HANSEN_PALETTE):
-        hex_color = HANSEN_PALETTE[class_id]
-        return f"#{hex_color}"
+    """Get hex color for Hansen class ID from discrete color map"""
+    if isinstance(class_id, (int, float)):
+        class_id = int(class_id)
+    if class_id in HANSEN_COLOR_MAP:
+        return HANSEN_COLOR_MAP[class_id]
     return "#808080"  # Gray as default
 
 

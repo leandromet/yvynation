@@ -68,6 +68,28 @@ HANSEN_PALETTE = [
     "fff000","afcd96","afcd96","64dcdc","00ffff","00ffff","00ffff","111133","000000"
 ]
 
+# Hansen/GLAD discrete color map for 18 land cover classes
+HANSEN_COLOR_MAP = {
+    0: "#FFFFFF",      # No Data - White
+    1: "#2E8BC0",      # Water - Blue
+    2: "#1F4F2F",      # Evergreen Needleleaf - Dark Green
+    3: "#2D5016",      # Evergreen Broadleaf - Dark Green
+    4: "#3D5C2F",      # Deciduous Needleleaf - Green
+    5: "#4A7C3E",      # Deciduous Broadleaf - Light Green
+    6: "#3D6B3F",      # Mixed Forest - Green
+    7: "#8B7355",      # Closed Shrublands - Brown
+    8: "#A0826D",      # Open Shrublands - Tan
+    9: "#C4B585",      # Woody Savannas - Khaki
+    10: "#D4C869",     # Savannas - Gold
+    11: "#E8D957",     # Grasslands - Yellow
+    12: "#4A6FA0",     # Permanent Wetlands - Blue-Green
+    13: "#FFD700",     # Croplands - Golden Yellow
+    14: "#FF6B35",     # Urban & Built-up - Orange-Red
+    15: "#FFA500",     # Cropland/Natural - Orange
+    16: "#F0F8FF",     # Snow & Ice - Alice Blue (light)
+    17: "#8B8680",     # Barren - Gray-Brown
+}
+
 TERRITORY_COLLECTIONS = {
     'indigenous': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES',
     'biomes': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/BIOMES'
