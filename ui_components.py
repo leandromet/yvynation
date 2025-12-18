@@ -153,3 +153,76 @@ def render_about_section():
             This tool is for research and monitoring purposes.
             '''
         )
+
+
+def render_mapbiomas_legend():
+    """Render MapBiomas land cover legend"""
+    from config import MAPBIOMAS_COLOR_MAP, MAPBIOMAS_LABELS
+    
+    st.subheader("🎨 Land Cover Legend")
+    
+    # Main MapBiomas classes to display
+    main_classes = [
+        1, 3, 4, 5, 9, 11, 12, 15, 18, 20, 24, 26, 30, 33
+    ]
+    
+    with st.container():
+        for class_id in main_classes:
+            if class_id in MAPBIOMAS_LABELS and class_id in MAPBIOMAS_COLOR_MAP:
+                color = MAPBIOMAS_COLOR_MAP[class_id]
+                label = MAPBIOMAS_LABELS[class_id]
+                
+                col_color, col_label = st.columns([0.15, 0.85])
+                with col_color:
+                    st.markdown(
+                        f'<div style="background-color: {color}; width: 30px; height: 20px; '
+                        f'border: 1px solid #999; border-radius: 2px;"></div>',
+                        unsafe_allow_html=True
+                    )
+                with col_label:
+                    st.caption(label)
+
+
+def render_hansen_legend():
+    """Render Hansen/GLAD land cover legend"""
+    from config import HANSEN_PALETTE
+    
+    st.subheader("🎨 Land Cover Legend")
+    
+    # Hansen classes and their descriptions
+    hansen_classes = {
+        0: "No Data",
+        1: "Water",
+        2: "Evergreen Needleleaf",
+        3: "Evergreen Broadleaf",
+        4: "Deciduous Needleleaf",
+        5: "Deciduous Broadleaf",
+        6: "Mixed Forest",
+        7: "Closed Shrublands",
+        8: "Open Shrublands",
+        9: "Woody Savannas",
+        10: "Savannas",
+        11: "Grasslands",
+        12: "Permanent Wetlands",
+        13: "Croplands",
+        14: "Urban & Built-up",
+        15: "Cropland/Natural",
+        16: "Snow & Ice",
+        17: "Barren"
+    }
+    
+    with st.container():
+        for class_id, label in hansen_classes.items():
+            if 0 <= class_id < len(HANSEN_PALETTE):
+                hex_color = HANSEN_PALETTE[class_id]
+                color = f"#{hex_color}"
+                
+                col_color, col_label = st.columns([0.15, 0.85])
+                with col_color:
+                    st.markdown(
+                        f'<div style="background-color: {color}; width: 30px; height: 20px; '
+                        f'border: 1px solid #999; border-radius: 2px;"></div>',
+                        unsafe_allow_html=True
+                    )
+                with col_label:
+                    st.caption(label)

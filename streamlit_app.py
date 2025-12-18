@@ -35,6 +35,8 @@ from ui_components import (
     render_map_instructions,
     render_load_button,
     render_about_section,
+    render_mapbiomas_legend,
+    render_hansen_legend,
 )
 from visualization import create_mapbiomas_legend
 
@@ -492,6 +494,10 @@ with tab_mapbiomas:
                             st.session_state.mapbiomas_drawn_geometry_hashes.add(geom_hash)
                             st.session_state.mapbiomas_selected_drawn_area = area_name
                 
+                # Display legend below map
+                st.divider()
+                render_mapbiomas_legend()
+                
             except Exception as e:
                 st.warning(f"⏳ Map loading... {str(e)[:50]}")
         else:
@@ -608,6 +614,10 @@ with tab_hansen:
                             st.session_state.hansen_drawn_areas[area_name] = geom_data
                             st.session_state.hansen_drawn_geometry_hashes.add(geom_hash)
                             st.session_state.hansen_selected_drawn_area = area_name
+                
+                # Display legend below map
+                st.divider()
+                render_hansen_legend()
                 
             except Exception as e:
                 st.warning(f"⏳ Map loading... {str(e)[:50]}")
