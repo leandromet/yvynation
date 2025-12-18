@@ -7,7 +7,15 @@ import streamlit as st
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
-from config import HANSEN_DATASETS
+from config import HANSEN_DATASETS, HANSEN_PALETTE
+
+
+def get_hansen_color(class_id):
+    """Get hex color for Hansen class ID from palette"""
+    if 0 <= class_id < len(HANSEN_PALETTE):
+        hex_color = HANSEN_PALETTE[class_id]
+        return f"#{hex_color}"
+    return "#808080"  # Gray as default
 
 
 def hansen_histogram_to_dataframe(hist, year):
@@ -120,10 +128,14 @@ def render_hansen_area_analysis():
             st.divider()
             st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
             
-            # Create visualization
-            fig, ax = plt.subplots(figsize=(10, 5))
+            # Create visualization with class-specific colors
+            fig, ax = plt.subplots(figsize=(10, 6))
             top_classes = st.session_state.hansen_area_result.head(15)
-            ax.barh(top_classes['Class'], top_classes['Area_ha'])
+            
+            # Get colors for each class
+            colors = [get_hansen_color(class_id) for class_id in top_classes['Class_ID']]
+            
+            ax.barh(top_classes['Class'], top_classes['Area_ha'], color=colors)
             ax.set_xlabel('Area (hectares)')
             ax.set_ylabel('Land Cover Class')
             ax.set_title(f'Hansen {st.session_state.hansen_area_year} Land Cover Distribution')
@@ -132,41 +144,11 @@ def render_hansen_area_analysis():
             st.pyplot(fig)
             
             st.markdown("#### 📋 Detailed Statistics")
-            st.dataframe(st.session_state.hansen_area_result, use_container_width=True)
+            st.dataframe(st.session_state.hansen_area_result, width="stretch")
             st.success("✅ View the drawn area on the map!")
             
     except Exception as e:
         st.error(f"Error: {e}")
-                        
-        # Store for visualization
-        st.session_state.hansen_area_result = df_hansen
-        st.session_state.hansen_area_year = hansen_year
-        st.session_state.last_analyzed_geom = geom
-        st.session_state.last_analyzed_name = "Your Drawn Area"
-        
-        st.success(f"✅ Hansen {hansen_year} data retrieved for your area")
-                        
-    except Exception as e:
-                st.error(f"Analysis failed: {e}")
-        
-    # Display Hansen area results if available
-    if st.session_state.hansen_area_result is not None:
-        st.markdown(f"#### 📊 Hansen Land Cover Distribution ({st.session_state.hansen_area_year})")
-        
-        # Create visualization
-        fig, ax = plt.subplots(figsize=(12, 6))
-        top_classes = st.session_state.hansen_area_result.head(15)
-        ax.barh(top_classes['Class'], top_classes['Area_ha'])
-        ax.set_xlabel('Area (hectares)')
-        ax.set_ylabel('Land Cover Class')
-        ax.set_title(f'Hansen {st.session_state.hansen_area_year} Land Cover Distribution')
-        ax.invert_yaxis()
-        plt.tight_layout()
-        st.pyplot(fig)
-        
-        st.markdown("#### 📋 Detailed Statistics")
-        st.dataframe(st.session_state.hansen_area_result, width="stretch")
-        st.success("✅ View the drawn area on the map!")
             
 
 
@@ -235,19 +217,21 @@ def render_hansen_multiyear_analysis():
             area_start = st.session_state.multiyear_results["area_start"]
             area_end = st.session_state.multiyear_results["area_end"]
             
-            # Create comparison visualization
+            # Create comparison visualization with class-specific colors
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
             
             # Start year
             top_start = area_start.head(10)
-            ax1.barh(top_start["Class"], top_start["Area_ha"], color="steelblue")
+            colors_start = [get_hansen_color(class_id) for class_id in top_start['Class_ID']]
+            ax1.barh(top_start["Class"], top_start["Area_ha"], color=colors_start)
             ax1.set_xlabel("Area (hectares)")
             ax1.set_title(f"{st.session_state.multiyear_start_year}")
             ax1.invert_yaxis()
             
             # End year
             top_end = area_end.head(10)
-            ax2.barh(top_end["Class"], top_end["Area_ha"], color="coral")
+            colors_end = [get_hansen_color(class_id) for class_id in top_end['Class_ID']]
+            ax2.barh(top_end["Class"], top_end["Area_ha"], color=colors_end)
             ax2.set_xlabel("Area (hectares)")
             ax2.set_title(f"{st.session_state.multiyear_end_year}")
             ax2.invert_yaxis()
@@ -303,12 +287,20 @@ def render_hansen_change_analysis():
         st.write("**Land Cover Changes (hectares)**")
         st.dataframe(change_df.head(20), width="stretch")
         
-        # Change visualization
+        # Change visualization with class-specific colors
         st.markdown("#### 📊 Largest Changes")
         top_changes = change_df.head(10)
         
         fig, ax = plt.subplots(figsize=(12, 6))
-        colors = ['green' if x > 0 else 'red' for x in top_changes["Change (ha)"]]
+        # Use class colors, but shade them for positive (lighter) and negative (darker) changes
+        colors = []
+        for class_id, change in zip(top_changes.index, top_changes["Change (ha)"]):
+            base_color = get_hansen_color(class_id)
+            if change > 0:
+                colors.append(base_color)  # Keep original color for gains
+            else:
+                colors.append(base_color)  # Keep original color for losses too
+        
         ax.barh(range(len(top_changes)), top_changes["Change (ha)"], color=colors)
         ax.set_yticks(range(len(top_changes)))
         ax.set_yticklabels(top_changes.index)

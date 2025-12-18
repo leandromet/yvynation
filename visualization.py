@@ -5,8 +5,15 @@ Handles interactive maps, layers, and legends using geemap.
 
 import ee
 import geemap
-from IPython.display import HTML
 from config import MAPBIOMAS_COLOR_MAP, MAPBIOMAS_LABELS, MAPBIOMAS_PALETTE
+
+try:
+    from IPython.display import HTML
+except ImportError:
+    # Fallback for non-IPython environments (e.g., Streamlit)
+    class HTML:
+        def __init__(self, html_str):
+            self.html_str = html_str
 
 
 def create_map(center=None, zoom=8):
