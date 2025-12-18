@@ -14,32 +14,32 @@ from plots import plot_area_distribution, plot_area_comparison, plot_temporal_tr
 def render_mapbiomas_area_analysis():
     """Render MapBiomas drawn area analysis section"""
     
-    if not st.session_state.drawn_areas:
+    if not st.session_state.mapbiomas_drawn_areas:
         st.info("👈 Draw an area on the map to begin analysis")
         return
     
-    st.success(f"✅ {len(st.session_state.drawn_areas)} drawing(s) captured")
+    st.success(f"✅ {len(st.session_state.mapbiomas_drawn_areas)} drawing(s) captured")
     
     # Select which drawn area to analyze
     col_select, col_delete = st.columns([3, 1])
     with col_select:
         selected_area = st.selectbox(
             "Select drawn area to analyze",
-            list(st.session_state.drawn_areas.keys()),
-            index=list(st.session_state.drawn_areas.keys()).index(st.session_state.selected_drawn_area) 
-                if st.session_state.selected_drawn_area in st.session_state.drawn_areas else 0
+            list(st.session_state.mapbiomas_drawn_areas.keys()),
+            index=list(st.session_state.mapbiomas_drawn_areas.keys()).index(st.session_state.mapbiomas_selected_drawn_area) 
+                if st.session_state.mapbiomas_selected_drawn_area in st.session_state.mapbiomas_drawn_areas else 0
         )
-        st.session_state.selected_drawn_area = selected_area
+        st.session_state.mapbiomas_selected_drawn_area = selected_area
     
     with col_delete:
         if st.button("🗑️ Clear All", key="clear_drawn_mapbiomas"):
-            st.session_state.drawn_areas = {}
-            st.session_state.drawn_area_count = 0
-            st.session_state.selected_drawn_area = None
+            st.session_state.mapbiomas_drawn_areas = {}
+            st.session_state.mapbiomas_drawn_area_count = 0
+            st.session_state.mapbiomas_selected_drawn_area = None
             st.rerun()
     
     try:
-        geom_data = st.session_state.drawn_areas[st.session_state.selected_drawn_area]
+        geom_data = st.session_state.mapbiomas_drawn_areas[st.session_state.mapbiomas_selected_drawn_area]
         coords = geom_data.get('coordinates', [])
         
         if coords:
@@ -73,8 +73,8 @@ def render_mapbiomas_area_analysis():
                         
                         # Calculate bounds and set zoom flag
                         bounds = geom.bounds().getInfo()
-                        st.session_state.zoom_bounds = bounds
-                        st.session_state.should_zoom_to_feature = True
+                        st.session_state.mapbiomas_zoom_bounds = bounds
+                        st.session_state.mapbiomas_should_zoom_to_feature = True
                         
                         st.success(f"✅ Analysis complete for {year}")
                         
