@@ -58,8 +58,9 @@ def calculate_area_by_class(image, geometry, year):
         with st.expander("🔍 Class Mapping Debug", expanded=False):
             st.write("**Found classes in area:**")
             for _, row in df.head(10).iterrows():
-                color = MAPBIOMAS_LABELS.get(row['Class_ID'], "Unknown")
-                st.write(f"ID: {row['Class_ID']:2d} → {row['Class']:25s} (Pixels: {row['Pixels']:,d})")
+                class_name = MAPBIOMAS_LABELS.get(row['Class_ID'], "Unknown")
+                pixels = int(row['Pixels']) if row['Pixels'] else 0
+                st.write(f"ID: {row['Class_ID']:2d} → {row['Class']:25s} (Pixels: {pixels:,d})")
         
         return df
     except Exception as e:
