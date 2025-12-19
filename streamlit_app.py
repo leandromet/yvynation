@@ -258,12 +258,49 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
             st.error("❌ Data not loaded. Click 'Load Core Data' in the sidebar first.")
             return None
         
-        # Create folium map
+        # Create folium map with OpenStreetMap as default
         m = folium.Map(
             location=[center[1], center[0]],
             zoom_start=zoom,
             tiles="OpenStreetMap"
         )
+        
+        # Add basemap options
+        # Google Satellite
+        folium.TileLayer(
+            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+            attr='Google',
+            name='Google Satellite',
+            overlay=False,
+            control=True
+        ).add_to(m)
+        
+        # ArcGIS Street Map
+        folium.TileLayer(
+            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+            attr='Tiles &copy; Esri',
+            name='ArcGIS Street',
+            overlay=False,
+            control=True
+        ).add_to(m)
+        
+        # ArcGIS Satellite
+        folium.TileLayer(
+            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attr='Tiles &copy; Esri',
+            name='ArcGIS Satellite',
+            overlay=False,
+            control=True
+        ).add_to(m)
+        
+        # ArcGIS Terrain
+        folium.TileLayer(
+            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+            attr='Tiles &copy; Esri',
+            name='ArcGIS Terrain',
+            overlay=False,
+            control=True
+        ).add_to(m)
         
         if data_source == "MapBiomas":
             # MapBiomas layers
@@ -640,7 +677,7 @@ with tab_hansen:
                             if max_diff > 0:
                                 # Zoom level formula: zoom = ceil(ln(2*360/(max_diff*256))/ln(2))
                                 # Simplified and adjusted for better fit
-                                zoom = 9 - math.ceil(math.log2(max_diff * 110 / 256))
+                                zoom = 10 - math.ceil(math.log2(max_diff * 110 / 256))
                                 zoom = max(3, min(zoom, 18))  # Clamp between 3 and 18
                                 st.session_state.hansen_map_zoom = zoom
                         except (IndexError, TypeError, ValueError) as e:
