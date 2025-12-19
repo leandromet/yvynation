@@ -7,8 +7,105 @@ import streamlit as st
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
-from analysis import calculate_area_by_class, clip_mapbiomas_to_geometry
-from plots import plot_area_distribution, plot_area_comparison, plot_temporal_trend, create_sankey_transitions
+
+
+# Helper function for area analysis
+def calculate_area_by_class(image, geometry, year):
+    """Calculate area by land cover class"""
+    try:
+        stats = image.reduceRegion(
+            reducer=ee.Reducer.frequencyHistogram(),
+            geometry=geometry,
+            scale=30,
+            maxPixels=1e9
+        ).getInfo()
+        
+        if stats and 'b1' in stats:
+            data = stats['b1']
+            from config import MAPBIOMAS_LABELS
+            
+            records = []
+            for class_id, count in data.items():
+                class_id = int(class_id)
+                class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
+                records.append({
+                    "Class_ID": class_id,
+                    "Class": class_name,
+                    "Pixels": count,
+                    "Area_ha": count * 0.09  # 30m pixels ≈ 0.09 ha
+                })
+            return pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error calculating area: {e}")
+        return pd.DataFrame()
+
+
+# Helper function for plotting
+def plot_area_distribution(df, year=None, top_n=15):
+    """Plot land cover area distribution"""
+    try:
+        from config import MAPBIOMAS_COLOR_MAP
+        
+        top_df = df.head(top_n)
+        colors = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_df['Class_ID']]
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.barh(top_df['Class'], top_df['Area_ha'], color=colors)
+        ax.set_xlabel('Area (hectares)')
+        ax.set_ylabel('Land Cover Class')
+        if year:
+            ax.set_title(f'Land Cover Distribution ({year})')
+        ax.invert_yaxis()
+        plt.tight_layout()
+        return fig
+    except Exception as e:
+        st.error(f"Error plotting: {e}")
+        return None
+
+
+def plot_area_comparison(df_start, df_end, year_start=None, year_end=None):
+    """Plot comparison of two years"""
+    try:
+        from config import MAPBIOMAS_COLOR_MAP
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        
+        top_start = df_start.head(10)
+        colors_start = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_start['Class_ID']]
+        ax1.barh(top_start["Class"], top_start["Area_ha"], color=colors_start)
+        ax1.set_xlabel("Area (hectares)")
+        ax1.set_title(f"{year_start}")
+        ax1.invert_yaxis()
+        
+        top_end = df_end.head(10)
+        colors_end = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_end['Class_ID']]
+        ax2.barh(top_end["Class"], top_end["Area_ha"], color=colors_end)
+        ax2.set_xlabel("Area (hectares)")
+        ax2.set_title(f"{year_end}")
+        ax2.invert_yaxis()
+        
+        plt.tight_layout()
+        return fig
+    except Exception as e:
+        st.error(f"Error plotting comparison: {e}")
+        return None
+
+
+def plot_temporal_trend(df, years=None):
+    """Plot temporal trend"""
+    try:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        if df is not None and not df.empty:
+            ax.plot(range(len(df)), df.values)
+            ax.set_xlabel('Year')
+            ax.set_ylabel('Area (hectares)')
+            ax.set_title('Land Cover Temporal Trend')
+            plt.tight_layout()
+        return fig
+    except Exception as e:
+        st.error(f"Error plotting trend: {e}")
+        return None
 
 
 def render_mapbiomas_area_analysis():
@@ -105,10 +202,18 @@ def render_mapbiomas_area_analysis():
         st.error(f"Error: {e}")
 
 
+def filter_territories_by_names(territories, names):
+    """Filter territories by name"""
+    if not names:
+        return territories
+    try:
+        return territories.filterMetadata('territory_name', 'in_list', names)
+    except:
+        return territories
+
+
 def render_mapbiomas_territory_analysis():
     """Render MapBiomas territory analysis section"""
-    from analysis import filter_territories_by_names, calculate_area_by_class
-    from plots import plot_area_distribution
     
     col_search, col_refresh = st.columns([3, 1])
     with col_search:

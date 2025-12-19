@@ -454,7 +454,7 @@ with tab_mapbiomas:
     st.info("Analyze Brazilian land cover using MapBiomas Collection 9 data (1985-2023)")
     
     # Split layout: Map on left, Analysis on right
-    map_col, analysis_col = st.columns([1, 1.6], gap="large")
+    map_col, analysis_col = st.columns([1, 1.2], gap="large")
     
     # Map column
     with map_col:
@@ -555,7 +555,7 @@ with tab_mapbiomas:
                     )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(st.session_state.mapbiomas_map_object, width=700, height=600)
+                map_data = st_folium(st.session_state.mapbiomas_map_object, width="100%", height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     import hashlib
@@ -694,7 +694,7 @@ with tab_hansen:
                     )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(st.session_state.hansen_map_object, width=700, height=600)
+                map_data = st_folium(st.session_state.hansen_map_object, width="100%", height=600)
                 
                 if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
                     import hashlib

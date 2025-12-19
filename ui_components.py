@@ -172,7 +172,7 @@ def render_mapbiomas_legend():
                 color = MAPBIOMAS_COLOR_MAP[class_id]
                 label = MAPBIOMAS_LABELS[class_id]
                 
-                col_color, col_label = st.columns([0.15, 0.85])
+                col_color, col_label = st.columns([0.12, 0.88])
                 with col_color:
                     st.markdown(
                         f'<div style="background-color: {color}; width: 30px; height: 20px; '
@@ -180,7 +180,7 @@ def render_mapbiomas_legend():
                         unsafe_allow_html=True
                     )
                 with col_label:
-                    st.caption(label)
+                    st.markdown(f"<small style='word-wrap: break-word; overflow-wrap: break-word;'>{label}</small>", unsafe_allow_html=True)
 
 
 def render_hansen_legend():
@@ -216,7 +216,7 @@ def render_hansen_legend():
             if class_id in HANSEN_COLOR_MAP:
                 color = HANSEN_COLOR_MAP[class_id]
                 
-                col_color, col_label = st.columns([0.15, 0.85])
+                col_color, col_label = st.columns([0.12, 0.88])
                 with col_color:
                     st.markdown(
                         f'<div style="background-color: {color}; width: 30px; height: 20px; '
@@ -224,4 +224,4 @@ def render_hansen_legend():
                         unsafe_allow_html=True
                     )
                 with col_label:
-                    st.caption(label)
+                    st.markdown(f"<small style='word-wrap: break-word; overflow-wrap: break-word;'>{label}</small>", unsafe_allow_html=True)
