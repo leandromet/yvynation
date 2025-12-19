@@ -20,12 +20,22 @@ def calculate_area_by_class(image, geometry, year):
             maxPixels=1e9
         ).getInfo()
         
-        if stats and 'b1' in stats:
-            data = stats['b1']
-            from config import MAPBIOMAS_LABELS
-            
-            records = []
-            for class_id, count in data.items():
+        if not stats:
+            st.warning("No data found in the selected area")
+            return pd.DataFrame()
+        
+        # Handle different possible key names from EE
+        data = stats.get('b1') or stats.get('classification') or stats.get(list(stats.keys())[0] if stats else None)
+        
+        if not data:
+            st.warning("Could not extract classification data from the results")
+            return pd.DataFrame()
+        
+        from config import MAPBIOMAS_LABELS
+        
+        records = []
+        for class_id, count in data.items():
+            try:
                 class_id = int(class_id)
                 class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
                 records.append({
@@ -34,10 +44,17 @@ def calculate_area_by_class(image, geometry, year):
                     "Pixels": count,
                     "Area_ha": count * 0.09  # 30m pixels ≈ 0.09 ha
                 })
-            return pd.DataFrame(records).sort_values("Area_ha", ascending=False)
-        return pd.DataFrame()
+            except (ValueError, TypeError) as e:
+                st.warning(f"Could not process class {class_id}: {e}")
+                continue
+        
+        if not records:
+            st.warning("No valid class data found")
+            return pd.DataFrame()
+        
+        return pd.DataFrame(records).sort_values("Area_ha", ascending=False)
     except Exception as e:
-        st.error(f"Error calculating area: {e}")
+        st.error(f"Error calculating area: {str(e)}")
         return pd.DataFrame()
 
 
@@ -47,8 +64,18 @@ def plot_area_distribution(df, year=None, top_n=15):
     try:
         from config import MAPBIOMAS_COLOR_MAP
         
+        # Check if dataframe is empty
+        if df is None or df.empty:
+            st.warning("No data available to plot")
+            return None
+        
+        # Ensure Class_ID column exists
+        if 'Class_ID' not in df.columns:
+            st.error(f"Missing 'Class_ID' column. Available columns: {df.columns.tolist()}")
+            return None
+        
         top_df = df.head(top_n)
-        colors = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_df['Class_ID']]
+        colors = [MAPBIOMAS_COLOR_MAP.get(int(class_id), "#808080") for class_id in top_df['Class_ID']]
         
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.barh(top_df['Class'], top_df['Area_ha'], color=colors)
@@ -60,7 +87,7 @@ def plot_area_distribution(df, year=None, top_n=15):
         plt.tight_layout()
         return fig
     except Exception as e:
-        st.error(f"Error plotting: {e}")
+        st.error(f"Error plotting: {str(e)}")
         return None
 
 
@@ -69,17 +96,27 @@ def plot_area_comparison(df_start, df_end, year_start=None, year_end=None):
     try:
         from config import MAPBIOMAS_COLOR_MAP
         
+        # Check if dataframes are empty
+        if (df_start is None or df_start.empty) or (df_end is None or df_end.empty):
+            st.warning("No data available to compare")
+            return None
+        
+        # Ensure Class_ID column exists
+        if 'Class_ID' not in df_start.columns or 'Class_ID' not in df_end.columns:
+            st.error("Missing 'Class_ID' column in comparison data")
+            return None
+        
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         
         top_start = df_start.head(10)
-        colors_start = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_start['Class_ID']]
+        colors_start = [MAPBIOMAS_COLOR_MAP.get(int(class_id), "#808080") for class_id in top_start['Class_ID']]
         ax1.barh(top_start["Class"], top_start["Area_ha"], color=colors_start)
         ax1.set_xlabel("Area (hectares)")
         ax1.set_title(f"{year_start}")
         ax1.invert_yaxis()
         
         top_end = df_end.head(10)
-        colors_end = [MAPBIOMAS_COLOR_MAP.get(class_id, "#808080") for class_id in top_end['Class_ID']]
+        colors_end = [MAPBIOMAS_COLOR_MAP.get(int(class_id), "#808080") for class_id in top_end['Class_ID']]
         ax2.barh(top_end["Class"], top_end["Area_ha"], color=colors_end)
         ax2.set_xlabel("Area (hectares)")
         ax2.set_title(f"{year_end}")
@@ -88,7 +125,7 @@ def plot_area_comparison(df_start, df_end, year_start=None, year_end=None):
         plt.tight_layout()
         return fig
     except Exception as e:
-        st.error(f"Error plotting comparison: {e}")
+        st.error(f"Error plotting comparison: {str(e)}")
         return None
 
 

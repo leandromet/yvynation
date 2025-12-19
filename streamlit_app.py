@@ -454,7 +454,7 @@ with tab_mapbiomas:
     st.info("Analyze Brazilian land cover using MapBiomas Collection 9 data (1985-2023)")
     
     # Split layout: Map on left, Analysis on right
-    map_col, analysis_col = st.columns([1, 1.2], gap="large")
+    map_col, analysis_col = st.columns([1, 1.2], gap="medium")
     
     # Map column
     with map_col:
@@ -614,7 +614,7 @@ with tab_hansen:
     st.info("Analyze global land cover using Hansen/GLAD data (2000-2020, 30m resolution)")
     
     # Split layout: Map on left, Analysis on right
-    map_col_h, analysis_col_h = st.columns([1, 1.6], gap="large")
+    map_col_h, analysis_col_h = st.columns([1, 1.2], gap="medium")
     
     # Map column
     with map_col_h:
