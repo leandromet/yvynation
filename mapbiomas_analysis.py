@@ -262,12 +262,12 @@ def render_mapbiomas_area_analysis():
         st.error(f"Error: {e}")
 
 
-def filter_territories_by_names(territories, names):
+def filter_territories_by_names(territories, names, name_prop='territory_name'):
     """Filter territories by name"""
     if not names:
         return territories
     try:
-        return territories.filterMetadata('territory_name', 'in_list', names)
+        return territories.filterMetadata(name_prop, 'in_list', names)
     except:
         return territories
 
