@@ -32,6 +32,7 @@ from mapbiomas_analysis import (
     render_mapbiomas_territory_analysis,
     render_mapbiomas_multiyear_analysis,
     render_mapbiomas_change_analysis,
+    add_territory_popups_to_map,
 )
 from hansen_analysis import (
     render_hansen_area_analysis,
@@ -340,7 +341,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                     opacity=layer2_opacity
                 ).add_to(m)
             
-            # Add indigenous territories layer on top (dark purple)
+            # Add indigenous territories layer on top (dark purple) with interactive popups
             territories = st.session_state.app.territories
             if territories is not None:
                 try:
@@ -354,6 +355,9 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                         control=True,
                         opacity=0.7
                     ).add_to(m)
+                    
+                    # Add interactive popups for territory features
+                    m = add_territory_popups_to_map(m, territories, name_prop='NAME')
                 except Exception as e:
                     st.warning(f"Could not load territories layer: {e}")
         
@@ -384,7 +388,7 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 opacity=layer1_opacity
             ).add_to(m)
             
-            # Add indigenous territories layer on top (dark purple)
+            # Add indigenous territories layer on top (dark purple) with interactive popups
             territories = st.session_state.app.territories
             if territories is not None:
                 try:
@@ -398,6 +402,9 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                         control=True,
                         opacity=0.7
                     ).add_to(m)
+                    
+                    # Add interactive popups for territory features
+                    m = add_territory_popups_to_map(m, territories, name_prop='NAME')
                 except Exception as e:
                     st.warning(f"Could not load territories layer: {e}")
         

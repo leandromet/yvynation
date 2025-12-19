@@ -272,12 +272,88 @@ def filter_territories_by_names(territories, names, name_prop='territory_name'):
         return territories
 
 
+def add_territory_popups_to_map(folium_map, territories, name_prop='territory_name'):
+    """Add interactive popups to territory features on the map"""
+    try:
+        import folium
+        from folium import GeoJsonTooltip
+        
+        if territories is None:
+            return folium_map
+        
+        # Get GeoJSON from territories
+        geojson_data = territories.getInfo()
+        if not geojson_data or 'features' not in geojson_data:
+            return folium_map
+        
+        # Create GeoJSON layer with popups
+        def get_popup_html(feature):
+            """Create HTML popup for territory feature"""
+            props = feature.get('properties', {})
+            territory_name = props.get(name_prop, 'Unknown Territory')
+            
+            # Create a unique key for this territory analysis
+            territory_key = f"territory_{territory_name.replace(' ', '_').lower()}"
+            
+            html = f"""
+            <div style="font-family: Arial; width: 200px;">
+                <h4 style="margin: 5px 0;">{territory_name}</h4>
+                <button onclick="window.analyzeTerritory('{territory_name}')" style="
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 8px 12px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    width: 100%;
+                    margin-top: 5px;
+                    font-weight: bold;
+                ">📍 Analyze Territory</button>
+            </div>
+            """
+            return html
+        
+        # Add GeoJSON to map with custom styling
+        for feature in geojson_data['features']:
+            geometry = feature['geometry']
+            props = feature['properties']
+            territory_name = props.get(name_prop, 'Unknown')
+            
+            # Create popup HTML
+            popup_html = get_popup_html(feature)
+            
+            # Add feature to map with popup
+            folium.GeoJson(
+                {
+                    'type': 'Feature',
+                    'geometry': geometry,
+                    'properties': props
+                },
+                style_function=lambda x: {
+                    'fillColor': '#8B00FF',
+                    'color': '#4B0082',
+                    'weight': 2,
+                    'opacity': 0.8,
+                    'fillOpacity': 0.1
+                },
+                popup=folium.Popup(popup_html, max_width=250),
+                name=f"Territory: {territory_name}",
+                show=True
+            ).add_to(folium_map)
+        
+        return folium_map
+    
+    except Exception as e:
+        st.warning(f"Could not add territory popups to map: {e}")
+        return folium_map
+
+
 def render_mapbiomas_territory_analysis():
     """Render MapBiomas territory analysis section"""
     
     col_search, col_refresh = st.columns([3, 1])
     with col_search:
-        st.caption("Search and select a territory from all available indigenous territories")
+        st.caption("Search and select a territory from all available indigenous territories, or click on one on the map")
     
     with col_refresh:
         if st.button("🔄 Refresh", key="refresh_territories_mapbiomas"):
@@ -323,12 +399,23 @@ def render_mapbiomas_territory_analysis():
         
         territory_names = sorted(list(set(territory_names)))  # Remove duplicates and sort
         
+        # Check if a territory was clicked on the map
+        clicked_territory = st.session_state.get('clicked_territory_name')
+        if clicked_territory and clicked_territory in territory_names:
+            territory_name = clicked_territory
+            st.session_state.territory_select = territory_names.index(clicked_territory)
+            st.session_state.clicked_territory_name = None  # Reset after use
+        else:
+            territory_name = None
+        
         col_terr, col_year = st.columns([2, 1])
         with col_terr:
             territory_name = st.selectbox(
                 f"Territory ({len(territory_names)} available)",
                 territory_names,
-                key="territory_select"
+                index=st.session_state.get('territory_select', 0),
+                key="territory_select",
+                on_change=lambda: st.session_state.update({'territory_select': st.session_state.territory_select})
             )
         with col_year:
             territory_year = st.selectbox("Year", range(1985, 2024), index=38, key="territory_year")
@@ -354,7 +441,6 @@ def render_mapbiomas_territory_analysis():
                         
                         st.session_state.territory_result = area_df
                         st.session_state.territory_name = territory_name
-                        st.session_state.territory_year = territory_year
                         st.session_state.last_analyzed_geom = geom
                         st.session_state.last_analyzed_name = territory_name
                         
