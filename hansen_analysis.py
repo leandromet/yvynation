@@ -11,12 +11,16 @@ from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP
 
 
 def get_hansen_color(class_id):
-    """Get hex color for Hansen class ID from discrete color map"""
+    """Get color for Hansen class ID from the palette"""
     if isinstance(class_id, (int, float)):
         class_id = int(class_id)
-    if class_id in HANSEN_COLOR_MAP:
-        return HANSEN_COLOR_MAP[class_id]
-    return "#808080"  # Gray as default
+    
+    # Map palette index to color
+    if 0 <= class_id < len(HANSEN_PALETTE):
+        return f"#{HANSEN_PALETTE[class_id]}"
+    
+    # Fallback for unknown classes - use gray
+    return "#808080"
 
 
 def hansen_histogram_to_dataframe(hist, year):
