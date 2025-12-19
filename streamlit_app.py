@@ -4,6 +4,15 @@ Interactive Streamlit web app for MapBiomas and Hansen/GLAD analysis
 '''
 
 import streamlit as st
+
+# Performance optimization - prevent unnecessary reruns
+st.set_page_config(
+    page_title="Yvynation - Earth Engine Analysis",
+    page_icon="🌎",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import ee
 import geemap
 import folium
@@ -39,14 +48,6 @@ from ui_components import (
     render_hansen_legend,
 )
 from visualization import create_mapbiomas_legend
-
-# Page config
-st.set_page_config(
-    page_title="Yvynation - Earth Engine Analysis",
-    page_icon="🌎",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ============================================================================
 # SESSION STATE INITIALIZATION

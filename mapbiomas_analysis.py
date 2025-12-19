@@ -20,16 +20,21 @@ def render_mapbiomas_area_analysis():
     
     st.success(f"✅ {len(st.session_state.mapbiomas_drawn_areas)} drawing(s) captured")
     
+    # Ensure selected area exists
+    area_keys = list(st.session_state.mapbiomas_drawn_areas.keys())
+    if st.session_state.mapbiomas_selected_drawn_area not in area_keys:
+        st.session_state.mapbiomas_selected_drawn_area = area_keys[0]
+    
     # Select which drawn area to analyze
     col_select, col_delete = st.columns([3, 1])
     with col_select:
         selected_area = st.selectbox(
             "Select drawn area to analyze",
-            list(st.session_state.mapbiomas_drawn_areas.keys()),
-            index=list(st.session_state.mapbiomas_drawn_areas.keys()).index(st.session_state.mapbiomas_selected_drawn_area) 
-                if st.session_state.mapbiomas_selected_drawn_area in st.session_state.mapbiomas_drawn_areas else 0
+            area_keys,
+            index=area_keys.index(st.session_state.mapbiomas_selected_drawn_area),
+            key="mapbiomas_area_select",
+            on_change=lambda: st.session_state.update({"mapbiomas_selected_drawn_area": st.session_state.mapbiomas_area_select})
         )
-        st.session_state.mapbiomas_selected_drawn_area = selected_area
     
     with col_delete:
         if st.button("🗑️ Clear All", key="clear_drawn_mapbiomas"):
@@ -53,7 +58,7 @@ def render_mapbiomas_area_analysis():
             with col_btn:
                 analyze_btn = st.button("📍 Analyze & Zoom", key="btn_mapbiomas_drawn", width="stretch")
             
-            if analyze_btn:
+            if analyze_btn and st.session_state.mapbiomas_selected_drawn_area:
                 with st.spinner("Analyzing your drawn area..."):
                     try:
                         mapbiomas = st.session_state.app.mapbiomas_v9

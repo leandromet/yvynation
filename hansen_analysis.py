@@ -52,17 +52,21 @@ def render_hansen_area_analysis():
     
     st.success(f"✅ {len(st.session_state.hansen_drawn_areas)} drawing(s) captured")
     
+    # Ensure selected area exists
+    area_keys = list(st.session_state.hansen_drawn_areas.keys())
+    if st.session_state.hansen_selected_drawn_area not in area_keys:
+        st.session_state.hansen_selected_drawn_area = area_keys[0]
+    
     # Select which drawn area to analyze
     col_select, col_delete = st.columns([3, 1])
     with col_select:
         selected_area = st.selectbox(
             "Select drawn area to analyze",
-            list(st.session_state.hansen_drawn_areas.keys()),
-            index=list(st.session_state.hansen_drawn_areas.keys()).index(st.session_state.hansen_selected_drawn_area) 
-                if st.session_state.hansen_selected_drawn_area in st.session_state.hansen_drawn_areas else 0,
-            key="hansen_area_select"
+            area_keys,
+            index=area_keys.index(st.session_state.hansen_selected_drawn_area),
+            key="hansen_area_select",
+            on_change=lambda: st.session_state.update({"hansen_selected_drawn_area": st.session_state.hansen_area_select})
         )
-        st.session_state.hansen_selected_drawn_area = selected_area
     
     with col_delete:
         if st.button("🗑️ Clear All", key="clear_drawn_hansen"):
@@ -91,7 +95,7 @@ def render_hansen_area_analysis():
             with col_btn:
                 analyze_btn = st.button("📍 Analyze & Zoom", key="btn_hansen_drawn", use_container_width=True)
             
-            if analyze_btn:
+            if analyze_btn and st.session_state.hansen_selected_drawn_area:
                 with st.spinner("Analyzing your drawn area with Hansen data..."):
                     try:
                         # Load Hansen data
@@ -163,13 +167,33 @@ def render_hansen_multiyear_analysis():
     
     st.info(f"📍 Analyzing: **{st.session_state.last_analyzed_name}**")
     
+    # Initialize year session state if needed
+    if "hansen_start_year_current" not in st.session_state:
+        st.session_state.hansen_start_year_current = 2000
+    if "hansen_end_year_current" not in st.session_state:
+        st.session_state.hansen_end_year_current = 2020
+    
+    years_list = [2000, 2005, 2010, 2015, 2020]
     col1, col2 = st.columns(2)
     with col1:
-        start_year = st.selectbox("Start Year", [2000, 2005, 2010, 2015, 2020], index=0, key="hansen_start_year_current")
+        start_year = st.selectbox(
+            "Start Year", 
+            years_list, 
+            index=years_list.index(st.session_state.hansen_start_year_current),
+            key="hansen_start_year_current"
+        )
     with col2:
-        end_year = st.selectbox("End Year", [2000, 2005, 2010, 2015, 2020], index=4, key="hansen_end_year_current")
+        end_year = st.selectbox(
+            "End Year", 
+            years_list, 
+            index=years_list.index(st.session_state.hansen_end_year_current),
+            key="hansen_end_year_current"
+        )
     
     if st.button("Compare Snapshots", width="stretch", key="btn_hansen_multiyear"):
+        if start_year == end_year:
+            st.warning("⚠️ Please select different start and end years")
+            return
         with st.spinner(f"Comparing Hansen {start_year} and {end_year}..."):
             try:
                 ee_module = st.session_state.ee_module
