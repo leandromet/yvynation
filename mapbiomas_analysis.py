@@ -52,7 +52,16 @@ def calculate_area_by_class(image, geometry, year):
             st.warning("No valid class data found")
             return pd.DataFrame()
         
-        return pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+        df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+        
+        # Debug: show class mapping
+        with st.expander("🔍 Class Mapping Debug", expanded=False):
+            st.write("**Found classes in area:**")
+            for _, row in df.head(10).iterrows():
+                color = MAPBIOMAS_LABELS.get(row['Class_ID'], "Unknown")
+                st.write(f"ID: {row['Class_ID']:2d} → {row['Class']:25s} (Pixels: {row['Pixels']:,d})")
+        
+        return df
     except Exception as e:
         st.error(f"Error calculating area: {str(e)}")
         return pd.DataFrame()

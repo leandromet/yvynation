@@ -166,19 +166,22 @@ def render_mapbiomas_legend():
         1, 3, 4, 5, 9, 11, 12, 15, 18, 20, 24, 26, 30, 33
     ]
     
-    with st.container():
+    # Show class IDs in legend for verification
+    with st.expander("Legend (Click to see Class IDs)", expanded=True):
         for class_id in main_classes:
             if class_id in MAPBIOMAS_LABELS and class_id in MAPBIOMAS_COLOR_MAP:
                 color = MAPBIOMAS_COLOR_MAP[class_id]
                 label = MAPBIOMAS_LABELS[class_id]
                 
-                col_color, col_label = st.columns([0.12, 0.88])
+                col_color, col_id, col_label = st.columns([0.10, 0.08, 0.82])
                 with col_color:
                     st.markdown(
                         f'<div style="background-color: {color}; width: 30px; height: 20px; '
                         f'border: 1px solid #999; border-radius: 2px;"></div>',
                         unsafe_allow_html=True
                     )
+                with col_id:
+                    st.caption(f"#{class_id}")
                 with col_label:
                     st.markdown(f"<small style='word-wrap: break-word; overflow-wrap: break-word;'>{label}</small>", unsafe_allow_html=True)
 
