@@ -117,8 +117,9 @@ def render_hansen_area_analysis():
                         st.session_state.hansen_area_year = hansen_year
                         st.session_state.last_analyzed_geom = geom
                         st.session_state.last_analyzed_name = "Your Drawn Area"
-                        
-                        # Calculate bounds and set zoom flag
+                                                # Store the polygon coordinates for drawing on map
+                        st.session_state.hansen_drawn_polygon_coords = coords
+                                                # Calculate bounds and set zoom flag
                         bounds = geom.bounds().getInfo()
                         st.session_state.hansen_zoom_bounds = bounds
                         st.session_state.hansen_should_zoom_to_feature = True

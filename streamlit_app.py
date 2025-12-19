@@ -94,6 +94,8 @@ if "mapbiomas_should_zoom_to_feature" not in st.session_state:
     st.session_state.mapbiomas_should_zoom_to_feature = False
 if "mapbiomas_zoom_bounds" not in st.session_state:
     st.session_state.mapbiomas_zoom_bounds = None
+if "mapbiomas_drawn_polygon_coords" not in st.session_state:
+    st.session_state.mapbiomas_drawn_polygon_coords = None
 
 # Drawn areas - Hansen
 if "hansen_drawn_areas" not in st.session_state:
@@ -108,6 +110,8 @@ if "hansen_should_zoom_to_feature" not in st.session_state:
     st.session_state.hansen_should_zoom_to_feature = False
 if "hansen_zoom_bounds" not in st.session_state:
     st.session_state.hansen_zoom_bounds = None
+if "hansen_drawn_polygon_coords" not in st.session_state:
+    st.session_state.hansen_drawn_polygon_coords = None
 
 # Analysis results - MapBiomas
 if "drawn_area_result" not in st.session_state:
@@ -245,7 +249,8 @@ st.sidebar.divider()
 # ============================================================================
 
 def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0, 
-                         layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas"):
+                         layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas",
+                         drawn_polygon=None):
     """Create a folium map with Earth Engine layers"""
     try:
         # Check if app data is loaded
@@ -359,6 +364,30 @@ def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0,
                 except Exception as e:
                     st.warning(f"Could not load territories layer: {e}")
         
+        # Draw the polygon if provided
+        if drawn_polygon:
+            try:
+                # Handle both formats: list of coords or nested list
+                coords_to_draw = drawn_polygon
+                if isinstance(coords_to_draw[0][0], (list, tuple)):
+                    coords_to_draw = coords_to_draw[0]  # Extract from outer list if nested
+                
+                # Convert EE coordinates (lon,lat) to folium format (lat,lon)
+                folium_coords = [[lat, lon] for lon, lat in coords_to_draw]
+                
+                # Draw the polygon
+                folium.Polygon(
+                    locations=folium_coords,
+                    color='red',
+                    fill=True,
+                    fillColor='red',
+                    fillOpacity=0.2,
+                    weight=2,
+                    popup='Analyzed Area'
+                ).add_to(m)
+            except Exception as e:
+                st.warning(f"Could not draw polygon: {e}")
+        
         # Add drawing tools
         Draw(export=True).add_to(m)
         Fullscreen().add_to(m)
@@ -420,7 +449,8 @@ with tab_mapbiomas:
                         layer2_year=current_layer2_year,
                         layer2_opacity=current_layer2_opacity,
                         compare_mode=st.session_state.split_compare_mode,
-                        data_source="MapBiomas"
+                        data_source="MapBiomas",
+                        drawn_polygon=None
                     )
                     
                     # Remember current settings
@@ -443,25 +473,38 @@ with tab_mapbiomas:
                             min_lon, max_lon = min(lons), max(lons)
                             min_lat, max_lat = min(lats), max(lats)
                             
-                            # Update map center and zoom to fit bounds
-                            center_lon = (min_lon + max_lon) / 2
-                            center_lat = (min_lat + max_lat) / 2
+                            # Add padding (5% of each dimension)
+                            lon_padding = (max_lon - min_lon) * 0.05
+                            lat_padding = (max_lat - min_lat) * 0.05
+                            
+                            padded_min_lon = min_lon - lon_padding
+                            padded_max_lon = max_lon + lon_padding
+                            padded_min_lat = min_lat - lat_padding
+                            padded_max_lat = max_lat + lat_padding
+                            
+                            # Update map center and zoom to fit bounds with padding
+                            center_lon = (padded_min_lon + padded_max_lon) / 2
+                            center_lat = (padded_min_lat + padded_max_lat) / 2
                             st.session_state.mapbiomas_map_center_lon = center_lon
                             st.session_state.mapbiomas_map_center_lat = center_lat
-                            # Calculate appropriate zoom level (rough approximation)
+                            
+                            # Calculate appropriate zoom level using Folium's formula
                             import math
-                            lon_diff = max_lon - min_lon
-                            lat_diff = max_lat - min_lat
+                            lon_diff = padded_max_lon - padded_min_lon
+                            lat_diff = padded_max_lat - padded_min_lat
                             max_diff = max(lon_diff, lat_diff)
+                            
                             if max_diff > 0:
-                                zoom = int(12 - math.log2(max_diff * 110))  # 110 km per degree approx
-                                zoom = max(4, min(zoom, 13))  # Clamp between 4 and 13
+                                # Zoom level formula: zoom = ceil(ln(2*360/(max_diff*256))/ln(2))
+                                # Simplified and adjusted for better fit
+                                zoom = 9 - math.ceil(math.log2(max_diff * 110 / 256))
+                                zoom = max(3, min(zoom, 18))  # Clamp between 3 and 18
                                 st.session_state.mapbiomas_map_zoom = zoom
                         except (IndexError, TypeError, ValueError) as e:
                             st.warning(f"Could not parse bounds: {e}")
                     st.session_state.mapbiomas_should_zoom_to_feature = False
                     st.session_state.mapbiomas_zoom_bounds = None
-                    # Recreate map with new center/zoom
+                    # Recreate map with new center/zoom and draw the polygon
                     st.session_state.mapbiomas_map_object = create_ee_folium_map(
                         center=[st.session_state.mapbiomas_map_center_lon, st.session_state.mapbiomas_map_center_lat],
                         zoom=st.session_state.mapbiomas_map_zoom,
@@ -470,7 +513,8 @@ with tab_mapbiomas:
                         layer2_year=current_layer2_year,
                         layer2_opacity=current_layer2_opacity,
                         compare_mode=st.session_state.split_compare_mode,
-                        data_source="MapBiomas"
+                        data_source="MapBiomas",
+                        drawn_polygon=st.session_state.mapbiomas_drawn_polygon_coords
                     )
                 
                 # Display map and capture drawn areas
@@ -553,7 +597,8 @@ with tab_hansen:
                         center=[st.session_state.hansen_map_center_lon, st.session_state.hansen_map_center_lat],
                         zoom=st.session_state.hansen_map_zoom,
                         layer1_year=st.session_state.hansen_year,
-                        data_source="Hansen"
+                        data_source="Hansen",
+                        drawn_polygon=None
                     )
                     st.session_state.hansen_last_hansen_year = st.session_state.hansen_year
                     st.session_state.hansen_last_data_source = 'Hansen'
@@ -571,27 +616,44 @@ with tab_hansen:
                             min_lon, max_lon = min(lons), max(lons)
                             min_lat, max_lat = min(lats), max(lats)
                             
-                            center_lon = (min_lon + max_lon) / 2
-                            center_lat = (min_lat + max_lat) / 2
+                            # Add padding (5% of each dimension)
+                            lon_padding = (max_lon - min_lon) * 0.05
+                            lat_padding = (max_lat - min_lat) * 0.05
+                            
+                            padded_min_lon = min_lon - lon_padding
+                            padded_max_lon = max_lon + lon_padding
+                            padded_min_lat = min_lat - lat_padding
+                            padded_max_lat = max_lat + lat_padding
+                            
+                            # Update map center and zoom to fit bounds with padding
+                            center_lon = (padded_min_lon + padded_max_lon) / 2
+                            center_lat = (padded_min_lat + padded_max_lat) / 2
                             st.session_state.hansen_map_center_lon = center_lon
                             st.session_state.hansen_map_center_lat = center_lat
+                            
+                            # Calculate appropriate zoom level using Folium's formula
                             import math
-                            lon_diff = max_lon - min_lon
-                            lat_diff = max_lat - min_lat
+                            lon_diff = padded_max_lon - padded_min_lon
+                            lat_diff = padded_max_lat - padded_min_lat
                             max_diff = max(lon_diff, lat_diff)
+                            
                             if max_diff > 0:
-                                zoom = int(12 - math.log2(max_diff * 110))
-                                zoom = max(4, min(zoom, 13))
+                                # Zoom level formula: zoom = ceil(ln(2*360/(max_diff*256))/ln(2))
+                                # Simplified and adjusted for better fit
+                                zoom = 9 - math.ceil(math.log2(max_diff * 110 / 256))
+                                zoom = max(3, min(zoom, 18))  # Clamp between 3 and 18
                                 st.session_state.hansen_map_zoom = zoom
                         except (IndexError, TypeError, ValueError) as e:
                             st.warning(f"Could not parse bounds: {e}")
                     st.session_state.hansen_should_zoom_to_feature = False
                     st.session_state.hansen_zoom_bounds = None
+                    # Recreate map with new center/zoom and draw the polygon
                     st.session_state.hansen_map_object = create_ee_folium_map(
                         center=[st.session_state.hansen_map_center_lon, st.session_state.hansen_map_center_lat],
                         zoom=st.session_state.hansen_map_zoom,
                         layer1_year=st.session_state.hansen_year,
-                        data_source="Hansen"
+                        data_source="Hansen",
+                        drawn_polygon=st.session_state.hansen_drawn_polygon_coords
                     )
                 
                 # Display map and capture drawn areas
