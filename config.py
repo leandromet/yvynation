@@ -131,15 +131,63 @@ MAPBIOMAS_LABELS = {
 }
 
 MAPBIOMAS_COLOR_MAP = {
-    0: "#ffffff", 1: "#1f8d49", 2: "#1f8d49", 3: "#1f8d49", 4: "#7dc975", 5: "#04381d", 6: "#007785",
-    7: "#005544", 8: "#33a02c", 9: "#7a5900", 10: "#d6bc74", 11: "#519799", 12: "#d6bc74", 13: "#ffffff",
-    14: "#ffefc3", 15: "#edde8e", 16: "#e974ed", 17: "#d082de", 18: "#e974ed", 19: "#c27ba0", 20: "#db7093",
-    21: "#ffefc3", 22: "#d4271e", 23: "#ffa07a", 24: "#d4271e", 25: "#db4d4f", 26: "#2532e4", 27: "#ffffff",
-    28: "#ffaa5f", 29: "#ffaa5f", 30: "#9c0027", 31: "#091077", 32: "#fc8114", 33: "#259fe4", 34: "#259fe4",
-    35: "#9065d0", 36: "#d082de", 37: "#d082de", 38: "#c27ba0", 39: "#f5b3c8", 40: "#c71585", 41: "#f54ca9",
-    42: "#f54ca9", 43: "#d082de", 44: "#d082de", 45: "#d68fe2", 46: "#d68fe2", 47: "#9932cc", 48: "#e6ccff",
-    49: "#02d659", 50: "#ad5100", 51: "#fc8114", 52: "#fc8114", 62: "#ff69b4", 146: "#ffefc3", 435: "#cccccc",
-    466: "#999999"
+    0: "#ffffff",   # No data - White
+    1: "#1f8d49",   # Forest - Green
+    2: "#1f8d49",   # Natural Forest - Green
+    3: "#1f8d49",   # Forest Formation - Green
+    4: "#7dc975",   # Savanna Formation - Light Green
+    5: "#04381d",   # Mangrove - Dark Green
+    6: "#007785",   # Floodable Forest - Cyan/Teal
+    7: "#005544",   # Flooded Forest - Dark Teal
+    8: "#33a02c",   # Wooded Restinga - Green
+    9: "#7a5900",   # Forest Plantation - Brown
+    10: "#d6bc74",  # Herbaceous - Tan
+    11: "#519799",  # Wetland - Blue-Green
+    12: "#cccc00",  # Grassland - Yellow (corrected from tan)
+    13: "#ffffff",  # Other Natural Formation - White
+    14: "#ffefc3",  # Farming - Pale Yellow
+    15: "#edde8e",  # Pasture - Light Yellow
+    16: "#e974ed",  # Agriculture - Magenta
+    17: "#d082de",  # Perennial Crop - Magenta
+    18: "#e974ed",  # Agri - Magenta
+    19: "#c27ba0",  # Temporary Crop - Purple
+    20: "#db7093",  # Sugar Cane - Pink
+    21: "#ffefc3",  # Mosaic of Uses - Pale Yellow
+    22: "#d4271e",  # Non vegetated - Red
+    23: "#ffa07a",  # Beach and Sand - Light Coral
+    24: "#d4271e",  # Urban Area - Red
+    25: "#db4d4f",  # Other non Vegetated Areas - Pink-Red
+    26: "#0066cc",  # Water - Blue (corrected from dark blue)
+    27: "#ffffff",  # Not Observed - White
+    28: "#ffaa5f",  # Rocky Outcrop - Orange
+    29: "#ffaa5f",  # Rocky Outcrop - Orange
+    30: "#9c0027",  # Mining - Dark Red
+    31: "#091077",  # Aquaculture - Dark Blue
+    32: "#fc8114",  # Hypersaline Tidal Flat - Orange
+    33: "#0066ff",  # River Lake and Ocean - Bright Blue (corrected)
+    34: "#1e90ff",  # Reservoir - Dodger Blue (corrected)
+    35: "#9065d0",  # Palm Oil - Purple
+    36: "#d082de",  # Perennial Crop - Magenta
+    37: "#d082de",  # Semi-Perennial Crop - Magenta
+    38: "#c27ba0",  # Annual Crop - Purple
+    39: "#f5b3c8",  # Soybean - Light Pink
+    40: "#c71585",  # Rice - Purple
+    41: "#f54ca9",  # Other Temporary Crops - Pink
+    42: "#f54ca9",  # Other Annual Crop - Pink
+    43: "#d082de",  # Other Semi-Perennial Crop - Magenta
+    44: "#d082de",  # Other Perennial Crop - Magenta
+    45: "#d68fe2",  # Coffee - Light Magenta
+    46: "#d68fe2",  # Coffee - Light Magenta
+    47: "#9932cc",  # Citrus - Dark Orchid
+    48: "#e6ccff",  # Other Perennial Crops - Very Light Magenta
+    49: "#02d659",  # Wooded Sandbank Vegetation - Green
+    50: "#ad5100",  # Herbaceous Sandbank Vegetation - Brown
+    51: "#fc8114",  # Salt Flat - Orange
+    52: "#fc8114",  # Apicuns and Salines - Orange
+    62: "#ff69b4",  # Cotton - Hot Pink
+    146: "#ffefc3", # Other Land Use - Pale Yellow
+    435: "#cccccc", # Other Transition - Gray
+    466: "#999999"  # Other Classification - Dark Gray
 }
 
 # Create visualization palette from color map

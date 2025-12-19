@@ -120,7 +120,6 @@ st.sidebar.title("🌎 Yvynation Land Use")
 st.sidebar.subheader("Interactive Analysis with MapBiomas & Indigenous Territories \n  Leandro Meneguelli Biondo")
 st.sidebar.subheader(" UBCO - University of British Columbia Okanagan \n INMA/MCTI || SFB/MMA")
 
-# MapBiomas Collection 9 discrete palette - REQUIRED for proper colors
 COLOR_MAP = {
     0: "#ffffff", 1: "#1f8d49", 2: "#1f8d49", 3: "#1f8d49", 4: "#7dc975", 5: "#04381d", 6: "#007785",
     7: "#005544", 8: "#33a02c", 9: "#7a5900", 10: "#d6bc74", 11: "#519799", 12: "#d6bc74", 13: "#ffffff",
@@ -148,6 +147,7 @@ LABELS = {
     52: "Apicuns and Salines", 62: "Cotton", 146: "Other Land Use", 435: "Other Transition",
     466: "Other Classification"
 }
+
 
 def create_ee_folium_map(center=[-45.3, -4.5], zoom=7, layer1_year=2023, layer1_opacity=1.0, layer2_year=1985, layer2_opacity=0.7, persistent_geometry=None):
     '''Create a folium map with Earth Engine layers and drawing tools.
