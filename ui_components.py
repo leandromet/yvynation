@@ -27,7 +27,30 @@ def render_map_controls():
         
         st.divider()
         
-        # Compare Mode
+        # Display current map bounds
+        st.caption("📍 **Current Map View Bounds:**")
+        import math
+        center_lat = st.session_state.mapbiomas_map_center_lat
+        center_lon = st.session_state.mapbiomas_map_center_lon
+        zoom = st.session_state.mapbiomas_map_zoom
+        
+        # Calculate approximate bounds from center and zoom
+        scale = 40075 / (2 ** (zoom + 8))  # meters per pixel
+        height_pixels = 600
+        width_pixels = 700
+        
+        lat_range = (height_pixels * scale) / 111000  # ~111km per degree latitude
+        lon_range = (width_pixels * scale) / (111000 * math.cos(math.radians(center_lat)))
+        
+        min_lat = center_lat - lat_range / 2
+        max_lat = center_lat + lat_range / 2
+        min_lon = center_lon - lon_range / 2
+        max_lon = center_lon + lon_range / 2
+        
+        bounds_text = f"**Lat:** {min_lat:.4f} to {max_lat:.4f}\n**Lon:** {min_lon:.4f} to {max_lon:.4f}"
+        st.markdown(bounds_text)
+        
+        st.divider()
         if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode, key="compare_layers_mapbiomas"):
             st.session_state.split_compare_mode = True
             
@@ -83,6 +106,31 @@ def render_hansen_map_controls():
         
         zoom = st.slider("Zoom", 4, 13, st.session_state.hansen_map_zoom, key="zoom_hansen")
         st.session_state.hansen_map_zoom = zoom
+        
+        st.divider()
+        
+        # Display current map bounds
+        st.caption("📍 **Current Map View Bounds:**")
+        import math
+        center_lat = st.session_state.hansen_map_center_lat
+        center_lon = st.session_state.hansen_map_center_lon
+        zoom = st.session_state.hansen_map_zoom
+        
+        # Calculate approximate bounds from center and zoom
+        scale = 40075 / (2 ** (zoom + 8))  # meters per pixel
+        height_pixels = 600
+        width_pixels = 700
+        
+        lat_range = (height_pixels * scale) / 111000  # ~111km per degree latitude
+        lon_range = (width_pixels * scale) / (111000 * math.cos(math.radians(center_lat)))
+        
+        min_lat = center_lat - lat_range / 2
+        max_lat = center_lat + lat_range / 2
+        min_lon = center_lon - lon_range / 2
+        max_lon = center_lon + lon_range / 2
+        
+        bounds_text = f"**Lat:** {min_lat:.4f} to {max_lat:.4f}\n**Lon:** {min_lon:.4f} to {max_lon:.4f}"
+        st.markdown(bounds_text)
         
         st.divider()
         

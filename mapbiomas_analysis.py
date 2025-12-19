@@ -235,6 +235,19 @@ def render_mapbiomas_area_analysis():
         
         # Display results if available
         if st.session_state.drawn_area_result is not None:
+            # Display drawn area bounds
+            if st.session_state.mapbiomas_zoom_bounds:
+                bounds = st.session_state.mapbiomas_zoom_bounds
+                coords = bounds.get('coordinates', [[]])[0] if bounds.get('coordinates') else []
+                if coords:
+                    lons = [c[0] for c in coords]
+                    lats = [c[1] for c in coords]
+                    st.info(
+                        f"📍 **Drawn Area Bounds:**\n"
+                        f"**Lat:** {min(lats):.4f} to {max(lats):.4f}\n"
+                        f"**Lon:** {min(lons):.4f} to {max(lons):.4f}"
+                    )
+            
             st.markdown(f"#### 📊 Land Cover Distribution Chart (Drawn Area - {st.session_state.drawn_area_year})")
             fig = plot_area_distribution(st.session_state.drawn_area_result, 
                                         year=st.session_state.drawn_area_year, top_n=15)
