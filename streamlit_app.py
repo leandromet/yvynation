@@ -1,11 +1,9 @@
 '''
 Yvynation - Indigenous Land Monitoring Platform
-Interactive Streamlit web app for MapBiomas and Hansen/GLAD analysis
+Refactored version with improved map handling and modular structure
 '''
 
 import streamlit as st
-
-# Performance optimization - prevent unnecessary reruns
 st.set_page_config(
     page_title="Yvynation - Earth Engine Analysis",
     page_icon="🌎",
@@ -14,207 +12,73 @@ st.set_page_config(
 )
 
 import ee
-import geemap
 import folium
-from folium.plugins import Draw, Fullscreen
-import streamlit_folium
+from folium.plugins import Draw
 from streamlit_folium import st_folium
 import pandas as pd
-import json
-import matplotlib.pyplot as plt
 
-# Import modules
-from config import PROJECT_ID, MAPBIOMAS_PALETTE
+# Import custom modules
+from config import PROJECT_ID
 from ee_auth import initialize_earth_engine
+from map_manager import create_base_map, add_territories_layer
+from ee_layers import add_mapbiomas_layer, add_hansen_layer
 from app_file import YvynationApp
-from mapbiomas_analysis import (
-    render_mapbiomas_area_analysis,
-    render_mapbiomas_territory_analysis,
-    render_mapbiomas_multiyear_analysis,
-    render_mapbiomas_change_analysis,
-    add_territory_popups_to_map,
-)
-from hansen_analysis import (
-    render_hansen_area_analysis,
-    render_hansen_multiyear_analysis,
-    render_hansen_change_analysis,
-)
-from ui_components import (
-    render_map_controls,
-    render_hansen_map_controls,
-    render_map_instructions,
-    render_load_button,
-    render_about_section,
-    render_mapbiomas_legend,
-    render_hansen_legend,
-)
-from visualization import create_mapbiomas_legend
+from mapbiomas_analysis import calculate_area_by_class as mapbiomas_area_analysis
+from hansen_analysis import hansen_histogram_to_dataframe
 
 # ============================================================================
-# SESSION STATE INITIALIZATION
+# INITIALIZATION
 # ============================================================================
 
-# Core app state
+print("\n🚀 Yvynation App Starting...")
+
+# Initialize Earth Engine
+try:
+    st.session_state.ee_module = initialize_earth_engine()
+    print("✓ Earth Engine initialized")
+except Exception as e:
+    st.error(f"❌ Failed to initialize Earth Engine: {e}")
+    st.stop()
+
+# Auto-load core data
+@st.cache_resource
+def load_core_data():
+    """Load MapBiomas and territories data once and cache it."""
+    print("Loading core datasets...")
+    try:
+        app = YvynationApp()
+        success = app.load_core_data()
+        if success:
+            print("✓ Core data loaded and cached")
+            return app
+        else:
+            print("❌ Failed to load core data")
+            return None
+    except Exception as e:
+        print(f"❌ Error loading core data: {e}")
+        return None
+
+# Load data automatically
 if "app" not in st.session_state:
-    st.session_state.app = None
+    st.session_state.app = load_core_data()
+    if st.session_state.app:
+        st.session_state.data_loaded = True
+
+# Initialize session state
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
-if "ee_module" not in st.session_state:
-    st.session_state.ee_module = None
-
-# Map state - MapBiomas
-if "mapbiomas_map_center_lat" not in st.session_state:
-    st.session_state.mapbiomas_map_center_lat = -4.5
-if "mapbiomas_map_center_lon" not in st.session_state:
-    st.session_state.mapbiomas_map_center_lon = -45.3
-if "mapbiomas_map_zoom" not in st.session_state:
-    st.session_state.mapbiomas_map_zoom = 7
-if "mapbiomas_map_object" not in st.session_state:
-    st.session_state.mapbiomas_map_object = None
-
-# Map state - Hansen
-if "hansen_map_center_lat" not in st.session_state:
-    st.session_state.hansen_map_center_lat = -4.5
-if "hansen_map_center_lon" not in st.session_state:
-    st.session_state.hansen_map_center_lon = -45.3
-if "hansen_map_zoom" not in st.session_state:
-    st.session_state.hansen_map_zoom = 7
-if "hansen_map_object" not in st.session_state:
-    st.session_state.hansen_map_object = None
-
-# Drawn areas - MapBiomas
-if "mapbiomas_drawn_areas" not in st.session_state:
-    st.session_state.mapbiomas_drawn_areas = {}
-if "mapbiomas_drawn_area_count" not in st.session_state:
-    st.session_state.mapbiomas_drawn_area_count = 0
-if "mapbiomas_selected_drawn_area" not in st.session_state:
-    st.session_state.mapbiomas_selected_drawn_area = None
-if "mapbiomas_drawn_geometry_hashes" not in st.session_state:
-    st.session_state.mapbiomas_drawn_geometry_hashes = set()
-if "mapbiomas_should_zoom_to_feature" not in st.session_state:
-    st.session_state.mapbiomas_should_zoom_to_feature = False
-if "mapbiomas_zoom_bounds" not in st.session_state:
-    st.session_state.mapbiomas_zoom_bounds = None
-if "mapbiomas_drawn_polygon_coords" not in st.session_state:
-    st.session_state.mapbiomas_drawn_polygon_coords = None
-
-# Drawn areas - Hansen
-if "hansen_drawn_areas" not in st.session_state:
-    st.session_state.hansen_drawn_areas = {}
-if "hansen_drawn_area_count" not in st.session_state:
-    st.session_state.hansen_drawn_area_count = 0
-if "hansen_selected_drawn_area" not in st.session_state:
-    st.session_state.hansen_selected_drawn_area = None
-if "hansen_drawn_geometry_hashes" not in st.session_state:
-    st.session_state.hansen_drawn_geometry_hashes = set()
-if "hansen_should_zoom_to_feature" not in st.session_state:
-    st.session_state.hansen_should_zoom_to_feature = False
-if "hansen_zoom_bounds" not in st.session_state:
-    st.session_state.hansen_zoom_bounds = None
-if "hansen_drawn_polygon_coords" not in st.session_state:
-    st.session_state.hansen_drawn_polygon_coords = None
-
-# Analysis results - MapBiomas
-if "drawn_area_result" not in st.session_state:
-    st.session_state.drawn_area_result = None
-if "drawn_area_year" not in st.session_state:
-    st.session_state.drawn_area_year = None
-if "territory_result" not in st.session_state:
-    st.session_state.territory_result = None
-if "territory_name" not in st.session_state:
-    st.session_state.territory_name = None
-if "territory_year" not in st.session_state:
-    st.session_state.territory_year = None
-if "multiyear_results" not in st.session_state:
-    st.session_state.multiyear_results = None
-if "multiyear_start_year" not in st.session_state:
-    st.session_state.multiyear_start_year = None
-if "multiyear_end_year" not in st.session_state:
-    st.session_state.multiyear_end_year = None
-if "last_analyzed_geom" not in st.session_state:
-    st.session_state.last_analyzed_geom = None
-if "last_analyzed_name" not in st.session_state:
-    st.session_state.last_analyzed_name = None
-
-# Analysis results - Hansen
-if "hansen_area_result" not in st.session_state:
-    st.session_state.hansen_area_result = None
-if "hansen_area_year" not in st.session_state:
-    st.session_state.hansen_area_year = None
-
-# Layer controls
-if "split_compare_mode" not in st.session_state:
-    st.session_state.split_compare_mode = False
-if "split_left_year" not in st.session_state:
-    st.session_state.split_left_year = 2023
-if "split_right_year" not in st.session_state:
-    st.session_state.split_right_year = 1985
-if "split_left_opacity" not in st.session_state:
-    st.session_state.split_left_opacity = 1.0
-if "split_right_opacity" not in st.session_state:
-    st.session_state.split_right_opacity = 0.7
-if "hansen_year" not in st.session_state:
-    st.session_state.hansen_year = "2020"
-if "last_hansen_year" not in st.session_state:
-    st.session_state.last_hansen_year = None
-if "last_data_source" not in st.session_state:
-    st.session_state.last_data_source = None
-
-# ============================================================================
-# EARTH ENGINE INITIALIZATION
-# ============================================================================
-
-@st.cache_resource
-def init_earth_engine():
-    """Initialize Earth Engine with service account credentials"""
-    try:
-        # Try Cloud Run environment variables first (ee_auth module handles this)
-        initialize_earth_engine()
-        
-        # If that fails, try Streamlit Cloud secrets
-        try:
-            from google.oauth2 import service_account
-            
-            # Try flat format (Streamlit Cloud)
-            if "type" in st.secrets and st.secrets["type"] == "service_account":
-                try:
-                    creds_dict = dict(st.secrets)
-                    credentials = service_account.Credentials.from_service_account_info(
-                        creds_dict,
-                        scopes=[
-                            'https://www.googleapis.com/auth/earthengine',
-                            'https://www.googleapis.com/auth/cloud-platform'
-                        ]
-                    )
-                    ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
-                except Exception:
-                    pass
-            
-            # Try nested [google] format
-            elif "google" in st.secrets:
-                try:
-                    creds_dict = dict(st.secrets["google"])
-                    credentials = service_account.Credentials.from_service_account_info(
-                        creds_dict,
-                        scopes=[
-                            'https://www.googleapis.com/auth/earthengine',
-                            'https://www.googleapis.com/auth/cloud-platform'
-                        ]
-                    )
-                    ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        
-        return ee
-    except Exception as e:
-        st.error(f"❌ Earth Engine initialization failed: {e}")
-        st.stop()
-
-
-# Initialize EE
-st.session_state.ee_module = init_earth_engine()
+if "current_mapbiomas_year" not in st.session_state:
+    st.session_state.current_mapbiomas_year = 2023
+if "current_hansen_year" not in st.session_state:
+    st.session_state.current_hansen_year = "2020"
+if "mapbiomas_layers" not in st.session_state:
+    st.session_state.mapbiomas_layers = {}  # {year: True/False}
+if "hansen_layers" not in st.session_state:
+    st.session_state.hansen_layers = {}  # {year: True/False}
+if "last_drawn_feature" not in st.session_state:
+    st.session_state.last_drawn_feature = None
+if "analysis_results" not in st.session_state:
+    st.session_state.analysis_results = None
 
 # ============================================================================
 # SIDEBAR
@@ -224,532 +88,255 @@ st.sidebar.title("📊 Yvynation")
 st.sidebar.markdown("Indigenous Land Monitoring Platform")
 st.sidebar.divider()
 
-# Load data button
-if st.sidebar.button("Load Core Data", use_container_width=True):
-    with st.spinner("📦 Loading MapBiomas and territories..."):
-        try:
-            app = YvynationApp()
-            # Load core data (MapBiomas, territories)
-            success = app.load_core_data()
-            if success:
-                st.session_state.app = app
-                st.session_state.data_loaded = True
-                st.sidebar.success("✅ Data loaded successfully!")
-            else:
-                st.sidebar.error("❌ Failed to load MapBiomas or territories")
-        except Exception as e:
-            st.sidebar.error(f"❌ Failed to load data: {e}")
-
-if not st.session_state.data_loaded:
-    st.sidebar.warning("⚠️ Click 'Load Core Data' to begin")
+# Layer controls
+if st.session_state.data_loaded:
+    st.sidebar.subheader("🗺️ Add Map Layers")
+    
+    # MapBiomas section
+    with st.sidebar.expander("MapBiomas (Brazil)", expanded=True):
+        st.write("Select a year and add to map:")
+        mapbiomas_year = st.select_slider(
+            "Year",
+            options=list(range(1985, 2024)),
+            value=st.session_state.current_mapbiomas_year,
+            key="mb_year_slider"
+        )
+        if st.button("➕ Add MapBiomas Layer", use_container_width=True, key="add_mapbiomas"):
+            st.session_state.mapbiomas_layers[mapbiomas_year] = True
+            st.session_state.current_mapbiomas_year = mapbiomas_year
+            st.success(f"✓ Added MapBiomas {mapbiomas_year}")
+    
+    # Hansen section
+    with st.sidebar.expander("Hansen/GLAD (Global)", expanded=False):
+        st.write("Select a year and add to map:")
+        hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+        hansen_year = st.selectbox(
+            "Year",
+            options=hansen_years,
+            index=hansen_years.index(st.session_state.current_hansen_year),
+            key="hansen_year_select"
+        )
+        if st.button("➕ Add Hansen Layer", use_container_width=True, key="add_hansen"):
+            st.session_state.hansen_layers[hansen_year] = True
+            st.session_state.current_hansen_year = hansen_year
+            st.success(f"✓ Added Hansen {hansen_year}")
 
 st.sidebar.divider()
 
-# ============================================================================
-# MAP CREATION FUNCTION (MUST BE DEFINED BEFORE TABS)
-# ============================================================================
-
-def create_ee_folium_map(center, zoom, layer1_year, layer1_opacity=1.0, 
-                         layer2_year=None, layer2_opacity=0.7, compare_mode=False, data_source="MapBiomas",
-                         drawn_polygon=None):
-    """Create a folium map with Earth Engine layers"""
-    try:
-        # Check if app data is loaded
-        if not st.session_state.data_loaded or st.session_state.app is None:
-            st.error("❌ Data not loaded. Click 'Load Core Data' in the sidebar first.")
-            return None
-        
-        # Create folium map with OpenStreetMap as default
-        m = folium.Map(
-            location=[center[1], center[0]],
-            zoom_start=zoom,
-            tiles="OpenStreetMap"
-        )
-        
-        # Add basemap options
-        # Google Satellite
-        folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            attr='Google',
-            name='Google Satellite',
-            overlay=False,
-            control=True
-        ).add_to(m)
-        
-        # ArcGIS Street Map
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-            attr='Tiles &copy; Esri',
-            name='ArcGIS Street',
-            overlay=False,
-            control=True
-        ).add_to(m)
-        
-        # ArcGIS Satellite
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr='Tiles &copy; Esri',
-            name='ArcGIS Satellite',
-            overlay=False,
-            control=True
-        ).add_to(m)
-        
-        # ArcGIS Terrain
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-            attr='Tiles &copy; Esri',
-            name='ArcGIS Terrain',
-            overlay=False,
-            control=True
-        ).add_to(m)
-        
-        if data_source == "MapBiomas":
-            # MapBiomas layers
-            mapbiomas = st.session_state.app.mapbiomas_v9
-            if mapbiomas is None:
-                st.error("❌ MapBiomas data not loaded. Please click 'Load Core Data' again.")
-                return None
-            
-            # Layer 1 (default: 2023)
-            if isinstance(layer1_year, int):
-                layer1_band = f'classification_{layer1_year}'
-                layer1_image = mapbiomas.select(layer1_band)
-                
-                # Get tile URL from EE image
-                map_id = layer1_image.getMapId({'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE})
-                folium.TileLayer(
-                    tiles=map_id['tile_fetcher'].url_format,
-                    attr='Map data: MapBiomas',
-                    name=f"MapBiomas {layer1_year}",
-                    overlay=True,
-                    control=True,
-                    opacity=layer1_opacity
-                ).add_to(m)
-            
-            # Layer 2 (comparison mode, default: 1985)
-            if compare_mode and layer2_year:
-                layer2_band = f'classification_{layer2_year}'
-                layer2_image = mapbiomas.select(layer2_band)
-                
-                map_id2 = layer2_image.getMapId({'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE})
-                folium.TileLayer(
-                    tiles=map_id2['tile_fetcher'].url_format,
-                    attr='Map data: MapBiomas',
-                    name=f"MapBiomas {layer2_year}",
-                    overlay=True,
-                    control=True,
-                    opacity=layer2_opacity
-                ).add_to(m)
-            
-            # Add indigenous territories layer on top (dark purple) with interactive popups
-            territories = st.session_state.app.territories
-            if territories is not None:
-                try:
-                    territories_image = ee.Image().paint(territories, 1, 2)
-                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['00000000', '4B0082']})
-                    folium.TileLayer(
-                        tiles=map_id_terr['tile_fetcher'].url_format,
-                        attr='Map data: Indigenous Territories',
-                        name='Indigenous Territories',
-                        overlay=True,
-                        control=True,
-                        opacity=0.7
-                    ).add_to(m)
-                    
-                    # Add interactive popups for territory features
-                    m = add_territory_popups_to_map(m, territories, name_prop='NAME')
-                except Exception as e:
-                    st.warning(f"Could not load territories layer: {e}")
-        
-        elif data_source == "Hansen":
-            # Hansen/GLAD layers with ocean mask and proper palette
-            from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
-            
-            # Ensure year is a string for HANSEN_DATASETS
-            year_key = str(layer1_year) if layer1_year else "2020"
-            
-            # Apply ocean mask to the Hansen image
-            landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
-            hansen_image = ee.Image(HANSEN_DATASETS[year_key]).updateMask(landmask)
-            
-            # Use proper HANSEN_PALETTE (256 colors)
-            vis_params = {
-                'min': 0,
-                'max': 255,
-                'palette': HANSEN_PALETTE
-            }
-            map_id = hansen_image.getMapId(vis_params)
-            folium.TileLayer(
-                tiles=map_id['tile_fetcher'].url_format,
-                attr='Map data: Hansen/GLAD',
-                name=f"Hansen {year_key}",
-                overlay=True,
-                control=True,
-                opacity=layer1_opacity
-            ).add_to(m)
-            
-            # Add indigenous territories layer on top (dark purple) with interactive popups
-            territories = st.session_state.app.territories
-            if territories is not None:
-                try:
-                    territories_image = ee.Image().paint(territories, 1, 2)
-                    map_id_terr = territories_image.getMapId({'min': 0, 'max': 1, 'palette': ['00000000', '4B0082']})
-                    folium.TileLayer(
-                        tiles=map_id_terr['tile_fetcher'].url_format,
-                        attr='Map data: Indigenous Territories',
-                        name='Indigenous Territories',
-                        overlay=True,
-                        control=True,
-                        opacity=0.7
-                    ).add_to(m)
-                    
-                    # Add interactive popups for territory features
-                    m = add_territory_popups_to_map(m, territories, name_prop='NAME')
-                except Exception as e:
-                    st.warning(f"Could not load territories layer: {e}")
-        
-        # Draw the polygon if provided
-        if drawn_polygon:
-            try:
-                # Handle both formats: list of coords or nested list
-                coords_to_draw = drawn_polygon
-                if isinstance(coords_to_draw[0][0], (list, tuple)):
-                    coords_to_draw = coords_to_draw[0]  # Extract from outer list if nested
-                
-                # Convert EE coordinates (lon,lat) to folium format (lat,lon)
-                folium_coords = [[lat, lon] for lon, lat in coords_to_draw]
-                
-                # Draw the polygon
-                folium.Polygon(
-                    locations=folium_coords,
-                    color='red',
-                    fill=True,
-                    fillColor='red',
-                    fillOpacity=0.2,
-                    weight=2,
-                    popup='Analyzed Area'
-                ).add_to(m)
-            except Exception as e:
-                st.warning(f"Could not draw polygon: {e}")
-        
-        # Add drawing tools
-        Draw(export=True).add_to(m)
-        Fullscreen().add_to(m)
-        folium.LayerControl().add_to(m)
-        
-        return m
+# About section
+with st.sidebar.expander("ℹ️ About", expanded=False):
+    st.sidebar.markdown("""
+    **Yvynation** is an interactive platform for analyzing land cover changes
+    across indigenous territories using:
     
-    except Exception as e:
-        st.error(f"Map creation error: {e}")
-        return None
+    - **MapBiomas**: Brazilian land cover classification (1985-2023)
+    - **Hansen/GLAD**: Global forest change detection
+    - **Earth Engine**: Real-time geospatial analysis
+    
+    Draw areas on the map to get detailed statistics.
+    """)
 
 # ============================================================================
-# MAIN CONTENT - TABS
+# MAIN CONTENT
 # ============================================================================
 
 st.title("🌎 Yvynation - Land Cover Analysis")
 
-# Create tabs for MapBiomas and Hansen
-tab_mapbiomas, tab_hansen = st.tabs(["🇧🇷 MapBiomas (Brazil)", "🌍 Hansen/GLAD (Global)"])
+# Build map fresh each time with current layers
+display_map = create_base_map()
+
+# Add territories
+if st.session_state.data_loaded and st.session_state.app:
+    display_map = add_territories_layer(
+        display_map,
+        st.session_state.app.territories,
+        opacity=0.7
+    )
+
+# Add stored MapBiomas layers
+if st.session_state.data_loaded and st.session_state.app:
+    for year in st.session_state.mapbiomas_layers:
+        if st.session_state.mapbiomas_layers[year]:
+            display_map = add_mapbiomas_layer(
+                display_map,
+                st.session_state.app.mapbiomas_v9,
+                year,
+                opacity=0.8
+            )
+
+# Add stored Hansen layers
+if st.session_state.data_loaded and st.session_state.app:
+    for year in st.session_state.hansen_layers:
+        if st.session_state.hansen_layers[year]:
+            display_map = add_hansen_layer(
+                display_map,
+                year,
+                opacity=0.8
+            )
+
+# Add layer control
+folium.LayerControl(position='topright', collapsed=False).add_to(display_map)
+
+# Add drawing tools
+draw = Draw(
+    export=True,
+    position='topleft',
+    draw_options={
+        'polyline': False,
+        'polygon': True,
+        'rectangle': True,
+        'circle': False,
+        'marker': False,
+        'circlemarker': False
+    }
+)
+draw.add_to(display_map)
+
+# Display the map
+st.subheader("🗺️ Interactive Map")
+st.caption("🎨 Draw polygons on the map to analyze land cover. Use sidebar controls to add data layers.")
+
+try:
+    map_data = st_folium(display_map, width=1200, height=600)
+    if map_data and 'last_active_drawing' in map_data:
+        st.session_state.last_drawn_feature = map_data['last_active_drawing']
+except Exception as e:
+    st.warning(f"Map display error: {e}")
+    print(f"Error displaying map: {e}")
 
 # ============================================================================
-# TAB 1: MAPBIOMAS
+# ANALYSIS SECTION
 # ============================================================================
 
-with tab_mapbiomas:
-    st.markdown("## MapBiomas Analysis")
-    st.info("Analyze Brazilian land cover using MapBiomas Collection 9 data (1985-2023)")
+if st.session_state.data_loaded and st.session_state.app:
+    st.divider()
+    st.subheader("📊 Analysis & Statistics")
     
-    # Split layout: Map on left, Analysis on right
-    map_col, analysis_col = st.columns([1, 1.2], gap="medium")
-    
-    # Map column
-    with map_col:
-        st.subheader("🗺️ Interactive Map")
-        render_map_controls()
-        render_map_instructions()
-        
-        # Create MapBiomas map
-        if st.session_state.data_loaded:
-            try:
-                current_layer1_year = st.session_state.split_left_year if st.session_state.split_compare_mode else 2023
-                current_layer1_opacity = st.session_state.split_left_opacity if st.session_state.split_compare_mode else 1.0
-                current_layer2_year = st.session_state.split_right_year if st.session_state.split_compare_mode else 1985
-                current_layer2_opacity = st.session_state.split_right_opacity if st.session_state.split_compare_mode else 0.7
+    # Check if a feature was drawn
+    if st.session_state.last_drawn_feature:
+        try:
+            feature_data = st.session_state.last_drawn_feature
+            
+            # Extract geometry from drawn feature
+            if feature_data and 'geometry' in feature_data:
+                geometry = ee.Geometry(feature_data['geometry'])
                 
-                # Recreate map if layers or compare mode changed
-                if (st.session_state.mapbiomas_map_object is None or 
-                    st.session_state.get('mapbiomas_last_layer1_year') != current_layer1_year or
-                    st.session_state.get('mapbiomas_last_layer2_year') != current_layer2_year or
-                    st.session_state.get('mapbiomas_last_compare_mode') != st.session_state.split_compare_mode or
-                    st.session_state.get('mapbiomas_last_layer1_opacity') != current_layer1_opacity or
-                    st.session_state.get('mapbiomas_last_layer2_opacity') != current_layer2_opacity):
-                    
-                    st.session_state.mapbiomas_map_object = create_ee_folium_map(
-                        center=[st.session_state.mapbiomas_map_center_lon, st.session_state.mapbiomas_map_center_lat],
-                        zoom=st.session_state.mapbiomas_map_zoom,
-                        layer1_year=current_layer1_year,
-                        layer1_opacity=current_layer1_opacity,
-                        layer2_year=current_layer2_year,
-                        layer2_opacity=current_layer2_opacity,
-                        compare_mode=st.session_state.split_compare_mode,
-                        data_source="MapBiomas",
-                        drawn_polygon=None
-                    )
-                    
-                    # Remember current settings
-                    st.session_state.mapbiomas_last_layer1_year = current_layer1_year
-                    st.session_state.mapbiomas_last_layer2_year = current_layer2_year
-                    st.session_state.mapbiomas_last_compare_mode = st.session_state.split_compare_mode
-                    st.session_state.mapbiomas_last_layer1_opacity = current_layer1_opacity
-                    st.session_state.mapbiomas_last_layer2_opacity = current_layer2_opacity
+                # Create tabs for different analyses
+                tab1, tab2, tab3, tab4 = st.tabs(
+                    ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                )
                 
-                # Apply zoom to feature if needed
-                if st.session_state.mapbiomas_should_zoom_to_feature and st.session_state.mapbiomas_zoom_bounds:
-                    bounds = st.session_state.mapbiomas_zoom_bounds
-                    coords = bounds.get('coordinates')
-                    if coords and len(coords) > 0:
-                        try:
-                            # Extract all coordinate pairs from the polygon ring
-                            coord_list = coords[0] if isinstance(coords[0][0], (list, tuple)) else coords
-                            lons = [c[0] for c in coord_list]
-                            lats = [c[1] for c in coord_list]
-                            min_lon, max_lon = min(lons), max(lons)
-                            min_lat, max_lat = min(lats), max(lats)
-                            
-                            # Add padding (5% of each dimension)
-                            lon_padding = (max_lon - min_lon) * 0.05
-                            lat_padding = (max_lat - min_lat) * 0.05
-                            
-                            padded_min_lon = min_lon - lon_padding
-                            padded_max_lon = max_lon + lon_padding
-                            padded_min_lat = min_lat - lat_padding
-                            padded_max_lat = max_lat + lat_padding
-                            
-                            # Update map center and zoom to fit bounds with padding
-                            center_lon = (padded_min_lon + padded_max_lon) / 2
-                            center_lat = (padded_min_lat + padded_max_lat) / 2
-                            st.session_state.mapbiomas_map_center_lon = center_lon
-                            st.session_state.mapbiomas_map_center_lat = center_lat
-                            
-                            # Calculate appropriate zoom level using Folium's formula
-                            import math
-                            lon_diff = padded_max_lon - padded_min_lon
-                            lat_diff = padded_max_lat - padded_min_lat
-                            max_diff = max(lon_diff, lat_diff)
-                            
-                            if max_diff > 0:
-                                # Zoom level formula: zoom = ceil(ln(2*360/(max_diff*256))/ln(2))
-                                # Simplified and adjusted for better fit
-                                zoom = 9 - math.ceil(math.log2(max_diff * 110 / 256))
-                                zoom = max(3, min(zoom, 18))  # Clamp between 3 and 18
-                                st.session_state.mapbiomas_map_zoom = zoom
-                        except (IndexError, TypeError, ValueError) as e:
-                            st.warning(f"Could not parse bounds: {e}")
-                    st.session_state.mapbiomas_should_zoom_to_feature = False
-                    st.session_state.mapbiomas_zoom_bounds = None
-                    # Recreate map with new center/zoom and draw the polygon
-                    st.session_state.mapbiomas_map_object = create_ee_folium_map(
-                        center=[st.session_state.mapbiomas_map_center_lon, st.session_state.mapbiomas_map_center_lat],
-                        zoom=st.session_state.mapbiomas_map_zoom,
-                        layer1_year=current_layer1_year,
-                        layer1_opacity=current_layer1_opacity,
-                        layer2_year=current_layer2_year,
-                        layer2_opacity=current_layer2_opacity,
-                        compare_mode=st.session_state.split_compare_mode,
-                        data_source="MapBiomas",
-                        drawn_polygon=st.session_state.mapbiomas_drawn_polygon_coords
-                    )
+                with tab1:
+                    st.markdown("### MapBiomas Land Cover Analysis")
+                    if st.session_state.mapbiomas_layers and st.session_state.app.mapbiomas_v9:
+                        years_to_analyze = [y for y, enabled in st.session_state.mapbiomas_layers.items() if enabled]
+                        if years_to_analyze:
+                            st.write(f"Analyzing {len(years_to_analyze)} year(s) of data...")
+                            for year in sorted(years_to_analyze):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown(f"**Year {year}**")
+                                    try:
+                                        band = f'classification_{year}'
+                                        image = st.session_state.app.mapbiomas_v9.select(band)
+                                        stats = image.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        if stats and 'b1' in stats:
+                                            from config import MAPBIOMAS_LABELS
+                                            records = []
+                                            for class_id, count in stats['b1'].items():
+                                                class_id = int(class_id)
+                                                class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
+                                                area_ha = count * 0.09
+                                                records.append({
+                                                    "Class": class_name,
+                                                    "Pixels": count,
+                                                    "Area (ha)": round(area_ha, 2)
+                                                })
+                                            df = pd.DataFrame(records).sort_values("Area (ha)", ascending=False)
+                                            st.dataframe(df, use_container_width=True)
+                                        else:
+                                            st.info("No data in selected area for this year")
+                                    except Exception as e:
+                                        st.error(f"Error analyzing {year}: {e}")
+                        else:
+                            st.info("Add a MapBiomas layer from the sidebar to analyze")
+                    else:
+                        st.info("Load data and add a MapBiomas layer to begin analysis")
                 
-                # Display map and capture drawn areas
-                if st.session_state.mapbiomas_map_object:
-                    map_data = st_folium(st.session_state.mapbiomas_map_object, width="100%", height=600)
-                    
-                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                        import hashlib
-                        import json
-                        
-                        for idx, drawing in enumerate(map_data["all_drawings"]):
-                            geom_data = drawing["geometry"]
-                            geom_type = geom_data.get("type", "Unknown")
-                            
-                            # Create a hash of the geometry to prevent duplicates
-                            geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
-                            
-                            # Only add if this geometry hasn't been added before
-                            if geom_hash not in st.session_state.mapbiomas_drawn_geometry_hashes:
-                                st.session_state.mapbiomas_drawn_area_count += 1
-                                area_name = f"Area {st.session_state.mapbiomas_drawn_area_count} ({geom_type})"
-                                st.session_state.mapbiomas_drawn_areas[area_name] = geom_data
-                                st.session_state.mapbiomas_drawn_geometry_hashes.add(geom_hash)
-                                st.session_state.mapbiomas_selected_drawn_area = area_name
-                    
-                    # Display legend below map
-                    st.divider()
-                    render_mapbiomas_legend()
-                else:
-                    st.error("❌ Failed to create map. Check the error logs above.")
+                with tab2:
+                    st.markdown("### Hansen/GLAD Forest Change Analysis")
+                    if st.session_state.hansen_layers and st.session_state.app:
+                        years_to_analyze = [y for y, enabled in st.session_state.hansen_layers.items() if enabled]
+                        if years_to_analyze:
+                            st.write(f"Analyzing {len(years_to_analyze)} year(s) of data...")
+                            for year in sorted(years_to_analyze):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown(f"**Year {year}**")
+                                    try:
+                                        from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
+                                        landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+                                        hansen_image = ee.Image(HANSEN_DATASETS[str(year)]).updateMask(landmask)
+                                        
+                                        stats = hansen_image.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        if stats:
+                                            df = hansen_histogram_to_dataframe(stats, year)
+                                            if not df.empty:
+                                                st.dataframe(df, use_container_width=True)
+                                            else:
+                                                st.info("No data in selected area for this year")
+                                        else:
+                                            st.info("No data in selected area for this year")
+                                    except Exception as e:
+                                        st.error(f"Error analyzing {year}: {e}")
+                        else:
+                            st.info("Add a Hansen layer from the sidebar to analyze")
+                    else:
+                        st.info("Load data and add a Hansen layer to begin analysis")
                 
-            except Exception as e:
-                st.error(f"❌ Error creating map: {str(e)}")
-        else:
-            st.info("Click 'Load Core Data' in the sidebar to enable the map")
-    
-    # Analysis column
-    with analysis_col:
-        st.subheader("📊 Analysis Tools")
-        
-        # Area analysis
-        with st.expander("📍 Analyze Drawn Area", expanded=True):
-            render_mapbiomas_area_analysis()
-        
-        # Territory analysis
-        with st.expander("🏘️ Analyze Indigenous Territory"):
-            render_mapbiomas_territory_analysis()
-        
-        # Multi-year analysis
-        with st.expander("📈 Multi-Year Analysis"):
-            render_mapbiomas_multiyear_analysis()
-        
-        # Change detection
-        with st.expander("📊 Land Cover Change"):
-            render_mapbiomas_change_analysis()
+                with tab3:
+                    st.markdown("### Multi-Year Comparison")
+                    if st.session_state.mapbiomas_layers or st.session_state.hansen_layers:
+                        st.info("Select years from different datasets in tabs 1-2 to compare changes over time")
+                    else:
+                        st.info("Add layers from the sidebar to compare")
+                
+                with tab4:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        with st.expander("📍 MapBiomas Info"):
+                            st.markdown("""
+                            **MapBiomas** is a Brazilian initiative that provides detailed land cover mapping:
+                            - Annual classification since 1985
+                            - 30-meter resolution
+                            - 25+ land cover classes
+                            - Covers all of Brazil
+                            """)
+                    with col2:
+                        with st.expander("🌍 Hansen/GLAD Info"):
+                            st.markdown("""
+                            **Hansen/GLAD** detects global forest changes:
+                            - Global coverage (all continents)
+                            - 30-meter resolution
+                            - Forest loss and gain tracking
+                            - Available 2000-2020+
+                            """)
+        except Exception as e:
+            st.error(f"Error processing drawn feature: {e}")
+            print(f"Analysis error: {e}")
+    else:
+        st.info("🎨 Draw a polygon on the map to start analyzing land cover in that area. Use the drawing tools in the top-left of the map.")
 
-# ============================================================================
-# TAB 2: HANSEN
-# ============================================================================
-
-with tab_hansen:
-    st.markdown("## Hansen/GLAD Global Analysis")
-    st.info("Analyze global land cover using Hansen/GLAD data (2000-2020, 30m resolution)")
-    
-    # Split layout: Map on left, Analysis on right
-    map_col_h, analysis_col_h = st.columns([1, 1.2], gap="medium")
-    
-    # Map column
-    with map_col_h:
-        st.subheader("🗺️ Interactive Map")
-        render_hansen_map_controls()
-        render_map_instructions()
-        
-        # Create Hansen map
-        if st.session_state.data_loaded:
-            try:
-                # Check if need to recreate map
-                if (st.session_state.hansen_map_object is None or
-                    st.session_state.get('hansen_last_hansen_year') != st.session_state.hansen_year or
-                    st.session_state.get('hansen_last_data_source') != 'Hansen'):
-                    
-                    st.session_state.hansen_map_object = create_ee_folium_map(
-                        center=[st.session_state.hansen_map_center_lon, st.session_state.hansen_map_center_lat],
-                        zoom=st.session_state.hansen_map_zoom,
-                        layer1_year=st.session_state.hansen_year,
-                        data_source="Hansen",
-                        drawn_polygon=None
-                    )
-                    st.session_state.hansen_last_hansen_year = st.session_state.hansen_year
-                    st.session_state.hansen_last_data_source = 'Hansen'
-                
-                # Apply zoom to feature if needed
-                if st.session_state.hansen_should_zoom_to_feature and st.session_state.hansen_zoom_bounds:
-                    bounds = st.session_state.hansen_zoom_bounds
-                    coords = bounds.get('coordinates')
-                    if coords and len(coords) > 0:
-                        try:
-                            # Extract all coordinate pairs from the polygon ring
-                            coord_list = coords[0] if isinstance(coords[0][0], (list, tuple)) else coords
-                            lons = [c[0] for c in coord_list]
-                            lats = [c[1] for c in coord_list]
-                            min_lon, max_lon = min(lons), max(lons)
-                            min_lat, max_lat = min(lats), max(lats)
-                            
-                            # Add padding (5% of each dimension)
-                            lon_padding = (max_lon - min_lon) * 0.05
-                            lat_padding = (max_lat - min_lat) * 0.05
-                            
-                            padded_min_lon = min_lon - lon_padding
-                            padded_max_lon = max_lon + lon_padding
-                            padded_min_lat = min_lat - lat_padding
-                            padded_max_lat = max_lat + lat_padding
-                            
-                            # Update map center and zoom to fit bounds with padding
-                            center_lon = (padded_min_lon + padded_max_lon) / 2
-                            center_lat = (padded_min_lat + padded_max_lat) / 2
-                            st.session_state.hansen_map_center_lon = center_lon
-                            st.session_state.hansen_map_center_lat = center_lat
-                            
-                            # Calculate appropriate zoom level using Folium's formula
-                            import math
-                            lon_diff = padded_max_lon - padded_min_lon
-                            lat_diff = padded_max_lat - padded_min_lat
-                            max_diff = max(lon_diff, lat_diff)
-                            
-                            if max_diff > 0:
-                                # Zoom level formula: zoom = ceil(ln(2*360/(max_diff*256))/ln(2))
-                                # Simplified and adjusted for better fit
-                                zoom = 10 - math.ceil(math.log2(max_diff * 110 / 256))
-                                zoom = max(3, min(zoom, 18))  # Clamp between 3 and 18
-                                st.session_state.hansen_map_zoom = zoom
-                        except (IndexError, TypeError, ValueError) as e:
-                            st.warning(f"Could not parse bounds: {e}")
-                    st.session_state.hansen_should_zoom_to_feature = False
-                    st.session_state.hansen_zoom_bounds = None
-                    # Recreate map with new center/zoom and draw the polygon
-                    st.session_state.hansen_map_object = create_ee_folium_map(
-                        center=[st.session_state.hansen_map_center_lon, st.session_state.hansen_map_center_lat],
-                        zoom=st.session_state.hansen_map_zoom,
-                        layer1_year=st.session_state.hansen_year,
-                        data_source="Hansen",
-                        drawn_polygon=st.session_state.hansen_drawn_polygon_coords
-                    )
-                
-                # Display map and capture drawn areas
-                if st.session_state.hansen_map_object:
-                    map_data = st_folium(st.session_state.hansen_map_object, width="100%", height=600)
-                    
-                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                        import hashlib
-                        import json
-                        
-                        for idx, drawing in enumerate(map_data["all_drawings"]):
-                            geom_data = drawing["geometry"]
-                            geom_type = geom_data.get("type", "Unknown")
-                            
-                            # Create a hash of the geometry to prevent duplicates
-                            geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
-                            
-                            # Only add if this geometry hasn't been added before
-                            if geom_hash not in st.session_state.hansen_drawn_geometry_hashes:
-                                st.session_state.hansen_drawn_area_count += 1
-                                area_name = f"Area {st.session_state.hansen_drawn_area_count} ({geom_type})"
-                                st.session_state.hansen_drawn_areas[area_name] = geom_data
-                                st.session_state.hansen_drawn_geometry_hashes.add(geom_hash)
-                                st.session_state.hansen_selected_drawn_area = area_name
-                    
-                    # Display legend below map
-                    st.divider()
-                    render_hansen_legend()
-                else:
-                    st.error("❌ Failed to create map. Check the error logs above.")
-                
-            except Exception as e:
-                st.error(f"❌ Error creating map: {str(e)}")
-        else:
-            st.info("Click 'Load Core Data' in the sidebar to enable the map")
-    
-    # Analysis column
-    with analysis_col_h:
-        st.subheader("📊 Analysis Tools")
-        
-        # Area analysis
-        with st.expander("📍 Analyze Drawn Area", expanded=True):
-            render_hansen_area_analysis()
-        
-        # Multi-year comparison
-        with st.expander("📈 Compare Snapshots"):
-            render_hansen_multiyear_analysis()
-        
-        # Change detection
-        with st.expander("📊 Change Analysis"):
-            render_hansen_change_analysis()
-
+print("\n✓ Yvynation App Loaded Successfully")
