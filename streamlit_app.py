@@ -18,13 +18,21 @@ from streamlit_folium import st_folium
 import pandas as pd
 
 # Import custom modules
-from config import PROJECT_ID
+from config import PROJECT_ID, MAPBIOMAS_LABELS, MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_MAPPING, HANSEN_CONSOLIDATED_COLORS
 from ee_auth import initialize_earth_engine
 from map_manager import create_base_map, add_territories_layer
 from ee_layers import add_mapbiomas_layer, add_hansen_layer
 from app_file import YvynationApp
 from mapbiomas_analysis import calculate_area_by_class as mapbiomas_area_analysis
 from hansen_analysis import hansen_histogram_to_dataframe
+from hansen_consolidated_utils import (
+    get_consolidated_class,
+    get_consolidated_color,
+    aggregate_to_consolidated,
+    create_comparison_dataframe,
+    summarize_consolidated_stats
+)
+import matplotlib.pyplot as plt
 
 # ============================================================================
 # INITIALIZATION
@@ -79,6 +87,8 @@ if "last_drawn_feature" not in st.session_state:
     st.session_state.last_drawn_feature = None
 if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
+if "use_consolidated_classes" not in st.session_state:
+    st.session_state.use_consolidated_classes = True
 
 # ============================================================================
 # SIDEBAR
@@ -123,6 +133,22 @@ if st.session_state.data_loaded:
 
 st.sidebar.divider()
 
+# View options
+with st.sidebar.expander("🎨 View Options", expanded=True):
+    use_consolidated = st.checkbox(
+        "Show Consolidated Classes",
+        value=st.session_state.use_consolidated_classes,
+        help="Group Hansen 256 classes into 12 consolidated categories for cleaner visualization"
+    )
+    st.session_state.use_consolidated_classes = use_consolidated
+    
+    if use_consolidated:
+        st.caption("📊 Consolidated view: 256 classes → 12 categories")
+    else:
+        st.caption("📊 Detailed view: All 256 original classes")
+
+st.sidebar.divider()
+
 # About section
 with st.sidebar.expander("ℹ️ About", expanded=False):
     st.sidebar.markdown("""
@@ -135,6 +161,68 @@ with st.sidebar.expander("ℹ️ About", expanded=False):
     
     Draw areas on the map to get detailed statistics.
     """)
+
+# ============================================================================
+# PLOTTING FUNCTIONS
+# ============================================================================
+
+def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
+    """Plot horizontal bar chart of land cover areas."""
+    df_top = area_df.head(top_n).copy()
+    
+    # Get colors
+    if 'Class' in df_top.columns:
+        # MapBiomas - use class ID colors
+        colors = [MAPBIOMAS_COLOR_MAP.get(cid, '#808080') for cid in df_top.get('Class_ID', [])]
+        label_col = 'Class'
+    else:
+        # Hansen - use consolidated or original colors
+        colors = [get_consolidated_color(cid) if st.session_state.use_consolidated_classes 
+                  else get_hansen_color(cid) for cid in df_top.get('Class_ID', [])]
+        label_col = 'Consolidated_Class' if st.session_state.use_consolidated_classes else 'Class'
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.barh(df_top[label_col], df_top['Area_ha'], color=colors)
+    ax.set_xlabel('Area (hectares)', fontsize=12)
+    title = f'Land Cover Distribution - {year}' if year else 'Land Cover Distribution'
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.invert_yaxis()
+    plt.tight_layout()
+    return fig
+
+
+def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, figsize=(16, 6)):
+    """Plot side-by-side comparison of land cover distributions."""
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    
+    for idx, (data, year, ax) in enumerate([(area_start, start_year, axes[0]), (area_end, end_year, axes[1])]):
+        df = data.head(top_n).copy()
+        
+        # Get colors
+        if 'Class' in df.columns:
+            colors = [MAPBIOMAS_COLOR_MAP.get(cid, '#808080') for cid in df.get('Class_ID', [])]
+            label_col = 'Class'
+        else:
+            colors = [get_consolidated_color(cid) if st.session_state.use_consolidated_classes 
+                      else get_hansen_color(cid) for cid in df.get('Class_ID', [])]
+            label_col = 'Consolidated_Class' if st.session_state.use_consolidated_classes else 'Class'
+        
+        ax.barh(df[label_col], df['Area_ha'], color=colors)
+        ax.set_xlabel('Area (hectares)', fontsize=11)
+        ax.set_title(f'Land Cover Distribution - {year}', fontsize=12, fontweight='bold')
+        ax.invert_yaxis()
+    
+    plt.tight_layout()
+    return fig
+
+
+def get_hansen_color(class_id):
+    """Get color for Hansen class ID."""
+    if isinstance(class_id, (int, float)):
+        class_id = int(class_id)
+    consolidated = get_consolidated_class(class_id)
+    return HANSEN_CONSOLIDATED_COLORS.get(consolidated, "#808080")
+
 
 # ============================================================================
 # MAIN CONTENT
@@ -324,12 +412,19 @@ if st.session_state.data_loaded and st.session_state.app:
                                                     class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
                                                     area_ha = count * 0.09
                                                     records.append({
+                                                        "Class_ID": class_id,
                                                         "Class": class_name,
                                                         "Pixels": int(count),
-                                                        "Area (ha)": round(area_ha, 2)
+                                                        "Area_ha": round(area_ha, 2)
                                                     })
-                                                df = pd.DataFrame(records).sort_values("Area (ha)", ascending=False)
-                                                st.dataframe(df, use_container_width=True)
+                                                df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+                                                
+                                                # Show data table
+                                                st.dataframe(df[['Class', 'Pixels', 'Area_ha']], use_container_width=True)
+                                                
+                                                # Show plot
+                                                fig = plot_area_distribution(df, year=year, top_n=15)
+                                                st.pyplot(fig, use_container_width=True)
                                                 st.success(f"✓ {year}: {len(records)} classes found")
                                             else:
                                                 st.warning(f"Empty histogram for {year}")
@@ -368,7 +463,31 @@ if st.session_state.data_loaded and st.session_state.app:
                                         if stats:
                                             df = hansen_histogram_to_dataframe(stats, year)
                                             if not df.empty:
-                                                st.dataframe(df, use_container_width=True)
+                                                # Consolidate if toggled
+                                                if st.session_state.use_consolidated_classes:
+                                                    df_display = aggregate_to_consolidated(df)
+                                                    st.markdown("**Consolidated View (12 classes)**")
+                                                else:
+                                                    df_display = df
+                                                    st.markdown("**Detailed View (256 classes)**")
+                                                
+                                                st.dataframe(df_display[['Consolidated_Class' if 'Consolidated_Class' in df_display.columns else 'Class', 'Pixels', 'Area_ha']], use_container_width=True)
+                                                
+                                                # Show plot with consolidation
+                                                fig = plot_area_distribution(df_display, year=year, top_n=15)
+                                                st.pyplot(fig, use_container_width=True)
+                                                
+                                                # Show consolidated summary
+                                                if st.session_state.use_consolidated_classes:
+                                                    with st.expander("📊 Summary Statistics"):
+                                                        summary = summarize_consolidated_stats(df_display, year=year)
+                                                        col1, col2, col3 = st.columns(3)
+                                                        with col1:
+                                                            st.metric("Total Area", f"{summary.get('total_area_ha', 0):,.0f} ha")
+                                                        with col2:
+                                                            st.metric("Classes", summary.get('num_classes', 0))
+                                                        with col3:
+                                                            st.metric("Largest Class", summary.get('largest_class', 'N/A'))
                                             else:
                                                 st.info("No data in selected area for this year")
                                         else:
@@ -455,6 +574,22 @@ if st.session_state.data_loaded and st.session_state.app:
                                             df = pd.DataFrame(records).sort_values("Change (ha)", ascending=False)
                                             st.dataframe(df, use_container_width=True)
                                             
+                                            # Create comparison plot
+                                            df_year1 = pd.DataFrame({
+                                                'Class_ID': [int(cid) for cid in all_classes],
+                                                'Area_ha': [hist1.get(str(int(cid)), 0) * 0.09 for cid in all_classes],
+                                                'Class': [MAPBIOMAS_LABELS.get(int(cid), f"Class {cid}") for cid in all_classes]
+                                            }).sort_values('Area_ha', ascending=False)
+                                            
+                                            df_year2 = pd.DataFrame({
+                                                'Class_ID': [int(cid) for cid in all_classes],
+                                                'Area_ha': [hist2.get(str(int(cid)), 0) * 0.09 for cid in all_classes],
+                                                'Class': [MAPBIOMAS_LABELS.get(int(cid), f"Class {cid}") for cid in all_classes]
+                                            }).sort_values('Area_ha', ascending=False)
+                                            
+                                            fig = plot_area_comparison(df_year1, df_year2, year1, year2, top_n=15)
+                                            st.pyplot(fig, use_container_width=True)
+                                            
                                             # Summary statistics
                                             total_change = df["Change (ha)"].sum()
                                             loss = df[df["Change (ha)"] < 0]["Change (ha)"].sum()
@@ -524,14 +659,42 @@ if st.session_state.data_loaded and st.session_state.app:
                                             df2 = hansen_histogram_to_dataframe(stats2, h_year2)
                                             
                                             if not df1.empty and not df2.empty:
-                                                # Merge on class
-                                                df1 = df1.rename(columns={"Area_ha": f"{h_year1}_ha"})
-                                                df2 = df2.rename(columns={"Area_ha": f"{h_year2}_ha"})
-                                                df_comp = df1.merge(df2[["Class", f"{h_year2}_ha"]], on="Class", how="outer").fillna(0)
+                                                # Consolidate if toggled
+                                                if st.session_state.use_consolidated_classes:
+                                                    df1_disp = aggregate_to_consolidated(df1)
+                                                    df2_disp = aggregate_to_consolidated(df2)
+                                                else:
+                                                    df1_disp = df1
+                                                    df2_disp = df2
                                                 
-                                                if f"{h_year1}_ha" in df_comp.columns and f"{h_year2}_ha" in df_comp.columns:
-                                                    df_comp["Change (ha)"] = df_comp[f"{h_year2}_ha"] - df_comp[f"{h_year1}_ha"]
-                                                    st.dataframe(df_comp, use_container_width=True)
+                                                # Merge on class
+                                                merge_col = 'Consolidated_Class' if st.session_state.use_consolidated_classes else 'Class'
+                                                df1_merge = df1_disp.rename(columns={"Area_ha": f"{h_year1}_ha"})[[merge_col, f"{h_year1}_ha"]]
+                                                df2_merge = df2_disp.rename(columns={"Area_ha": f"{h_year2}_ha"})[[merge_col, f"{h_year2}_ha"]]
+                                                
+                                                df_comp = df1_merge.merge(df2_merge, on=merge_col, how="outer").fillna(0)
+                                                df_comp["Change (ha)"] = df_comp[f"{h_year2}_ha"] - df_comp[f"{h_year1}_ha"]
+                                                df_comp = df_comp.sort_values("Change (ha)", ascending=False, key=abs)
+                                                
+                                                st.markdown(f"**{'Consolidated' if st.session_state.use_consolidated_classes else 'Detailed'} View**")
+                                                st.dataframe(df_comp, use_container_width=True)
+                                                
+                                                # Create comparison plot
+                                                fig = plot_area_comparison(df1_disp, df2_disp, h_year1, h_year2, top_n=12)
+                                                st.pyplot(fig, use_container_width=True)
+                                                
+                                                # Summary statistics
+                                                total_change = df_comp["Change (ha)"].sum()
+                                                loss = df_comp[df_comp["Change (ha)"] < 0]["Change (ha)"].sum()
+                                                gain = df_comp[df_comp["Change (ha)"] > 0]["Change (ha)"].sum()
+                                                
+                                                col1, col2, col3 = st.columns(3)
+                                                with col1:
+                                                    st.metric("Total Change", f"{total_change:.0f} ha")
+                                                with col2:
+                                                    st.metric("Loss", f"{loss:.0f} ha", delta=f"{loss:.0f}")
+                                                with col3:
+                                                    st.metric("Gain", f"{gain:.0f} ha", delta=f"{gain:.0f}")
                                         else:
                                             st.error("Could not retrieve data for one or both years")
                                 except Exception as e:
