@@ -8,6 +8,7 @@ import ee
 import pandas as pd
 import matplotlib.pyplot as plt
 from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP, HANSEN_LABELS
+from hansen_consolidated_mapping import HANSEN_CONSOLIDATED_MAPPING
 
 
 def get_hansen_color(class_id):
@@ -31,9 +32,11 @@ def hansen_histogram_to_dataframe(hist, year):
         for class_id, count in data.items():
             class_id = int(class_id)
             class_name = HANSEN_LABELS.get(class_id, f"Class {class_id}")
+            consolidated_name = HANSEN_CONSOLIDATED_MAPPING.get(class_id, "Unknown")
             records.append({
                 "Class_ID": class_id,
                 "Class": class_name,
+                "Name": consolidated_name,
                 "Pixels": int(count),
                 "Area_ha": count * 0.9  # 30m pixels ≈ 0.9 ha
             })

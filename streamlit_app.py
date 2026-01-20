@@ -655,7 +655,8 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             
             with col1:
                 st.markdown(f"### Year {st.session_state.territory_year}")
-                st.dataframe(st.session_state.territory_result, use_container_width=True)
+                display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
+                st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
                 csv1 = st.session_state.territory_result.to_csv(index=False)
                 st.download_button(
                     label="📥 Download CSV",
@@ -667,7 +668,8 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             
             with col2:
                 st.markdown(f"### Year {st.session_state.territory_year2}")
-                st.dataframe(st.session_state.territory_result_year2, use_container_width=True)
+                display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result_year2.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
+                st.dataframe(st.session_state.territory_result_year2[display_cols], use_container_width=True)
                 csv2 = st.session_state.territory_result_year2.to_csv(index=False)
                 st.download_button(
                     label="📥 Download CSV",
@@ -722,7 +724,9 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
         
         with terr_tab2:
             st.markdown(f"### Raw Data - {st.session_state.territory_name} ({st.session_state.territory_year})")
-            st.dataframe(st.session_state.territory_result, use_container_width=True)
+            # Display with Name column if available
+            display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
+            st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
             
             # Download CSV option
             csv = st.session_state.territory_result.to_csv(index=False)
@@ -880,7 +884,14 @@ if st.session_state.data_loaded and st.session_state.app:
                                                     df_display = df
                                                     st.markdown("**Detailed View (256 classes)**")
                                                 
-                                                st.dataframe(df_display[['Consolidated_Class' if 'Consolidated_Class' in df_display.columns else 'Class', 'Pixels', 'Area_ha']], use_container_width=True)
+                                                # Prepare columns for display
+                                                if 'Name' in df_display.columns:
+                                                    display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha']
+                                                elif 'Consolidated_Class' in df_display.columns:
+                                                    display_cols = ['Consolidated_Class', 'Class_ID', 'Pixels', 'Area_ha']
+                                                else:
+                                                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha']
+                                                st.dataframe(df_display[display_cols], use_container_width=True)
                                                 
                                                 # Show plot with consolidation
                                                 fig = plot_area_distribution(df_display, year=year, top_n=15)

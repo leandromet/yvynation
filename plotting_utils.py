@@ -25,16 +25,17 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
     """
     df_top = area_df.head(top_n).copy()
     
-    # Get colors based on data type
-    if 'Class' in df_top.columns:
-        # MapBiomas - use class ID colors
-        colors = [MAPBIOMAS_COLOR_MAP.get(cid, '#808080') for cid in df_top.get('Class_ID', [])]
-        label_col = 'Class'
+    # Determine label column - use "Name" for consolidated classes, otherwise "Class"
+    if 'Name' in df_top.columns:
+        label_col = 'Name'
     else:
-        # Hansen - use consolidated or original colors
-        colors = [get_consolidated_color(cid) if st.session_state.use_consolidated_classes 
-                  else get_hansen_color(cid) for cid in df_top.get('Class_ID', [])]
-        label_col = 'Consolidated_Class' if st.session_state.use_consolidated_classes else 'Class'
+        label_col = 'Class' if 'Class' in df_top.columns else 'Class_ID'
+    
+    # Get colors based on Class_ID
+    if 'Class_ID' in df_top.columns:
+        colors = [get_hansen_color(cid) for cid in df_top['Class_ID']]
+    else:
+        colors = ['#808080'] * len(df_top)
     
     fig, ax = plt.subplots(figsize=figsize)
     ax.barh(df_top[label_col], df_top['Area_ha'], color=colors)
@@ -66,14 +67,17 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     for idx, (data, year, ax) in enumerate([(area_start, start_year, axes[0]), (area_end, end_year, axes[1])]):
         df = data.head(top_n).copy()
         
-        # Get colors
-        if 'Class' in df.columns:
-            colors = [MAPBIOMAS_COLOR_MAP.get(cid, '#808080') for cid in df.get('Class_ID', [])]
-            label_col = 'Class'
+        # Determine label column - use "Name" for consolidated classes, otherwise "Class"
+        if 'Name' in df.columns:
+            label_col = 'Name'
         else:
-            colors = [get_consolidated_color(cid) if st.session_state.use_consolidated_classes 
-                      else get_hansen_color(cid) for cid in df.get('Class_ID', [])]
-            label_col = 'Consolidated_Class' if st.session_state.use_consolidated_classes else 'Class'
+            label_col = 'Class'
+        
+        # Get colors based on Class_ID
+        if 'Class_ID' in df.columns:
+            colors = [get_hansen_color(cid) for cid in df['Class_ID']]
+        else:
+            colors = ['#808080'] * len(df)
         
         ax.barh(df[label_col], df['Area_ha'], color=colors)
         ax.set_xlabel('Area (hectares)', fontsize=11)

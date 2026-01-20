@@ -127,8 +127,7 @@ def analyze_territory_hansen(ee_module, territory_geom, year, use_consolidated=F
         # Convert histogram to dataframe
         area_df = hansen_histogram_to_dataframe(
             region_hist,
-            hansen_year_key,
-            use_consolidated
+            hansen_year_key
         )
         
         return area_df, hansen_image
