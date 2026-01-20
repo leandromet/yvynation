@@ -22,10 +22,10 @@ from streamlit_folium import st_folium
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
-from google.oauth2 import service_account
 
 # Import modules
 from config import PROJECT_ID, MAPBIOMAS_PALETTE
+from ee_auth import initialize_earth_engine
 from app_file import YvynationApp
 from mapbiomas_analysis import (
     render_mapbiomas_area_analysis,
@@ -168,8 +168,12 @@ if "last_data_source" not in st.session_state:
 def init_earth_engine():
     """Initialize Earth Engine with service account credentials"""
     try:
-        with st.spinner("🔄 Initializing Earth Engine..."):
-            has_credentials = False
+        # Try Cloud Run environment variables first (ee_auth module handles this)
+        initialize_earth_engine()
+        
+        # If that fails, try Streamlit Cloud secrets
+        try:
+            from google.oauth2 import service_account
             
             # Try flat format (Streamlit Cloud)
             if "type" in st.secrets and st.secrets["type"] == "service_account":
@@ -183,8 +187,7 @@ def init_earth_engine():
                         ]
                     )
                     ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
-                    has_credentials = True
-                except Exception as e:
+                except Exception:
                     pass
             
             # Try nested [google] format
@@ -199,13 +202,10 @@ def init_earth_engine():
                         ]
                     )
                     ee.Initialize(credentials, project=st.secrets.get("ee_project_id", PROJECT_ID))
-                    has_credentials = True
-                except Exception as e:
+                except Exception:
                     pass
-            
-            # Fallback to default auth
-            if not has_credentials:
-                ee.Initialize(project=PROJECT_ID)
+        except Exception:
+            pass
         
         return ee
     except Exception as e:
