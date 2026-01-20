@@ -89,6 +89,12 @@ if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
 if "use_consolidated_classes" not in st.session_state:
     st.session_state.use_consolidated_classes = True
+if "add_territory_layer_to_map" not in st.session_state:
+    st.session_state.add_territory_layer_to_map = False
+if "territory_layer_name" not in st.session_state:
+    st.session_state.territory_layer_name = None
+if "territory_geom" not in st.session_state:
+    st.session_state.territory_geom = None
 
 # ============================================================================
 # SIDEBAR
@@ -249,43 +255,22 @@ if st.session_state.data_loaded:
                             
                             if add_layer_btn:
                                 try:
-                                    # Filter to selected territory
+                                    # Filter to selected territory and store geometry
                                     territory_geom = territories_fc.filter(
                                         ee.Filter.eq(name_prop, selected_territory)
                                     ).first().geometry()
                                     
-                                    # Store geometry
+                                    # Store geometry and flag for map display
                                     st.session_state.territory_geom = territory_geom
+                                    st.session_state.add_territory_layer_to_map = True
+                                    st.session_state.territory_layer_name = selected_territory
                                     
-                                    # Add territory boundary layer to map
-                                    territory_image = ee.Image().paint(territories_fc.filter(ee.Filter.eq(name_prop, selected_territory)), 1, 2)
-                                    vis_params = {'min': 0, 'max': 1, 'palette': ['00000000', 'FF0000']}
-                                    map_id = territory_image.getMapId(vis_params)
-                                    
-                                    folium.TileLayer(
-                                        tiles=map_id['tile_fetcher'].url_format,
-                                        attr='Territory Boundary',
-                                        name=f"Territory: {selected_territory}",
-                                        overlay=True,
-                                        control=True,
-                                        opacity=0.8
-                                    ).add_to(display_map)
-                                    
-                                    # Zoom to territory bounds
-                                    bounds_info = territory_geom.bounds().getInfo()
-                                    if bounds_info and bounds_info.get('coordinates'):
-                                        coords = bounds_info['coordinates'][0]
-                                        lons = [c[0] for c in coords]
-                                        lats = [c[1] for c in coords]
-                                        sw = [min(lats), min(lons)]
-                                        ne = [max(lats), max(lons)]
-                                        display_map.fit_bounds([sw, ne])
-                                    
-                                    st.success(f"✅ Territory layer added and map zoomed to {selected_territory}")
+                                    st.success(f"✅ Territory layer will be added to map")
                                     st.rerun()
                                     
                                 except Exception as e:
                                     st.error(f"❌ Failed to add territory layer: {e}")
+
                             
                             if analyze_btn:
                                 with st.spinner(f"Analyzing {selected_territory}..."):
@@ -556,6 +541,43 @@ if st.session_state.data_loaded and st.session_state.app:
                 year,
                 opacity=0.8
             )
+
+# Add territory boundary layer if requested
+if st.session_state.add_territory_layer_to_map and st.session_state.territory_geom and st.session_state.territory_layer_name:
+    try:
+        territory_geom = st.session_state.territory_geom
+        territory_name = st.session_state.territory_layer_name
+        
+        # Add territory boundary layer
+        territory_image = ee.Image().paint(
+            st.session_state.app.territories.filter(
+                ee.Filter.eq('name', territory_name)
+            ), 1, 3
+        )
+        vis_params = {'min': 0, 'max': 1, 'palette': ['00000000', 'FF0000']}
+        map_id = territory_image.getMapId(vis_params)
+        
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr='Territory Boundary',
+            name=f"Territory: {territory_name}",
+            overlay=True,
+            control=True,
+            opacity=0.8
+        ).add_to(display_map)
+        
+        # Zoom to territory bounds
+        bounds_info = territory_geom.bounds().getInfo()
+        if bounds_info and bounds_info.get('coordinates'):
+            coords = bounds_info['coordinates'][0]
+            lons = [c[0] for c in coords]
+            lats = [c[1] for c in coords]
+            sw = [min(lats), min(lons)]
+            ne = [max(lats), max(lons)]
+            display_map.fit_bounds([sw, ne])
+    
+    except Exception as e:
+        print(f"❌ Error adding territory layer: {e}")
 
 # Add layer control with enhanced styling
 layer_control = folium.LayerControl(position='topright', collapsed=False)
