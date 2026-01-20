@@ -142,6 +142,48 @@ with st.sidebar.expander("ℹ️ About", expanded=False):
 
 st.title("🌎 Yvynation - Land Cover Analysis")
 
+# Display current layer configuration
+if st.session_state.data_loaded:
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Base Layer", "OpenStreetMap", help="Switch in map controls (top-right)")
+        
+    with col2:
+        mapbiomas_count = len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
+        st.metric("MapBiomas Layers", mapbiomas_count, help="Brazil land cover (1985-2023)")
+        
+    with col3:
+        hansen_count = len([y for y, v in st.session_state.hansen_layers.items() if v])
+        st.metric("Hansen Layers", hansen_count, help="Global forest change (2000-2020)")
+    
+    # Show active layers
+    st.divider()
+    st.subheader("📋 Active Layers")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.session_state.mapbiomas_layers:
+            years = sorted([y for y, v in st.session_state.mapbiomas_layers.items() if v])
+            if years:
+                st.write("**MapBiomas Years:**")
+                st.write(", ".join(map(str, years)))
+            else:
+                st.caption("No MapBiomas layers selected")
+        else:
+            st.caption("No MapBiomas layers added")
+    
+    with col2:
+        if st.session_state.hansen_layers:
+            years = sorted([y for y, v in st.session_state.hansen_layers.items() if v])
+            if years:
+                st.write("**Hansen Years:**")
+                st.write(", ".join(map(str, years)))
+            else:
+                st.caption("No Hansen layers selected")
+        else:
+            st.caption("No Hansen layers added")
+
 # Build map fresh each time with current layers
 display_map = create_base_map()
 
@@ -198,8 +240,14 @@ st.caption("🎨 Draw polygons on the map to analyze land cover. Use sidebar con
 
 try:
     map_data = st_folium(display_map, width=1200, height=600)
-    if map_data and 'last_active_drawing' in map_data:
-        st.session_state.last_drawn_feature = map_data['last_active_drawing']
+    
+    # Capture drawn features from the map
+    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+        st.session_state.last_drawn_feature = map_data["all_drawings"][-1]  # Get the last drawn feature
+        st.info(f"✓ Captured {len(map_data['all_drawings'])} drawn feature(s)")
+    elif map_data and "last_active_drawing" in map_data:
+        st.session_state.last_drawn_feature = map_data["last_active_drawing"]
+    
 except Exception as e:
     st.warning(f"Map display error: {e}")
     print(f"Error displaying map: {e}")
@@ -216,12 +264,23 @@ if st.session_state.data_loaded and st.session_state.app:
     if st.session_state.last_drawn_feature:
         try:
             feature_data = st.session_state.last_drawn_feature
+            geometry = None
             
-            # Extract geometry from drawn feature
-            if feature_data and 'geometry' in feature_data:
-                geometry = ee.Geometry(feature_data['geometry'])
-                
-                # Create tabs for different analyses
+            # Extract geometry from drawn feature GeoJSON
+            if isinstance(feature_data, dict):
+                if 'geometry' in feature_data:
+                    # Feature format: {"geometry": {...}, "properties": {...}}
+                    geometry = ee.Geometry(feature_data['geometry'])
+                elif 'type' in feature_data and feature_data['type'] == 'Polygon':
+                    # Direct Polygon GeoJSON
+                    geometry = ee.Geometry.Polygon(feature_data['coordinates'])
+                elif 'type' in feature_data and feature_data['type'] == 'LineString':
+                    # LineString (from drawing)
+                    geometry = ee.Geometry.LineString(feature_data['coordinates'])
+            
+            if not geometry:
+                st.warning("⚠️ Could not extract geometry from drawn feature")
+            else:
                 tab1, tab2, tab3, tab4 = st.tabs(
                     ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
                 )
@@ -239,31 +298,46 @@ if st.session_state.data_loaded and st.session_state.app:
                                     try:
                                         band = f'classification_{year}'
                                         image = st.session_state.app.mapbiomas_v9.select(band)
-                                        stats = image.reduceRegion(
-                                            reducer=ee.Reducer.frequencyHistogram(),
-                                            geometry=geometry,
-                                            scale=30,
-                                            maxPixels=1e9
-                                        ).getInfo()
                                         
-                                        if stats and 'b1' in stats:
+                                        # Get bounds of the geometry for validation
+                                        geom_bounds = geometry.bounds().getInfo()
+                                        st.caption(f"Bounds: {geom_bounds.get('coordinates', 'unknown')}")
+                                        
+                                        with st.spinner(f"Analyzing {year}..."):
+                                            stats = image.reduceRegion(
+                                                reducer=ee.Reducer.frequencyHistogram(),
+                                                geometry=geometry,
+                                                scale=30,
+                                                maxPixels=1e9
+                                            ).getInfo()
+                                        
+                                        if stats:
                                             from config import MAPBIOMAS_LABELS
-                                            records = []
-                                            for class_id, count in stats['b1'].items():
-                                                class_id = int(class_id)
-                                                class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
-                                                area_ha = count * 0.09
-                                                records.append({
-                                                    "Class": class_name,
-                                                    "Pixels": count,
-                                                    "Area (ha)": round(area_ha, 2)
-                                                })
-                                            df = pd.DataFrame(records).sort_values("Area (ha)", ascending=False)
-                                            st.dataframe(df, use_container_width=True)
+                                            # MapBiomas returns data with band name as key, not 'b1'
+                                            band_key = f'classification_{year}' if f'classification_{year}' in stats else list(stats.keys())[0]
+                                            histogram_data = stats.get(band_key, {})
+                                            
+                                            if histogram_data:
+                                                records = []
+                                                for class_id, count in histogram_data.items():
+                                                    class_id = int(class_id)
+                                                    class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
+                                                    area_ha = count * 0.09
+                                                    records.append({
+                                                        "Class": class_name,
+                                                        "Pixels": int(count),
+                                                        "Area (ha)": round(area_ha, 2)
+                                                    })
+                                                df = pd.DataFrame(records).sort_values("Area (ha)", ascending=False)
+                                                st.dataframe(df, use_container_width=True)
+                                                st.success(f"✓ {year}: {len(records)} classes found")
+                                            else:
+                                                st.warning(f"Empty histogram for {year}")
                                         else:
-                                            st.info("No data in selected area for this year")
+                                            st.warning(f"No stats returned for {year}")
                                     except Exception as e:
-                                        st.error(f"Error analyzing {year}: {e}")
+                                        st.error(f"Error analyzing {year}: {str(e)[:200]}")
+                                        print(f"Full error: {e}")
                         else:
                             st.info("Add a MapBiomas layer from the sidebar to analyze")
                     else:
