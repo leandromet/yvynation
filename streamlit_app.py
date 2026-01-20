@@ -382,10 +382,165 @@ if st.session_state.data_loaded and st.session_state.app:
                 
                 with tab3:
                     st.markdown("### Multi-Year Comparison")
-                    if st.session_state.mapbiomas_layers or st.session_state.hansen_layers:
-                        st.info("Select years from different datasets in tabs 1-2 to compare changes over time")
-                    else:
-                        st.info("Add layers from the sidebar to compare")
+                    
+                    # MapBiomas comparison
+                    if st.session_state.mapbiomas_layers and st.session_state.app.mapbiomas_v9:
+                        mapbiomas_years = sorted([y for y, v in st.session_state.mapbiomas_layers.items() if v])
+                        if len(mapbiomas_years) >= 2:
+                            st.subheader("📊 MapBiomas Change Analysis")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                year1 = st.selectbox(
+                                    "Year 1 (baseline)",
+                                    options=mapbiomas_years,
+                                    key="mapbiomas_comp_year1"
+                                )
+                            with col2:
+                                year2 = st.selectbox(
+                                    "Year 2 (comparison)",
+                                    options=mapbiomas_years,
+                                    index=len(mapbiomas_years)-1,
+                                    key="mapbiomas_comp_year2"
+                                )
+                            
+                            if st.button("🔄 Compare MapBiomas Years", use_container_width=True, key="mapbiomas_compare"):
+                                try:
+                                    from config import MAPBIOMAS_LABELS
+                                    
+                                    with st.spinner(f"Comparing MapBiomas {year1} vs {year2}..."):
+                                        # Get data for year 1
+                                        band1 = f'classification_{year1}'
+                                        image1 = st.session_state.app.mapbiomas_v9.select(band1)
+                                        stats1 = image1.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        # Get data for year 2
+                                        band2 = f'classification_{year2}'
+                                        image2 = st.session_state.app.mapbiomas_v9.select(band2)
+                                        stats2 = image2.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        # Process both histograms
+                                        hist1 = stats1.get(band1, {})
+                                        hist2 = stats2.get(band2, {})
+                                        
+                                        if hist1 and hist2:
+                                            # Create comparison dataframe
+                                            all_classes = set(hist1.keys()) | set(hist2.keys())
+                                            records = []
+                                            
+                                            for class_id in sorted(map(int, all_classes)):
+                                                class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
+                                                area1_ha = hist1.get(str(class_id), 0) * 0.09
+                                                area2_ha = hist2.get(str(class_id), 0) * 0.09
+                                                change_ha = area2_ha - area1_ha
+                                                change_pct = (change_ha / area1_ha * 100) if area1_ha > 0 else 0
+                                                
+                                                records.append({
+                                                    "Class": class_name,
+                                                    f"{year1} (ha)": round(area1_ha, 2),
+                                                    f"{year2} (ha)": round(area2_ha, 2),
+                                                    "Change (ha)": round(change_ha, 2),
+                                                    "Change %": round(change_pct, 1)
+                                                })
+                                            
+                                            df = pd.DataFrame(records).sort_values("Change (ha)", ascending=False)
+                                            st.dataframe(df, use_container_width=True)
+                                            
+                                            # Summary statistics
+                                            total_change = df["Change (ha)"].sum()
+                                            loss = df[df["Change (ha)"] < 0]["Change (ha)"].sum()
+                                            gain = df[df["Change (ha)"] > 0]["Change (ha)"].sum()
+                                            
+                                            col1, col2, col3 = st.columns(3)
+                                            with col1:
+                                                st.metric("Total Change", f"{total_change:.0f} ha")
+                                            with col2:
+                                                st.metric("Loss", f"{loss:.0f} ha", delta=f"{loss:.0f}")
+                                            with col3:
+                                                st.metric("Gain", f"{gain:.0f} ha", delta=f"{gain:.0f}")
+                                        else:
+                                            st.error("Could not retrieve data for one or both years")
+                                except Exception as e:
+                                    st.error(f"Comparison error: {e}")
+                        else:
+                            st.info("Add 2 or more MapBiomas years to compare changes")
+                    
+                    # Hansen comparison
+                    if st.session_state.hansen_layers:
+                        hansen_years = sorted([y for y, v in st.session_state.hansen_layers.items() if v])
+                        if len(hansen_years) >= 2:
+                            st.subheader("📊 Hansen Change Analysis")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                h_year1 = st.selectbox(
+                                    "Year 1 (baseline)",
+                                    options=hansen_years,
+                                    key="hansen_comp_year1"
+                                )
+                            with col2:
+                                h_year2 = st.selectbox(
+                                    "Year 2 (comparison)",
+                                    options=hansen_years,
+                                    index=len(hansen_years)-1,
+                                    key="hansen_comp_year2"
+                                )
+                            
+                            if st.button("🔄 Compare Hansen Years", use_container_width=True, key="hansen_compare"):
+                                try:
+                                    from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
+                                    
+                                    with st.spinner(f"Comparing Hansen {h_year1} vs {h_year2}..."):
+                                        landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+                                        
+                                        # Get data for year 1
+                                        hansen1 = ee.Image(HANSEN_DATASETS[str(h_year1)]).updateMask(landmask)
+                                        stats1 = hansen1.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        # Get data for year 2
+                                        hansen2 = ee.Image(HANSEN_DATASETS[str(h_year2)]).updateMask(landmask)
+                                        stats2 = hansen2.reduceRegion(
+                                            reducer=ee.Reducer.frequencyHistogram(),
+                                            geometry=geometry,
+                                            scale=30,
+                                            maxPixels=1e9
+                                        ).getInfo()
+                                        
+                                        if stats1 and stats2:
+                                            df1 = hansen_histogram_to_dataframe(stats1, h_year1)
+                                            df2 = hansen_histogram_to_dataframe(stats2, h_year2)
+                                            
+                                            if not df1.empty and not df2.empty:
+                                                # Merge on class
+                                                df1 = df1.rename(columns={"Area_ha": f"{h_year1}_ha"})
+                                                df2 = df2.rename(columns={"Area_ha": f"{h_year2}_ha"})
+                                                df_comp = df1.merge(df2[["Class", f"{h_year2}_ha"]], on="Class", how="outer").fillna(0)
+                                                
+                                                if f"{h_year1}_ha" in df_comp.columns and f"{h_year2}_ha" in df_comp.columns:
+                                                    df_comp["Change (ha)"] = df_comp[f"{h_year2}_ha"] - df_comp[f"{h_year1}_ha"]
+                                                    st.dataframe(df_comp, use_container_width=True)
+                                        else:
+                                            st.error("Could not retrieve data for one or both years")
+                                except Exception as e:
+                                    st.error(f"Comparison error: {e}")
+                        else:
+                            st.info("Add 2 or more Hansen years to compare changes")
+                    
+                    if not (st.session_state.mapbiomas_layers or st.session_state.hansen_layers):
+                        st.info("Add layers from the sidebar to enable comparisons")
                 
                 with tab4:
                     col1, col2 = st.columns(2)

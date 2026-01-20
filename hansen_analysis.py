@@ -7,7 +7,7 @@ import streamlit as st
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
-from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP
+from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP, HANSEN_LABELS
 
 
 def get_hansen_color(class_id):
@@ -27,20 +27,14 @@ def hansen_histogram_to_dataframe(hist, year):
     """Convert Hansen frequency histogram to DataFrame"""
     if hist and 'b1' in hist:
         data = hist['b1']
-        classes = {
-            0: "No Data", 1: "Water", 2: "Evergreen Needleleaf", 
-            3: "Evergreen Broadleaf", 4: "Deciduous Needleleaf", 5: "Deciduous Broadleaf",
-            6: "Mixed Forest", 7: "Closed Shrublands", 8: "Open Shrublands", 
-            9: "Woody Savannas", 10: "Savannas", 11: "Grasslands",
-            12: "Permanent Wetlands", 13: "Croplands", 14: "Urban & Built-up",
-            15: "Cropland/Natural", 16: "Snow & Ice", 17: "Barren"
-        }
         records = []
         for class_id, count in data.items():
+            class_id = int(class_id)
+            class_name = HANSEN_LABELS.get(class_id, f"Class {class_id}")
             records.append({
-                "Class_ID": int(class_id),
-                "Class": classes.get(int(class_id), f"Class {class_id}"),
-                "Pixels": count,
+                "Class_ID": class_id,
+                "Class": class_name,
+                "Pixels": int(count),
                 "Area_ha": count * 0.9  # 30m pixels ≈ 0.9 ha
             })
         return pd.DataFrame(records).sort_values("Area_ha", ascending=False)

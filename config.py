@@ -90,6 +90,47 @@ HANSEN_COLOR_MAP = {
     17: "#8B8680",     # Barren - Gray-Brown
 }
 
+# Hansen/GLAD Land Cover Class Labels (LULC v2)
+HANSEN_LABELS = {
+    10: "Rainfed cropland",
+    11: "Rainfed cropland - herbaceous cover",
+    12: "Rainfed cropland - tree or shrub cover",
+    20: "Irrigated or post-flooding cropland",
+    30: "Mosaic: >50% cropland / <50% natural cover",
+    40: "Mosaic: >50% natural cover / <50% cropland",
+    50: ">15% broadleaved evergreen tree cover",
+    60: ">15% broadleaved deciduous tree cover",
+    61: ">40% broadleaved deciduous tree cover",
+    62: "15-40% broadleaved deciduous tree cover",
+    70: ">15% needleleaved evergreen tree cover",
+    71: ">40% needleleaved evergreen tree cover",
+    72: "15-40% needleleaved evergreen tree cover",
+    80: ">15% needleleaved deciduous tree cover",
+    81: ">40% needleleaved deciduous tree cover",
+    82: "15-40% needleleaved deciduous tree cover",
+    90: "Mixed leaf type tree cover",
+    100: "Mosaic: >50% tree/shrub / <50% herbaceous",
+    110: "Mosaic: >50% herbaceous / <50% tree/shrub",
+    120: "Shrubland",
+    121: "Evergreen shrubland",
+    122: "Deciduous shrubland",
+    130: "Grassland",
+    140: "Lichens and mosses",
+    150: "Sparse vegetation: <15% cover",
+    151: "Sparse vegetation: <15% tree cover",
+    152: "Sparse vegetation: <15% shrub cover",
+    153: "Sparse vegetation: <15% herbaceous cover",
+    160: "Flooded tree cover - fresh/brackish water",
+    170: "Flooded tree cover - saline water",
+    180: "Flooded shrub/herbaceous cover",
+    190: "Urban areas",
+    200: "Bare areas",
+    201: "Consolidated bare areas",
+    202: "Unconsolidated bare areas",
+    210: "Water body",
+    220: "Permanent snow and ice",
+}
+
 TERRITORY_COLLECTIONS = {
     'indigenous': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES',
     'biomes': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/BIOMES'
