@@ -98,6 +98,14 @@ st.sidebar.title("📊 Yvynation")
 st.sidebar.markdown("Indigenous Land Monitoring Platform")
 st.sidebar.divider()
 
+# Layer management section
+with st.sidebar.expander("🎛️ Map Controls", expanded=True):
+    st.markdown("**Layer Control:** Look for the ⌗ icon in the top-right corner of the map to toggle layers on/off")
+    st.markdown("**Basemaps:** 4 basemap options available (OpenStreetMap, Google Satellite, ArcGIS Street, ArcGIS Terrain)")
+    st.info("Tip: Overlay multiple basemaps and data layers to compare different views", icon="💡")
+
+st.sidebar.divider()
+
 # Layer controls
 if st.session_state.data_loaded:
     st.sidebar.subheader("🗺️ Add Map Layers")
@@ -304,8 +312,9 @@ if st.session_state.data_loaded and st.session_state.app:
                 opacity=0.8
             )
 
-# Add layer control
-folium.LayerControl(position='topright', collapsed=False).add_to(display_map)
+# Add layer control with enhanced styling
+layer_control = folium.LayerControl(position='topright', collapsed=False)
+layer_control.add_to(display_map)
 
 # Add drawing tools
 draw = Draw(
@@ -324,10 +333,22 @@ draw.add_to(display_map)
 
 # Display the map
 st.subheader("🗺️ Interactive Map")
-st.caption("🎨 Draw polygons on the map to analyze land cover. Use sidebar controls to add data layers.")
+
+# Show layer legend
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.caption("🎨 Draw polygons on the map to analyze land cover. Use the layer control (⌗ top-right) to toggle layers.")
+with col2:
+    # Quick layer summary
+    active_layers = 0
+    if st.session_state.data_loaded:
+        active_layers = 1  # Basemap
+        active_layers += len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
+        active_layers += len([y for y, v in st.session_state.hansen_layers.items() if v])
+    st.metric("Active Layers", active_layers)
 
 try:
-    map_data = st_folium(display_map, width=1200, height=600)
+    map_data = st_folium(display_map, use_container_width=True, height=600)
     
     # Capture drawn features from the map
     if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
@@ -339,6 +360,36 @@ try:
 except Exception as e:
     st.warning(f"Map display error: {e}")
     print(f"Error displaying map: {e}")
+
+# Display layer reference guide
+st.divider()
+with st.expander("📚 Layer Reference Guide", expanded=False):
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Basemaps**")
+        st.caption("""
+        - 🗺️ OpenStreetMap (default)
+        - 🛰️ Google Satellite
+        - 🛣️ ArcGIS Street
+        - ⛰️ ArcGIS Terrain
+        """)
+    
+    with col2:
+        st.markdown("**Data Layers**")
+        st.caption("""
+        - 🌱 MapBiomas: Brazilian land cover (1985-2023)
+        - 🌍 Hansen: Global forest change (2000-2020)
+        - 📍 Indigenous Territories
+        """)
+    
+    with col3:
+        st.markdown("**Controls**")
+        st.caption("""
+        - ⌗ Layer Control: top-right corner
+        - ✏️ Drawing Tools: top-left corner
+        - 🎨 Opacity: Adjust in sidebar
+        """)
 
 # ============================================================================
 # ANALYSIS SECTION
