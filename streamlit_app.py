@@ -265,47 +265,63 @@ if st.session_state.data_loaded:
                                     st.session_state.territory_geom = territory_geom
                                     st.session_state.territory_name = selected_territory
                                     st.session_state.territory_source = data_source
+                                    st.session_state.add_analysis_layer_to_map = False
                                     
                                     if data_source == "MapBiomas":
                                         # Analyze MapBiomas
                                         mapbiomas = st.session_state.app.mapbiomas_v9
+                                        band = f'classification_{territory_year}'
                                         area_df = analyze_territory_mapbiomas(mapbiomas, territory_geom, territory_year)
                                         
                                         st.session_state.territory_result = area_df
                                         st.session_state.territory_year = territory_year
                                         st.session_state.territory_result_year2 = None
+                                        # Store the image for visualization
+                                        st.session_state.territory_analysis_image = mapbiomas.select(band)
+                                        st.session_state.territory_analysis_image_year2 = None
                                         
                                         # Comparison year
                                         if compare_mode and territory_year2:
+                                            band2 = f'classification_{territory_year2}'
                                             area_df2 = analyze_territory_mapbiomas(mapbiomas, territory_geom, territory_year2)
                                             st.session_state.territory_result_year2 = area_df2
                                             st.session_state.territory_year2 = territory_year2
+                                            st.session_state.territory_analysis_image_year2 = mapbiomas.select(band2)
                                     
                                     else:  # Hansen
                                         # Analyze Hansen
-                                        area_df = analyze_territory_hansen(
-                                            st.session_state.ee_module,
-                                            territory_geom,
-                                            territory_year,
-                                            st.session_state.use_consolidated_classes
-                                        )
-                                        
-                                        st.session_state.territory_result = area_df
-                                        st.session_state.territory_year = str(territory_year)
-                                        st.session_state.territory_result_year2 = None
-                                        
-                                        # Comparison year
-                                        if compare_mode and territory_year2 and territory_year2 != territory_year:
-                                            area_df2 = analyze_territory_hansen(
+                                        try:
+                                            area_df, hansen_image = analyze_territory_hansen(
                                                 st.session_state.ee_module,
                                                 territory_geom,
-                                                territory_year2,
+                                                territory_year,
                                                 st.session_state.use_consolidated_classes
                                             )
-                                            st.session_state.territory_result_year2 = area_df2
-                                            st.session_state.territory_year2 = str(territory_year2)
+                                            
+                                            st.session_state.territory_result = area_df
+                                            st.session_state.territory_year = str(territory_year)
+                                            st.session_state.territory_result_year2 = None
+                                            st.session_state.territory_analysis_image = hansen_image
+                                            st.session_state.territory_analysis_image_year2 = None
+                                            
+                                            # Comparison year
+                                            if compare_mode and territory_year2 and territory_year2 != territory_year:
+                                                area_df2, hansen_image2 = analyze_territory_hansen(
+                                                    st.session_state.ee_module,
+                                                    territory_geom,
+                                                    territory_year2,
+                                                    st.session_state.use_consolidated_classes
+                                                )
+                                                st.session_state.territory_result_year2 = area_df2
+                                                st.session_state.territory_year2 = str(territory_year2)
+                                                st.session_state.territory_analysis_image_year2 = hansen_image2
+                                        except Exception as hansen_error:
+                                            st.error(f"❌ Hansen analysis failed: {hansen_error}")
+                                            raise
                                     
+                                    st.session_state.add_analysis_layer_to_map = True
                                     st.success(f"✅ Analysis complete for {selected_territory}")
+
                             
                             except Exception as e:
                                 st.error(f"❌ Analysis failed: {e}")
@@ -470,6 +486,60 @@ if st.session_state.add_territory_layer_to_map and st.session_state.territory_ge
     
     except Exception as e:
         print(f"❌ Error adding territory layer: {e}")
+        import traceback
+        traceback.print_exc()
+
+# Add analyzed data layer if available
+if st.session_state.add_analysis_layer_to_map and st.session_state.territory_analysis_image and st.session_state.territory_geom:
+    try:
+        analysis_image = st.session_state.territory_analysis_image
+        territory_geom = st.session_state.territory_geom
+        
+        # Get visualization parameters based on data source
+        if st.session_state.territory_source == "MapBiomas":
+            from config import MAPBIOMAS_PALETTE
+            vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+            layer_name = f"MapBiomas Analysis ({st.session_state.territory_year})"
+        else:  # Hansen
+            from config import HANSEN_PALETTE
+            vis_params = {'min': 0, 'max': 255, 'palette': HANSEN_PALETTE}
+            layer_name = f"Hansen Analysis ({st.session_state.territory_year})"
+        
+        # Add the analyzed layer as a map tile
+        map_id = analysis_image.getMapId(vis_params)
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr=f'{st.session_state.territory_source} Analysis',
+            name=layer_name,
+            overlay=True,
+            control=True,
+            opacity=0.7
+        ).add_to(display_map)
+        
+        print(f"✓ Analysis layer added to map: {layer_name}")
+        
+        # Add second year analysis if available
+        if st.session_state.territory_analysis_image_year2:
+            try:
+                analysis_image_year2 = st.session_state.territory_analysis_image_year2
+                
+                map_id2 = analysis_image_year2.getMapId(vis_params)
+                layer_name2 = f"{st.session_state.territory_source} Analysis ({st.session_state.territory_year2})"
+                folium.TileLayer(
+                    tiles=map_id2['tile_fetcher'].url_format,
+                    attr=f'{st.session_state.territory_source} Analysis',
+                    name=layer_name2,
+                    overlay=True,
+                    control=True,
+                    opacity=0.7
+                ).add_to(display_map)
+                
+                print(f"✓ Comparison layer added to map: {layer_name2}")
+            except Exception as year2_error:
+                print(f"⚠️ Could not add second year analysis: {year2_error}")
+    
+    except Exception as e:
+        print(f"❌ Error adding analysis layer: {e}")
         import traceback
         traceback.print_exc()
 

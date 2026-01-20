@@ -97,33 +97,46 @@ def analyze_territory_hansen(ee_module, territory_geom, year, use_consolidated=F
     Args:
         ee_module: Earth Engine module
         territory_geom (ee.Geometry): Territory geometry
-        year (str): Year to analyze
+        year (str or int): Year to analyze
         use_consolidated (bool): Use consolidated classes
     
     Returns:
-        pd.DataFrame: Land cover area by class
+        tuple: (pd.DataFrame with statistics, ee.Image object)
     """
     try:
         from hansen_analysis import hansen_histogram_to_dataframe
+        from config import HANSEN_DATASETS
         
         hansen_year_key = str(year)
-        region_hist = ee_module.Image(
-            "UMD/Hansen/global_forest_change_2020_v1_8"
-        ).reduceRegion(
+        
+        # Get Hansen image
+        if hansen_year_key not in HANSEN_DATASETS:
+            # Default to latest available
+            hansen_year_key = "2020"
+        
+        hansen_image = ee_module.Image(HANSEN_DATASETS[hansen_year_key])
+        
+        # Reduce to region for histogram
+        region_hist = hansen_image.reduceRegion(
             reducer=ee_module.Reducer.frequencyHistogram(),
             geometry=territory_geom,
             scale=30,
             maxPixels=1e9
         ).getInfo()
         
+        # Convert histogram to dataframe
         area_df = hansen_histogram_to_dataframe(
             region_hist,
             hansen_year_key,
             use_consolidated
         )
-        return area_df
+        
+        return area_df, hansen_image
+    
     except Exception as e:
         print(f"❌ Error analyzing Hansen: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
@@ -146,4 +159,10 @@ def initialize_territory_session_state():
     if "add_territory_layer_to_map" not in st.session_state:
         st.session_state.add_territory_layer_to_map = False
     if "territory_layer_name" not in st.session_state:
-        st.session_state.territory_layer_name = None
+        st.session_state.territory_layer_name = None    
+    if "territory_analysis_image" not in st.session_state:
+        st.session_state.territory_analysis_image = None
+    if "territory_analysis_image_year2" not in st.session_state:
+        st.session_state.territory_analysis_image_year2 = None
+    if "add_analysis_layer_to_map" not in st.session_state:
+        st.session_state.add_analysis_layer_to_map = False
