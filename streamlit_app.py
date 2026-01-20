@@ -141,6 +141,251 @@ if st.session_state.data_loaded:
 
 st.sidebar.divider()
 
+# Indigenous territories analysis
+if st.session_state.data_loaded:
+    with st.sidebar.expander("🏛️ Indigenous Territories Analysis", expanded=False):
+        st.write("Analyze land cover in indigenous territories:")
+        
+        # Initialize session state for territory analysis
+        if "territory_result" not in st.session_state:
+            st.session_state.territory_result = None
+        if "territory_result_year2" not in st.session_state:
+            st.session_state.territory_result_year2 = None
+        if "territory_name" not in st.session_state:
+            st.session_state.territory_name = None
+        if "territory_year" not in st.session_state:
+            st.session_state.territory_year = None
+        if "territory_year2" not in st.session_state:
+            st.session_state.territory_year2 = None
+        if "territory_geom" not in st.session_state:
+            st.session_state.territory_geom = None
+        if "territory_source" not in st.session_state:
+            st.session_state.territory_source = "MapBiomas"
+        
+        try:
+            territories_fc = st.session_state.app.territories
+            if territories_fc is None:
+                st.error("❌ Territories data not loaded.")
+            else:
+                # Get territory names from Earth Engine
+                try:
+                    first_feature = territories_fc.first().getInfo()
+                    available_props = list(first_feature.get('properties', {}).keys()) if first_feature else []
+                    
+                    # Try different property names for territory names
+                    name_prop = None
+                    for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
+                        if prop in available_props:
+                            name_prop = prop
+                            break
+                    
+                    if not name_prop:
+                        st.error(f"❌ Territory name property not found. Available properties: {available_props}")
+                    else:
+                        # Get sorted list of territory names
+                        territory_names = sorted(territories_fc.aggregate_array(name_prop).getInfo())
+                        
+                        if territory_names:
+                            selected_territory = st.selectbox(
+                                "Select a territory",
+                                territory_names,
+                                key="territory_select"
+                            )
+                            
+                            # Data source selection
+                            data_source = st.radio(
+                                "Data Source",
+                                ["MapBiomas", "Hansen/GLAD"],
+                                horizontal=True,
+                                key="territory_source_radio"
+                            )
+                            st.session_state.territory_source = data_source
+                            
+                            # Year selection
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if data_source == "MapBiomas":
+                                    territory_year = st.selectbox(
+                                        "Year 1",
+                                        range(1985, 2024),
+                                        index=38,
+                                        key="year_territory_1"
+                                    )
+                                else:
+                                    hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+                                    territory_year = st.selectbox(
+                                        "Year 1",
+                                        hansen_years,
+                                        index=4,
+                                        key="year_territory_h1"
+                                    )
+                            
+                            with col2:
+                                compare_mode = st.checkbox("Compare Years", value=False, key="territory_compare")
+                                if compare_mode:
+                                    if data_source == "MapBiomas":
+                                        territory_year2 = st.selectbox(
+                                            "Year 2",
+                                            range(1985, 2024),
+                                            index=30,
+                                            key="year_territory_2"
+                                        )
+                                    else:
+                                        hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+                                        territory_year2 = st.selectbox(
+                                            "Year 2",
+                                            hansen_years,
+                                            index=0,
+                                            key="year_territory_h2"
+                                        )
+                                else:
+                                    territory_year2 = None
+                            
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", use_container_width=True)
+                            with col_btn2:
+                                add_layer_btn = st.button("➕ Add to Map", key="btn_add_territory_layer", use_container_width=True)
+                            
+                            if add_layer_btn:
+                                try:
+                                    # Filter to selected territory
+                                    territory_geom = territories_fc.filter(
+                                        ee.Filter.eq(name_prop, selected_territory)
+                                    ).first().geometry()
+                                    
+                                    # Store geometry
+                                    st.session_state.territory_geom = territory_geom
+                                    
+                                    # Add territory boundary layer to map
+                                    territory_image = ee.Image().paint(territories_fc.filter(ee.Filter.eq(name_prop, selected_territory)), 1, 2)
+                                    vis_params = {'min': 0, 'max': 1, 'palette': ['00000000', 'FF0000']}
+                                    map_id = territory_image.getMapId(vis_params)
+                                    
+                                    folium.TileLayer(
+                                        tiles=map_id['tile_fetcher'].url_format,
+                                        attr='Territory Boundary',
+                                        name=f"Territory: {selected_territory}",
+                                        overlay=True,
+                                        control=True,
+                                        opacity=0.8
+                                    ).add_to(display_map)
+                                    
+                                    # Zoom to territory bounds
+                                    bounds_info = territory_geom.bounds().getInfo()
+                                    if bounds_info and bounds_info.get('coordinates'):
+                                        coords = bounds_info['coordinates'][0]
+                                        lons = [c[0] for c in coords]
+                                        lats = [c[1] for c in coords]
+                                        sw = [min(lats), min(lons)]
+                                        ne = [max(lats), max(lons)]
+                                        display_map.fit_bounds([sw, ne])
+                                    
+                                    st.success(f"✅ Territory layer added and map zoomed to {selected_territory}")
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Failed to add territory layer: {e}")
+                            
+                            if analyze_btn:
+                                with st.spinner(f"Analyzing {selected_territory}..."):
+                                    try:
+                                        # Filter to selected territory
+                                        territory_geom = territories_fc.filter(
+                                            ee.Filter.eq(name_prop, selected_territory)
+                                        ).first().geometry()
+                                        
+                                        # Store geometry for later use
+                                        st.session_state.territory_geom = territory_geom
+                                        
+                                        if data_source == "MapBiomas":
+                                            # Analyze with MapBiomas
+                                            mapbiomas = st.session_state.app.mapbiomas_v9
+                                            band = f'classification_{territory_year}'
+                                            
+                                            from mapbiomas_analysis import calculate_area_by_class as mapbiomas_area_analysis
+                                            
+                                            area_df = mapbiomas_area_analysis(
+                                                mapbiomas.select(band),
+                                                territory_geom,
+                                                territory_year
+                                            )
+                                            
+                                            st.session_state.territory_result = area_df
+                                            st.session_state.territory_year = territory_year
+                                            st.session_state.territory_result_year2 = None
+                                            
+                                            # If comparing years
+                                            if compare_mode and territory_year2:
+                                                band2 = f'classification_{territory_year2}'
+                                                area_df2 = mapbiomas_area_analysis(
+                                                    mapbiomas.select(band2),
+                                                    territory_geom,
+                                                    territory_year2
+                                                )
+                                                st.session_state.territory_result_year2 = area_df2
+                                                st.session_state.territory_year2 = territory_year2
+                                        
+                                        else:  # Hansen
+                                            # Analyze with Hansen
+                                            from hansen_analysis import hansen_histogram_to_dataframe
+                                            
+                                            hansen_year_key = str(territory_year)
+                                            region_hist = st.session_state.app.ee_module.Image(
+                                                "UMD/Hansen/global_forest_change_2020_v1_8"
+                                            ).reduceRegion(
+                                                reducer=st.session_state.app.ee_module.Reducer.frequencyHistogram(),
+                                                geometry=territory_geom,
+                                                scale=30,
+                                                maxPixels=1e9
+                                            ).getInfo()
+                                            
+                                            area_df = hansen_histogram_to_dataframe(
+                                                region_hist,
+                                                hansen_year_key,
+                                                st.session_state.use_consolidated_classes
+                                            )
+                                            
+                                            st.session_state.territory_result = area_df
+                                            st.session_state.territory_year = hansen_year_key
+                                            st.session_state.territory_result_year2 = None
+                                            
+                                            # If comparing years (note: Hansen years are endpoints, limited comparison)
+                                            if compare_mode and territory_year2 and territory_year2 != territory_year:
+                                                hansen_year_key2 = str(territory_year2)
+                                                region_hist2 = st.session_state.app.ee_module.Image(
+                                                    "UMD/Hansen/global_forest_change_2020_v1_8"
+                                                ).reduceRegion(
+                                                    reducer=st.session_state.app.ee_module.Reducer.frequencyHistogram(),
+                                                    geometry=territory_geom,
+                                                    scale=30,
+                                                    maxPixels=1e9
+                                                ).getInfo()
+                                                
+                                                area_df2 = hansen_histogram_to_dataframe(
+                                                    region_hist2,
+                                                    hansen_year_key2,
+                                                    st.session_state.use_consolidated_classes
+                                                )
+                                                st.session_state.territory_result_year2 = area_df2
+                                                st.session_state.territory_year2 = hansen_year_key2
+                                        
+                                        st.session_state.territory_name = selected_territory
+                                        st.success(f"✅ Analysis complete for {selected_territory}")
+                                        
+                                    except Exception as e:
+                                        st.error(f"❌ Analysis failed: {e}")
+                                        import traceback
+                                        traceback.print_exc()
+                        
+                except Exception as e:
+                    st.error(f"❌ Error loading territories: {e}")
+        
+        except Exception as e:
+            st.error(f"❌ Territory analysis error: {e}")
+
+st.sidebar.divider()
+
 # View options
 with st.sidebar.expander("🎨 View Options", expanded=True):
     use_consolidated = st.checkbox(
@@ -394,6 +639,133 @@ with st.expander("📚 Layer Reference Guide", expanded=False):
 # ============================================================================
 # ANALYSIS SECTION
 # ============================================================================
+
+# Display territory analysis results if available
+if st.session_state.data_loaded and st.session_state.territory_result is not None:
+    st.divider()
+    
+    # Check if comparing years
+    if st.session_state.territory_result_year2 is not None:
+        st.subheader(f"🏛️ Territory Comparison - {st.session_state.territory_name}")
+        
+        # Comparison tabs
+        comp_tab1, comp_tab2, comp_tab3 = st.tabs(
+            ["📊 Side-by-Side Comparison", "📋 Data Tables", "ℹ️ Territory Info"]
+        )
+        
+        with comp_tab1:
+            st.markdown(f"### Land Cover Distribution Comparison in {st.session_state.territory_name}")
+            fig = plot_area_comparison(
+                st.session_state.territory_result,
+                st.session_state.territory_result_year2,
+                st.session_state.territory_year,
+                st.session_state.territory_year2,
+                top_n=15
+            )
+            st.pyplot(fig, use_container_width=True)
+        
+        with comp_tab2:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"### Year {st.session_state.territory_year}")
+                st.dataframe(st.session_state.territory_result, use_container_width=True)
+                csv1 = st.session_state.territory_result.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv1,
+                    file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year}.csv",
+                    mime="text/csv",
+                    key="download_comp_1"
+                )
+            
+            with col2:
+                st.markdown(f"### Year {st.session_state.territory_year2}")
+                st.dataframe(st.session_state.territory_result_year2, use_container_width=True)
+                csv2 = st.session_state.territory_result_year2.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv2,
+                    file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year2}.csv",
+                    mime="text/csv",
+                    key="download_comp_2"
+                )
+        
+        with comp_tab3:
+            st.markdown(f"### Territory Information")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"**Year {st.session_state.territory_year}**")
+                total_area1 = st.session_state.territory_result['Area_ha'].sum()
+                num_classes1 = len(st.session_state.territory_result)
+                largest_class1 = st.session_state.territory_result.loc[st.session_state.territory_result['Area_ha'].idxmax()]
+                
+                st.metric("Total Area", f"{total_area1:,.0f} ha")
+                st.metric("Classes", num_classes1)
+                st.metric("Largest Class", largest_class1['Class'])
+            
+            with col2:
+                st.markdown(f"**Year {st.session_state.territory_year2}**")
+                total_area2 = st.session_state.territory_result_year2['Area_ha'].sum()
+                num_classes2 = len(st.session_state.territory_result_year2)
+                largest_class2 = st.session_state.territory_result_year2.loc[st.session_state.territory_result_year2['Area_ha'].idxmax()]
+                
+                st.metric("Total Area", f"{total_area2:,.0f} ha")
+                st.metric("Classes", num_classes2)
+                st.metric("Largest Class", largest_class2['Class'])
+            
+            st.divider()
+            st.info(f"Territory: **{st.session_state.territory_name}**")
+            st.info(f"Data Source: **{st.session_state.territory_source}**")
+    
+    else:
+        # Single year analysis
+        st.subheader(f"🏛️ Territory Analysis - {st.session_state.territory_name}")
+        
+        # Show territory results in tabs
+        terr_tab1, terr_tab2, terr_tab3 = st.tabs(
+            ["📊 Land Cover Distribution", "📋 Data Table", "ℹ️ Territory Info"]
+        )
+        
+        with terr_tab1:
+            st.markdown(f"### Land Cover Distribution in {st.session_state.territory_name} ({st.session_state.territory_year})")
+            fig = plot_area_distribution(st.session_state.territory_result, year=st.session_state.territory_year, top_n=15)
+            st.pyplot(fig, use_container_width=True)
+        
+        with terr_tab2:
+            st.markdown(f"### Raw Data - {st.session_state.territory_name} ({st.session_state.territory_year})")
+            st.dataframe(st.session_state.territory_result, use_container_width=True)
+            
+            # Download CSV option
+            csv = st.session_state.territory_result.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year}.csv",
+                mime="text/csv"
+            )
+        
+        with terr_tab3:
+            st.markdown(f"### Territory Information")
+            
+            # Calculate summary statistics
+            total_area = st.session_state.territory_result['Area_ha'].sum()
+            num_classes = len(st.session_state.territory_result)
+            largest_class = st.session_state.territory_result.loc[st.session_state.territory_result['Area_ha'].idxmax()]
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Area", f"{total_area:,.0f} ha", help="Total area analyzed")
+            with col2:
+                st.metric("Classes", num_classes, help="Number of land cover classes detected")
+            with col3:
+                st.metric("Largest Class", largest_class['Class'], help=f"{largest_class['Area_ha']:,.0f} ha")
+            
+            st.info(f"Territory: **{st.session_state.territory_name}**")
+            st.info(f"Year: **{st.session_state.territory_year}**")
+            st.info(f"Data Source: **{st.session_state.territory_source}**")
 
 if st.session_state.data_loaded and st.session_state.app:
     st.divider()
