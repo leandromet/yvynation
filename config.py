@@ -152,6 +152,95 @@ FOREST_NDVI_THRESHOLD = 0.5
 URBAN_NDVI_THRESHOLD = 0.2
 
 # ==============================================================================
+# HANSEN/GLAD CONSOLIDATED CLASS GROUPING
+# ==============================================================================
+# Consolidated land cover classes for simplified Hansen analysis
+# Groups intermediate resolution classes into main categories
+HANSEN_CONSOLIDATED_MAPPING = {
+    # Unvegetated/Bare Ground
+    0: "Unvegetated", 1: "Unvegetated", 2: "Unvegetated", 3: "Unvegetated", 4: "Unvegetated", 5: "Unvegetated",
+    # Dense Short Vegetation
+    6: "Dense Short Vegetation", 7: "Dense Short Vegetation", 8: "Dense Short Vegetation", 9: "Dense Short Vegetation",
+    10: "Dense Short Vegetation", 11: "Dense Short Vegetation", 12: "Dense Short Vegetation", 13: "Dense Short Vegetation",
+    14: "Dense Short Vegetation", 15: "Dense Short Vegetation", 16: "Dense Short Vegetation", 17: "Dense Short Vegetation",
+    18: "Dense Short Vegetation", 19: "Dense Short Vegetation", 20: "Dense Short Vegetation", 21: "Dense Short Vegetation",
+    22: "Dense Short Vegetation", 23: "Dense Short Vegetation", 24: "Dense Short Vegetation", 25: "Dense Short Vegetation",
+    26: "Dense Short Vegetation", 27: "Dense Short Vegetation", 28: "Dense Short Vegetation", 29: "Dense Short Vegetation",
+    30: "Dense Short Vegetation", 31: "Dense Short Vegetation", 32: "Dense Short Vegetation", 33: "Dense Short Vegetation",
+    34: "Dense Short Vegetation", 35: "Dense Short Vegetation", 36: "Dense Short Vegetation", 37: "Dense Short Vegetation",
+    38: "Dense Short Vegetation", 39: "Dense Short Vegetation", 40: "Dense Short Vegetation", 41: "Dense Short Vegetation",
+    42: "Dense Short Vegetation", 43: "Dense Short Vegetation", 44: "Dense Short Vegetation", 45: "Dense Short Vegetation",
+    46: "Dense Short Vegetation", 47: "Dense Short Vegetation", 48: "Dense Short Vegetation", 49: "Dense Short Vegetation",
+    50: "Dense Short Vegetation",
+    # Open Tree Cover
+    51: "Open Tree Cover", 52: "Open Tree Cover", 53: "Open Tree Cover", 54: "Open Tree Cover", 55: "Open Tree Cover",
+    56: "Open Tree Cover", 57: "Open Tree Cover", 58: "Open Tree Cover", 59: "Open Tree Cover", 60: "Open Tree Cover",
+    61: "Open Tree Cover", 62: "Open Tree Cover", 63: "Open Tree Cover", 64: "Open Tree Cover", 65: "Open Tree Cover",
+    66: "Open Tree Cover", 67: "Open Tree Cover", 68: "Open Tree Cover", 69: "Open Tree Cover", 70: "Open Tree Cover",
+    71: "Open Tree Cover", 72: "Open Tree Cover", 73: "Open Tree Cover", 74: "Open Tree Cover",
+    # Dense Tree Cover
+    75: "Dense Tree Cover", 76: "Dense Tree Cover", 77: "Dense Tree Cover", 78: "Dense Tree Cover", 79: "Dense Tree Cover",
+    80: "Dense Tree Cover", 81: "Dense Tree Cover", 82: "Dense Tree Cover", 83: "Dense Tree Cover", 84: "Dense Tree Cover",
+    85: "Dense Tree Cover", 86: "Dense Tree Cover", 87: "Dense Tree Cover", 88: "Dense Tree Cover", 89: "Dense Tree Cover",
+    90: "Dense Tree Cover", 91: "Dense Tree Cover",
+    # Tree Cover Gain
+    92: "Tree Cover Gain", 93: "Tree Cover Gain", 94: "Tree Cover Gain", 95: "Tree Cover Gain", 96: "Tree Cover Gain",
+    97: "Tree Cover Gain", 98: "Tree Cover Gain", 99: "Tree Cover Gain", 100: "Tree Cover Gain", 101: "Tree Cover Gain",
+    102: "Tree Cover Gain", 103: "Tree Cover Gain", 104: "Tree Cover Gain", 105: "Tree Cover Gain", 106: "Tree Cover Gain",
+    107: "Tree Cover Gain", 108: "Tree Cover Gain", 109: "Tree Cover Gain", 110: "Tree Cover Gain", 111: "Tree Cover Gain",
+    112: "Tree Cover Gain", 113: "Tree Cover Gain", 114: "Tree Cover Gain", 115: "Tree Cover Gain",
+    116: "Tree Cover Loss",
+    # Wetland section (120-236)
+    120: "Unvegetated", 121: "Unvegetated", 122: "Unvegetated", 123: "Unvegetated", 124: "Unvegetated", 125: "Unvegetated",
+    126: "Dense Short Vegetation", 127: "Dense Short Vegetation", 128: "Dense Short Vegetation", 129: "Dense Short Vegetation",
+    130: "Dense Short Vegetation", 131: "Dense Short Vegetation", 132: "Dense Short Vegetation", 133: "Dense Short Vegetation",
+    134: "Dense Short Vegetation", 135: "Dense Short Vegetation", 136: "Dense Short Vegetation", 137: "Dense Short Vegetation",
+    138: "Dense Short Vegetation", 139: "Dense Short Vegetation", 140: "Dense Short Vegetation", 141: "Dense Short Vegetation",
+    142: "Dense Short Vegetation", 143: "Dense Short Vegetation", 144: "Dense Short Vegetation", 145: "Dense Short Vegetation",
+    146: "Dense Short Vegetation", 147: "Dense Short Vegetation", 148: "Dense Short Vegetation", 149: "Dense Short Vegetation",
+    150: "Dense Short Vegetation", 151: "Dense Short Vegetation", 152: "Dense Short Vegetation", 153: "Dense Short Vegetation",
+    154: "Dense Short Vegetation", 155: "Dense Short Vegetation", 156: "Dense Short Vegetation", 157: "Dense Short Vegetation",
+    158: "Dense Short Vegetation", 159: "Dense Short Vegetation", 160: "Dense Short Vegetation", 161: "Dense Short Vegetation",
+    162: "Dense Short Vegetation", 163: "Dense Short Vegetation", 164: "Dense Short Vegetation", 165: "Dense Short Vegetation",
+    166: "Dense Short Vegetation", 167: "Dense Short Vegetation", 168: "Dense Short Vegetation", 169: "Dense Short Vegetation",
+    170: "Dense Short Vegetation",
+    171: "Open Tree Cover", 172: "Open Tree Cover", 173: "Open Tree Cover", 174: "Open Tree Cover", 175: "Open Tree Cover",
+    176: "Open Tree Cover", 177: "Open Tree Cover", 178: "Open Tree Cover", 179: "Open Tree Cover", 180: "Open Tree Cover",
+    181: "Open Tree Cover", 182: "Open Tree Cover", 183: "Open Tree Cover", 184: "Open Tree Cover", 185: "Open Tree Cover",
+    186: "Open Tree Cover", 187: "Open Tree Cover", 188: "Open Tree Cover", 189: "Open Tree Cover", 190: "Open Tree Cover",
+    191: "Open Tree Cover", 192: "Open Tree Cover", 193: "Open Tree Cover", 194: "Open Tree Cover",
+    195: "Dense Tree Cover", 196: "Dense Tree Cover", 197: "Dense Tree Cover", 198: "Dense Tree Cover", 199: "Dense Tree Cover",
+    200: "Dense Tree Cover", 201: "Dense Tree Cover", 202: "Dense Tree Cover", 203: "Dense Tree Cover", 204: "Dense Tree Cover",
+    205: "Dense Tree Cover", 206: "Dense Tree Cover", 207: "Dense Tree Cover", 208: "Dense Tree Cover", 209: "Dense Tree Cover",
+    210: "Dense Tree Cover", 211: "Dense Tree Cover",
+    212: "Tree Cover Gain", 213: "Tree Cover Gain", 214: "Tree Cover Gain", 215: "Tree Cover Gain", 216: "Tree Cover Gain",
+    217: "Tree Cover Gain", 218: "Tree Cover Gain", 219: "Tree Cover Gain", 220: "Tree Cover Gain", 221: "Tree Cover Gain",
+    222: "Tree Cover Gain", 223: "Tree Cover Gain", 224: "Tree Cover Gain", 225: "Tree Cover Gain", 226: "Tree Cover Gain",
+    227: "Tree Cover Gain", 228: "Tree Cover Gain", 229: "Tree Cover Gain", 230: "Tree Cover Gain", 231: "Tree Cover Gain",
+    232: "Tree Cover Gain", 233: "Tree Cover Gain", 234: "Tree Cover Gain", 235: "Tree Cover Gain",
+    236: "Tree Cover Loss",
+    # Built-up and other classes
+    240: "Built-up", 241: "Built-up", 242: "Built-up", 243: "Built-up", 244: "Built-up",
+    245: "Built-up", 246: "Built-up", 247: "Built-up", 248: "Built-up", 249: "Built-up",
+    250: "Water", 251: "Ice", 252: "Cropland", 254: "Ocean", 255: "No Data",
+}
+
+HANSEN_CONSOLIDATED_COLORS = {
+    "Unvegetated": "#D4D4A8",
+    "Dense Short Vegetation": "#B8D4A8",
+    "Open Tree Cover": "#90C090",
+    "Dense Tree Cover": "#1F8040",
+    "Tree Cover Gain": "#4CAF50",
+    "Tree Cover Loss": "#E53935",
+    "Built-up": "#FF6B35",
+    "Water": "#2196F3",
+    "Ice": "#E0F7FA",
+    "Cropland": "#FFD700",
+    "Ocean": "#0D47A1",
+    "No Data": "#CCCCCC",
+}
+
+# ==============================================================================
 # LAND COVER CLASSIFICATION LABELS & COLORS (MapBiomas Collection 9)
 # ==============================================================================
 MAPBIOMAS_LABELS = {
