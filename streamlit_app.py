@@ -562,33 +562,36 @@ with tab_mapbiomas:
                     )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(st.session_state.mapbiomas_map_object, width="100%", height=600)
-                
-                if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                    import hashlib
-                    import json
+                if st.session_state.mapbiomas_map_object:
+                    map_data = st_folium(st.session_state.mapbiomas_map_object, width="100%", height=600)
                     
-                    for idx, drawing in enumerate(map_data["all_drawings"]):
-                        geom_data = drawing["geometry"]
-                        geom_type = geom_data.get("type", "Unknown")
+                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                        import hashlib
+                        import json
                         
-                        # Create a hash of the geometry to prevent duplicates
-                        geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
-                        
-                        # Only add if this geometry hasn't been added before
-                        if geom_hash not in st.session_state.mapbiomas_drawn_geometry_hashes:
-                            st.session_state.mapbiomas_drawn_area_count += 1
-                            area_name = f"Area {st.session_state.mapbiomas_drawn_area_count} ({geom_type})"
-                            st.session_state.mapbiomas_drawn_areas[area_name] = geom_data
-                            st.session_state.mapbiomas_drawn_geometry_hashes.add(geom_hash)
-                            st.session_state.mapbiomas_selected_drawn_area = area_name
-                
-                # Display legend below map
-                st.divider()
-                render_mapbiomas_legend()
+                        for idx, drawing in enumerate(map_data["all_drawings"]):
+                            geom_data = drawing["geometry"]
+                            geom_type = geom_data.get("type", "Unknown")
+                            
+                            # Create a hash of the geometry to prevent duplicates
+                            geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
+                            
+                            # Only add if this geometry hasn't been added before
+                            if geom_hash not in st.session_state.mapbiomas_drawn_geometry_hashes:
+                                st.session_state.mapbiomas_drawn_area_count += 1
+                                area_name = f"Area {st.session_state.mapbiomas_drawn_area_count} ({geom_type})"
+                                st.session_state.mapbiomas_drawn_areas[area_name] = geom_data
+                                st.session_state.mapbiomas_drawn_geometry_hashes.add(geom_hash)
+                                st.session_state.mapbiomas_selected_drawn_area = area_name
+                    
+                    # Display legend below map
+                    st.divider()
+                    render_mapbiomas_legend()
+                else:
+                    st.error("❌ Failed to create map. Check the error logs above.")
                 
             except Exception as e:
-                st.warning(f"⏳ Map loading... {str(e)[:50]}")
+                st.error(f"❌ Error creating map: {str(e)}")
         else:
             st.info("Click 'Load Core Data' in the sidebar to enable the map")
     
@@ -701,33 +704,36 @@ with tab_hansen:
                     )
                 
                 # Display map and capture drawn areas
-                map_data = st_folium(st.session_state.hansen_map_object, width="100%", height=600)
-                
-                if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-                    import hashlib
-                    import json
+                if st.session_state.hansen_map_object:
+                    map_data = st_folium(st.session_state.hansen_map_object, width="100%", height=600)
                     
-                    for idx, drawing in enumerate(map_data["all_drawings"]):
-                        geom_data = drawing["geometry"]
-                        geom_type = geom_data.get("type", "Unknown")
+                    if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
+                        import hashlib
+                        import json
                         
-                        # Create a hash of the geometry to prevent duplicates
-                        geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
-                        
-                        # Only add if this geometry hasn't been added before
-                        if geom_hash not in st.session_state.hansen_drawn_geometry_hashes:
-                            st.session_state.hansen_drawn_area_count += 1
-                            area_name = f"Area {st.session_state.hansen_drawn_area_count} ({geom_type})"
-                            st.session_state.hansen_drawn_areas[area_name] = geom_data
-                            st.session_state.hansen_drawn_geometry_hashes.add(geom_hash)
-                            st.session_state.hansen_selected_drawn_area = area_name
-                
-                # Display legend below map
-                st.divider()
-                render_hansen_legend()
+                        for idx, drawing in enumerate(map_data["all_drawings"]):
+                            geom_data = drawing["geometry"]
+                            geom_type = geom_data.get("type", "Unknown")
+                            
+                            # Create a hash of the geometry to prevent duplicates
+                            geom_hash = hashlib.md5(json.dumps(geom_data, sort_keys=True).encode()).hexdigest()
+                            
+                            # Only add if this geometry hasn't been added before
+                            if geom_hash not in st.session_state.hansen_drawn_geometry_hashes:
+                                st.session_state.hansen_drawn_area_count += 1
+                                area_name = f"Area {st.session_state.hansen_drawn_area_count} ({geom_type})"
+                                st.session_state.hansen_drawn_areas[area_name] = geom_data
+                                st.session_state.hansen_drawn_geometry_hashes.add(geom_hash)
+                                st.session_state.hansen_selected_drawn_area = area_name
+                    
+                    # Display legend below map
+                    st.divider()
+                    render_hansen_legend()
+                else:
+                    st.error("❌ Failed to create map. Check the error logs above.")
                 
             except Exception as e:
-                st.warning(f"⏳ Map loading... {str(e)[:50]}")
+                st.error(f"❌ Error creating map: {str(e)}")
         else:
             st.info("Click 'Load Core Data' in the sidebar to enable the map")
     
