@@ -41,7 +41,8 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
         # If no Name column, use top N original classes
         df_agg = df.head(top_n).copy()
         label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
-        colors = ['#808080'] * len(df_agg)
+        # Get colors from MapBiomas color map for each class
+        colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
     
     fig, ax = plt.subplots(figsize=figsize)
     ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
@@ -89,7 +90,8 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
             # If no Name column, use top N original classes
             df_agg = df.head(top_n).copy()
             label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
-            colors = ['#808080'] * len(df_agg)
+            # Get colors from MapBiomas color map for each class
+            colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
         
         ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
         ax.set_xlabel('Area (hectares)', fontsize=11)
