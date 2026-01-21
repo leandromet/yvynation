@@ -253,7 +253,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
     return fig
 
 
-def create_sankey_transitions(transitions_dict, year_start, year_end):
+def create_sankey_transitions(transitions_dict, year_start, year_end, class_colors=None):
     '''
     Create Sankey diagram for land cover transitions (left to right, ordered by flow).
     Nodes with larger values appear at the top with area displayed.
@@ -263,11 +263,16 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
                                  Can have '_source_id' key to store representative class ID for coloring
         year_start (int): Start year
         year_end (int): End year
+        class_colors (dict): Optional mapping of class ID to hex color. If not provided, uses MAPBIOMAS_COLOR_MAP
     
     Returns:
         plotly.graph_objects.Figure: Sankey diagram with left-right layout
     '''
     from hansen_consolidated_utils import get_consolidated_color
+    
+    # Default to MapBiomas colors if not provided
+    if class_colors is None:
+        class_colors = MAPBIOMAS_COLOR_MAP
     
     # Prepare nodes and links
     sources = []
@@ -288,13 +293,8 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
                 targets.append(f"{target_id} ({year_end})")
                 values.append(area)
                 
-                # Determine color: use class ID if numeric, otherwise use consolidated color
-                if isinstance(source_id, int):
-                    color = MAPBIOMAS_COLOR_MAP.get(source_id, '#cccccc')
-                elif source_id_for_color is not None:
-                    color = get_consolidated_color(source_id_for_color)
-                else:
-                    color = '#cccccc'
+                # Determine color: use class_colors dict lookup
+                color = class_colors.get(source_id, '#cccccc')
                 source_colors.append(color)
     
     if not sources:
@@ -329,7 +329,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
         try:
             # Try to parse as integer (for numeric class IDs)
             class_id = int(class_id_str)
-            color = MAPBIOMAS_COLOR_MAP.get(class_id, '#cccccc')
+            color = class_colors.get(class_id, '#cccccc')
         except ValueError:
             # It's a consolidated class name, try to get color from consolidated utils
             try:

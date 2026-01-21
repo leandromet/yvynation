@@ -18,7 +18,7 @@ from streamlit_folium import st_folium
 import pandas as pd
 
 # Import custom modules
-from config import PROJECT_ID, MAPBIOMAS_LABELS, MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_MAPPING, HANSEN_CONSOLIDATED_COLORS
+from config import PROJECT_ID, MAPBIOMAS_LABELS, MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_MAPPING, HANSEN_CONSOLIDATED_COLORS, HANSEN_DATASETS, HANSEN_OCEAN_MASK
 from ee_auth import initialize_earth_engine
 from map_manager import create_base_map, add_territories_layer
 from ee_layers import add_mapbiomas_layer, add_hansen_layer
@@ -30,7 +30,8 @@ from hansen_consolidated_utils import (
     get_consolidated_color,
     aggregate_to_consolidated,
     create_comparison_dataframe,
-    summarize_consolidated_stats
+    summarize_consolidated_stats,
+    HANSEN_CONSOLIDATED_MAPPING
 )
 from territory_analysis import (
     get_territory_names,
@@ -796,6 +797,103 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         top_losers = comparison_df[comparison_df['Change_km2'] < 0].nsmallest(5, 'Change_km2')
                         if len(top_losers) > 0:
                             st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], use_container_width=True)
+        
+        # Add Sankey diagram with pixel-level transitions
+        with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
+            st.markdown(f"Pixel-level transitions from {st.session_state.territory_year} to {st.session_state.territory_year2}")
+            try:
+                # Use stored territory geometry if available
+                territory_geom = st.session_state.get('territory_geom')
+                
+                if territory_geom is not None:
+                    # Compute pixel-level transitions using Earth Engine
+                    transitions = {}
+                    
+                    # Determine which dataset we're using
+                    if st.session_state.territory_source == 'MapBiomas':
+                        band1 = f'classification_{st.session_state.territory_year}'
+                        band2 = f'classification_{st.session_state.territory_year2}'
+                        dataset = st.session_state.app.mapbiomas_v9
+                        class_labels = MAPBIOMAS_LABELS
+                    else:  # Hansen
+                        # Load Hansen datasets from Earth Engine
+                        year1_str = str(st.session_state.territory_year)
+                        year2_str = str(st.session_state.territory_year2)
+                        
+                        # Get Hansen asset IDs
+                        if year1_str not in HANSEN_DATASETS or year2_str not in HANSEN_DATASETS:
+                            st.error(f"Hansen data not available for years {year1_str} and {year2_str}")
+                            st.stop()
+                        
+                        # Load Hansen images and apply ocean mask
+                        landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+                        hansen1 = ee.Image(HANSEN_DATASETS[year1_str]).updateMask(landmask)
+                        hansen2 = ee.Image(HANSEN_DATASETS[year2_str]).updateMask(landmask)
+                        
+                        # Consolidate classes using remap - map original classes to consolidated IDs
+                        consolidated_map_vals = list(HANSEN_CONSOLIDATED_MAPPING.keys())
+                        consolidated_map_tos = [list(HANSEN_CONSOLIDATED_COLORS.keys()).index(HANSEN_CONSOLIDATED_MAPPING[c]) for c in consolidated_map_vals]
+                        
+                        hansen1_cons = hansen1.remap(consolidated_map_vals, consolidated_map_tos, 0)
+                        hansen2_cons = hansen2.remap(consolidated_map_vals, consolidated_map_tos, 0)
+                        
+                        # Create a combined image for transition analysis
+                        dataset = hansen1_cons.rename('band1').addBands(hansen2_cons.rename('band2'))
+                        band1 = 'band1'
+                        band2 = 'band2'
+                        class_labels = {}  # Will use consolidated names
+                    
+                    # Calculate transitions using frequencyHistogram
+                    combined = dataset.select(band1).multiply(1000).add(
+                        dataset.select(band2)
+                    )
+                    transition_hist = combined.reduceRegion(
+                        reducer=ee.Reducer.frequencyHistogram(),
+                        geometry=territory_geom,
+                        scale=30,
+                        maxPixels=1e9
+                    ).getInfo()
+                    
+                    if transition_hist:
+                        trans_key = list(transition_hist.keys())[0] if transition_hist else None
+                        if trans_key and transition_hist[trans_key]:
+                            for combined_val_str, count in transition_hist[trans_key].items():
+                                combined_val = int(combined_val_str)
+                                source_class = combined_val // 1000
+                                target_class = combined_val % 1000
+                                area_ha = count * 0.09
+                                if source_class > 0 and target_class > 0 and area_ha > 0:
+                                    if source_class not in transitions:
+                                        transitions[source_class] = {}
+                                    transitions[source_class][target_class] = area_ha
+                    
+                    if transitions:
+                        # For Hansen, map consolidated class IDs to names and colors
+                        if st.session_state.territory_source == 'Hansen':
+                            # Create mapping from consolidated ID to name and color
+                            consolidated_names = list(HANSEN_CONSOLIDATED_COLORS.keys())
+                            class_colors = {}
+                            for cons_id, name in enumerate(consolidated_names):
+                                class_colors[cons_id] = HANSEN_CONSOLIDATED_COLORS[name]
+                        else:
+                            class_colors = MAPBIOMAS_COLOR_MAP
+                        
+                        sankey_fig = create_sankey_transitions(
+                            transitions,
+                            st.session_state.territory_year,
+                            st.session_state.territory_year2,
+                            class_colors=class_colors
+                        )
+                        if sankey_fig:
+                            st.plotly_chart(sankey_fig, use_container_width=True)
+                        else:
+                            st.info("Could not generate Sankey diagram")
+                    else:
+                        st.info("No transition data available")
+                else:
+                    st.warning("Territory geometry not available. Run analysis from Analyze Territory first.")
+            except Exception as e:
+                st.warning(f"Could not display Sankey diagram: {str(e)[:100]}")
     
     else:
         # Single year analysis
