@@ -859,28 +859,66 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                                 target_class = combined_val % 1000
                                 area_ha = count * 0.09
                                 
-                                # For Hansen, consolidate to class names; for MapBiomas, use numeric IDs
-                                if st.session_state.territory_source == 'Hansen':
-                                    source_key = get_consolidated_class(source_class)
-                                    target_key = get_consolidated_class(target_class)
-                                    # Skip unmapped/unknown classes (contain "Unknown")
-                                    if "Unknown" in str(source_key) or "Unknown" in str(target_key):
-                                        continue
-                                else:
-                                    source_key = source_class
-                                    target_key = target_class
-                                
-                                if source_key and target_key and area_ha > 0:
+                                if source_class > 0 and target_class > 0 and area_ha > 0:
+                                    # For Hansen, use stratum names; for MapBiomas, use numeric IDs
+                                    if 'Hansen' in st.session_state.territory_source:
+                                        from hansen_reference_mapping import get_stratum_name
+                                        source_key = get_stratum_name(source_class)
+                                        target_key = get_stratum_name(target_class)
+                                    else:
+                                        source_key = source_class
+                                        target_key = target_class
+                                    
                                     if source_key not in transitions:
                                         transitions[source_key] = {}
-                                    transitions[source_key][target_key] = area_ha
+                                    # Aggregate transitions
+                                    if target_key not in transitions[source_key]:
+                                        transitions[source_key][target_key] = area_ha
+                                    else:
+                                        transitions[source_key][target_key] += area_ha
                     
                     if transitions:
-                        # For Hansen, use consolidated class names; for MapBiomas, use numeric class IDs
-                        if st.session_state.territory_source == 'Hansen':
-                            # Create mapping from consolidated name to color
-                            class_colors = HANSEN_CONSOLIDATED_COLORS.copy()
-                            class_names = {name: name for name in HANSEN_CONSOLIDATED_COLORS.keys()}
+                        # For Hansen, use stratum colors; for MapBiomas, use class colors
+                        if 'Hansen' in st.session_state.territory_source:
+                            from hansen_reference_mapping import HANSEN_STRATUM_COLORS, get_stratum
+                            
+                            # Build color and name dicts for stratum names
+                            class_colors = {}
+                            class_names = {}
+                            
+                            # Map stratum number to stratum name
+                            from hansen_reference_mapping import HANSEN_STRATUM_NAMES
+                            stratum_num_to_name = {v: k for k, v in HANSEN_STRATUM_NAMES.items()}
+                            
+                            # Assign colors to all strata in transitions
+                            for source_name in transitions.keys():
+                                if source_name not in class_colors:
+                                    # Find stratum number for this stratum name
+                                    stratum_num = None
+                                    for num, name in HANSEN_STRATUM_NAMES.items():
+                                        if name == source_name:
+                                            stratum_num = num
+                                            break
+                                    
+                                    if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
+                                        class_colors[source_name] = HANSEN_STRATUM_COLORS[stratum_num]
+                                    else:
+                                        class_colors[source_name] = '#cccccc'
+                                    class_names[source_name] = source_name
+                                
+                                for target_name in transitions[source_name].keys():
+                                    if target_name not in class_colors:
+                                        stratum_num = None
+                                        for num, name in HANSEN_STRATUM_NAMES.items():
+                                            if name == target_name:
+                                                stratum_num = num
+                                                break
+                                        
+                                        if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
+                                            class_colors[target_name] = HANSEN_STRATUM_COLORS[stratum_num]
+                                        else:
+                                            class_colors[target_name] = '#cccccc'
+                                        class_names[target_name] = target_name
                         else:
                             class_colors = MAPBIOMAS_COLOR_MAP
                             class_names = MAPBIOMAS_LABELS
