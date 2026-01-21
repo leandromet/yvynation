@@ -1304,6 +1304,28 @@ if st.session_state.data_loaded and st.session_state.app:
                                     fig = plot_area_distribution(result['df_year2'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
                             
+                            with st.expander("🎯 Gains & Losses (km²)"):
+                                from plotting_utils import calculate_gains_losses
+                                try:
+                                    comparison_df = calculate_gains_losses(
+                                        result['df_year1'],
+                                        result['df_year2'],
+                                        class_col='Class_ID',
+                                        area_col='Area_ha'
+                                    )
+                                    if len(comparison_df) > 0:
+                                        fig = plot_gains_losses(
+                                            comparison_df,
+                                            result['year1'],
+                                            result['year2'],
+                                            top_n=12
+                                        )
+                                        st.pyplot(fig, use_container_width=True)
+                                    else:
+                                        st.info("No comparison data available")
+                                except Exception as e:
+                                    st.warning(f"Could not generate gains/losses chart: {str(e)[:100]}")
+                            
                             with st.expander("🔄 Land Cover Transitions (Sankey)"):
                                 if result.get('transitions'):
                                     try:
@@ -1347,6 +1369,36 @@ if st.session_state.data_loaded and st.session_state.app:
                                 with col_right:
                                     fig = plot_area_distribution(result['df2_disp'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
+                            
+                            with st.expander("🎯 Gains & Losses (km²)"):
+                                from plotting_utils import calculate_gains_losses
+                                try:
+                                    # Detect which class column to use
+                                    class_col = 'Class_ID'
+                                    if 'Class_ID' not in result['df1_disp'].columns:
+                                        if 'Consolidated_Class' in result['df1_disp'].columns:
+                                            class_col = 'Consolidated_Class'
+                                        elif 'Class' in result['df1_disp'].columns:
+                                            class_col = 'Class'
+                                    
+                                    comparison_df = calculate_gains_losses(
+                                        result['df1_disp'],
+                                        result['df2_disp'],
+                                        class_col=class_col,
+                                        area_col='Area_ha'
+                                    )
+                                    if len(comparison_df) > 0:
+                                        fig = plot_gains_losses(
+                                            comparison_df,
+                                            result['year1'],
+                                            result['year2'],
+                                            top_n=12
+                                        )
+                                        st.pyplot(fig, use_container_width=True)
+                                    else:
+                                        st.info("No comparison data available")
+                                except Exception as e:
+                                    st.warning(f"Could not generate gains/losses chart: {str(e)[:100]}")
                             
                             with st.expander("🔄 Land Cover Transitions (Sankey)"):
                                 if result.get('transitions'):

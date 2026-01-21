@@ -173,12 +173,8 @@ def calculate_gains_losses(df_year1, df_year2, class_col='Class_ID', area_col='A
     Returns:
         pd.DataFrame: Comparison DataFrame with Change_km2, Change_pct, Gains, Losses
     '''
-    # Ensure class_col is string for merging
     df1 = df_year1.copy()
     df2 = df_year2.copy()
-    
-    df1[class_col] = df1[class_col].astype(str)
-    df2[class_col] = df2[class_col].astype(str)
     
     # Merge on class
     comparison = pd.merge(
@@ -191,15 +187,11 @@ def calculate_gains_losses(df_year1, df_year2, class_col='Class_ID', area_col='A
     # Calculate changes
     comparison['Change_ha'] = comparison['Area_Year2'] - comparison['Area_Year1']
     comparison['Change_km2'] = comparison['Change_ha'] / 100  # Convert to km²
-    comparison['Change_pct'] = (comparison['Change_ha'] / (comparison['Area_Year1'] + 1)) * 100  # +1 to avoid division by zero
+    comparison['Change_pct'] = (comparison['Change_ha'] / (comparison['Area_Year1'] + 1)) * 100
     
-    # Add class names if available
-    if 'Class' in df1.columns:
-        class_names = pd.concat([
-            df1[[class_col, 'Class']],
-            df2[[class_col, 'Class']]
-        ]).drop_duplicates(subset=[class_col])
-        comparison = comparison.merge(class_names, on=class_col, how='left')
+    # Rename class_col to 'Class' for consistency in plotting if needed
+    if class_col != 'Class':
+        comparison.rename(columns={class_col: 'Class'}, inplace=True)
     
     # Sort by absolute change
     comparison['Abs_Change'] = comparison['Change_ha'].abs()
