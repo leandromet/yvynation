@@ -37,12 +37,37 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
         label_col = 'Name'
         # Use the color of the first class in each stratum
         colors = [get_hansen_class_color(cid) for cid in df_agg['Class_ID']]
+    elif 'Consolidated_Class' in df.columns:
+        # Consolidated Hansen classes - use first top_n by area
+        df_agg = df.head(top_n).copy()
+        label_col = 'Consolidated_Class'
+        # Get colors from consolidated class names
+        from hansen_consolidated_utils import get_consolidated_color
+        colors = []
+        for consolidated_name in df_agg['Consolidated_Class']:
+            try:
+                color = get_consolidated_color(consolidated_name)
+            except:
+                color = '#808080'
+            colors.append(color)
     else:
         # If no Name column, use top N original classes
         df_agg = df.head(top_n).copy()
-        label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
-        # Get colors from MapBiomas color map for each class
-        colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
+        # Determine label column
+        if 'Class' in df_agg.columns:
+            label_col = 'Class'
+        elif 'Consolidated_Class' in df_agg.columns:
+            label_col = 'Consolidated_Class'
+        elif 'Class_ID' in df_agg.columns:
+            label_col = 'Class_ID'
+        else:
+            label_col = df_agg.columns[0]
+        
+        # Get colors from MapBiomas color map if Class_ID exists, otherwise gray
+        if 'Class_ID' in df_agg.columns:
+            colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
+        else:
+            colors = ['#808080'] * len(df_agg)
     
     fig, ax = plt.subplots(figsize=figsize)
     ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
@@ -86,12 +111,35 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
             label_col = 'Name'
             # Use the color of the first class in each stratum
             colors = [get_hansen_class_color(cid) for cid in df_agg['Class_ID']]
-        else:
-            # If no Name column, use top N original classes
+        elif 'Consolidated_Class' in df.columns:
+            # Consolidated Hansen classes - use first top_n by area
             df_agg = df.head(top_n).copy()
-            label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
-            # Get colors from MapBiomas color map for each class
-            colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
+            label_col = 'Consolidated_Class'
+            # Get colors from consolidated class names
+            from hansen_consolidated_utils import get_consolidated_color
+            colors = []
+            for consolidated_name in df_agg['Consolidated_Class']:
+                try:
+                    color = get_consolidated_color(consolidated_name)
+                except:
+                    color = '#808080'
+                colors.append(color)
+        else:
+            # If no Name or Consolidated_Class column, use top N original classes
+            df_agg = df.head(top_n).copy()
+            # Determine label column
+            if 'Class' in df_agg.columns:
+                label_col = 'Class'
+            elif 'Class_ID' in df_agg.columns:
+                label_col = 'Class_ID'
+            else:
+                label_col = df_agg.columns[0]
+            
+            # Get colors from MapBiomas color map if Class_ID exists
+            if 'Class_ID' in df_agg.columns:
+                colors = [MAPBIOMAS_COLOR_MAP.get(int(cid), '#808080') for cid in df_agg['Class_ID']]
+            else:
+                colors = ['#808080'] * len(df_agg)
         
         ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
         ax.set_xlabel('Area (hectares)', fontsize=11)

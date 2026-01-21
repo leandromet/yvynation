@@ -104,6 +104,10 @@ if "selected_feature_index" not in st.session_state:
     st.session_state.selected_feature_index = None
 if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
+if "mapbiomas_comparison_result" not in st.session_state:
+    st.session_state.mapbiomas_comparison_result = None
+if "hansen_comparison_result" not in st.session_state:
+    st.session_state.hansen_comparison_result = None
 if "use_consolidated_classes" not in st.session_state:
     st.session_state.use_consolidated_classes = True
 
@@ -940,10 +944,18 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 if 'Name' in df_display.columns:
                                                     display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha']
                                                 elif 'Consolidated_Class' in df_display.columns:
-                                                    display_cols = ['Consolidated_Class', 'Class_ID', 'Pixels', 'Area_ha']
+                                                    display_cols = ['Consolidated_Class', 'Pixels', 'Area_ha']
+                                                elif 'Class' in df_display.columns:
+                                                    display_cols = ['Class', 'Pixels', 'Area_ha']
                                                 else:
-                                                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha']
-                                                st.dataframe(df_display[display_cols], use_container_width=True)
+                                                    display_cols = [col for col in df_display.columns if col in ['Pixels', 'Area_ha']]
+                                                
+                                                # Only show columns that exist
+                                                display_cols = [col for col in display_cols if col in df_display.columns]
+                                                if display_cols:
+                                                    st.dataframe(df_display[display_cols], use_container_width=True)
+                                                else:
+                                                    st.dataframe(df_display, use_container_width=True)
                                                 
                                                 # Show plot with consolidation
                                                 fig = plot_area_distribution(df_display, year=year, top_n=15)
@@ -1044,9 +1056,8 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 })
                                             
                                             df = pd.DataFrame(records).sort_values("Change (ha)", ascending=False)
-                                            st.dataframe(df, use_container_width=True)
                                             
-                                            # Create comparison plot
+                                            # Create dataframes for each year
                                             df_year1 = pd.DataFrame({
                                                 'Class_ID': [int(cid) for cid in all_classes],
                                                 'Area_ha': [hist1.get(str(int(cid)), 0) * 0.09 for cid in all_classes],
@@ -1059,28 +1070,14 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 'Class': [MAPBIOMAS_LABELS.get(int(cid), f"Class {cid}") for cid in all_classes]
                                             }).sort_values('Area_ha', ascending=False)
                                             
-                                            # Create side-by-side comparison plots
-                                            col_left, col_right = st.columns(2)
-                                            with col_left:
-                                                fig = plot_area_distribution(df_year1, year=year1, top_n=15)
-                                                st.pyplot(fig, use_container_width=True)
-                                            with col_right:
-                                                fig = plot_area_distribution(df_year2, year=year2, top_n=15)
-                                                st.pyplot(fig, use_container_width=True)
-                                            
-                                            # Create transition matrix for Sankey
-                                            st.markdown("### 📊 Land Cover Transitions (Sankey Diagram)")
+                                            # Compute transitions for Sankey
+                                            transitions = {}
+                                            band1 = f'classification_{year1}'
+                                            band2 = f'classification_{year2}'
                                             try:
-                                                # Compute actual pixel-level transitions
-                                                band1 = f'classification_{year1}'
-                                                band2 = f'classification_{year2}'
-                                                
-                                                # Create a combined image: year1*1000 + year2 to track transitions
                                                 combined = st.session_state.app.mapbiomas_v9.select(band1).multiply(1000).add(
                                                     st.session_state.app.mapbiomas_v9.select(band2)
                                                 )
-                                                
-                                                # Get transition histogram
                                                 transition_hist = combined.reduceRegion(
                                                     reducer=ee.Reducer.frequencyHistogram(),
                                                     geometry=geometry,
@@ -1089,51 +1086,39 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 ).getInfo()
                                                 
                                                 if transition_hist:
-                                                    # Parse transitions from combined image
-                                                    transitions = {}
                                                     trans_key = list(transition_hist.keys())[0] if transition_hist else None
-                                                    
                                                     if trans_key and transition_hist[trans_key]:
                                                         for combined_val_str, count in transition_hist[trans_key].items():
                                                             combined_val = int(combined_val_str)
                                                             source_class = combined_val // 1000
                                                             target_class = combined_val % 1000
                                                             area_ha = count * 0.09
-                                                            
                                                             if source_class > 0 and target_class > 0 and area_ha > 0:
                                                                 if source_class not in transitions:
                                                                     transitions[source_class] = {}
                                                                 transitions[source_class][target_class] = area_ha
-                                                    
-                                                    if transitions:
-                                                        sankey_fig = create_sankey_transitions(transitions, year1, year2)
-                                                        if sankey_fig:
-                                                            st.plotly_chart(sankey_fig, use_container_width=True)
-                                                        else:
-                                                            st.info("No transition data available for Sankey diagram")
-                                                    else:
-                                                        st.info("No significant transitions detected between years")
-                                                else:
-                                                    st.warning("Could not compute transition data")
-                                            except Exception as e:
-                                                st.warning(f"Could not generate Sankey diagram: {str(e)[:100]}")
+                                            except:
+                                                pass
                                             
-                                            # Summary statistics
-                                            total_change = df["Change (ha)"].sum()
-                                            loss = df[df["Change (ha)"] < 0]["Change (ha)"].sum()
-                                            gain = df[df["Change (ha)"] > 0]["Change (ha)"].sum()
+                                            # Store comparison results in session state
+                                            st.session_state.mapbiomas_comparison_result = {
+                                                'year1': year1,
+                                                'year2': year2,
+                                                'df': df,
+                                                'df_year1': df_year1,
+                                                'df_year2': df_year2,
+                                                'hist1': hist1,
+                                                'hist2': hist2,
+                                                'all_classes': all_classes,
+                                                'geometry': geometry,
+                                                'transitions': transitions
+                                            }
                                             
-                                            col1, col2, col3 = st.columns(3)
-                                            with col1:
-                                                st.metric("Total Change", f"{total_change:.0f} ha")
-                                            with col2:
-                                                st.metric("Loss", f"{loss:.0f} ha", delta=f"{loss:.0f}")
-                                            with col3:
-                                                st.metric("Gain", f"{gain:.0f} ha", delta=f"{gain:.0f}")
+                                            st.success(f"✓ MapBiomas Comparison ({year1} vs {year2}) completed")
                                         else:
                                             st.error("Could not retrieve data for one or both years")
                                 except Exception as e:
-                                    st.error(f"Comparison error: {e}")
+                                    st.error(f"MapBiomas Comparison error: {e}")
                         else:
                             st.info("Add 2 or more MapBiomas years to compare changes")
                     
@@ -1204,26 +1189,10 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 df_comp["Change (ha)"] = df_comp[f"{h_year2}_ha"] - df_comp[f"{h_year1}_ha"]
                                                 df_comp = df_comp.sort_values("Change (ha)", ascending=False, key=abs)
                                                 
-                                                st.markdown(f"**{'Consolidated' if st.session_state.use_consolidated_classes else 'Detailed'} View**")
-                                                st.dataframe(df_comp, use_container_width=True)
-                                                
-                                                # Create side-by-side comparison plots
-                                                col_left, col_right = st.columns(2)
-                                                with col_left:
-                                                    fig = plot_area_distribution(df1_disp, year=h_year1, top_n=12)
-                                                    st.pyplot(fig, use_container_width=True)
-                                                with col_right:
-                                                    fig = plot_area_distribution(df2_disp, year=h_year2, top_n=12)
-                                                    st.pyplot(fig, use_container_width=True)
-                                                
-                                                # Create transition matrix for Sankey
-                                                st.markdown("### 📊 Land Cover Transitions (Sankey Diagram)")
+                                                # Compute transitions for Sankey
+                                                transitions = {}
                                                 try:
-                                                    # Compute actual pixel-level transitions
-                                                    # Create a combined image: year1*1000 + year2 to track transitions
                                                     combined = hansen1.multiply(1000).add(hansen2)
-                                                    
-                                                    # Get transition histogram
                                                     transition_hist = combined.reduceRegion(
                                                         reducer=ee.Reducer.frequencyHistogram(),
                                                         geometry=geometry,
@@ -1232,10 +1201,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                                     ).getInfo()
                                                     
                                                     if transition_hist:
-                                                        # Parse transitions from combined image
-                                                        transitions = {}
                                                         trans_key = list(transition_hist.keys())[0] if transition_hist else None
-                                                        
                                                         if trans_key and transition_hist[trans_key]:
                                                             for combined_val_str, count in transition_hist[trans_key].items():
                                                                 combined_val = int(combined_val_str)
@@ -1244,7 +1210,6 @@ if st.session_state.data_loaded and st.session_state.app:
                                                                 area_ha = count * 0.09
                                                                 
                                                                 if source_class > 0 and target_class > 0 and area_ha > 0:
-                                                                    # Use consolidated classes if toggled
                                                                     if st.session_state.use_consolidated_classes:
                                                                         source_consolidated = get_consolidated_class(source_class)
                                                                         target_consolidated = get_consolidated_class(target_class)
@@ -1257,38 +1222,124 @@ if st.session_state.data_loaded and st.session_state.app:
                                                                         if source_class not in transitions:
                                                                             transitions[source_class] = {}
                                                                         transitions[source_class][target_class] = area_ha
-                                                        
-                                                        if transitions:
-                                                            sankey_fig = create_sankey_transitions(transitions, h_year1, h_year2)
-                                                            if sankey_fig:
-                                                                st.plotly_chart(sankey_fig, use_container_width=True)
-                                                            else:
-                                                                st.info("No transition data available for Sankey diagram")
-                                                        else:
-                                                            st.info("No significant transitions detected between years")
-                                                    else:
-                                                        st.warning("Could not compute transition data")
-                                                except Exception as e:
-                                                    st.warning(f"Could not generate Sankey diagram: {str(e)[:100]}")
+                                                except:
+                                                    pass
                                                 
-                                                # Summary statistics
-                                                total_change = df_comp["Change (ha)"].sum()
-                                                loss = df_comp[df_comp["Change (ha)"] < 0]["Change (ha)"].sum()
-                                                gain = df_comp[df_comp["Change (ha)"] > 0]["Change (ha)"].sum()
+                                                # Store comparison results in session state
+                                                st.session_state.hansen_comparison_result = {
+                                                    'year1': h_year1,
+                                                    'year2': h_year2,
+                                                    'df_comp': df_comp,
+                                                    'df1_disp': df1_disp,
+                                                    'df2_disp': df2_disp,
+                                                    'hansen1': hansen1,
+                                                    'hansen2': hansen2,
+                                                    'geometry': geometry,
+                                                    'use_consolidated': st.session_state.use_consolidated_classes,
+                                                    'transitions': transitions
+                                                }
                                                 
-                                                col1, col2, col3 = st.columns(3)
-                                                with col1:
-                                                    st.metric("Total Change", f"{total_change:.0f} ha")
-                                                with col2:
-                                                    st.metric("Loss", f"{loss:.0f} ha", delta=f"{loss:.0f}")
-                                                with col3:
-                                                    st.metric("Gain", f"{gain:.0f} ha", delta=f"{gain:.0f}")
+                                                st.success(f"✓ Hansen Comparison ({h_year1} vs {h_year2}) completed")
                                         else:
                                             st.error("Could not retrieve data for one or both years")
                                 except Exception as e:
-                                    st.error(f"Comparison error: {e}")
+                                    st.error(f"Hansen Comparison error: {e}")
                         else:
                             st.info("Add 2 or more Hansen years to compare changes")
+                    
+                    # Display stored comparison results side-by-side
+                    st.divider()
+                    st.markdown("### 📊 Comparison Results Summary")
+                    
+                    col_mb, col_hansen = st.columns(2)
+                    
+                    # MapBiomas comparison results
+                    with col_mb:
+                        if st.session_state.mapbiomas_comparison_result:
+                            result = st.session_state.mapbiomas_comparison_result
+                            st.markdown(f"#### 🌱 MapBiomas ({result['year1']} vs {result['year2']})")
+                            
+                            with st.expander("📋 Data Table"):
+                                st.dataframe(result['df'], use_container_width=True)
+                            
+                            with st.expander("📊 Side-by-side Charts"):
+                                col_left, col_right = st.columns(2)
+                                with col_left:
+                                    fig = plot_area_distribution(result['df_year1'], year=result['year1'], top_n=10)
+                                    st.pyplot(fig, use_container_width=True)
+                                with col_right:
+                                    fig = plot_area_distribution(result['df_year2'], year=result['year2'], top_n=10)
+                                    st.pyplot(fig, use_container_width=True)
+                            
+                            with st.expander("🔄 Land Cover Transitions (Sankey)"):
+                                if result.get('transitions'):
+                                    try:
+                                        sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
+                                        if sankey_fig:
+                                            st.plotly_chart(sankey_fig, use_container_width=True)
+                                    except Exception as e:
+                                        st.warning(f"Could not display Sankey: {str(e)[:50]}")
+                                else:
+                                    st.info("No transition data available")
+                            
+                            # Display summary metrics
+                            total_change = result['df']["Change (ha)"].sum()
+                            loss = result['df'][result['df']["Change (ha)"] < 0]["Change (ha)"].sum()
+                            gain = result['df'][result['df']["Change (ha)"] > 0]["Change (ha)"].sum()
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Total Change", f"{total_change:.0f} ha")
+                            with col2:
+                                st.metric("Loss", f"{loss:.0f} ha")
+                            with col3:
+                                st.metric("Gain", f"{gain:.0f} ha")
+                        else:
+                            st.caption("No MapBiomas comparison yet. Click 'Compare MapBiomas Years' to run comparison.")
+                    
+                    # Hansen comparison results
+                    with col_hansen:
+                        if st.session_state.hansen_comparison_result:
+                            result = st.session_state.hansen_comparison_result
+                            st.markdown(f"#### 🌍 Hansen ({result['year1']} vs {result['year2']})")
+                            
+                            with st.expander("📋 Data Table"):
+                                st.dataframe(result['df_comp'], use_container_width=True)
+                            
+                            with st.expander("📊 Side-by-side Charts"):
+                                col_left, col_right = st.columns(2)
+                                with col_left:
+                                    fig = plot_area_distribution(result['df1_disp'], year=result['year1'], top_n=10)
+                                    st.pyplot(fig, use_container_width=True)
+                                with col_right:
+                                    fig = plot_area_distribution(result['df2_disp'], year=result['year2'], top_n=10)
+                                    st.pyplot(fig, use_container_width=True)
+                            
+                            with st.expander("🔄 Land Cover Transitions (Sankey)"):
+                                if result.get('transitions'):
+                                    try:
+                                        sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
+                                        if sankey_fig:
+                                            st.plotly_chart(sankey_fig, use_container_width=True)
+                                    except Exception as e:
+                                        st.warning(f"Could not display Sankey: {str(e)[:50]}")
+                                else:
+                                    st.info("No transition data available")
+                            
+                            # Display summary metrics
+                            total_change = result['df_comp']["Change (ha)"].sum()
+                            loss = result['df_comp'][result['df_comp']["Change (ha)"] < 0]["Change (ha)"].sum()
+                            gain = result['df_comp'][result['df_comp']["Change (ha)"] > 0]["Change (ha)"].sum()
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Total Change", f"{total_change:.0f} ha")
+                            with col2:
+                                st.metric("Loss", f"{loss:.0f} ha")
+                            with col3:
+                                st.metric("Gain", f"{gain:.0f} ha")
+                        else:
+                            st.caption("No Hansen comparison yet. Click 'Compare Hansen Years' to run comparison.")
                     
                     if not (st.session_state.mapbiomas_layers or st.session_state.hansen_layers):
                         st.info("Add layers from the sidebar to enable comparisons")
