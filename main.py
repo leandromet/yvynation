@@ -113,13 +113,15 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
         matplotlib figure object for rendering with st.pyplot()
     '''
     df = comparison.head(top_n).copy()
-    df['Class_Name'] = df['Class_Name'].fillna('Unknown')
+    
+    # Use 'Class' if available, otherwise use 'Class_ID'
+    label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
     
     # Color based on gain or loss
     colors = ['green' if x > 0 else 'red' for x in df['Change_km2']]
     
     fig, ax = plt.subplots(figsize=figsize)
-    ax.barh(df['Class_Name'], df['Change_km2'], color=colors)
+    ax.barh(df[label_col], df['Change_km2'], color=colors)
     ax.set_xlabel('Area Change (hectares)', fontsize=12)
     ax.set_title(f'Land Cover Changes ({start_year} to {end_year})', fontsize=14, fontweight='bold')
     ax.axvline(x=0, color='black', linestyle='-', linewidth=1)
@@ -144,17 +146,69 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
         matplotlib figure object for rendering with st.pyplot()
     '''
     df = comparison.dropna(subset=['Change_pct']).head(top_n).copy()
-    df['Class_Name'] = df['Class_Name'].fillna('Unknown')
+    
+    # Use 'Class' if available, otherwise use 'Class_ID'
+    label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
     
     colors = ['green' if x > 0 else 'red' for x in df['Change_pct']]
     
     fig, ax = plt.subplots(figsize=figsize)
-    ax.barh(df['Class_Name'], df['Change_pct'], color=colors)
+    ax.barh(df[label_col], df['Change_pct'], color=colors)
     ax.set_xlabel('Percentage Change (%)', fontsize=12)
     ax.set_title(f'Percentage Change in Land Cover ({start_year} to {end_year})', 
                  fontsize=14, fontweight='bold')
     ax.axvline(x=0, color='black', linestyle='-', linewidth=1)
     ax.invert_yaxis()
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_gains_losses(comparison, start_year, end_year, top_n=15, figsize=(14, 8)):
+    '''
+    Plot class-by-class gains (green) and losses (red) as horizontal bars.
+    Shows both directions of change in a single chart for easy comparison.
+    
+    Args:
+        comparison (pd.DataFrame): Comparison dataframe with gains/losses
+        start_year (int): Start year
+        end_year (int): End year
+        top_n (int): Number of top classes to show
+        figsize (tuple): Figure size
+    
+    Returns:
+        matplotlib figure object for rendering with st.pyplot()
+    '''
+    df = comparison.copy()
+    
+    # Use 'Class' if available, otherwise use 'Class_ID'
+    label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
+    
+    # Separate gains and losses
+    df['Gains'] = df['Change_km2'].clip(lower=0)  # Only positive values
+    df['Losses'] = df['Change_km2'].clip(upper=0)  # Only negative values (will be negative)
+    
+    # Sort by absolute change
+    df['Abs_Change'] = df['Change_km2'].abs()
+    df_sorted = df.nlargest(top_n, 'Abs_Change').copy()
+    df_sorted = df_sorted.sort_values('Abs_Change')  # Sort for bar chart display
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot gains (green, positive direction)
+    ax.barh(df_sorted[label_col], df_sorted['Gains'], 
+            color='#2ecc71', label='Gains', height=0.7)
+    
+    # Plot losses (red, negative direction)
+    ax.barh(df_sorted[label_col], df_sorted['Losses'], 
+            color='#e74c3c', label='Losses', height=0.7)
+    
+    ax.set_xlabel('Area Change (km²)', fontsize=12, fontweight='bold')
+    ax.set_title(f'Class Gains and Losses ({start_year} to {end_year})', 
+                 fontsize=14, fontweight='bold')
+    ax.axvline(x=0, color='black', linestyle='-', linewidth=1.5)
+    ax.legend(loc='lower right', fontsize=11)
+    ax.grid(axis='x', alpha=0.3)
     
     plt.tight_layout()
     return fig

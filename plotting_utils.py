@@ -160,6 +160,54 @@ def get_hansen_color(class_id):
     return get_stratum_color(class_id)
 
 
+def calculate_gains_losses(df_year1, df_year2, class_col='Class_ID', area_col='Area_ha'):
+    '''
+    Calculate gains and losses for land cover classes between two years.
+    
+    Args:
+        df_year1 (pd.DataFrame): DataFrame for year 1
+        df_year2 (pd.DataFrame): DataFrame for year 2
+        class_col (str): Column name for class identifier
+        area_col (str): Column name for area
+    
+    Returns:
+        pd.DataFrame: Comparison DataFrame with Change_km2, Change_pct, Gains, Losses
+    '''
+    # Ensure class_col is string for merging
+    df1 = df_year1.copy()
+    df2 = df_year2.copy()
+    
+    df1[class_col] = df1[class_col].astype(str)
+    df2[class_col] = df2[class_col].astype(str)
+    
+    # Merge on class
+    comparison = pd.merge(
+        df1[[class_col, area_col]].rename(columns={area_col: 'Area_Year1'}),
+        df2[[class_col, area_col]].rename(columns={area_col: 'Area_Year2'}),
+        on=class_col,
+        how='outer'
+    ).fillna(0)
+    
+    # Calculate changes
+    comparison['Change_ha'] = comparison['Area_Year2'] - comparison['Area_Year1']
+    comparison['Change_km2'] = comparison['Change_ha'] / 100  # Convert to km²
+    comparison['Change_pct'] = (comparison['Change_ha'] / (comparison['Area_Year1'] + 1)) * 100  # +1 to avoid division by zero
+    
+    # Add class names if available
+    if 'Class' in df1.columns:
+        class_names = pd.concat([
+            df1[[class_col, 'Class']],
+            df2[[class_col, 'Class']]
+        ]).drop_duplicates(subset=[class_col])
+        comparison = comparison.merge(class_names, on=class_col, how='left')
+    
+    # Sort by absolute change
+    comparison['Abs_Change'] = comparison['Change_ha'].abs()
+    comparison = comparison.sort_values('Abs_Change', ascending=False)
+    
+    return comparison
+
+
 def display_summary_metrics(df, title="Summary Statistics"):
     """
     Display summary metrics for a land cover analysis.

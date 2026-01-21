@@ -45,7 +45,7 @@ from plotting_utils import (
     get_hansen_color,
     display_summary_metrics
 )
-from main import create_sankey_transitions
+from main import create_sankey_transitions, plot_gains_losses, plot_area_changes, plot_change_percentage
 
 # ============================================================================
 # INITIALIZATION
@@ -690,79 +690,112 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
     if st.session_state.territory_result_year2 is not None:
         st.subheader(f"🏛️ Territory Comparison - {st.session_state.territory_name}")
         
-        # Comparison tabs
-        comp_tab1, comp_tab2, comp_tab3 = st.tabs(
-            ["📊 Side-by-Side Comparison", "📋 Data Tables", "ℹ️ Territory Info"]
+        from plotting_utils import calculate_gains_losses
+        comparison_df = calculate_gains_losses(
+            st.session_state.territory_result,
+            st.session_state.territory_result_year2,
+            class_col='Class_ID',
+            area_col='Area_ha'
         )
         
-        with comp_tab1:
-            st.markdown(f"### Land Cover Distribution Comparison in {st.session_state.territory_name}")
-            fig = plot_area_comparison(
-                st.session_state.territory_result,
-                st.session_state.territory_result_year2,
-                st.session_state.territory_year,
-                st.session_state.territory_year2,
-                top_n=15
-            )
-            st.pyplot(fig, use_container_width=True)
+        # Side-by-side comparison with gains/losses
+        col_left, col_right = st.columns(2)
         
-        with comp_tab2:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"### Year {st.session_state.territory_year}")
-                display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
-                st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
-                csv1 = st.session_state.territory_result.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv1,
-                    file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year}.csv",
-                    mime="text/csv",
-                    key="download_comp_1"
+        with col_left:
+            with st.expander("📊 Side-by-Side Comparison", expanded=True):
+                st.markdown(f"Land Cover Distribution Comparison")
+                fig = plot_area_comparison(
+                    st.session_state.territory_result,
+                    st.session_state.territory_result_year2,
+                    st.session_state.territory_year,
+                    st.session_state.territory_year2,
+                    top_n=12
                 )
-            
-            with col2:
-                st.markdown(f"### Year {st.session_state.territory_year2}")
-                display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result_year2.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
-                st.dataframe(st.session_state.territory_result_year2[display_cols], use_container_width=True)
-                csv2 = st.session_state.territory_result_year2.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv2,
-                    file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year2}.csv",
-                    mime="text/csv",
-                    key="download_comp_2"
-                )
+                st.pyplot(fig, use_container_width=True)
         
-        with comp_tab3:
-            st.markdown(f"### Territory Information")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"**Year {st.session_state.territory_year}**")
-                total_area1 = st.session_state.territory_result['Area_ha'].sum()
-                num_classes1 = len(st.session_state.territory_result)
-                largest_class1 = st.session_state.territory_result.loc[st.session_state.territory_result['Area_ha'].idxmax()]
+        with col_right:
+            with st.expander("🎯 Gains & Losses (km²)", expanded=True):
+                st.markdown(f"Class Gains and Losses ({st.session_state.territory_year} to {st.session_state.territory_year2})")
+                if len(comparison_df) > 0:
+                    fig = plot_gains_losses(
+                        comparison_df,
+                        st.session_state.territory_year,
+                        st.session_state.territory_year2,
+                        top_n=12
+                    )
+                    st.pyplot(fig, use_container_width=True)
+                    
+                    # Summary stats
+                    total_gains = comparison_df[comparison_df['Change_km2'] > 0]['Change_km2'].sum()
+                    total_losses = abs(comparison_df[comparison_df['Change_km2'] < 0]['Change_km2'].sum())
+                    net_change = total_gains - total_losses
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Gains", f"{total_gains:,.1f} km²")
+                    with col2:
+                        st.metric("Losses", f"{total_losses:,.1f} km²")
+                    with col3:
+                        st.metric("Net", f"{net_change:+,.1f} km²")
+                else:
+                    st.info("No comparison data available")
+        
+        # Data tables and change analysis
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            with st.expander("📋 Data Tables", expanded=False):
+                tab_y1, tab_y2 = st.tabs([f"Year {st.session_state.territory_year}", f"Year {st.session_state.territory_year2}"])
                 
-                st.metric("Total Area", f"{total_area1:,.0f} ha")
-                st.metric("Classes", num_classes1)
-                st.metric("Largest Class", largest_class1['Class'])
-            
-            with col2:
-                st.markdown(f"**Year {st.session_state.territory_year2}**")
-                total_area2 = st.session_state.territory_result_year2['Area_ha'].sum()
-                num_classes2 = len(st.session_state.territory_result_year2)
-                largest_class2 = st.session_state.territory_result_year2.loc[st.session_state.territory_result_year2['Area_ha'].idxmax()]
+                with tab_y1:
+                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result.columns else ['Class_ID', 'Pixels', 'Area_ha']
+                    st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
+                    csv1 = st.session_state.territory_result.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv1,
+                        file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year}.csv",
+                        mime="text/csv",
+                        key="download_comp_1"
+                    )
                 
-                st.metric("Total Area", f"{total_area2:,.0f} ha")
-                st.metric("Classes", num_classes2)
-                st.metric("Largest Class", largest_class2['Class'])
-            
-            st.divider()
-            st.info(f"Territory: **{st.session_state.territory_name}**")
-            st.info(f"Data Source: **{st.session_state.territory_source}**")
+                with tab_y2:
+                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result_year2.columns else ['Class_ID', 'Pixels', 'Area_ha']
+                    st.dataframe(st.session_state.territory_result_year2[display_cols], use_container_width=True)
+                    csv2 = st.session_state.territory_result_year2.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv2,
+                        file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year2}.csv",
+                        mime="text/csv",
+                        key="download_comp_2"
+                    )
+        
+        with col2:
+            with st.expander("📈 Change Analysis", expanded=False):
+                st.markdown(f"Percentage Change Analysis")
+                if len(comparison_df) > 0:
+                    fig = plot_change_percentage(
+                        comparison_df,
+                        st.session_state.territory_year,
+                        st.session_state.territory_year2,
+                        top_n=12
+                    )
+                    st.pyplot(fig, use_container_width=True)
+                    
+                    # Top gainers and losers
+                    tcol1, tcol2 = st.columns(2)
+                    with tcol1:
+                        st.markdown("**Top Gainers**")
+                        top_gainers = comparison_df[comparison_df['Change_km2'] > 0].nlargest(5, 'Change_km2')
+                        if len(top_gainers) > 0:
+                            st.dataframe(top_gainers[['Class', 'Change_km2', 'Change_pct']], use_container_width=True)
+                    
+                    with tcol2:
+                        st.markdown("**Top Losers**")
+                        top_losers = comparison_df[comparison_df['Change_km2'] < 0].nsmallest(5, 'Change_km2')
+                        if len(top_losers) > 0:
+                            st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], use_container_width=True)
     
     else:
         # Single year analysis
