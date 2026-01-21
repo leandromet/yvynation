@@ -205,27 +205,43 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
     Nodes with larger values appear at the top with area displayed.
     
     Args:
-        transitions_dict (dict): Transition matrix {source: {target: area}}
+        transitions_dict (dict): Transition matrix {source: {target: area, ...}, ...}
+                                 Can have '_source_id' key to store representative class ID for coloring
         year_start (int): Start year
         year_end (int): End year
     
     Returns:
         plotly.graph_objects.Figure: Sankey diagram with left-right layout
     '''
+    from hansen_consolidated_utils import get_consolidated_color
+    
     # Prepare nodes and links
     sources = []
     targets = []
     values = []
     source_colors = []
     
+    # Build a mapping of class names to representative IDs for coloring
+    class_id_map = {}
+    
     for source_id, targets_dict in transitions_dict.items():
+        # Extract and store representative class ID if available
+        source_id_for_color = targets_dict.pop('_source_id', None) if isinstance(targets_dict, dict) and '_source_id' in targets_dict else None
+        
         for target_id, area in targets_dict.items():
-            if area > 0:
+            if isinstance(area, (int, float)) and area > 0:
                 sources.append(f"{source_id} ({year_start})")
                 targets.append(f"{target_id} ({year_end})")
                 values.append(area)
-                # Color from source class
-                source_colors.append(MAPBIOMAS_COLOR_MAP.get(source_id, '#cccccc'))
+                
+                # Determine color: use class ID if numeric, otherwise use consolidated color
+                if isinstance(source_id, int):
+                    color = MAPBIOMAS_COLOR_MAP.get(source_id, '#cccccc')
+                elif source_id_for_color is not None:
+                    color = get_consolidated_color(source_id_for_color)
+                else:
+                    color = '#cccccc'
+                source_colors.append(color)
     
     if not sources:
         return None
@@ -257,10 +273,15 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
         # Extract class ID from node label
         class_id_str = node.split(' (')[0]
         try:
+            # Try to parse as integer (for numeric class IDs)
             class_id = int(class_id_str)
             color = MAPBIOMAS_COLOR_MAP.get(class_id, '#cccccc')
-        except:
-            color = '#cccccc'
+        except ValueError:
+            # It's a consolidated class name, try to get color from consolidated utils
+            try:
+                color = get_consolidated_color(class_id_str)
+            except:
+                color = '#cccccc'
         node_colors.append(color)
     
     # Create Sankey
@@ -277,7 +298,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end):
             target=[node_to_idx[t] for t in targets],
             value=values,
             color=source_colors,
-            label=[f"{s} → {t} ({v:.1f} km²)" for s, t, v in zip(sources, targets, values)]
+            label=[f"{s} → {t} ({v:.1f} ha)" for s, t, v in zip(sources, targets, values)]
         )
     )])
     

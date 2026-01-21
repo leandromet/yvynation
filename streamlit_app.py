@@ -45,6 +45,7 @@ from plotting_utils import (
     get_hansen_color,
     display_summary_metrics
 )
+from main import create_sankey_transitions
 
 # ============================================================================
 # INITIALIZATION
@@ -563,6 +564,7 @@ draw = Draw(
 )
 draw.add_to(display_map)
 
+
 # Display the map
 st.subheader("🗺️ Interactive Map")
 
@@ -585,9 +587,10 @@ try:
     # Capture drawn features from the map
     if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
         st.session_state.last_drawn_feature = map_data["all_drawings"][-1]  # Get the last drawn feature
-        st.info(f"✓ Captured {len(map_data['all_drawings'])} drawn feature(s)")
+        st.success(f"✓ Captured {len(map_data['all_drawings'])} polygon(s). Scroll down to analyze.")
     elif map_data and "last_active_drawing" in map_data:
         st.session_state.last_drawn_feature = map_data["last_active_drawing"]
+        st.success("✓ Polygon captured. Scroll down to analyze.")
     
 except Exception as e:
     st.warning(f"Map display error: {e}")
@@ -1008,8 +1011,64 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 'Class': [MAPBIOMAS_LABELS.get(int(cid), f"Class {cid}") for cid in all_classes]
                                             }).sort_values('Area_ha', ascending=False)
                                             
-                                            fig = plot_area_comparison(df_year1, df_year2, year1, year2, top_n=15)
-                                            st.pyplot(fig, use_container_width=True)
+                                            # Create side-by-side comparison plots
+                                            col_left, col_right = st.columns(2)
+                                            with col_left:
+                                                fig = plot_area_distribution(df_year1, year=year1, top_n=15)
+                                                st.pyplot(fig, use_container_width=True)
+                                            with col_right:
+                                                fig = plot_area_distribution(df_year2, year=year2, top_n=15)
+                                                st.pyplot(fig, use_container_width=True)
+                                            
+                                            # Create transition matrix for Sankey
+                                            st.markdown("### 📊 Land Cover Transitions (Sankey Diagram)")
+                                            try:
+                                                # Compute actual pixel-level transitions
+                                                band1 = f'classification_{year1}'
+                                                band2 = f'classification_{year2}'
+                                                
+                                                # Create a combined image: year1*1000 + year2 to track transitions
+                                                combined = st.session_state.app.mapbiomas_v9.select(band1).multiply(1000).add(
+                                                    st.session_state.app.mapbiomas_v9.select(band2)
+                                                )
+                                                
+                                                # Get transition histogram
+                                                transition_hist = combined.reduceRegion(
+                                                    reducer=ee.Reducer.frequencyHistogram(),
+                                                    geometry=geometry,
+                                                    scale=30,
+                                                    maxPixels=1e9
+                                                ).getInfo()
+                                                
+                                                if transition_hist:
+                                                    # Parse transitions from combined image
+                                                    transitions = {}
+                                                    trans_key = list(transition_hist.keys())[0] if transition_hist else None
+                                                    
+                                                    if trans_key and transition_hist[trans_key]:
+                                                        for combined_val_str, count in transition_hist[trans_key].items():
+                                                            combined_val = int(combined_val_str)
+                                                            source_class = combined_val // 1000
+                                                            target_class = combined_val % 1000
+                                                            area_ha = count * 0.09
+                                                            
+                                                            if source_class > 0 and target_class > 0 and area_ha > 0:
+                                                                if source_class not in transitions:
+                                                                    transitions[source_class] = {}
+                                                                transitions[source_class][target_class] = area_ha
+                                                    
+                                                    if transitions:
+                                                        sankey_fig = create_sankey_transitions(transitions, year1, year2)
+                                                        if sankey_fig:
+                                                            st.plotly_chart(sankey_fig, use_container_width=True)
+                                                        else:
+                                                            st.info("No transition data available for Sankey diagram")
+                                                    else:
+                                                        st.info("No significant transitions detected between years")
+                                                else:
+                                                    st.warning("Could not compute transition data")
+                                            except Exception as e:
+                                                st.warning(f"Could not generate Sankey diagram: {str(e)[:100]}")
                                             
                                             # Summary statistics
                                             total_change = df["Change (ha)"].sum()
@@ -1100,9 +1159,69 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 st.markdown(f"**{'Consolidated' if st.session_state.use_consolidated_classes else 'Detailed'} View**")
                                                 st.dataframe(df_comp, use_container_width=True)
                                                 
-                                                # Create comparison plot
-                                                fig = plot_area_comparison(df1_disp, df2_disp, h_year1, h_year2, top_n=12)
-                                                st.pyplot(fig, use_container_width=True)
+                                                # Create side-by-side comparison plots
+                                                col_left, col_right = st.columns(2)
+                                                with col_left:
+                                                    fig = plot_area_distribution(df1_disp, year=h_year1, top_n=12)
+                                                    st.pyplot(fig, use_container_width=True)
+                                                with col_right:
+                                                    fig = plot_area_distribution(df2_disp, year=h_year2, top_n=12)
+                                                    st.pyplot(fig, use_container_width=True)
+                                                
+                                                # Create transition matrix for Sankey
+                                                st.markdown("### 📊 Land Cover Transitions (Sankey Diagram)")
+                                                try:
+                                                    # Compute actual pixel-level transitions
+                                                    # Create a combined image: year1*1000 + year2 to track transitions
+                                                    combined = hansen1.multiply(1000).add(hansen2)
+                                                    
+                                                    # Get transition histogram
+                                                    transition_hist = combined.reduceRegion(
+                                                        reducer=ee.Reducer.frequencyHistogram(),
+                                                        geometry=geometry,
+                                                        scale=30,
+                                                        maxPixels=1e9
+                                                    ).getInfo()
+                                                    
+                                                    if transition_hist:
+                                                        # Parse transitions from combined image
+                                                        transitions = {}
+                                                        trans_key = list(transition_hist.keys())[0] if transition_hist else None
+                                                        
+                                                        if trans_key and transition_hist[trans_key]:
+                                                            for combined_val_str, count in transition_hist[trans_key].items():
+                                                                combined_val = int(combined_val_str)
+                                                                source_class = combined_val // 1000
+                                                                target_class = combined_val % 1000
+                                                                area_ha = count * 0.09
+                                                                
+                                                                if source_class > 0 and target_class > 0 and area_ha > 0:
+                                                                    # Use consolidated classes if toggled
+                                                                    if st.session_state.use_consolidated_classes:
+                                                                        source_consolidated = get_consolidated_class(source_class)
+                                                                        target_consolidated = get_consolidated_class(target_class)
+                                                                        if source_consolidated not in transitions:
+                                                                            transitions[source_consolidated] = {'_source_id': source_class}
+                                                                        if target_consolidated not in transitions[source_consolidated]:
+                                                                            transitions[source_consolidated][target_consolidated] = 0
+                                                                        transitions[source_consolidated][target_consolidated] += area_ha
+                                                                    else:
+                                                                        if source_class not in transitions:
+                                                                            transitions[source_class] = {}
+                                                                        transitions[source_class][target_class] = area_ha
+                                                        
+                                                        if transitions:
+                                                            sankey_fig = create_sankey_transitions(transitions, h_year1, h_year2)
+                                                            if sankey_fig:
+                                                                st.plotly_chart(sankey_fig, use_container_width=True)
+                                                            else:
+                                                                st.info("No transition data available for Sankey diagram")
+                                                        else:
+                                                            st.info("No significant transitions detected between years")
+                                                    else:
+                                                        st.warning("Could not compute transition data")
+                                                except Exception as e:
+                                                    st.warning(f"Could not generate Sankey diagram: {str(e)[:100]}")
                                                 
                                                 # Summary statistics
                                                 total_change = df_comp["Change (ha)"].sum()
