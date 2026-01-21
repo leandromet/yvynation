@@ -8,35 +8,32 @@ import ee
 import pandas as pd
 import matplotlib.pyplot as plt
 from config import HANSEN_DATASETS, HANSEN_PALETTE, HANSEN_COLOR_MAP, HANSEN_LABELS
-from hansen_consolidated_mapping import HANSEN_CONSOLIDATED_MAPPING
+from hansen_reference_mapping import (
+    get_stratum, get_stratum_name, get_stratum_color,
+    HANSEN_STRATUM_NAMES
+)
 
 
 def get_hansen_color(class_id):
-    """Get color for Hansen class ID from the palette"""
-    if isinstance(class_id, (int, float)):
-        class_id = int(class_id)
-    
-    # Map palette index to color
-    if 0 <= class_id < len(HANSEN_PALETTE):
-        return f"#{HANSEN_PALETTE[class_id]}"
-    
-    # Fallback for unknown classes - use gray
-    return "#808080"
+    """Get color for Hansen class ID based on stratum"""
+    return get_stratum_color(class_id)
 
 
 def hansen_histogram_to_dataframe(hist, year):
-    """Convert Hansen frequency histogram to DataFrame"""
+    """Convert Hansen frequency histogram to DataFrame with stratum grouping"""
     if hist and 'b1' in hist:
         data = hist['b1']
         records = []
         for class_id, count in data.items():
             class_id = int(class_id)
             class_name = HANSEN_LABELS.get(class_id, f"Class {class_id}")
-            consolidated_name = HANSEN_CONSOLIDATED_MAPPING.get(class_id, "Unknown")
+            stratum = get_stratum(class_id)
+            stratum_name = get_stratum_name(class_id)
             records.append({
                 "Class_ID": class_id,
                 "Class": class_name,
-                "Name": consolidated_name,
+                "Stratum": stratum,
+                "Name": stratum_name,
                 "Pixels": int(count),
                 "Area_ha": count * 0.9  # 30m pixels ≈ 0.9 ha
             })

@@ -6,8 +6,8 @@ Provides consistent plotting functions for land cover analysis.
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-from config import MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_COLORS
-from hansen_consolidated_utils import get_consolidated_class, get_consolidated_color
+from config import MAPBIOMAS_COLOR_MAP
+from hansen_glcluc_colors import get_hansen_class_color, HANSEN_CLASS_COLORS
 
 
 def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
@@ -17,28 +17,34 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
     Args:
         area_df (pd.DataFrame): DataFrame with Class, Class_ID, and Area_ha columns
         year (int or str): Year being displayed (for title)
-        top_n (int): Number of top classes to display
+        top_n (int): Number of top classes to display (ignored if consolidating)
         figsize (tuple): Figure size (width, height)
     
     Returns:
         matplotlib.figure.Figure: Plotted figure
     """
-    df_top = area_df.head(top_n).copy()
+    df = area_df.copy()
     
-    # Determine label column - use "Name" for consolidated classes, otherwise "Class"
-    if 'Name' in df_top.columns:
+    # Aggregate by stratum name if available (Hansen data)
+    if 'Name' in df.columns and 'Stratum' in df.columns:
+        # Group by stratum name and sum the areas
+        df_agg = df.groupby('Name', as_index=False).agg({
+            'Area_ha': 'sum',
+            'Pixels': 'sum',
+            'Stratum': 'first',
+            'Class_ID': 'first'  # Get one representative class ID for coloring
+        }).sort_values('Area_ha', ascending=False)
         label_col = 'Name'
+        # Use the color of the first class in each stratum
+        colors = [get_hansen_class_color(cid) for cid in df_agg['Class_ID']]
     else:
-        label_col = 'Class' if 'Class' in df_top.columns else 'Class_ID'
-    
-    # Get colors based on Class_ID
-    if 'Class_ID' in df_top.columns:
-        colors = [get_hansen_color(cid) for cid in df_top['Class_ID']]
-    else:
-        colors = ['#808080'] * len(df_top)
+        # If no Name column, use top N original classes
+        df_agg = df.head(top_n).copy()
+        label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
+        colors = ['#808080'] * len(df_agg)
     
     fig, ax = plt.subplots(figsize=figsize)
-    ax.barh(df_top[label_col], df_top['Area_ha'], color=colors)
+    ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
     ax.set_xlabel('Area (hectares)', fontsize=12)
     title = f'Land Cover Distribution - {year}' if year else 'Land Cover Distribution'
     ax.set_title(title, fontsize=14, fontweight='bold')
@@ -56,7 +62,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
         area_end (pd.DataFrame): Land cover data for second year
         start_year (int or str): First year
         end_year (int or str): Second year
-        top_n (int): Number of top classes to display
+        top_n (int): Number of top classes to display (ignored if consolidating)
         figsize (tuple): Figure size (width, height)
     
     Returns:
@@ -65,21 +71,27 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     
     for idx, (data, year, ax) in enumerate([(area_start, start_year, axes[0]), (area_end, end_year, axes[1])]):
-        df = data.head(top_n).copy()
+        df = data.copy()
         
-        # Determine label column - use "Name" for consolidated classes, otherwise "Class"
-        if 'Name' in df.columns:
+        # Aggregate by stratum name if available (Hansen data)
+        if 'Name' in df.columns and 'Stratum' in df.columns:
+            # Group by stratum name and sum the areas
+            df_agg = df.groupby('Name', as_index=False).agg({
+                'Area_ha': 'sum',
+                'Pixels': 'sum',
+                'Stratum': 'first',
+                'Class_ID': 'first'
+            }).sort_values('Area_ha', ascending=False)
             label_col = 'Name'
+            # Use the color of the first class in each stratum
+            colors = [get_hansen_class_color(cid) for cid in df_agg['Class_ID']]
         else:
-            label_col = 'Class'
+            # If no Name column, use top N original classes
+            df_agg = df.head(top_n).copy()
+            label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
+            colors = ['#808080'] * len(df_agg)
         
-        # Get colors based on Class_ID
-        if 'Class_ID' in df.columns:
-            colors = [get_hansen_color(cid) for cid in df['Class_ID']]
-        else:
-            colors = ['#808080'] * len(df)
-        
-        ax.barh(df[label_col], df['Area_ha'], color=colors)
+        ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
         ax.set_xlabel('Area (hectares)', fontsize=11)
         ax.set_title(f'Land Cover Distribution - {year}', fontsize=12, fontweight='bold')
         ax.invert_yaxis()
@@ -90,7 +102,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
 
 def get_hansen_color(class_id):
     """
-    Get color for Hansen class ID.
+    Get color for Hansen class ID based on stratum.
     
     Args:
         class_id (int or float): Hansen class ID (0-255)
@@ -98,10 +110,7 @@ def get_hansen_color(class_id):
     Returns:
         str: Hex color code
     """
-    if isinstance(class_id, (int, float)):
-        class_id = int(class_id)
-    consolidated = get_consolidated_class(class_id)
-    return HANSEN_CONSOLIDATED_COLORS.get(consolidated, "#808080")
+    return get_stratum_color(class_id)
 
 
 def display_summary_metrics(df, title="Summary Statistics"):

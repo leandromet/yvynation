@@ -439,7 +439,8 @@ if st.session_state.data_loaded and st.session_state.app:
             display_map = add_hansen_layer(
                 display_map,
                 year,
-                opacity=0.8
+                opacity=0.8,
+                use_consolidated=st.session_state.use_consolidated_classes
             )
 
 # Add territory boundary layer if requested
