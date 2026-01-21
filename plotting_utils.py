@@ -176,21 +176,39 @@ def calculate_gains_losses(df_year1, df_year2, class_col='Class_ID', area_col='A
     df1 = df_year1.copy()
     df2 = df_year2.copy()
     
-    # Merge on class
-    comparison = pd.merge(
-        df1[[class_col, area_col]].rename(columns={area_col: 'Area_Year1'}),
-        df2[[class_col, area_col]].rename(columns={area_col: 'Area_Year2'}),
-        on=class_col,
-        how='outer'
-    ).fillna(0)
+    # Check if we have class names
+    has_class_names = 'Class' in df1.columns and class_col != 'Class'
+    
+    # Prepare merge data with class and area
+    merge1 = df1[[class_col, area_col]].copy()
+    merge1.columns = [class_col, 'Area_Year1']
+    
+    merge2 = df2[[class_col, area_col]].copy()
+    merge2.columns = [class_col, 'Area_Year2']
+    
+    # Add class names from year 1 if they exist
+    if has_class_names:
+        class_names = df1[[class_col, 'Class']].drop_duplicates(subset=[class_col])
+        merge1 = merge1.merge(class_names, on=class_col, how='left')
+    
+    # Drop duplicates to ensure clean merge
+    merge1 = merge1.drop_duplicates(subset=[class_col])
+    merge2 = merge2.drop_duplicates(subset=[class_col])
+    
+    # Merge the data
+    comparison = pd.merge(merge1, merge2, on=class_col, how='outer')
+    
+    # Fill NaN values in Area columns
+    comparison['Area_Year1'] = comparison['Area_Year1'].fillna(0)
+    comparison['Area_Year2'] = comparison['Area_Year2'].fillna(0)
     
     # Calculate changes
     comparison['Change_ha'] = comparison['Area_Year2'] - comparison['Area_Year1']
     comparison['Change_km2'] = comparison['Change_ha'] / 100  # Convert to km²
     comparison['Change_pct'] = (comparison['Change_ha'] / (comparison['Area_Year1'] + 1)) * 100
     
-    # Rename class_col to 'Class' for consistency in plotting if needed
-    if class_col != 'Class':
+    # Rename class_col to 'Class' only if we don't already have class names
+    if not has_class_names and class_col != 'Class':
         comparison.rename(columns={class_col: 'Class'}, inplace=True)
     
     # Sort by absolute change
