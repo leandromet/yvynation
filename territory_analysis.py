@@ -161,7 +161,11 @@ def initialize_territory_session_state():
         st.session_state.territory_layer_name = None    
     if "territory_analysis_image" not in st.session_state:
         st.session_state.territory_analysis_image = None
+    if "territory_analysis_source" not in st.session_state:
+        st.session_state.territory_analysis_source = None
     if "territory_analysis_image_year2" not in st.session_state:
         st.session_state.territory_analysis_image_year2 = None
+    if "territory_analysis_source_year2" not in st.session_state:
+        st.session_state.territory_analysis_source_year2 = None
     if "add_analysis_layer_to_map" not in st.session_state:
         st.session_state.add_analysis_layer_to_map = False

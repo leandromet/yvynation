@@ -144,7 +144,7 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
         matplotlib figure object for rendering with st.pyplot()
     '''
     df = comparison.dropna(subset=['Change_pct']).head(top_n).copy()
-    df['Class_Name'] = df['Class_Name'].fillna('Unknown')
+    df['Class_Name'] = df['Class_Name'].fillna('Unknown').astype(str)
     
     colors = ['green' if x > 0 else 'red' for x in df['Change_pct']]
     

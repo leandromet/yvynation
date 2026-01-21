@@ -67,7 +67,7 @@ def plot_area_distribution(area_df, year=None, top_n=15, figsize=(12, 6)):
             colors = ['#808080'] * len(df_agg)
     
     fig, ax = plt.subplots(figsize=figsize)
-    ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
+    ax.barh(df_agg[label_col].astype(str), df_agg['Area_ha'], color=colors)
     ax.set_xlabel('Area (hectares)', fontsize=12)
     title = f'Land Cover Distribution - {year}' if year else 'Land Cover Distribution'
     ax.set_title(title, fontsize=14, fontweight='bold')
@@ -138,7 +138,7 @@ def plot_area_comparison(area_start, area_end, start_year, end_year, top_n=15, f
             else:
                 colors = ['#808080'] * len(df_agg)
         
-        ax.barh(df_agg[label_col], df_agg['Area_ha'], color=colors)
+        ax.barh(df_agg[label_col].astype(str), df_agg['Area_ha'], color=colors)
         ax.set_xlabel('Area (hectares)', fontsize=11)
         ax.set_title(f'Land Cover Distribution - {year}', fontsize=12, fontweight='bold')
         ax.invert_yaxis()

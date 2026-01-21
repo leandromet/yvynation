@@ -117,6 +117,9 @@ def plot_area_changes(comparison, start_year, end_year, top_n=15, figsize=(12, 6
     # Use 'Class' if available, otherwise use 'Class_ID'
     label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
     
+    # Convert label column to string to avoid matplotlib errors
+    df[label_col] = df[label_col].astype(str)
+    
     # Color based on gain or loss
     colors = ['green' if x > 0 else 'red' for x in df['Change_km2']]
     
@@ -149,6 +152,9 @@ def plot_change_percentage(comparison, start_year, end_year, top_n=15, figsize=(
     
     # Use 'Class' if available, otherwise use 'Class_ID'
     label_col = 'Class' if 'Class' in df.columns else 'Class_ID'
+    
+    # Convert label column to string to avoid matplotlib errors
+    df[label_col] = df[label_col].astype(str)
     
     colors = ['green' if x > 0 else 'red' for x in df['Change_pct']]
     
@@ -192,6 +198,9 @@ def plot_gains_losses(comparison, start_year, end_year, top_n=15, figsize=(14, 8
     df['Abs_Change'] = df['Change_km2'].abs()
     df_sorted = df.nlargest(top_n, 'Abs_Change').copy()
     df_sorted = df_sorted.sort_values('Abs_Change')  # Sort for bar chart display
+    
+    # Convert label column to string to avoid matplotlib errors
+    df_sorted[label_col] = df_sorted[label_col].astype(str)
     
     fig, ax = plt.subplots(figsize=figsize)
     

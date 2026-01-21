@@ -290,6 +290,7 @@ if st.session_state.data_loaded:
                                         st.session_state.territory_result_year2 = None
                                         # Store the image for visualization
                                         st.session_state.territory_analysis_image = mapbiomas.select(band)
+                                        st.session_state.territory_analysis_source = "MapBiomas"
                                         st.session_state.territory_analysis_image_year2 = None
                                         
                                         # Comparison year
@@ -299,6 +300,7 @@ if st.session_state.data_loaded:
                                             st.session_state.territory_result_year2 = area_df2
                                             st.session_state.territory_year2 = territory_year2
                                             st.session_state.territory_analysis_image_year2 = mapbiomas.select(band2)
+                                            st.session_state.territory_analysis_source_year2 = "MapBiomas"
                                     
                                     else:  # Hansen
                                         # Analyze Hansen
@@ -314,6 +316,7 @@ if st.session_state.data_loaded:
                                             st.session_state.territory_year = str(territory_year)
                                             st.session_state.territory_result_year2 = None
                                             st.session_state.territory_analysis_image = hansen_image
+                                            st.session_state.territory_analysis_source = "Hansen/GLAD"
                                             st.session_state.territory_analysis_image_year2 = None
                                             
                                             # Comparison year
@@ -327,6 +330,7 @@ if st.session_state.data_loaded:
                                                 st.session_state.territory_result_year2 = area_df2
                                                 st.session_state.territory_year2 = str(territory_year2)
                                                 st.session_state.territory_analysis_image_year2 = hansen_image2
+                                                st.session_state.territory_analysis_source_year2 = "Hansen/GLAD"
                                         except Exception as hansen_error:
                                             st.error(f"❌ Hansen analysis failed: {hansen_error}")
                                             raise
@@ -508,15 +512,16 @@ if st.session_state.add_analysis_layer_to_map and st.session_state.territory_ana
         analysis_image = st.session_state.territory_analysis_image
         territory_geom = st.session_state.territory_geom
         
-        # Get visualization parameters based on data source
-        if st.session_state.territory_source == "MapBiomas":
+        # Get visualization parameters based on the SOURCE that created this image
+        source_for_image = st.session_state.get('territory_analysis_source', st.session_state.territory_source)
+        if source_for_image == "MapBiomas":
             from config import MAPBIOMAS_PALETTE
             vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
-            layer_name = f"MapBiomas Analysis ({st.session_state.territory_year})"
-        else:  # Hansen
+            layer_name = f"MapBiomas Analysis ({int(st.session_state.territory_year)})"
+        else:  # Hansen/GLAD or any other source
             from config import HANSEN_PALETTE
             vis_params = {'min': 0, 'max': 255, 'palette': HANSEN_PALETTE}
-            layer_name = f"Hansen Analysis ({st.session_state.territory_year})"
+            layer_name = f"Hansen Analysis ({int(st.session_state.territory_year)})"
         
         # Add the analyzed layer as a map tile
         map_id = analysis_image.getMapId(vis_params)
@@ -536,8 +541,17 @@ if st.session_state.add_analysis_layer_to_map and st.session_state.territory_ana
             try:
                 analysis_image_year2 = st.session_state.territory_analysis_image_year2
                 
-                map_id2 = analysis_image_year2.getMapId(vis_params)
-                layer_name2 = f"{st.session_state.territory_source} Analysis ({st.session_state.territory_year2})"
+                # Get visualization parameters for year2 based on ITS source
+                source_for_image_year2 = st.session_state.get('territory_analysis_source_year2', st.session_state.territory_source)
+                if source_for_image_year2 == "MapBiomas":
+                    from config import MAPBIOMAS_PALETTE as PALETTE_YEAR2
+                    vis_params_year2 = {'min': 0, 'max': 62, 'palette': PALETTE_YEAR2}
+                else:  # Hansen/GLAD
+                    from config import HANSEN_PALETTE as PALETTE_YEAR2
+                    vis_params_year2 = {'min': 0, 'max': 255, 'palette': PALETTE_YEAR2}
+                
+                map_id2 = analysis_image_year2.getMapId(vis_params_year2)
+                layer_name2 = f"{source_for_image_year2} Analysis ({int(st.session_state.territory_year2)})"
                 folium.TileLayer(
                     tiles=map_id2['tile_fetcher'].url_format,
                     attr=f'{st.session_state.territory_source} Analysis',
