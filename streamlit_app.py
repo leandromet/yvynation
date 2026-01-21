@@ -98,6 +98,10 @@ if "hansen_layers" not in st.session_state:
     st.session_state.hansen_layers = {}  # {year: True/False}
 if "last_drawn_feature" not in st.session_state:
     st.session_state.last_drawn_feature = None
+if "all_drawn_features" not in st.session_state:
+    st.session_state.all_drawn_features = []  # List of all captured polygons
+if "selected_feature_index" not in st.session_state:
+    st.session_state.selected_feature_index = None
 if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
 if "use_consolidated_classes" not in st.session_state:
@@ -586,15 +590,59 @@ try:
     
     # Capture drawn features from the map
     if map_data and "all_drawings" in map_data and map_data["all_drawings"]:
-        st.session_state.last_drawn_feature = map_data["all_drawings"][-1]  # Get the last drawn feature
-        st.success(f"✓ Captured {len(map_data['all_drawings'])} polygon(s). Scroll down to analyze.")
-    elif map_data and "last_active_drawing" in map_data:
+        # Store all captured drawings
+        st.session_state.all_drawn_features = map_data["all_drawings"]
+        st.session_state.last_drawn_feature = map_data["all_drawings"][-1]
+        
+        # Show success message with count
+        st.success(f"✓ Captured {len(map_data['all_drawings'])} polygon(s). Select one below to analyze.")
+    elif map_data and "last_active_drawing" in map_data and map_data["last_active_drawing"]:
+        if map_data["last_active_drawing"] not in st.session_state.all_drawn_features:
+            st.session_state.all_drawn_features.append(map_data["last_active_drawing"])
         st.session_state.last_drawn_feature = map_data["last_active_drawing"]
         st.success("✓ Polygon captured. Scroll down to analyze.")
     
 except Exception as e:
     st.warning(f"Map display error: {e}")
     print(f"Error displaying map: {e}")
+
+# Polygon selector if multiple drawings exist
+if st.session_state.all_drawn_features:
+    st.divider()
+    st.subheader("🎨 Select Polygon to Analyze")
+    
+    # Create labels for each polygon
+    polygon_labels = []
+    for idx, feature in enumerate(st.session_state.all_drawn_features):
+        try:
+            geom = feature.get('geometry', {})
+            geom_type = geom.get('type', 'Unknown')
+            coords = geom.get('coordinates', [[]])
+            if geom_type == 'Polygon' and coords:
+                # Get bounding box
+                all_lons = [c[0] for ring in coords for c in ring]
+                all_lats = [c[1] for ring in coords for c in ring]
+                if all_lons and all_lats:
+                    bbox = f"[{min(all_lats):.2f}, {min(all_lons):.2f}, {max(all_lats):.2f}, {max(all_lons):.2f}]"
+                else:
+                    bbox = "N/A"
+                polygon_labels.append(f"Polygon {idx+1} - {geom_type} - Bounds: {bbox}")
+            else:
+                polygon_labels.append(f"Polygon {idx+1} - {geom_type}")
+        except:
+            polygon_labels.append(f"Polygon {idx+1}")
+    
+    selected_idx = st.selectbox(
+        "Choose a polygon to analyze:",
+        options=range(len(st.session_state.all_drawn_features)),
+        format_func=lambda i: polygon_labels[i],
+        key="polygon_selector"
+    )
+    
+    if selected_idx is not None:
+        st.session_state.selected_feature_index = selected_idx
+        st.session_state.last_drawn_feature = st.session_state.all_drawn_features[selected_idx]
+        st.info(f"✓ Selected Polygon {selected_idx + 1} for analysis")
 
 # Display layer reference guide
 st.divider()
