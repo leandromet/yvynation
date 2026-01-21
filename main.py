@@ -253,7 +253,7 @@ def plot_temporal_trend(df_list, years, class_names_to_plot=None, figsize=(12, 6
     return fig
 
 
-def create_sankey_transitions(transitions_dict, year_start, year_end, class_colors=None):
+def create_sankey_transitions(transitions_dict, year_start, year_end, class_colors=None, class_names=None):
     '''
     Create Sankey diagram for land cover transitions (left to right, ordered by flow).
     Nodes with larger values appear at the top with area displayed.
@@ -264,6 +264,7 @@ def create_sankey_transitions(transitions_dict, year_start, year_end, class_colo
         year_start (int): Start year
         year_end (int): End year
         class_colors (dict): Optional mapping of class ID to hex color. If not provided, uses MAPBIOMAS_COLOR_MAP
+        class_names (dict): Optional mapping of class ID to class name. If not provided, uses numeric IDs
     
     Returns:
         plotly.graph_objects.Figure: Sankey diagram with left-right layout
@@ -273,6 +274,9 @@ def create_sankey_transitions(transitions_dict, year_start, year_end, class_colo
     # Default to MapBiomas colors if not provided
     if class_colors is None:
         class_colors = MAPBIOMAS_COLOR_MAP
+    
+    if class_names is None:
+        class_names = {}
     
     # Prepare nodes and links
     sources = []
@@ -289,8 +293,20 @@ def create_sankey_transitions(transitions_dict, year_start, year_end, class_colo
         
         for target_id, area in targets_dict.items():
             if isinstance(area, (int, float)) and area > 0:
-                sources.append(f"{source_id} ({year_start})")
-                targets.append(f"{target_id} ({year_end})")
+                # Format node labels with class name if available
+                # For string keys (Hansen consolidated), don't repeat the name
+                if isinstance(source_id, str):
+                    source_label = f"{source_id} ({year_start})"
+                else:
+                    source_label = f"{source_id}: {class_names.get(source_id, source_id)} ({year_start})"
+                
+                if isinstance(target_id, str):
+                    target_label = f"{target_id} ({year_end})"
+                else:
+                    target_label = f"{target_id}: {class_names.get(target_id, target_id)} ({year_end})"
+                
+                sources.append(source_label)
+                targets.append(target_label)
                 values.append(area)
                 
                 # Determine color: use class_colors dict lookup
@@ -324,18 +340,26 @@ def create_sankey_transitions(transitions_dict, year_start, year_end, class_colo
     # Get node colors
     node_colors = []
     for node in sorted_nodes:
-        # Extract class ID from node label
-        class_id_str = node.split(' (')[0]
-        try:
-            # Try to parse as integer (for numeric class IDs)
-            class_id = int(class_id_str)
-            color = class_colors.get(class_id, '#cccccc')
-        except ValueError:
-            # It's a consolidated class name, try to get color from consolidated utils
+        # Extract class ID from node label (format: "ID: Name (year)" or "ID (year)")
+        # For Hansen consolidated (string names), the format is just "Name (year)"
+        if "(" in node:
+            class_id_str = node.split(' (')[0]
+        else:
+            class_id_str = node
+        
+        # Check if it's a string class name (Hansen consolidated) or numeric ID
+        if class_id_str in class_colors:
+            # String key found directly
+            color = class_colors[class_id_str]
+        else:
+            # Try parsing as integer (numeric key)
             try:
-                color = get_consolidated_color(class_id_str)
-            except:
-                color = '#cccccc'
+                class_id = int(class_id_str)
+                color = class_colors.get(class_id, '#cccccc')
+            except ValueError:
+                # Not numeric, treat as string and try to get color
+                color = class_colors.get(class_id_str, '#cccccc')
+        
         node_colors.append(color)
     
     # Create Sankey

@@ -252,6 +252,7 @@ if st.session_state.data_loaded:
                             
                             # Store geometry and flag for map display
                             st.session_state.territory_geom = territory_geom
+                            st.session_state.territory_geometry_for_analysis = territory_geom
                             st.session_state.add_territory_layer_to_map = True
                             st.session_state.territory_layer_name = selected_territory
                             
@@ -271,8 +272,9 @@ if st.session_state.data_loaded:
                                 if not territory_geom:
                                     st.error("❌ Could not get territory geometry")
                                 else:
-                                    # Store geometry
+                                    # Store geometry with distinct key for analysis
                                     st.session_state.territory_geom = territory_geom
+                                    st.session_state.territory_geometry_for_analysis = territory_geom
                                     st.session_state.territory_name = selected_territory
                                     st.session_state.territory_source = data_source
                                     st.session_state.add_analysis_layer_to_map = False
@@ -802,8 +804,8 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
         with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
             st.markdown(f"Pixel-level transitions from {st.session_state.territory_year} to {st.session_state.territory_year2}")
             try:
-                # Use stored territory geometry if available
-                territory_geom = st.session_state.get('territory_geom')
+                # Use stored territory geometry for analysis (not polygon geometry)
+                territory_geom = st.session_state.get('territory_geometry_for_analysis')
                 
                 if territory_geom is not None:
                     # Compute pixel-level transitions using Earth Engine
@@ -830,18 +832,12 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         hansen1 = ee.Image(HANSEN_DATASETS[year1_str]).updateMask(landmask)
                         hansen2 = ee.Image(HANSEN_DATASETS[year2_str]).updateMask(landmask)
                         
-                        # Consolidate classes using remap - map original classes to consolidated IDs
-                        consolidated_map_vals = list(HANSEN_CONSOLIDATED_MAPPING.keys())
-                        consolidated_map_tos = [list(HANSEN_CONSOLIDATED_COLORS.keys()).index(HANSEN_CONSOLIDATED_MAPPING[c]) for c in consolidated_map_vals]
-                        
-                        hansen1_cons = hansen1.remap(consolidated_map_vals, consolidated_map_tos, 0)
-                        hansen2_cons = hansen2.remap(consolidated_map_vals, consolidated_map_tos, 0)
-                        
-                        # Create a combined image for transition analysis
-                        dataset = hansen1_cons.rename('band1').addBands(hansen2_cons.rename('band2'))
+                        # Don't remap on EE side - get raw classes and consolidate in Python
+                        # This ensures consistency with polygon analysis consolidation
+                        dataset = hansen1.rename('band1').addBands(hansen2.rename('band2'))
                         band1 = 'band1'
                         band2 = 'band2'
-                        class_labels = {}  # Will use consolidated names
+                        class_labels = {}  # Will consolidate and use names in Python
                     
                     # Calculate transitions using frequencyHistogram
                     combined = dataset.select(band1).multiply(1000).add(
@@ -862,27 +858,39 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                                 source_class = combined_val // 1000
                                 target_class = combined_val % 1000
                                 area_ha = count * 0.09
-                                if source_class > 0 and target_class > 0 and area_ha > 0:
-                                    if source_class not in transitions:
-                                        transitions[source_class] = {}
-                                    transitions[source_class][target_class] = area_ha
+                                
+                                # For Hansen, consolidate to class names; for MapBiomas, use numeric IDs
+                                if st.session_state.territory_source == 'Hansen':
+                                    source_key = get_consolidated_class(source_class)
+                                    target_key = get_consolidated_class(target_class)
+                                    # Skip unmapped/unknown classes (contain "Unknown")
+                                    if "Unknown" in str(source_key) or "Unknown" in str(target_key):
+                                        continue
+                                else:
+                                    source_key = source_class
+                                    target_key = target_class
+                                
+                                if source_key and target_key and area_ha > 0:
+                                    if source_key not in transitions:
+                                        transitions[source_key] = {}
+                                    transitions[source_key][target_key] = area_ha
                     
                     if transitions:
-                        # For Hansen, map consolidated class IDs to names and colors
+                        # For Hansen, use consolidated class names; for MapBiomas, use numeric class IDs
                         if st.session_state.territory_source == 'Hansen':
-                            # Create mapping from consolidated ID to name and color
-                            consolidated_names = list(HANSEN_CONSOLIDATED_COLORS.keys())
-                            class_colors = {}
-                            for cons_id, name in enumerate(consolidated_names):
-                                class_colors[cons_id] = HANSEN_CONSOLIDATED_COLORS[name]
+                            # Create mapping from consolidated name to color
+                            class_colors = HANSEN_CONSOLIDATED_COLORS.copy()
+                            class_names = {name: name for name in HANSEN_CONSOLIDATED_COLORS.keys()}
                         else:
                             class_colors = MAPBIOMAS_COLOR_MAP
+                            class_names = MAPBIOMAS_LABELS
                         
                         sankey_fig = create_sankey_transitions(
                             transitions,
                             st.session_state.territory_year,
                             st.session_state.territory_year2,
-                            class_colors=class_colors
+                            class_colors=class_colors,
+                            class_names=class_names
                         )
                         if sankey_fig:
                             st.plotly_chart(sankey_fig, use_container_width=True)
