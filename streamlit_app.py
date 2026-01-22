@@ -368,14 +368,52 @@ st.sidebar.divider()
 # About section
 with st.sidebar.expander("ℹ️ About", expanded=False):
     st.sidebar.markdown("""
-    **Yvynation** is an interactive platform for analyzing land cover changes
-    across indigenous territories using:
-    
-    - **MapBiomas**: Brazilian land cover classification (1985-2023)
-    - **Hansen/GLAD**: Global forest change detection
-    - **Earth Engine**: Real-time geospatial analysis
-    
-    Draw areas on the map to get detailed statistics.
+    ### Project Overview
+
+    This land use and land cover analysis tool is part of a research project studying 
+    environmental changes in Brazilian Indigenous Territories using Google Earth Engine 
+    and MapBiomas data. This data is compared with policy changes and deforestation trends 
+    to understand the impacts on these critical lands.
+
+    **Leandro Meneguelli Biondo** - PhD Candidate in Sustainability - IGS/UBCO
+    Supervisor: Dr. Jon Corbett
+
+    **Yvynation** is a name for this app, as it is not the full project content.
+
+    "Yvy" (Tupi–Guarani) means land, earth, or territory — emphasizing the ground we walk 
+    on and our sacred connection to nature. It often relates to the concept of 
+    "Yvy marãe'ỹ" (Land without evil).
+
+    "Nation" refers to a self-governing community or people with shared culture, 
+    history, language, and land. It signifies self-determination and governance.
+
+    ### Data Sources
+    - **MapBiomas Collection 9**
+      - Resolution: 30 m
+      - Period: 1985–2023 (annual)
+      - Classes: 62 land cover categories
+      - License: Creative Commons Attribution 4.0
+
+    - **Indigenous Territories**
+      - 700+ Brazilian territories
+      - Vector boundaries with attributes
+      - MapBiomas Territories Project
+
+    ### Features
+
+    ✅ Interactive mapping with real-time data  
+    ✅ Area calculations and change detection  
+    ✅ Territory filtering by state or name  
+    ✅ Statistical visualizations  
+    ✅ Data export capabilities
+
+    ### Technologies
+
+    - Python 3.8+
+    - Google Earth Engine API
+    - geemap (interactive mapping)
+    - Streamlit (web interface)
+    - pandas, matplotlib, seaborn (analysis & visualization)
     """)
 
 # ============================================================================
