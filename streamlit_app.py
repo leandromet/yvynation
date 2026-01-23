@@ -1,9 +1,11 @@
 '''
 Yvynation - Indigenous Land Monitoring Platform
-Refactored version with improved map handling and modular structure
+Interactive analysis tool for land cover changes in indigenous territories
 '''
 
 import streamlit as st
+
+# Page configuration
 st.set_page_config(
     page_title="Yvynation - Earth Engine Analysis",
     page_icon="🏞️",
@@ -11,17 +13,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Standard imports
 import ee
 import folium
 from folium.plugins import Draw
 from streamlit_folium import st_folium
 import pandas as pd
 
-# Import custom modules
-from config import PROJECT_ID, MAPBIOMAS_LABELS, MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_MAPPING, HANSEN_CONSOLIDATED_COLORS, HANSEN_DATASETS, HANSEN_OCEAN_MASK
+# Import core configuration and modules
+from config import (
+    PROJECT_ID, MAPBIOMAS_LABELS, MAPBIOMAS_COLOR_MAP, 
+    HANSEN_CONSOLIDATED_MAPPING, HANSEN_CONSOLIDATED_COLORS, 
+    HANSEN_DATASETS, HANSEN_OCEAN_MASK
+)
+
+# Import utility modules
 from ee_auth import initialize_earth_engine
-from map_manager import create_base_map, add_territories_layer
-from ee_layers import add_mapbiomas_layer, add_hansen_layer
 from app_file import YvynationApp
 from mapbiomas_analysis import calculate_area_by_class as mapbiomas_area_analysis
 from hansen_analysis import hansen_histogram_to_dataframe
@@ -33,6 +40,18 @@ from hansen_consolidated_utils import (
     summarize_consolidated_stats,
     HANSEN_CONSOLIDATED_MAPPING
 )
+
+# Import mapping and visualization modules
+from map_manager import create_base_map, add_territories_layer
+from ee_layers import add_mapbiomas_layer, add_hansen_layer
+from plotting_utils import (
+    plot_area_distribution,
+    plot_area_comparison,
+    get_hansen_color,
+    display_summary_metrics
+)
+
+# Import analysis modules
 from territory_analysis import (
     get_territory_names,
     get_territory_geometry,
@@ -40,13 +59,16 @@ from territory_analysis import (
     analyze_territory_hansen,
     initialize_territory_session_state
 )
-from plotting_utils import (
-    plot_area_distribution,
-    plot_area_comparison,
-    get_hansen_color,
-    display_summary_metrics
-)
 from main import create_sankey_transitions, plot_gains_losses, plot_area_changes, plot_change_percentage
+
+# Import modular components
+from components import (
+    initialize_earth_engine_and_data,
+    render_sidebar,
+    render_tutorial,
+    render_main_content,
+)
+from components.main_content import render_layer_metrics, render_footer
 
 # ============================================================================
 # INITIALIZATION
