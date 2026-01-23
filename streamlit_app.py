@@ -147,7 +147,7 @@ st.sidebar.markdown("Leandro M. Biondo - PhD Candidate - IGS/UBCO")
 st.sidebar.divider()
 
 # Layer management section
-with st.sidebar.expander("🎛️ Map Controls", expanded=True):
+with st.sidebar.expander("🎛️ Map Controls", expanded=False):
     st.markdown("**Layer Control:** Look for the ⌗ icon in the top-right corner of the map to toggle layers on/off")
     st.markdown("**Basemaps:** 6 basemap options available (OpenStreetMap, Google Maps, Google Satellite, ArcGIS Street, ArcGIS Satellite, ArcGIS Terrain) - Google Maps is selected by default")
     st.info("Tip: Overlay multiple basemaps and data layers to compare different views", icon="💡")
@@ -500,7 +500,7 @@ with st.expander("📚 How to Use This Platform", expanded=False):
             st.markdown("""
             - **MapBiomas**: 62 land cover classes (1985-2023, 30m resolution)
             - **Hansen/GLAD**: Global forest change detection (2000-2020, 30m resolution)
-            - Colors represent different land cover types (see legend on maps)
+            - Colors represent different land cover types (see legend on reference guide under the map)
             - Areas are calculated in hectares and percentages
             """)
 
@@ -787,33 +787,88 @@ if st.session_state.all_drawn_features:
 
 # Display layer reference guide
 st.divider()
-with st.expander("📚 Layer Reference Guide", expanded=False):
-    col1, col2, col3 = st.columns(3)
+with st.expander("📚 Layer Reference Guide - legends", expanded=False):
+
+     # Indigenous Territories Legend
+    st.markdown("### 📍 Indigenous Lands & Territories")
+    st.markdown(
+        "<div style='display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;'>"
+        "<span><span style='color: #4B0082; font-size: 16px;'>■</span> Indigenous Territories</span>"
+        "<span><span style='color: #FF0000; font-size: 16px;'>■</span> Selected Territory</span>"
+        "<span><span style='color: #0033FF; font-size: 16px;'>■</span> Drawn Polygon</span>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    # MapBiomas Legend
+    st.markdown("### 🌱 MapBiomas Land Cover Classes")
+    mapbiomas_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
+    mapbiomas_legend_data = [
+        ("Forest", "#1f8d49"),
+        ("Savanna", "#7dc975"),
+        ("Mangrove", "#04381d"),
+        ("Wetland", "#519799"),
+        ("Grassland", "#d6bc74"),
+        ("Pasture", "#edde8e"),
+        ("Agriculture", "#e974ed"),
+        ("Sugarcane", "#db7093"),
+        ("Urban", "#d4271e"),
+        ("Water", "#2532e4"),
+    ]
+    for label, color in mapbiomas_legend_data:
+        mapbiomas_legend_html += f"<span><span style='color: {color}; font-size: 16px;'>■</span> {label}</span>"
+    mapbiomas_legend_html += "</div>"
+    st.markdown(mapbiomas_legend_html, unsafe_allow_html=True)
+    
+    # Hansen Consolidated Legend
+    st.markdown("### 🌍 Hansen Global Forest Change Classes")
+    hansen_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
+    hansen_legend_data = [
+        ("Dense Tree Cover", "#1F8040"),
+        ("Open Tree Cover", "#90C090"),
+        ("Dense Short Vegetation", "#B8D4A8"),
+        ("Unvegetated", "#D4D4A8"),
+        ("Tree Gain", "#4CAF50"),
+        ("Tree Loss", "#E53935"),
+        ("Cropland", "#FFD700"),
+        ("Built-up", "#FF6B35"),
+        ("Water", "#2196F3"),
+    ]
+    for label, color in hansen_legend_data:
+        hansen_legend_html += f"<span><span style='color: {color}; font-size: 16px;'>■</span> {label}</span>"
+    hansen_legend_html += "</div>"
+    st.markdown(hansen_legend_html, unsafe_allow_html=True)
+    
+   
+
+    col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("**Basemaps**")
         st.caption("""
-        - 🗺️ OpenStreetMap (default)
+        - 🗺️ OpenStreetMap
+        - 🛰️ Google Maps (default)
         - 🛰️ Google Satellite
         - 🛣️ ArcGIS Street
+        - 🛰️ ArcGIS Satellite
         - ⛰️ ArcGIS Terrain
         """)
-    
-    with col2:
-        st.markdown("**Data Layers**")
-        st.caption("""
-        - 🌱 MapBiomas: Brazilian land cover (1985-2023)
-        - 🌍 Hansen: Global forest change (2000-2020)
-        - 📍 Indigenous Territories
-        """)
-    
-    with col3:
+        
         st.markdown("**Controls**")
         st.caption("""
         - ⌗ Layer Control: top-right corner
         - ✏️ Drawing Tools: top-left corner
         - 🎨 Opacity: Adjust in sidebar
         """)
+    
+    with col2:
+        st.markdown("**Data Layers Overview**")
+        st.caption("""
+        - 🌱 MapBiomas: Brazilian land cover (1985-2023)
+        - 🌍 Hansen: Global forest change (2000-2020)
+        - 📍 Indigenous Territories
+        """)
+    
+    
 
 # ============================================================================
 # ANALYSIS SECTION
