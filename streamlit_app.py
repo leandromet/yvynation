@@ -422,62 +422,63 @@ with st.sidebar.expander("ℹ️ About", expanded=False):
 
 st.title("🌎 Yvynation - Land Cover Analysis")
 
-# Tutorial toggle for compact/expanded view
-col1, col2 = st.columns([0.9, 0.1])
+# Tutorial section with option to open in new window
+col1, col2 = st.columns([0.88, 0.12])
 with col2:
-    tutorial_expanded = st.checkbox("📚 Help", value=False, help="Show tutorial in main area")
+    st.markdown(
+        """
+        <a href="javascript:void(0);" onclick="window.open(window.location.href + '#tutorial-window', '_blank', 'width=900,height=800'); return false;">
+        <button style="background-color: #1f77b4; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+        📚 Open Help
+        </button>
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
 
 # Tutorial section - main location
-tutorial_markdown = """
-### 🎯 Getting Started
-
-This platform allows you to analyze land cover changes in three main ways:
-"""
-
-if tutorial_expanded:
-    # Expanded tutorial in main content area
-    with st.expander("📚 How to Use This Platform", expanded=True):
-        st.markdown(tutorial_markdown)
-        
-        with st.expander("1️⃣ **Analyze a Custom Polygon**", expanded=False):
-            st.markdown("""
-            - Use the **Draw Tools** in the top-left corner of the map
-            - Click the **Rectangle** or **Polygon** tool to draw your area of interest
-            - Select your desired **year** and **data source** (MapBiomas or Hansen)
-            - The analysis will automatically calculate:
-              - Land cover distribution
-              - Changes over time
-              - Area statistics by land cover class
-            - 💡 *Tip: You can draw multiple areas and compare them*
-            """)
-        
-        with st.expander("2️⃣ **Analyze an Indigenous Territory**", expanded=False):
-            st.markdown("""
-            - Navigate to the **📊 Territory Analysis** tab
-            - **Select a State** from the dropdown (or leave "All States" for nationwide territories)
-            - **Choose a Territory** from the filtered list
-            - View:
-              - Historical land cover changes (1985-2023)
-              - Area changes by class
-              - Deforestation trends
-              - Transition diagrams showing land cover changes
-            - 💡 *Tip: Compare historical trends across different territories to understand regional patterns*
-            """)
-        
-        with st.expander("3️⃣ **Compare Two Years**", expanded=False):
-            st.markdown("""
-            - In the **📍 MapBiomas Analysis** or **🌍 Hansen Analysis** tabs:
-            - Select a **Year 1** and **Year 2** for comparison
-            - Draw a polygon or select a territory
-            - View side-by-side comparisons showing:
-              - Land cover changes between years
-              - Area distribution before and after
-              - Change percentage and absolute values
-              - Visual maps with color-coded changes
-            - 💡 *Tip: Use 1985 vs 2023 to see long-term trends, or consecutive years for detailed change detection*
-            """)
-        
-        with st.expander("🗺️ **Map Controls**", expanded=False):
+with st.expander("📚 How to Use This Platform", expanded=False):
+    st.markdown("### 🎯 Getting Started\n\nThis platform allows you to analyze land cover changes in three main ways:")
+    
+    with st.expander("1️⃣ **Analyze a Custom Polygon**", expanded=False):
+        st.markdown("""
+        - Use the **Draw Tools** in the top-left corner of the map
+        - Click the **Rectangle** or **Polygon** tool to draw your area of interest
+        - Select your desired **year** and **data source** (MapBiomas or Hansen)
+        - The analysis will automatically calculate:
+          - Land cover distribution
+          - Changes over time
+          - Area statistics by land cover class
+        - 💡 *Tip: You can draw multiple areas and compare them*
+        """)
+    
+    with st.expander("2️⃣ **Analyze an Indigenous Territory**", expanded=False):
+        st.markdown("""
+        - Navigate to the **📊 Territory Analysis** tab
+        - **Select a State** from the dropdown (or leave "All States" for nationwide territories)
+        - **Choose a Territory** from the filtered list
+        - View:
+          - Historical land cover changes (1985-2023)
+          - Area changes by class
+          - Deforestation trends
+          - Transition diagrams showing land cover changes
+        - 💡 *Tip: Compare historical trends across different territories to understand regional patterns*
+        """)
+    
+    with st.expander("3️⃣ **Compare Two Years**", expanded=False):
+        st.markdown("""
+        - In the **📍 MapBiomas Analysis** or **🌍 Hansen Analysis** tabs:
+        - Select a **Year 1** and **Year 2** for comparison
+        - Draw a polygon or select a territory
+        - View side-by-side comparisons showing:
+          - Land cover changes between years
+          - Area distribution before and after
+          - Change percentage and absolute values
+          - Visual maps with color-coded changes
+        - 💡 *Tip: Use 1985 vs 2023 to see long-term trends, or consecutive years for detailed change detection*
+        """)
+    
+    with st.expander("🗺️ **Map Controls**", expanded=False):
             st.markdown("""
             - **Zoom**: Use scroll wheel or +/- buttons
             - **Pan**: Click and drag the map
@@ -486,66 +487,7 @@ if tutorial_expanded:
             - **Fullscreen**: Use the fullscreen button in the map controls
             """)
         
-        with st.expander("📈 **Understanding the Results**", expanded=False):
-            st.markdown("""
-            - **MapBiomas**: 62 land cover classes (1985-2023, 30m resolution)
-            - **Hansen/GLAD**: Global forest change detection (2000-2020, 30m resolution)
-            - Colors represent different land cover types (see legend on maps)
-            - Areas are calculated in hectares and percentages
-            """)
-else:
-    # Compact tutorial in sidebar
-    with st.expander("📚 How to Use This Platform", expanded=False):
-        st.markdown(tutorial_markdown)
-        
-        with st.expander("1️⃣ **Analyze a Custom Polygon**", expanded=False):
-            st.markdown("""
-            - Use the **Draw Tools** in the top-left corner of the map
-            - Click the **Rectangle** or **Polygon** tool to draw your area of interest
-            - Select your desired **year** and **data source** (MapBiomas or Hansen)
-            - The analysis will automatically calculate:
-              - Land cover distribution
-              - Changes over time
-              - Area statistics by land cover class
-            - 💡 *Tip: You can draw multiple areas and compare them*
-            """)
-        
-        with st.expander("2️⃣ **Analyze an Indigenous Territory**", expanded=False):
-            st.markdown("""
-            - Navigate to the **📊 Territory Analysis** tab
-            - **Select a State** from the dropdown (or leave "All States" for nationwide territories)
-            - **Choose a Territory** from the filtered list
-            - View:
-              - Historical land cover changes (1985-2023)
-              - Area changes by class
-              - Deforestation trends
-              - Transition diagrams showing land cover changes
-            - 💡 *Tip: Compare historical trends across different territories to understand regional patterns*
-            """)
-        
-        with st.expander("3️⃣ **Compare Two Years**", expanded=False):
-            st.markdown("""
-            - In the **📍 MapBiomas Analysis** or **🌍 Hansen Analysis** tabs:
-            - Select a **Year 1** and **Year 2** for comparison
-            - Draw a polygon or select a territory
-            - View side-by-side comparisons showing:
-              - Land cover changes between years
-              - Area distribution before and after
-              - Change percentage and absolute values
-              - Visual maps with color-coded changes
-            - 💡 *Tip: Use 1985 vs 2023 to see long-term trends, or consecutive years for detailed change detection*
-            """)
-        
-        with st.expander("🗺️ **Map Controls**", expanded=False):
-            st.markdown("""
-            - **Zoom**: Use scroll wheel or +/- buttons
-            - **Pan**: Click and drag the map
-            - **Toggle Layers**: Use the layer control icon (top-right)
-            - **Switch Base Map**: Click the layer control to change between OpenStreetMap, satellite, etc.
-            - **Fullscreen**: Use the fullscreen button in the map controls
-            """)
-        
-        with st.expander("📈 **Understanding the Results**", expanded=False):
+    with st.expander("📈 **Understanding the Results**", expanded=False):
             st.markdown("""
             - **MapBiomas**: 62 land cover classes (1985-2023, 30m resolution)
             - **Hansen/GLAD**: Global forest change detection (2000-2020, 30m resolution)
