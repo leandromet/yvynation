@@ -20,21 +20,15 @@ def create_base_map(center_lat=-15, center_lon=-50, zoom=4):
     Returns:
         folium.Map: Base map object
     """
-    # Create map with OpenStreetMap as default basemap
+    # Create map with OpenStreetMap initially, then switch to Google Maps as default
     m = folium.Map(
         location=[center_lat, center_lon],
         zoom_start=zoom,
         tiles="OpenStreetMap"
     )
     
-    # Add basemap options
-    folium.TileLayer(
-        tiles='https://maps.googleapis.com/maps/vt?lyrs=r&x={x}&y={y}&z={z}&key=YOUR_API_KEY',
-        attr='Google Maps',
-        name='Google Maps',
-        overlay=False,
-        control=True
-    ).add_to(m)
+    # Add basemap options - Google Maps first so it becomes the visible default
+
     
     folium.TileLayer(
         tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
@@ -66,6 +60,15 @@ def create_base_map(center_lat=-15, center_lon=-50, zoom=4):
         name='ArcGIS Terrain',
         overlay=False,
         control=True
+    ).add_to(m)
+
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Maps',
+        overlay=False,
+        control=True,
+        show=True
     ).add_to(m)
     
     return m

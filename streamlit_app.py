@@ -149,7 +149,7 @@ st.sidebar.divider()
 # Layer management section
 with st.sidebar.expander("🎛️ Map Controls", expanded=True):
     st.markdown("**Layer Control:** Look for the ⌗ icon in the top-right corner of the map to toggle layers on/off")
-    st.markdown("**Basemaps:** 4 basemap options available (OpenStreetMap, Google Satellite, ArcGIS Street, ArcGIS Terrain)")
+    st.markdown("**Basemaps:** 6 basemap options available (OpenStreetMap, Google Maps, Google Satellite, ArcGIS Street, ArcGIS Satellite, ArcGIS Terrain) - Google Maps is selected by default")
     st.info("Tip: Overlay multiple basemaps and data layers to compare different views", icon="💡")
 
 st.sidebar.divider()
