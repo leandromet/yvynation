@@ -1,23 +1,118 @@
-# Yvynation Earth Engine Application - Complete Index
+# Documentation Index
 
-**Status:** ✅ Complete & Ready for Use  
-**Location:** `/home/leandromb/google_eengine/yvynation`  
-**Project:** Earth Engine Python application for MapBiomas + Indigenous Territories analysis
+Welcome to the Yvynation documentation! This folder contains comprehensive guides for using, developing, and deploying the platform.
+
+## 📋 Quick Navigation
+
+### Getting Started
+- **[QUICKSTART.md](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Service Account Setup](SERVICE_ACCOUNT_SETUP.md)** - Configure Earth Engine authentication
+- **[Cloud Run Setup](CLOUD_RUN_SETUP.md)** - Deploy to Google Cloud
+
+### Architecture & Design
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design overview
+- **[ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)** - Visual architecture diagram
+- **[Project Structure](../PROJECT_STRUCTURE.md)** - Detailed folder organization
+
+### Development
+- **[Refactor Guide](REFACTOR_GUIDE.md)** - Code refactoring and best practices
+- **[Build Summary](BUILD_SUMMARY.md)** - Project build history
+- **[Bug Fixes](BUG_FIXES.md)** - Known issues and fixes
+- **[Migrations](MIGRATION_SUMMARY.md)** - Code migrations and updates
+
+### Data & Analysis
+- **[Color Map Updates](COLOR_MAP_UPDATE_SUMMARY.md)** - Land cover color mappings
+- **[Class Updates](CLASS_48_FIX_SUMMARY.md)** - Land cover classification updates
+- **[Consolidation Examples](../archive/legacy_code/HANSEN_CONSOLIDATION_EXAMPLES.py)** - Hansen data processing examples
+
+### Other Resources
+- **[Streamlit Integration](STREAMLIT_INTEGRATION_SUMMARY.md)** - Streamlit setup guide
+- **[Completion Checklist](COMPLETION_CHECKLIST.md)** - Project completion status
+- **[Refactoring Complete](REFACTORING_COMPLETE.md)** - Refactoring summary
+
+## 📚 Documentation Sections
+
+### For Users
+1. Start with [QUICKSTART.md](QUICKSTART.md)
+2. Review [../README.md](../README.md) for overview
+3. Check [ARCHITECTURE.md](ARCHITECTURE.md) for system design
+
+### For Developers
+1. Read [../PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md)
+2. Review [REFACTOR_GUIDE.md](REFACTOR_GUIDE.md)
+3. Check [ARCHITECTURE.md](ARCHITECTURE.md)
+4. See [MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md) for recent changes
+
+### For DevOps/Deployment
+1. [SERVICE_ACCOUNT_SETUP.md](SERVICE_ACCOUNT_SETUP.md) - Earth Engine setup
+2. [CLOUD_RUN_SETUP.md](CLOUD_RUN_SETUP.md) - Google Cloud deployment
+3. [STREAMLIT_INTEGRATION_SUMMARY.md](STREAMLIT_INTEGRATION_SUMMARY.md) - Streamlit deployment
+
+## 📁 Documentation Files
+
+| File | Purpose |
+|------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | 5-minute setup guide |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design and structure |
+| [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md) | Visual system diagram |
+| [SERVICE_ACCOUNT_SETUP.md](SERVICE_ACCOUNT_SETUP.md) | Earth Engine authentication |
+| [CLOUD_RUN_SETUP.md](CLOUD_RUN_SETUP.md) | Google Cloud deployment |
+| [REFACTOR_GUIDE.md](REFACTOR_GUIDE.md) | Code refactoring guide |
+| [BUILD_SUMMARY.md](BUILD_SUMMARY.md) | Build history and updates |
+| [BUG_FIXES.md](BUG_FIXES.md) | Known issues and solutions |
+| [MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md) | Code migration notes |
+| [STREAMLIT_INTEGRATION_SUMMARY.md](STREAMLIT_INTEGRATION_SUMMARY.md) | Streamlit setup |
+| [COLOR_MAP_UPDATE_SUMMARY.md](COLOR_MAP_UPDATE_SUMMARY.md) | Color mapping details |
+| [CLASS_48_FIX_SUMMARY.md](CLASS_48_FIX_SUMMARY.md) | Land cover classification |
+| [COMPLETION_CHECKLIST.md](COMPLETION_CHECKLIST.md) | Project status |
+| [REFACTORING_COMPLETE.md](REFACTORING_COMPLETE.md) | Refactoring summary |
+
+## 🔍 Find What You Need
+
+**"How do I..."**
+- **...get started?** → [QUICKSTART.md](QUICKSTART.md)
+- **...set up Earth Engine?** → [SERVICE_ACCOUNT_SETUP.md](SERVICE_ACCOUNT_SETUP.md)
+- **...deploy to the cloud?** → [CLOUD_RUN_SETUP.md](CLOUD_RUN_SETUP.md)
+- **...understand the code?** → [ARCHITECTURE.md](ARCHITECTURE.md) + [../PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md)
+- **...refactor code?** → [REFACTOR_GUIDE.md](REFACTOR_GUIDE.md)
+- **...deploy with Streamlit?** → [STREAMLIT_INTEGRATION_SUMMARY.md](STREAMLIT_INTEGRATION_SUMMARY.md)
+
+## 📖 Reading Order (by Role)
+
+### New Users
+1. [../README.md](../README.md) - Project overview
+2. [QUICKSTART.md](QUICKSTART.md) - Get it running
+3. [ARCHITECTURE.md](ARCHITECTURE.md) - Understand the system
+
+### Developers
+1. [../PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md) - Code organization
+2. [ARCHITECTURE.md](ARCHITECTURE.md) - System design
+3. [REFACTOR_GUIDE.md](REFACTOR_GUIDE.md) - Code standards
+4. [MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md) - Recent changes
+
+### DevOps Engineers
+1. [SERVICE_ACCOUNT_SETUP.md](SERVICE_ACCOUNT_SETUP.md) - Prerequisites
+2. [CLOUD_RUN_SETUP.md](CLOUD_RUN_SETUP.md) - Deployment
+3. [STREAMLIT_INTEGRATION_SUMMARY.md](STREAMLIT_INTEGRATION_SUMMARY.md) - App deployment
+
+## 📞 Need Help?
+
+- **Installation Issues**: See [QUICKSTART.md](QUICKSTART.md) troubleshooting
+- **Earth Engine Auth**: Check [SERVICE_ACCOUNT_SETUP.md](SERVICE_ACCOUNT_SETUP.md)
+- **Code Questions**: Review [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Bugs/Issues**: See [BUG_FIXES.md](BUG_FIXES.md)
+
+## 🔗 External Resources
+
+- [Google Earth Engine Documentation](https://developers.google.com/earth-engine)
+- [Streamlit Documentation](https://docs.streamlit.io/)
+- [MapBiomas](https://mapbiomas.org/)
+- [geemap Documentation](https://geemap.org/)
 
 ---
 
-## 📋 Documentation (Read in This Order)
-
-### 1. **START HERE** → [QUICKSTART.md](QUICKSTART.md)
-- Installation instructions
-- 5 complete code examples
-- Module overview table
-- Troubleshooting guide
-- 5-minute quick start
-
-### 2. **Interactive Demo** → [demo_yvynation_app.ipynb](demo_yvynation_app.ipynb)
-- 11-section walkthrough
-- Step-by-step execution
+**Last Updated**: January 2026  
+**Version**: 1.0.0
 - All features demonstrated
 - Results visualization
 - **Run this in Jupyter/VSCode!**
