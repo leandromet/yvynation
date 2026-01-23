@@ -264,7 +264,7 @@ if st.session_state.data_loaded:
                     with col_btn1:
                         analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", use_container_width=True)
                     with col_btn2:
-                        add_layer_btn = st.button("➕ Add to Map", key="btn_add_territory_layer", use_container_width=True)
+                        add_layer_btn = st.button("➕ Zoom to Territory", key="btn_add_territory_layer", use_container_width=True)
                     
                     if add_layer_btn:
                         try:
