@@ -20,12 +20,27 @@ yvynation/
 │   ├── README.md
 │   ├── QUICKSTART.md
 │   ├── ARCHITECTURE.md
-│   └── [other documentation]
+│   └── [20+ documentation files]
+│
+├── archive/                    # Unused and legacy files
+│   ├── legacy_code/           # Deprecated Python modules (15 files)
+│   ├── data/                  # Reference data files (CSVs, text files)
+│   └── README.md              # Archive guide
 │
 ├── streamlit_app.py           # Main application entry point
 ├── config.py                  # Configuration and constants
+├── app_file.py                # Core application logic
+├── ee_auth.py                 # Earth Engine authentication
+├── map_manager.py             # Map creation and management
+├── ee_layers.py               # Earth Engine layer management
+├── mapbiomas_analysis.py      # MapBiomas analysis
+├── hansen_analysis.py         # Hansen data analysis
+├── hansen_consolidated_utils.py # Hansen consolidation utilities
+├── plotting_utils.py          # Visualization utilities
+├── territory_analysis.py      # Territory analysis functions
+├── main.py                    # Main analysis functions
 ├── requirements.txt           # Python dependencies
-└── [other utility modules]    # Analysis, visualization, data processing
+└── PROJECT_STRUCTURE.md       # This file
 
 ```
 
@@ -68,6 +83,21 @@ Placeholder for future utility modules that may include:
 - Visualization utilities
 - Analysis helpers
 - File I/O functions
+
+### `archive/` - Archived/Unused Files
+
+This folder contains files that are no longer actively used:
+
+- **`legacy_code/`**: 15 deprecated Python files including:
+  - Old app versions (`streamlit_app_old.py`, `streamlit_app_old_backup.py`)
+  - Replaced modules (`analysis.py`, `plots.py`, `ui_components.py`, `visualization.py`)
+  - Legacy utilities and test files
+  
+- **`data/`**: Reference data files
+  - Legend CSVs for historical reference
+  - Text documentation from previous versions
+
+See [archive/README.md](archive/README.md) for detailed information about archived files.
 
 ### `docs/` - Documentation
 
