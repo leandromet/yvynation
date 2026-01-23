@@ -6,7 +6,7 @@ Refactored version with improved map handling and modular structure
 import streamlit as st
 st.set_page_config(
     page_title="Yvynation - Earth Engine Analysis",
-    page_icon="🌎",
+    page_icon="🏞️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -119,8 +119,9 @@ initialize_territory_session_state()
 # SIDEBAR
 # ============================================================================
 
-st.sidebar.title("📊 Yvynation")
+st.sidebar.title("🌎🌍🌏🏞️ Yvynation 🛰️🗺️🌳🌲")
 st.sidebar.markdown("Indigenous Land Monitoring Platform")
+st.sidebar.markdown("Leandro M. Biondo - PhD Candidate - IGS/UBCO")
 st.sidebar.divider()
 
 # Layer management section
@@ -420,21 +421,7 @@ with st.sidebar.expander("ℹ️ About", expanded=False):
 # MAIN CONTENT
 # ============================================================================
 
-st.title("🌎 Yvynation - Land Cover Analysis")
-
-# Tutorial section with option to open in new window
-col1, col2 = st.columns([0.88, 0.12])
-with col2:
-    st.markdown(
-        """
-        <a href="javascript:void(0);" onclick="window.open(window.location.href + '#tutorial-window', '_blank', 'width=900,height=800'); return false;">
-        <button style="background-color: #1f77b4; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
-        📚 Open Help
-        </button>
-        </a>
-        """,
-        unsafe_allow_html=True
-    )
+st.title("🌎 Yvynation - Land Cover Analysis 🏞️")
 
 # Tutorial section - main location
 with st.expander("📚 How to Use This Platform", expanded=False):
