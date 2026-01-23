@@ -5,6 +5,8 @@
 ![Earth Engine](https://img.shields.io/badge/Google%20Earth%20Engine-API-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+> 🚀 **[Try the Live Demo](https://yvynation-652582010777.us-west1.run.app/)** - Access the platform now!
+
 **Yvynation** is an interactive web platform for analyzing land cover changes in indigenous territories using Google Earth Engine and MapBiomas data. The platform enables researchers, policymakers, and indigenous communities to understand deforestation trends and environmental changes in real-time.
 
 ## 📖 Table of Contents
