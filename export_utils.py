@@ -111,6 +111,14 @@ def create_export_zip(
                 polygon_folder = f'polygons/polygon_{polygon_idx + 1}'
                 
                 for analysis_type, results in analyses_by_type.items():
+                    # Handle comparison CSVs (mapbiomas_comparison_csv, hansen_comparison_csv)
+                    if analysis_type.endswith('_comparison_csv'):
+                        if isinstance(results, pd.DataFrame):
+                            csv_str = results.to_csv(index=False)
+                            clean_type = analysis_type.replace('_csv', '')
+                            zf.writestr(f'{polygon_folder}/{clean_type}.csv', csv_str)
+                        continue
+                    
                     # Write CSV data
                     if results.get('data') is not None:
                         df = results['data']
@@ -156,15 +164,25 @@ def create_export_zip(
                         zf.writestr(f'{territory_folder}/{fig_name}.png', img_buffer.getvalue())
                         plt.close(fig)
         
-        # 5. Write remaining figures at root level
+        # 5. Write remaining figures at root level (both matplotlib and plotly figures)
         if all_figures:
             for name, fig in all_figures.items():
                 if isinstance(fig, Figure):
+                    # Matplotlib figure - save as PNG
                     img_buffer = io.BytesIO()
                     fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
                     img_buffer.seek(0)
                     zf.writestr(f'figures/{name}.png', img_buffer.getvalue())
                     plt.close(fig)
+                else:
+                    # Check if it's a Plotly figure (has to_html method)
+                    if hasattr(fig, 'to_html'):
+                        try:
+                            # Save Plotly figure as interactive HTML
+                            html_str = fig.to_html(include_plotlyjs='cdn')
+                            zf.writestr(f'figures/{name}.html', html_str)
+                        except Exception as e:
+                            print(f"Warning: Could not export Plotly figure {name}: {e}")
     
     zip_buffer.seek(0)
     return zip_buffer.getvalue()
@@ -233,6 +251,15 @@ def capture_current_analysis_exports(session_state):
             }
         metadata['has_mapbiomas_polygon_comparison'] = True
     
+    # Add MapBiomas comparison CSV if available
+    if session_state.get('mapbiomas_comparison_csv') is not None:
+        if polygon_idx not in polygon_analyses:
+            polygon_analyses[polygon_idx] = {}
+        if 'mapbiomas' not in polygon_analyses[polygon_idx]:
+            polygon_analyses[polygon_idx]['mapbiomas'] = {}
+        # Store the comparison CSV
+        polygon_analyses[polygon_idx]['mapbiomas_comparison_csv'] = session_state.mapbiomas_comparison_csv
+    
     if session_state.get('hansen_comparison_result') is not None:
         if polygon_idx not in polygon_analyses:
             polygon_analyses[polygon_idx] = {}
@@ -251,6 +278,15 @@ def capture_current_analysis_exports(session_state):
                 'data': result
             }
         metadata['has_hansen_polygon_comparison'] = True
+    
+    # Add Hansen comparison CSV if available
+    if session_state.get('hansen_comparison_csv') is not None:
+        if polygon_idx not in polygon_analyses:
+            polygon_analyses[polygon_idx] = {}
+        if 'hansen' not in polygon_analyses[polygon_idx]:
+            polygon_analyses[polygon_idx]['hansen'] = {}
+        # Store the comparison CSV
+        polygon_analyses[polygon_idx]['hansen_comparison_csv'] = session_state.hansen_comparison_csv
     
     # Capture figures organized by polygon
     if session_state.get('analysis_figures'):

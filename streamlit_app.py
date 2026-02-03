@@ -1135,6 +1135,12 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         )
                         if sankey_fig:
                             st.plotly_chart(sankey_fig, use_container_width=True)
+                            # Store Sankey for export
+                            if 'analysis_figures' not in st.session_state:
+                                st.session_state.analysis_figures = {}
+                            st.session_state.analysis_figures['territory_sankey'] = sankey_fig
+                            # Store transitions data for export
+                            st.session_state.territory_transitions = transitions
                         else:
                             st.info("Could not generate Sankey diagram")
                     else:
@@ -1648,16 +1654,16 @@ if st.session_state.data_loaded and st.session_state.app:
                                 with col_left:
                                     fig = plot_area_distribution(result['df_year1'], year=result['year1'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
-                                    # Store for export
-                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    # Store for export (use 1-based indexing for consistency with folder names)
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
                                         st.session_state.analysis_figures = {}
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df_year2'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
-                                    # Store for export
-                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    # Store for export (use 1-based indexing for consistency with folder names)
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
                                         st.session_state.analysis_figures = {}
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_year2'] = fig
@@ -1679,11 +1685,13 @@ if st.session_state.data_loaded and st.session_state.app:
                                             top_n=12
                                         )
                                         st.pyplot(fig, use_container_width=True)
-                                        # Store for export
-                                        polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                        # Store for export (use 1-based indexing for consistency with folder names)
+                                        polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                         if 'analysis_figures' not in st.session_state:
                                             st.session_state.analysis_figures = {}
                                         st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_gains_losses'] = fig
+                                        # Store comparison CSV for export
+                                        st.session_state.mapbiomas_comparison_csv = comparison_df
                                     else:
                                         st.info("No comparison data available")
                                 except Exception as e:
@@ -1695,6 +1703,13 @@ if st.session_state.data_loaded and st.session_state.app:
                                         sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
                                         if sankey_fig:
                                             st.plotly_chart(sankey_fig, use_container_width=True)
+                                            # Store Sankey for export (use 1-based indexing)
+                                            polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
+                                            if 'analysis_figures' not in st.session_state:
+                                                st.session_state.analysis_figures = {}
+                                            st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_sankey'] = sankey_fig
+                                            # Store transitions data for export
+                                            st.session_state.mapbiomas_transitions = result.get('transitions')
                                     except Exception as e:
                                         st.warning(f"Could not display Sankey: {str(e)[:50]}")
                                 else:
@@ -1729,16 +1744,16 @@ if st.session_state.data_loaded and st.session_state.app:
                                 with col_left:
                                     fig = plot_area_distribution(result['df1_disp'], year=result['year1'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
-                                    # Store for export
-                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    # Store for export (use 1-based indexing for consistency with folder names)
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
                                         st.session_state.analysis_figures = {}
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df2_disp'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
-                                    # Store for export
-                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    # Store for export (use 1-based indexing for consistency with folder names)
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
                                         st.session_state.analysis_figures = {}
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_year2'] = fig
@@ -1768,11 +1783,13 @@ if st.session_state.data_loaded and st.session_state.app:
                                             top_n=12
                                         )
                                         st.pyplot(fig, use_container_width=True)
-                                        # Store for export
-                                        polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                        # Store for export (use 1-based indexing for consistency with folder names)
+                                        polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                         if 'analysis_figures' not in st.session_state:
                                             st.session_state.analysis_figures = {}
                                         st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_gains_losses'] = fig
+                                        # Store comparison CSV for export
+                                        st.session_state.hansen_comparison_csv = comparison_df
                                     else:
                                         st.info("No comparison data available")
                                 except Exception as e:
@@ -1784,6 +1801,13 @@ if st.session_state.data_loaded and st.session_state.app:
                                         sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
                                         if sankey_fig:
                                             st.plotly_chart(sankey_fig, use_container_width=True)
+                                            # Store Sankey for export (use 1-based indexing)
+                                            polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
+                                            if 'analysis_figures' not in st.session_state:
+                                                st.session_state.analysis_figures = {}
+                                            st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_sankey'] = sankey_fig
+                                            # Store transitions data for export
+                                            st.session_state.hansen_transitions = result.get('transitions')
                                     except Exception as e:
                                         st.warning(f"Could not display Sankey: {str(e)[:50]}")
                                 else:
