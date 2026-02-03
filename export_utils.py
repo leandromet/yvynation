@@ -322,7 +322,7 @@ def capture_current_analysis_exports(session_state):
         
         # Territory figures
         territory_figure_keys = ['territory_comparison', 'territory_gains_losses', 
-                                 'territory_change_percentage', 'territory_distribution']
+                                 'territory_change_percentage', 'territory_distribution', 'territory_sankey']
         for key in territory_figure_keys:
             if key in figures:
                 territory_figures[key] = figures[key]
