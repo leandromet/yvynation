@@ -43,6 +43,7 @@ from hansen_consolidated_utils import (
 
 # Import mapping and visualization modules
 from map_manager import create_base_map, add_territories_layer
+from export_utils import generate_export_button
 from ee_layers import add_mapbiomas_layer, add_hansen_layer
 from plotting_utils import (
     plot_area_distribution,
@@ -133,6 +134,8 @@ if "hansen_comparison_result" not in st.session_state:
     st.session_state.hansen_comparison_result = None
 if "use_consolidated_classes" not in st.session_state:
     st.session_state.use_consolidated_classes = True
+if "analysis_figures" not in st.session_state:
+    st.session_state.analysis_figures = {}  # Store matplotlib figures for export
 
 # Initialize territory analysis session state
 initialize_territory_session_state()
@@ -874,6 +877,14 @@ with st.expander("📚 Layer Reference Guide - legends", expanded=False):
 # ANALYSIS SECTION
 # ============================================================================
 
+# Export all button at the top
+st.divider()
+with st.container():
+    st.subheader("💾 Export Analysis")
+    generate_export_button(st.session_state)
+
+st.divider()
+
 # Display territory analysis results if available
 if st.session_state.data_loaded and st.session_state.territory_result is not None:
     st.divider()
@@ -904,6 +915,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                     top_n=12
                 )
                 st.pyplot(fig, use_container_width=True)
+                st.session_state.analysis_figures['territory_comparison'] = fig
         
         with col_right:
             with st.expander("🎯 Gains & Losses (km²)", expanded=True):
@@ -916,6 +928,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         top_n=12
                     )
                     st.pyplot(fig, use_container_width=True)
+                    st.session_state.analysis_figures['territory_gains_losses'] = fig
                     
                     # Summary stats
                     total_gains = comparison_df[comparison_df['Change_km2'] > 0]['Change_km2'].sum()
@@ -974,6 +987,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         top_n=12
                     )
                     st.pyplot(fig, use_container_width=True)
+                    st.session_state.analysis_figures['territory_change_percentage'] = fig
                     
                     # Top gainers and losers
                     tcol1, tcol2 = st.columns(2)
@@ -1143,6 +1157,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             st.markdown(f"### Land Cover Distribution in {st.session_state.territory_name} ({st.session_state.territory_year})")
             fig = plot_area_distribution(st.session_state.territory_result, year=st.session_state.territory_year, top_n=15)
             st.pyplot(fig, use_container_width=True)
+            st.session_state.analysis_figures['territory_distribution'] = fig
         
         with terr_tab2:
             st.markdown(f"### Raw Data - {st.session_state.territory_name} ({st.session_state.territory_year})")
@@ -1633,9 +1648,19 @@ if st.session_state.data_loaded and st.session_state.app:
                                 with col_left:
                                     fig = plot_area_distribution(result['df_year1'], year=result['year1'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
+                                    # Store for export
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    if 'analysis_figures' not in st.session_state:
+                                        st.session_state.analysis_figures = {}
+                                    st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df_year2'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
+                                    # Store for export
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    if 'analysis_figures' not in st.session_state:
+                                        st.session_state.analysis_figures = {}
+                                    st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_year2'] = fig
                             
                             with st.expander("🎯 Gains & Losses (km²)"):
                                 from plotting_utils import calculate_gains_losses
@@ -1654,6 +1679,11 @@ if st.session_state.data_loaded and st.session_state.app:
                                             top_n=12
                                         )
                                         st.pyplot(fig, use_container_width=True)
+                                        # Store for export
+                                        polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                        if 'analysis_figures' not in st.session_state:
+                                            st.session_state.analysis_figures = {}
+                                        st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_gains_losses'] = fig
                                     else:
                                         st.info("No comparison data available")
                                 except Exception as e:
@@ -1699,9 +1729,19 @@ if st.session_state.data_loaded and st.session_state.app:
                                 with col_left:
                                     fig = plot_area_distribution(result['df1_disp'], year=result['year1'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
+                                    # Store for export
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    if 'analysis_figures' not in st.session_state:
+                                        st.session_state.analysis_figures = {}
+                                    st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df2_disp'], year=result['year2'], top_n=10)
                                     st.pyplot(fig, use_container_width=True)
+                                    # Store for export
+                                    polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                    if 'analysis_figures' not in st.session_state:
+                                        st.session_state.analysis_figures = {}
+                                    st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_year2'] = fig
                             
                             with st.expander("🎯 Gains & Losses (km²)"):
                                 from plotting_utils import calculate_gains_losses
@@ -1728,6 +1768,11 @@ if st.session_state.data_loaded and st.session_state.app:
                                             top_n=12
                                         )
                                         st.pyplot(fig, use_container_width=True)
+                                        # Store for export
+                                        polygon_idx = st.session_state.get('selected_feature_index', 0)
+                                        if 'analysis_figures' not in st.session_state:
+                                            st.session_state.analysis_figures = {}
+                                        st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_gains_losses'] = fig
                                     else:
                                         st.info("No comparison data available")
                                 except Exception as e:
