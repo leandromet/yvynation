@@ -111,6 +111,14 @@ def create_export_zip(
                 polygon_folder = f'polygons/polygon_{polygon_idx + 1}'
                 
                 for analysis_type, results in analyses_by_type.items():
+                    # Handle transitions data (dict) - save as JSON
+                    if analysis_type.endswith('_transitions'):
+                        if isinstance(results, dict):
+                            json_str = json.dumps(results, indent=2, default=str)
+                            clean_type = analysis_type.replace('_transitions', '')
+                            zf.writestr(f'{polygon_folder}/{clean_type}_transitions.json', json_str)
+                        continue
+                    
                     # Handle comparison CSVs (mapbiomas_comparison_csv, hansen_comparison_csv)
                     if analysis_type.endswith('_comparison_csv'):
                         if isinstance(results, pd.DataFrame):
@@ -143,7 +151,12 @@ def create_export_zip(
             # Write analysis data as CSV
             if territory_analysis_data:
                 for name, df in territory_analysis_data.items():
-                    if isinstance(df, pd.DataFrame):
+                    if name == 'territory_transitions':
+                        # Write transitions data as JSON
+                        if isinstance(df, dict):
+                            json_str = json.dumps(df, indent=2, default=str)
+                            zf.writestr(f'{territory_folder}/transitions.json', json_str)
+                    elif isinstance(df, pd.DataFrame):
                         csv_str = df.to_csv(index=False)
                         zf.writestr(f'{territory_folder}/{name}.csv', csv_str)
             
@@ -287,6 +300,21 @@ def capture_current_analysis_exports(session_state):
             polygon_analyses[polygon_idx]['hansen'] = {}
         # Store the comparison CSV
         polygon_analyses[polygon_idx]['hansen_comparison_csv'] = session_state.hansen_comparison_csv
+    
+    # Capture transitions data for polygons
+    if session_state.get('mapbiomas_transitions') is not None:
+        if polygon_idx not in polygon_analyses:
+            polygon_analyses[polygon_idx] = {}
+        polygon_analyses[polygon_idx]['mapbiomas_transitions'] = session_state.mapbiomas_transitions
+    
+    if session_state.get('hansen_transitions') is not None:
+        if polygon_idx not in polygon_analyses:
+            polygon_analyses[polygon_idx] = {}
+        polygon_analyses[polygon_idx]['hansen_transitions'] = session_state.hansen_transitions
+    
+    # Capture territory transitions data if available
+    if session_state.get('territory_transitions') is not None:
+        territory_analysis_data['territory_transitions'] = session_state.territory_transitions
     
     # Capture figures organized by polygon
     if session_state.get('analysis_figures'):
