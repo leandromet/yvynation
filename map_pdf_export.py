@@ -308,6 +308,7 @@ def create_pdf_map_figure(
     year=None,
     drawn_features=None,
     territory_geojson=None,
+    buffer_geojson=None,
     title=None,
     figsize=(12, 10),
     ee_geometry=None
@@ -322,6 +323,7 @@ def create_pdf_map_figure(
         year: Year for the layer (if applicable)
         drawn_features: List of GeoJSON polygon features
         territory_geojson: GeoJSON of territory boundary
+        buffer_geojson: GeoJSON of buffer zone boundary
         title: Title for the map
         figsize: Figure size in inches
         ee_geometry: Earth Engine geometry for fetching raster data
@@ -415,6 +417,30 @@ def create_pdf_map_figure(
                     ax.fill(lons, lats, color='purple', alpha=0.05)
         except Exception as e:
             print(f"Warning: Could not plot territory: {e}")
+    
+    # Add buffer zone boundary if provided
+    if buffer_geojson:
+        try:
+            buffer_geom = buffer_geojson
+            if buffer_geom.get('type') == 'Polygon':
+                coords = buffer_geom.get('coordinates', [[]])[0]
+                if coords:
+                    lons = [c[0] for c in coords]
+                    lats = [c[1] for c in coords]
+                    ax.plot(lons, lats, 'blue', linewidth=2, label='Buffer Zone', alpha=0.8, linestyle='--')
+                    ax.fill(lons, lats, color='blue', alpha=0.08)
+            elif buffer_geom.get('type') == 'MultiPolygon':
+                # Handle multipolygon buffers
+                for poly_coords in buffer_geom.get('coordinates', []):
+                    if poly_coords:
+                        coords = poly_coords[0] if poly_coords else []
+                        if coords:
+                            lons = [c[0] for c in coords]
+                            lats = [c[1] for c in coords]
+                            ax.plot(lons, lats, 'blue', linewidth=2, alpha=0.8, linestyle='--')
+                            ax.fill(lons, lats, color='blue', alpha=0.08)
+        except Exception as e:
+            print(f"Warning: Could not plot buffer zone: {e}")
     
     # Add drawn polygons
     if drawn_features:
@@ -587,7 +613,7 @@ def bounds_to_ee_geometry(geom_bounds):
         return None
 
 
-def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
+def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffer_geojson=None):
     """
     Create a set of static PDF maps for all active layers
     
@@ -595,6 +621,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
         drawn_features: List of drawn polygon GeoJSON features
         territories_geojson: Territory boundary GeoJSON
         active_layers: Dict of {layer_name: {year: bool}}
+        buffer_geojson: Optional buffer zone boundary GeoJSON
     
     Returns:
         Dict of {map_name: matplotlib.figure.Figure}
@@ -604,6 +631,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
     print(f"DEBUG: Starting PDF map creation")
     print(f"DEBUG: drawn_features: {len(drawn_features) if drawn_features else 0}")
     print(f"DEBUG: territories_geojson: {territories_geojson is not None}")
+    print(f"DEBUG: buffer_geojson: {buffer_geojson is not None}")
     
     # Check if we have anything to map
     if not drawn_features and not territories_geojson:
@@ -648,6 +676,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
                         year=year,
                         drawn_features=drawn_features,
                         territory_geojson=territory_geojson,
+                        buffer_geojson=buffer_geojson,
                         title=f"MapBiomas Land Cover Classification - {year}",
                         ee_geometry=ee_geometry
                     )
@@ -668,6 +697,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
                         year=year,
                         drawn_features=drawn_features,
                         territory_geojson=territory_geojson,
+                        buffer_geojson=buffer_geojson,
                         title=f"Hansen Forest Change - {year}",
                         ee_geometry=ee_geometry
                     )
@@ -691,6 +721,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
                 year=analysis_year,
                 drawn_features=drawn_features,
                 territory_geojson=territory_geojson,
+                buffer_geojson=buffer_geojson,
                 title=f"{analysis_source} Territory Analysis - {analysis_year}",
                 ee_geometry=ee_geometry
             )
@@ -714,6 +745,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
                 year=analysis_year2,
                 drawn_features=drawn_features,
                 territory_geojson=territory_geojson,
+                buffer_geojson=buffer_geojson,
                 title=f"{analysis_source2} Territory Analysis - {analysis_year2}",
                 ee_geometry=ee_geometry
             )
@@ -730,6 +762,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
             layer_type='satellite',
             drawn_features=drawn_features,
             territory_geojson=territory_geojson,
+            buffer_geojson=buffer_geojson,
             title="Satellite Basemap - Location Reference"
         )
         map_figures['Satellite_Basemap'] = fig_satellite
@@ -744,6 +777,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
             layer_type='maps',
             drawn_features=drawn_features,
             territory_geojson=territory_geojson,
+            buffer_geojson=buffer_geojson,
             title="Maps Basemap - Location Reference"
         )
         map_figures['GoogleMaps_Basemap'] = fig_maps
@@ -815,11 +849,25 @@ def render_map_export_section():
                             else:
                                 territories_geojson = st.session_state.get('territories_geojson')
                             
+                            # Get buffer geometry if available
+                            buffer_geojson = None
+                            if st.session_state.get('current_buffer_for_analysis') and st.session_state.get('buffer_geometries'):
+                                buffer_name = st.session_state.current_buffer_for_analysis
+                                if buffer_name in st.session_state.buffer_geometries:
+                                    try:
+                                        buffer_geom = st.session_state.buffer_geometries[buffer_name]
+                                        buffer_geojson = buffer_geom.getInfo()
+                                        print(f"DEBUG: Buffer GeoJSON obtained: {buffer_geojson is not None}")
+                                    except Exception as e:
+                                        print(f"Warning: Could not convert buffer to GeoJSON: {e}")
+                                        buffer_geojson = None
+                            
                             # Create maps
                             map_figures = create_pdf_map_set(
                                 drawn_features=st.session_state.get('all_drawn_features') if has_polygons else None,
                                 territories_geojson=territories_geojson if has_territory else None,
-                                active_layers=active_layers
+                                active_layers=active_layers,
+                                buffer_geojson=buffer_geojson
                             )
                             
                             # Store in session state for export

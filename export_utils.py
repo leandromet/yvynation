@@ -261,6 +261,33 @@ def capture_current_analysis_exports(session_state):
             territory_comparison_data[f'{territory_name}_comparison_{territory_year2}'] = session_state.territory_result_year2
             metadata['comparison_year'] = str(territory_year2)
     
+    # Capture buffer analysis data if available
+    if session_state.get('buffer_result_mapbiomas') is not None or session_state.get('buffer_result_hansen') is not None:
+        buffer_name = session_state.get('current_buffer_for_analysis', 'Unknown Buffer')
+        territory_year = session_state.get('territory_year') or 'Unknown'
+        
+        if session_state.get('buffer_result_mapbiomas') is not None:
+            territory_analysis_data[f'buffer_{buffer_name}_analysis_{territory_year}'] = session_state.buffer_result_mapbiomas
+            metadata['buffer_analyzed'] = str(buffer_name)
+            metadata['buffer_data_source'] = 'MapBiomas'
+            
+            # Add buffer comparison data if available
+            if session_state.get('buffer_result_mapbiomas_y2') is not None:
+                territory_year2 = session_state.get('territory_year2') or 'Unknown'
+                territory_comparison_data[f'buffer_{buffer_name}_comparison_{territory_year2}'] = session_state.buffer_result_mapbiomas_y2
+                metadata['buffer_comparison_year'] = str(territory_year2)
+        
+        elif session_state.get('buffer_result_hansen') is not None:
+            territory_analysis_data[f'buffer_{buffer_name}_analysis_{territory_year}'] = session_state.buffer_result_hansen
+            metadata['buffer_analyzed'] = str(buffer_name)
+            metadata['buffer_data_source'] = 'Hansen'
+            
+            # Add buffer comparison data if available
+            if session_state.get('buffer_result_hansen_y2') is not None:
+                territory_year2 = session_state.get('territory_year2') or 'Unknown'
+                territory_comparison_data[f'buffer_{buffer_name}_comparison_{territory_year2}'] = session_state.buffer_result_hansen_y2
+                metadata['buffer_comparison_year'] = str(territory_year2)
+    
     # Capture polygon analysis results
     # Note: These are organized by polygon index if available
     polygon_idx = session_state.get('selected_feature_index', 0)
@@ -347,8 +374,15 @@ def capture_current_analysis_exports(session_state):
             if key in figures:
                 territory_figures[key] = figures[key]
         
+        # Buffer figures
+        buffer_figure_keys = ['buffer_comparison', 'buffer_gains_losses', 
+                              'buffer_change_percentage', 'buffer_distribution', 'buffer_sankey']
+        for key in buffer_figure_keys:
+            if key in figures:
+                territory_figures[f'buffer_{key}'] = figures[key]
+        
         # Polygon figures (store in polygon_analyses if we have polygon analysis)
-        polygon_figure_keys = [k for k in figures.keys() if not k.startswith('territory_')]
+        polygon_figure_keys = [k for k in figures.keys() if not k.startswith('territory_') and not k.startswith('buffer_')]
         for key in polygon_figure_keys:
             all_figures[key] = figures[key]
     
