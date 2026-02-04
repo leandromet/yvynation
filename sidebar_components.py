@@ -149,6 +149,15 @@ def render_territory_analysis():
                         st.markdown("**Create External Buffer Zone**")
                         st.caption("Create a ring-shaped buffer around the territory for analysis")
                         
+                        # Buffer compare mode toggle
+                        buffer_compare = st.checkbox(
+                            "📊 Compare Territory vs Buffer",
+                            value=st.session_state.buffer_compare_mode,
+                            help="Analyze both territory and buffer zone side-by-side",
+                            key="territory_buffer_compare_toggle"
+                        )
+                        st.session_state.buffer_compare_mode = buffer_compare
+                        
                         col_dist, col_create = st.columns([2, 1])
                         with col_dist:
                             buffer_distance = st.selectbox(
@@ -177,8 +186,14 @@ def render_territory_analysis():
                                 # Add to polygon list
                                 add_buffer_to_polygon_list(buffer_name)
                                 
-                                st.success(f"✅ Created {buffer_distance}km buffer around '{selected_territory}'")
-                                st.info("📍 Buffer added to polygon list - scroll down to select and analyze it")
+                                # If compare mode, set this buffer for comparison
+                                if st.session_state.buffer_compare_mode:
+                                    st.session_state.current_buffer_for_analysis = buffer_name
+                                    st.success(f"✅ Created {buffer_distance}km buffer - Compare mode enabled!")
+                                    st.info("📊 Click 'Analyze' to compare territory vs buffer zone")
+                                else:
+                                    st.success(f"✅ Created {buffer_distance}km buffer around '{selected_territory}'")
+                                    st.info("📍 Buffer added to polygon list - scroll down to select and analyze it")
                                 
                             except Exception as e:
                                 st.error(f"❌ Failed to create buffer: {e}")

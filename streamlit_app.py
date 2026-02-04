@@ -82,6 +82,83 @@ from map_components import (
 from map_pdf_export import render_map_export_section
 
 # ============================================================================
+# HELPER FUNCTIONS FOR BUFFER COMPARISON
+# ============================================================================
+
+def analyze_mapbiomas_geometry(geometry, year, area_name="Area"):
+    """
+    Analyze MapBiomas data for a given geometry and year.
+    
+    Returns:
+        pd.DataFrame: Analysis results or None if error
+    """
+    try:
+        band = f'classification_{year}'
+        image = st.session_state.app.mapbiomas_v9.select(band)
+        
+        with st.spinner(f"Analyzing {area_name} for {year}..."):
+            stats = image.reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=geometry,
+                scale=30,
+                maxPixels=1e9
+            ).getInfo()
+        
+        if stats:
+            from config import MAPBIOMAS_LABELS
+            band_key = f'classification_{year}' if f'classification_{year}' in stats else list(stats.keys())[0]
+            histogram_data = stats.get(band_key, {})
+            
+            if histogram_data:
+                records = []
+                for class_id, count in histogram_data.items():
+                    class_id = int(class_id)
+                    class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
+                    area_ha = count * 0.09
+                    records.append({
+                        "Class_ID": class_id,
+                        "Class": class_name,
+                        "Pixels": int(count),
+                        "Area_ha": round(area_ha, 2)
+                    })
+                df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+                return df
+    except Exception as e:
+        st.error(f"Error analyzing {area_name}: {str(e)[:200]}")
+        print(f"Full error: {e}")
+    return None
+
+
+def analyze_hansen_geometry(geometry, year, area_name="Area"):
+    """
+    Analyze Hansen data for a given geometry and year.
+    
+    Returns:
+        pd.DataFrame: Analysis results or None if error
+    """
+    try:
+        from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
+        landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+        hansen_image = ee.Image(HANSEN_DATASETS[str(year)]).updateMask(landmask)
+        
+        with st.spinner(f"Analyzing {area_name} for {year}..."):
+            stats = hansen_image.reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=geometry,
+                scale=30,
+                maxPixels=1e9
+            ).getInfo()
+        
+        if stats:
+            df = hansen_histogram_to_dataframe(stats, year)
+            if not df.empty:
+                return df
+    except Exception as e:
+        st.error(f"Error analyzing {area_name}: {e}")
+    return None
+
+
+# ============================================================================
 # INITIALIZATION
 # ============================================================================
 
@@ -152,6 +229,12 @@ if "buffer_geometries" not in st.session_state:
     st.session_state.buffer_geometries = {}  # {buffer_name: ee.Geometry}
 if "buffer_metadata" not in st.session_state:
     st.session_state.buffer_metadata = {}  # {buffer_name: metadata_dict}
+if "buffer_compare_mode" not in st.session_state:
+    st.session_state.buffer_compare_mode = False  # Whether to compare original vs buffer
+if "buffer_analysis_results" not in st.session_state:
+    st.session_state.buffer_analysis_results = {}  # {buffer_name: {year: dataframe}}
+if "current_buffer_for_analysis" not in st.session_state:
+    st.session_state.current_buffer_for_analysis = None  # Active buffer for comparison
 
 # Initialize territory analysis session state
 initialize_territory_session_state()
@@ -657,9 +740,29 @@ if st.session_state.data_loaded and st.session_state.app:
             if not geometry:
                 st.warning("⚠️ Could not extract geometry from drawn feature")
             else:
-                tab1, tab2, tab3, tab4 = st.tabs(
-                    ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                # Check if buffer compare mode is active and buffer exists
+                compare_with_buffer = (
+                    st.session_state.buffer_compare_mode and 
+                    st.session_state.current_buffer_for_analysis and
+                    st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries
                 )
+                
+                if compare_with_buffer:
+                    # Get buffer geometry
+                    buffer_geom = st.session_state.buffer_geometries[st.session_state.current_buffer_for_analysis]
+                    buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
+                    
+                    st.info(f"📊 Compare Mode: Analyzing original area vs {buffer_meta['buffer_size_km']}km buffer zone")
+                    
+                    # Create tabs with dual analysis
+                    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+                        ["📍 MapBiomas (Original)", "🔵 MapBiomas (Buffer)", "🌍 Hansen (Original)", "🔵 Hansen (Buffer)", "ℹ️ About"]
+                    )
+                else:
+                    # Standard tabs without buffer comparison
+                    tab1, tab2, tab3, tab4 = st.tabs(
+                        ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                    )
                 
                 with tab1:
                     st.markdown("### MapBiomas Land Cover Analysis")
@@ -727,7 +830,46 @@ if st.session_state.data_loaded and st.session_state.app:
                         st.info("Load data and add a MapBiomas layer to begin analysis")
                 
                 with tab2:
-                    st.markdown("### Hansen/GLAD Forest Change Analysis")
+                    # Tab2 content depends on compare mode
+                    if compare_with_buffer:
+                        # Buffer analysis for MapBiomas
+                        st.markdown(f"### MapBiomas Analysis - Buffer Zone ({buffer_meta['buffer_size_km']}km)")
+                        if st.session_state.mapbiomas_layers and st.session_state.app.mapbiomas_v9:
+                            years_to_analyze = [y for y, enabled in st.session_state.mapbiomas_layers.items() if enabled]
+                            if years_to_analyze:
+                                for year in sorted(years_to_analyze):
+                                    st.markdown(f"**Year {year}**")
+                                    df = analyze_mapbiomas_geometry(buffer_geom, year, f"Buffer {buffer_meta['buffer_size_km']}km")
+                                    if df is not None:
+                                        st.dataframe(df[['Class', 'Pixels', 'Area_ha']], width="stretch")
+                                        fig = plot_area_distribution(df, year=year, top_n=15)
+                                        st.pyplot(fig, width="stretch")
+                                        
+                                        # Store for export
+                                        if 'buffer_analysis_results' not in st.session_state:
+                                            st.session_state.buffer_analysis_results = {}
+                                        if st.session_state.current_buffer_for_analysis not in st.session_state.buffer_analysis_results:
+                                            st.session_state.buffer_analysis_results[st.session_state.current_buffer_for_analysis] = {}
+                                        st.session_state.buffer_analysis_results[st.session_state.current_buffer_for_analysis][f'mapbiomas_{year}'] = df
+                                        
+                                        st.success(f"✓ {year}: {len(df)} classes found in buffer zone")
+                                        
+                                        # Download CSV
+                                        csv = df.to_csv(index=False)
+                                        st.download_button(
+                                            label=f"📥 Download Buffer CSV ({year})",
+                                            data=csv,
+                                            file_name=f"buffer_{buffer_meta['buffer_size_km']}km_mapbiomas_{year}.csv",
+                                            mime="text/csv",
+                                            key=f"dl_buffer_mb_{year}"
+                                        )
+                            else:
+                                st.info("Add a MapBiomas layer from the sidebar to analyze")
+                        else:
+                            st.info("Load data and add a MapBiomas layer to begin analysis")
+                    else:
+                        # Regular Hansen analysis (no compare mode)
+                        st.markdown("### Hansen/GLAD Forest Change Analysis")
                     if st.session_state.hansen_layers and st.session_state.app:
                         years_to_analyze = [y for y, enabled in st.session_state.hansen_layers.items() if enabled]
                         if years_to_analyze:
@@ -803,7 +945,51 @@ if st.session_state.data_loaded and st.session_state.app:
                         st.info("Load data and add a Hansen layer to begin analysis")
                 
                 with tab3:
-                    st.markdown("### Multi-Year Comparison")
+                    # Tab3 content depends on compare mode
+                    if compare_with_buffer:
+                        # Original area Hansen analysis
+                        st.markdown("### Hansen/GLAD Analysis - Original Area")
+                        if st.session_state.hansen_layers and st.session_state.app:
+                            years_to_analyze = [y for y, enabled in st.session_state.hansen_layers.items() if enabled]
+                            if years_to_analyze:
+                                for year in sorted(years_to_analyze):
+                                    st.markdown(f"**Year {year}**")
+                                    df = analyze_hansen_geometry(geometry, year, "Original Area")
+                                    if df is not None:
+                                        # Consolidate if toggled
+                                        if st.session_state.use_consolidated_classes:
+                                            df_display = aggregate_to_consolidated(df)
+                                            st.markdown("**Consolidated View (12 classes)**")
+                                        else:
+                                            df_display = df
+                                            st.markdown("**Detailed View (256 classes)**")
+                                        
+                                        # Show data
+                                        display_cols = [col for col in ['Name', 'Consolidated_Class', 'Class', 'Class_ID', 'Pixels', 'Area_ha'] if col in df_display.columns]
+                                        if display_cols:
+                                            st.dataframe(df_display[display_cols], width="stretch")
+                                        else:
+                                            st.dataframe(df_display, width="stretch")
+                                        
+                                        fig = plot_area_distribution(df_display, year=year, top_n=15)
+                                        st.pyplot(fig, width="stretch")
+                                        
+                                        # Download CSV
+                                        csv = df.to_csv(index=False)
+                                        st.download_button(
+                                            label=f"📥 Download Original CSV ({year})",
+                                            data=csv,
+                                            file_name=f"original_hansen_{year}.csv",
+                                            mime="text/csv",
+                                            key=f"dl_orig_hansen_{year}"
+                                        )
+                            else:
+                                st.info("Add a Hansen layer from the sidebar to analyze")
+                        else:
+                            st.info("Load data and add a Hansen layer to begin analysis")
+                    else:
+                        # Regular comparison mode (multi-year)
+                        st.markdown("### Multi-Year Comparison")
                     
                     # MapBiomas comparison
                     if st.session_state.mapbiomas_layers and st.session_state.app.mapbiomas_v9:
@@ -1264,7 +1450,60 @@ if st.session_state.data_loaded and st.session_state.app:
                         st.info("Add layers from the sidebar to enable comparisons")
                 
                 with tab4:
-                    col1, col2 = st.columns(2)
+                    # Tab4 content depends on compare mode
+                    if compare_with_buffer:
+                        # Buffer area Hansen analysis
+                        st.markdown(f"### Hansen/GLAD Analysis - Buffer Zone ({buffer_meta['buffer_size_km']}km)")
+                        if st.session_state.hansen_layers and st.session_state.app:
+                            years_to_analyze = [y for y, enabled in st.session_state.hansen_layers.items() if enabled]
+                            if years_to_analyze:
+                                for year in sorted(years_to_analyze):
+                                    st.markdown(f"**Year {year}**")
+                                    df = analyze_hansen_geometry(buffer_geom, year, f"Buffer {buffer_meta['buffer_size_km']}km")
+                                    if df is not None:
+                                        # Consolidate if toggled
+                                        if st.session_state.use_consolidated_classes:
+                                            df_display = aggregate_to_consolidated(df)
+                                            st.markdown("**Consolidated View (12 classes)**")
+                                        else:
+                                            df_display = df
+                                            st.markdown("**Detailed View (256 classes)**")
+                                        
+                                        # Show data
+                                        display_cols = [col for col in ['Name', 'Consolidated_Class', 'Class', 'Class_ID', 'Pixels', 'Area_ha'] if col in df_display.columns]
+                                        if display_cols:
+                                            st.dataframe(df_display[display_cols], width="stretch")
+                                        else:
+                                            st.dataframe(df_display, width="stretch")
+                                        
+                                        fig = plot_area_distribution(df_display, year=year, top_n=15)
+                                        st.pyplot(fig, width="stretch")
+                                        
+                                        # Store for export
+                                        if st.session_state.current_buffer_for_analysis not in st.session_state.buffer_analysis_results:
+                                            st.session_state.buffer_analysis_results[st.session_state.current_buffer_for_analysis] = {}
+                                        st.session_state.buffer_analysis_results[st.session_state.current_buffer_for_analysis][f'hansen_{year}'] = df
+                                        
+                                        # Download CSV
+                                        csv = df.to_csv(index=False)
+                                        st.download_button(
+                                            label=f"📥 Download Buffer CSV ({year})",
+                                            data=csv,
+                                            file_name=f"buffer_{buffer_meta['buffer_size_km']}km_hansen_{year}.csv",
+                                            mime="text/csv",
+                                            key=f"dl_buffer_hansen_{year}"
+                                        )
+                            else:
+                                st.info("Add a Hansen layer from the sidebar to analyze")
+                        else:
+                            st.info("Load data and add a Hansen layer to begin analysis")
+                    
+                    # Add tab5 only when in compare mode (About tab)
+                    if compare_with_buffer:
+                        pass  # Will be handled by tab5
+                    else:
+                        # Regular About tab content (no compare mode)
+                        col1, col2 = st.columns(2)
                     with col1:
                         with st.expander("📍 MapBiomas Info"):
                             st.markdown("""
@@ -1283,6 +1522,43 @@ if st.session_state.data_loaded and st.session_state.app:
                             - Forest loss and gain tracking
                             - Available 2000-2020+
                             """)
+                
+                # Add tab5 content when in compare mode
+                if compare_with_buffer:
+                    with tab5:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            with st.expander("📍 MapBiomas Info"):
+                                st.markdown("""
+                                **MapBiomas** is a Brazilian initiative that provides detailed land cover mapping:
+                                - Annual classification since 1985
+                                - 30-meter resolution
+                                - 25+ land cover classes
+                                - Covers all of Brazil
+                                """)
+                        with col2:
+                            with st.expander("🌍 Hansen/GLAD Info"):
+                                st.markdown("""
+                                **Hansen/GLAD** detects global forest changes:
+                                - Global coverage (all continents)
+                                - 30-meter resolution
+                                - Forest loss and gain tracking
+                                - Available 2000-2020+
+                                """)
+                        
+                        st.divider()
+                        st.markdown("### 📊 Buffer Compare Mode")
+                        st.info(f"""
+                        **Active Comparison:**
+                        - Original Area: {buffer_meta['source_name']}
+                        - Buffer Zone: {buffer_meta['buffer_size_km']}km external ring
+                        
+                        **How to use:**
+                        1. View results in separate tabs for original vs buffer
+                        2. Download CSVs for each area independently
+                        3. Use map export for PDF/PNG exports of both areas
+                        """)
+                        
         except Exception as e:
             st.error(f"Error processing drawn feature: {e}")
             print(f"Analysis error: {e}")

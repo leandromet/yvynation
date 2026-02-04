@@ -338,6 +338,15 @@ def render_polygon_selector():
                 st.markdown("**Create External Buffer Zone**")
                 st.caption("Create a ring-shaped buffer around this polygon for analysis")
                 
+                # Buffer compare mode toggle
+                buffer_compare = st.checkbox(
+                    "📊 Compare Polygon vs Buffer",
+                    value=st.session_state.buffer_compare_mode,
+                    help="Analyze both polygon and buffer zone side-by-side",
+                    key="polygon_buffer_compare_toggle"
+                )
+                st.session_state.buffer_compare_mode = buffer_compare
+                
                 col_dist, col_create = st.columns([2, 1])
                 with col_dist:
                     buffer_distance = st.selectbox(
@@ -373,8 +382,14 @@ def render_polygon_selector():
                         # Add to polygon list
                         add_buffer_to_polygon_list(buffer_name)
                         
-                        st.success(f"✅ Created {buffer_distance}km buffer around {polygon_name}")
-                        st.info("📍 Buffer added to polygon list - refresh to select it")
+                        # If compare mode, set this buffer for comparison
+                        if st.session_state.buffer_compare_mode:
+                            st.session_state.current_buffer_for_analysis = buffer_name
+                            st.success(f"✅ Created {buffer_distance}km buffer - Compare mode enabled!")
+                            st.info("📊 Analysis tabs will show both polygon and buffer results")
+                        else:
+                            st.success(f"✅ Created {buffer_distance}km buffer around {polygon_name}")
+                            st.info("📍 Buffer added to polygon list - refresh to select it")
                         st.rerun()
                         
                     except Exception as e:
