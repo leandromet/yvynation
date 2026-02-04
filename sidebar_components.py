@@ -162,7 +162,7 @@ def render_territory_analysis():
                         with col_dist:
                             buffer_distance = st.selectbox(
                                 "Buffer Distance",
-                                options=[2, 5, 10],
+                                options=[1, 2, 5, 10],
                                 format_func=lambda x: f"{x} km",
                                 key="territory_buffer_distance"
                             )
@@ -192,12 +192,94 @@ def render_territory_analysis():
                                     st.success(f"✅ Created {buffer_distance}km buffer - Compare mode enabled!")
                                     st.info("📊 Click 'Analyze' to compare territory vs buffer zone")
                                 else:
+                                    st.session_state.current_buffer_for_analysis = buffer_name
                                     st.success(f"✅ Created {buffer_distance}km buffer around '{selected_territory}'")
-                                    st.info("📍 Buffer added to polygon list - scroll down to select and analyze it")
+                                    st.info("🔽 Use 'Analyze Buffer' button below to analyze just the buffer zone")
                                 
                             except Exception as e:
                                 st.error(f"❌ Failed to create buffer: {e}")
                                 traceback.print_exc()
+                        
+                        # Show Analyze Buffer button if buffer exists
+                        if st.session_state.current_buffer_for_analysis and st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries:
+                            st.divider()
+                            st.markdown("**🔵 Buffer Zone Analysis**")
+                            buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
+                            st.caption(f"Analyze the {buffer_meta['buffer_size_km']}km buffer zone around {buffer_meta['source_name']}")
+                            
+                            analyze_buffer_btn = st.button("🔍 Analyze Buffer Zone", key="btn_analyze_territory_buffer", width="stretch")
+                            
+                            if analyze_buffer_btn:
+                                with st.spinner(f"Analyzing buffer zone..."):
+                                    try:
+                                        # Get buffer geometry and metadata
+                                        buffer_name = st.session_state.current_buffer_for_analysis
+                                        buffer_geom = st.session_state.buffer_geometries[buffer_name]
+                                        buffer_meta = st.session_state.buffer_metadata[buffer_name]
+                                        
+                                        print(f"DEBUG: Buffer analysis - name={buffer_name}, geom_type={type(buffer_geom)}")
+                                        
+                                        # Store buffer info (keep territory_geom separate for reference)
+                                        # Don't overwrite territory_geom - keep original territory reference
+                                        st.session_state.territory_geometry_for_analysis = buffer_geom
+                                        st.session_state.territory_name = f"{buffer_meta['source_name']} Buffer ({buffer_meta['buffer_size_km']}km)"
+                                        st.session_state.territory_source = data_source
+                                        
+                                        if data_source == "MapBiomas":
+                                            # Analyze MapBiomas for buffer
+                                            mapbiomas = st.session_state.app.mapbiomas_v9
+                                            print(f"DEBUG: mapbiomas type = {type(mapbiomas)}, buffer_geom type = {type(buffer_geom)}")
+                                            band = f'classification_{territory_year}'
+                                            area_df = analyze_territory_mapbiomas(mapbiomas, buffer_geom, territory_year)
+                                            
+                                            # Store buffer results in dedicated session state variables
+                                            st.session_state.buffer_result_mapbiomas = area_df
+                                            st.session_state.buffer_result_mapbiomas_y2 = None
+                                            
+                                            # Check if we need a second year analysis
+                                            # Get compare mode and year from session state since local variables may not be in scope
+                                            territory_compare_from_state = st.session_state.get('territory_compare_mode', False)
+                                            territory_year2_from_state = st.session_state.get('territory_year2_for_analysis', None)
+                                            
+                                            if territory_compare_from_state and territory_year2_from_state:
+                                                band2 = f'classification_{territory_year2_from_state}'
+                                                area_df2 = analyze_territory_mapbiomas(mapbiomas, buffer_geom, territory_year2_from_state)
+                                                st.session_state.buffer_result_mapbiomas_y2 = area_df2
+                                        
+                                        else:  # Hansen
+                                            # Analyze Hansen for buffer
+                                            area_df, hansen_image = analyze_territory_hansen(
+                                                st.session_state.ee_module,
+                                                buffer_geom,
+                                                territory_year,
+                                                st.session_state.use_consolidated_classes
+                                            )
+                                            
+                                            # Store buffer results in dedicated session state variables
+                                            st.session_state.buffer_result_hansen = area_df
+                                            st.session_state.buffer_result_hansen_y2 = None
+                                            
+                                            # Check if we need a second year analysis
+                                            territory_compare_from_state = st.session_state.get('territory_compare_mode', False)
+                                            territory_year2_from_state = st.session_state.get('territory_year2_for_analysis', None)
+                                            
+                                            if territory_compare_from_state and territory_year2_from_state:
+                                                area_df2, hansen_image2 = analyze_territory_hansen(
+                                                    st.session_state.ee_module,
+                                                    buffer_geom,
+                                                    territory_year2_from_state,
+                                                    st.session_state.use_consolidated_classes
+                                                )
+                                                st.session_state.buffer_result_hansen_y2 = area_df2
+                                        
+                                        st.success(f"✅ Buffer zone analysis complete!")
+                                        st.info("📊 Scroll down to see results")
+                                    
+                                    except Exception as e:
+                                        st.error(f"❌ Failed to analyze buffer: {e}")
+                                        import traceback
+                                        st.error(f"Full error: {traceback.format_exc()}")
+                                        traceback.print_exc()
                         
                         if add_layer_btn:
                             try:
@@ -212,7 +294,7 @@ def render_territory_analysis():
                                 st.session_state.add_territory_layer_to_map = True
                                 st.session_state.territory_layer_name = selected_territory
                                 
-                                st.success(f"✅ Territory '{selected_territory}' added to map - scroll down to see map")
+                                st.success(f"✅ Territory '{selected_territory}' added to map")
                             
                             except Exception as e:
                                 st.error(f"❌ Failed to add territory layer: {e}")
@@ -221,6 +303,10 @@ def render_territory_analysis():
                         if analyze_btn:
                             with st.spinner(f"Analyzing {selected_territory}..."):
                                 try:
+                                    # Save compare mode and year2 to session state for use in buffer analysis
+                                    st.session_state.territory_compare_mode = compare_mode
+                                    st.session_state.territory_year2_for_analysis = territory_year2 if compare_mode else None
+                                    
                                     # Get territory geometry
                                     territory_geom = get_territory_geometry(territories_fc, selected_territory, name_prop)
                                     if not territory_geom:

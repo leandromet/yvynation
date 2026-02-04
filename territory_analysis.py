@@ -78,7 +78,10 @@ def analyze_territory_mapbiomas(mapbiomas, territory_geom, year):
     try:
         from mapbiomas_analysis import calculate_area_by_class as mapbiomas_area_analysis
         
+        print(f"DEBUG analyze_territory_mapbiomas: mapbiomas type={type(mapbiomas)}, territory_geom type={type(territory_geom)}, year={year}")
+        
         band = f'classification_{year}'
+        print(f"DEBUG: Calling mapbiomas.select('{band}')")
         area_df = mapbiomas_area_analysis(
             mapbiomas.select(band),
             territory_geom,
@@ -87,6 +90,8 @@ def analyze_territory_mapbiomas(mapbiomas, territory_geom, year):
         return area_df
     except Exception as e:
         print(f"❌ Error analyzing MapBiomas: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 

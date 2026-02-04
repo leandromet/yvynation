@@ -1188,6 +1188,261 @@ render_layer_reference_guide()
     
 
 # ============================================================================
+# HELPER FUNCTIONS FOR TERRITORY ANALYSIS
+# ============================================================================
+
+def render_territory_comparison_content(result_y1, result_y2, year1, year2, area_name, source, geometry, area_prefix="territory"):
+    """Render the comparison charts and data tables for territory or buffer analysis"""
+    
+    from plotting_utils import calculate_gains_losses
+    comparison_df = calculate_gains_losses(
+        result_y1,
+        result_y2,
+        class_col='Class_ID',
+        area_col='Area_ha'
+    )
+    
+    # Side-by-side comparison with gains/losses
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        with st.expander("📊 Side-by-Side Comparison", expanded=True):
+            st.markdown(f"Land Cover Distribution Comparison")
+            fig = plot_area_comparison(
+                result_y1,
+                result_y2,
+                year1,
+                year2,
+                top_n=12
+            )
+            st.pyplot(fig, width="stretch")
+            st.session_state.analysis_figures[f'{area_prefix}_comparison'] = fig
+    
+    with col_right:
+        with st.expander("🎯 Gains & Losses (km²)", expanded=True):
+            st.markdown(f"Class Gains and Losses ({year1} to {year2})")
+            if len(comparison_df) > 0:
+                fig = plot_gains_losses(
+                    comparison_df,
+                    year1,
+                    year2,
+                    top_n=12
+                )
+                st.pyplot(fig, width="stretch")
+                st.session_state.analysis_figures[f'{area_prefix}_gains_losses'] = fig
+                
+                # Summary stats
+                total_gains = comparison_df[comparison_df['Change_km2'] > 0]['Change_km2'].sum()
+                total_losses = abs(comparison_df[comparison_df['Change_km2'] < 0]['Change_km2'].sum())
+                net_change = total_gains - total_losses
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Gains", f"{total_gains:,.1f} km²")
+                with col2:
+                    st.metric("Losses", f"{total_losses:,.1f} km²")
+                with col3:
+                    st.metric("Net", f"{net_change:+,.1f} km²")
+            else:
+                st.info("No comparison data available")
+    
+    # Data tables and change analysis
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.expander("📋 Data Tables", expanded=False):
+            tab_y1, tab_y2 = st.tabs([f"Year {year1}", f"Year {year2}"])
+            
+            with tab_y1:
+                display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in result_y1.columns else ['Class_ID', 'Pixels', 'Area_ha']
+                st.dataframe(result_y1[display_cols], width="stretch")
+                csv1 = result_y1.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv1,
+                    file_name=f"{area_name}_{year1}.csv",
+                    mime="text/csv",
+                    key=f"download_{area_prefix}_y1"
+                )
+            
+            with tab_y2:
+                display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in result_y2.columns else ['Class_ID', 'Pixels', 'Area_ha']
+                st.dataframe(result_y2[display_cols], width="stretch")
+                csv2 = result_y2.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv2,
+                    file_name=f"{area_name}_{year2}.csv",
+                    mime="text/csv",
+                    key=f"download_{area_prefix}_y2"
+                )
+    
+    with col2:
+        with st.expander("📈 Change Analysis", expanded=False):
+            st.markdown(f"Percentage Change Analysis")
+            if len(comparison_df) > 0:
+                fig = plot_change_percentage(
+                    comparison_df,
+                    year1,
+                    year2,
+                    top_n=12
+                )
+                st.pyplot(fig, width="stretch")
+                st.session_state.analysis_figures[f'{area_prefix}_change_percentage'] = fig
+                
+                # Top gainers and losers
+                tcol1, tcol2 = st.columns(2)
+                with tcol1:
+                    st.markdown("**Top Gainers**")
+                    top_gainers = comparison_df[comparison_df['Change_km2'] > 0].nlargest(5, 'Change_km2')
+                    if len(top_gainers) > 0:
+                        st.dataframe(top_gainers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
+                
+                with tcol2:
+                    st.markdown("**Top Losers**")
+                    top_losers = comparison_df[comparison_df['Change_km2'] < 0].nsmallest(5, 'Change_km2')
+                    if len(top_losers) > 0:
+                        st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
+    
+    # Add Sankey diagram with pixel-level transitions
+    with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
+        st.markdown(f"Pixel-level transitions from {year1} to {year2}")
+        try:
+            if geometry is not None:
+                # Compute pixel-level transitions using Earth Engine
+                transitions = {}
+                
+                # Determine which dataset we're using
+                if source == 'MapBiomas':
+                    band1 = f'classification_{year1}'
+                    band2 = f'classification_{year2}'
+                    dataset = st.session_state.app.mapbiomas_v9
+                    class_labels = MAPBIOMAS_LABELS
+                else:  # Hansen
+                    # Load Hansen datasets from Earth Engine
+                    year1_str = str(year1)
+                    year2_str = str(year2)
+                    
+                    # Get Hansen asset IDs
+                    if year1_str not in HANSEN_DATASETS or year2_str not in HANSEN_DATASETS:
+                        st.error(f"Hansen data not available for years {year1_str} and {year2_str}")
+                        return
+                    
+                    # Load Hansen images and apply ocean mask
+                    landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+                    hansen1 = ee.Image(HANSEN_DATASETS[year1_str]).updateMask(landmask)
+                    hansen2 = ee.Image(HANSEN_DATASETS[year2_str]).updateMask(landmask)
+                    
+                    # Don't remap on EE side - get raw classes and consolidate in Python
+                    dataset = hansen1.rename('band1').addBands(hansen2.rename('band2'))
+                    band1 = 'band1'
+                    band2 = 'band2'
+                    class_labels = {}
+                
+                # Calculate transitions using frequencyHistogram
+                combined = dataset.select(band1).multiply(1000).add(
+                    dataset.select(band2)
+                )
+                transition_hist = combined.reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
+                
+                if transition_hist:
+                    trans_key = list(transition_hist.keys())[0] if transition_hist else None
+                    if trans_key and transition_hist[trans_key]:
+                        for combined_val_str, count in transition_hist[trans_key].items():
+                            combined_val = int(combined_val_str)
+                            source_class = combined_val // 1000
+                            target_class = combined_val % 1000
+                            area_ha = count * 0.09
+                            
+                            if source_class > 0 and target_class > 0 and area_ha > 0:
+                                # For Hansen, use stratum names; for MapBiomas, use numeric IDs
+                                if 'Hansen' in source:
+                                    from hansen_reference_mapping import get_stratum_name
+                                    source_key = get_stratum_name(source_class)
+                                    target_key = get_stratum_name(target_class)
+                                else:
+                                    source_key = source_class
+                                    target_key = target_class
+                                
+                                if source_key not in transitions:
+                                    transitions[source_key] = {}
+                                # Aggregate transitions
+                                if target_key not in transitions[source_key]:
+                                    transitions[source_key][target_key] = area_ha
+                                else:
+                                    transitions[source_key][target_key] += area_ha
+                
+                if transitions:
+                    # For Hansen, use stratum colors; for MapBiomas, use class colors
+                    if 'Hansen' in source:
+                        from hansen_reference_mapping import HANSEN_STRATUM_COLORS, HANSEN_STRATUM_NAMES
+                        
+                        class_colors = {}
+                        class_names = {}
+                        
+                        for source_name in transitions.keys():
+                            if source_name not in class_colors:
+                                stratum_num = None
+                                for num, name in HANSEN_STRATUM_NAMES.items():
+                                    if name == source_name:
+                                        stratum_num = num
+                                        break
+                                
+                                if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
+                                    class_colors[source_name] = HANSEN_STRATUM_COLORS[stratum_num]
+                                else:
+                                    class_colors[source_name] = '#cccccc'
+                                class_names[source_name] = source_name
+                            
+                            for target_name in transitions[source_name].keys():
+                                if target_name not in class_colors:
+                                    stratum_num = None
+                                    for num, name in HANSEN_STRATUM_NAMES.items():
+                                        if name == target_name:
+                                            stratum_num = num
+                                            break
+                                    
+                                    if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
+                                        class_colors[target_name] = HANSEN_STRATUM_COLORS[stratum_num]
+                                    else:
+                                        class_colors[target_name] = '#cccccc'
+                                    class_names[target_name] = target_name
+                    else:
+                        class_colors = MAPBIOMAS_COLOR_MAP
+                        class_names = MAPBIOMAS_LABELS
+                    
+                    sankey_fig = create_sankey_transitions(
+                        transitions,
+                        year1,
+                        year2,
+                        class_colors=class_colors,
+                        class_names=class_names
+                    )
+                    if sankey_fig:
+                        st.plotly_chart(sankey_fig, width="stretch")
+                        # Store Sankey for export
+                        if 'analysis_figures' not in st.session_state:
+                            st.session_state.analysis_figures = {}
+                        st.session_state.analysis_figures[f'{area_prefix}_sankey'] = sankey_fig
+                        # Store transitions data for export
+                        if area_prefix == "territory":
+                            st.session_state.territory_transitions = transitions
+                    else:
+                        st.info("Could not generate Sankey diagram")
+                else:
+                    st.info("No transition data available")
+            else:
+                st.warning("Geometry not available. Run analysis first.")
+        except Exception as e:
+            st.warning(f"Could not display Sankey diagram: {str(e)[:100]}")
+
+
+# ============================================================================
 # ANALYSIS SECTION
 # ============================================================================
 
@@ -1210,265 +1465,120 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
     if st.session_state.territory_result_year2 is not None:
         st.subheader(f"🏛️ Territory Comparison - {st.session_state.territory_name}")
         
-        from plotting_utils import calculate_gains_losses
-        comparison_df = calculate_gains_losses(
-            st.session_state.territory_result,
-            st.session_state.territory_result_year2,
-            class_col='Class_ID',
-            area_col='Area_ha'
+        # Debug info - show buffer status
+        if st.session_state.buffer_compare_mode:
+            buffer_status_cols = st.columns([1, 1, 1])
+            with buffer_status_cols[0]:
+                if st.session_state.buffer_compare_mode:
+                    st.success("✓ Buffer Compare Mode: ON")
+                else:
+                    st.info("Buffer Compare Mode: OFF")
+            with buffer_status_cols[1]:
+                if st.session_state.current_buffer_for_analysis:
+                    st.success(f"✓ Buffer: {st.session_state.current_buffer_for_analysis}")
+                else:
+                    st.warning("⚠ No Buffer Created")
+            with buffer_status_cols[2]:
+                if st.session_state.current_buffer_for_analysis and st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries:
+                    st.success("✓ Geometry: Available")
+                else:
+                    st.warning("⚠ Geometry: Not Found")
+        
+        # Check if buffer compare mode is active for territory
+        territory_geom = st.session_state.get('territory_geometry_for_analysis')
+        
+        # Check if buffer has been created and analyzed
+        buffer_exists = (
+            st.session_state.buffer_compare_mode and 
+            st.session_state.current_buffer_for_analysis and
+            st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries
         )
         
-        # Side-by-side comparison with gains/losses
-        col_left, col_right = st.columns(2)
+        # Check if we have buffer analysis results
+        has_buffer_results = (
+            'buffer_result_mapbiomas' in st.session_state or 
+            'buffer_result_hansen' in st.session_state
+        )
         
-        with col_left:
-            with st.expander("📊 Side-by-Side Comparison", expanded=True):
-                st.markdown(f"Land Cover Distribution Comparison")
-                fig = plot_area_comparison(
+        # Show buffer status hint if buffer mode is on but buffer not ready
+        if st.session_state.buffer_compare_mode and not buffer_exists:
+            if not st.session_state.current_buffer_for_analysis:
+                st.info("💡 **How to enable buffer comparison:** Go to the sidebar → Territory Analysis section → Enable '📊 Compare Territory vs Buffer' → Select distance → Click '🔵 Create Buffer' → Click 'Analyze Buffer Zone'")
+            elif st.session_state.current_buffer_for_analysis not in st.session_state.buffer_geometries:
+                st.warning("⚠️ Buffer geometry not found. Please create the buffer again in the sidebar.")
+        
+        # Always show tabs if buffer compare mode is on
+        if st.session_state.buffer_compare_mode and buffer_exists:
+            # Get buffer geometry and metadata
+            buffer_geom = st.session_state.buffer_geometries[st.session_state.current_buffer_for_analysis]
+            buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
+            
+            if has_buffer_results:
+                st.info(f"📊 Compare Mode: Switch between Territory and Buffer Zone ({buffer_meta['buffer_size_km']}km) tabs below")
+            else:
+                st.info(f"📊 Buffer Mode: Use 'Analyze Buffer Zone' button in sidebar to populate buffer tab data")
+            
+            # Create outer tabs for Territory vs Buffer - ALWAYS SHOW BOTH TABS
+            territory_main_tab, buffer_main_tab = st.tabs([
+                f"🏛️ {st.session_state.territory_name}",
+                f"🔵 Buffer Zone ({buffer_meta['buffer_size_km']}km)"
+            ])
+            
+            # ===== TERRITORY TAB =====
+            with territory_main_tab:
+                render_territory_comparison_content(
                     st.session_state.territory_result,
                     st.session_state.territory_result_year2,
                     st.session_state.territory_year,
                     st.session_state.territory_year2,
-                    top_n=12
+                    st.session_state.territory_name,
+                    st.session_state.territory_source,
+                    territory_geom,
+                    area_prefix="territory"
                 )
-                st.pyplot(fig, width="stretch")
-                st.session_state.analysis_figures['territory_comparison'] = fig
-        
-        with col_right:
-            with st.expander("🎯 Gains & Losses (km²)", expanded=True):
-                st.markdown(f"Class Gains and Losses ({st.session_state.territory_year} to {st.session_state.territory_year2})")
-                if len(comparison_df) > 0:
-                    fig = plot_gains_losses(
-                        comparison_df,
-                        st.session_state.territory_year,
-                        st.session_state.territory_year2,
-                        top_n=12
-                    )
-                    st.pyplot(fig, width="stretch")
-                    st.session_state.analysis_figures['territory_gains_losses'] = fig
-                    
-                    # Summary stats
-                    total_gains = comparison_df[comparison_df['Change_km2'] > 0]['Change_km2'].sum()
-                    total_losses = abs(comparison_df[comparison_df['Change_km2'] < 0]['Change_km2'].sum())
-                    net_change = total_gains - total_losses
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Gains", f"{total_gains:,.1f} km²")
-                    with col2:
-                        st.metric("Losses", f"{total_losses:,.1f} km²")
-                    with col3:
-                        st.metric("Net", f"{net_change:+,.1f} km²")
-                else:
-                    st.info("No comparison data available")
-        
-        # Data tables and change analysis
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            with st.expander("📋 Data Tables", expanded=False):
-                tab_y1, tab_y2 = st.tabs([f"Year {st.session_state.territory_year}", f"Year {st.session_state.territory_year2}"])
-                
-                with tab_y1:
-                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result.columns else ['Class_ID', 'Pixels', 'Area_ha']
-                    st.dataframe(st.session_state.territory_result[display_cols], width="stretch")
-                    csv1 = st.session_state.territory_result.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download CSV",
-                        data=csv1,
-                        file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year}.csv",
-                        mime="text/csv",
-                        key="download_comp_1"
-                    )
-                
-                with tab_y2:
-                    display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result_year2.columns else ['Class_ID', 'Pixels', 'Area_ha']
-                    st.dataframe(st.session_state.territory_result_year2[display_cols], width="stretch")
-                    csv2 = st.session_state.territory_result_year2.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download CSV",
-                        data=csv2,
-                        file_name=f"{st.session_state.territory_name}_{st.session_state.territory_year2}.csv",
-                        mime="text/csv",
-                        key="download_comp_2"
-                    )
-        
-        with col2:
-            with st.expander("📈 Change Analysis", expanded=False):
-                st.markdown(f"Percentage Change Analysis")
-                if len(comparison_df) > 0:
-                    fig = plot_change_percentage(
-                        comparison_df,
-                        st.session_state.territory_year,
-                        st.session_state.territory_year2,
-                        top_n=12
-                    )
-                    st.pyplot(fig, width="stretch")
-                    st.session_state.analysis_figures['territory_change_percentage'] = fig
-                    
-                    # Top gainers and losers
-                    tcol1, tcol2 = st.columns(2)
-                    with tcol1:
-                        st.markdown("**Top Gainers**")
-                        top_gainers = comparison_df[comparison_df['Change_km2'] > 0].nlargest(5, 'Change_km2')
-                        if len(top_gainers) > 0:
-                            st.dataframe(top_gainers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
-                    
-                    with tcol2:
-                        st.markdown("**Top Losers**")
-                        top_losers = comparison_df[comparison_df['Change_km2'] < 0].nsmallest(5, 'Change_km2')
-                        if len(top_losers) > 0:
-                            st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
-        
-        # Add Sankey diagram with pixel-level transitions
-        with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
-            st.markdown(f"Pixel-level transitions from {st.session_state.territory_year} to {st.session_state.territory_year2}")
-            try:
-                # Use stored territory geometry for analysis (not polygon geometry)
-                territory_geom = st.session_state.get('territory_geometry_for_analysis')
-                
-                if territory_geom is not None:
-                    # Compute pixel-level transitions using Earth Engine
-                    transitions = {}
-                    
-                    # Determine which dataset we're using
+            
+            # ===== BUFFER ZONE TAB =====
+            with buffer_main_tab:
+                # Check if buffer analysis has been done
+                if 'buffer_result_mapbiomas' in st.session_state or 'buffer_result_hansen' in st.session_state:
+                    # Display stored buffer results
                     if st.session_state.territory_source == 'MapBiomas':
-                        band1 = f'classification_{st.session_state.territory_year}'
-                        band2 = f'classification_{st.session_state.territory_year2}'
-                        dataset = st.session_state.app.mapbiomas_v9
-                        class_labels = MAPBIOMAS_LABELS
-                    else:  # Hansen
-                        # Load Hansen datasets from Earth Engine
-                        year1_str = str(st.session_state.territory_year)
-                        year2_str = str(st.session_state.territory_year2)
-                        
-                        # Get Hansen asset IDs
-                        if year1_str not in HANSEN_DATASETS or year2_str not in HANSEN_DATASETS:
-                            st.error(f"Hansen data not available for years {year1_str} and {year2_str}")
-                            st.stop()
-                        
-                        # Load Hansen images and apply ocean mask
-                        landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
-                        hansen1 = ee.Image(HANSEN_DATASETS[year1_str]).updateMask(landmask)
-                        hansen2 = ee.Image(HANSEN_DATASETS[year2_str]).updateMask(landmask)
-                        
-                        # Don't remap on EE side - get raw classes and consolidate in Python
-                        # This ensures consistency with polygon analysis consolidation
-                        dataset = hansen1.rename('band1').addBands(hansen2.rename('band2'))
-                        band1 = 'band1'
-                        band2 = 'band2'
-                        class_labels = {}  # Will consolidate and use names in Python
-                    
-                    # Calculate transitions using frequencyHistogram
-                    combined = dataset.select(band1).multiply(1000).add(
-                        dataset.select(band2)
-                    )
-                    transition_hist = combined.reduceRegion(
-                        reducer=ee.Reducer.frequencyHistogram(),
-                        geometry=territory_geom,
-                        scale=30,
-                        maxPixels=1e9
-                    ).getInfo()
-                    
-                    if transition_hist:
-                        trans_key = list(transition_hist.keys())[0] if transition_hist else None
-                        if trans_key and transition_hist[trans_key]:
-                            for combined_val_str, count in transition_hist[trans_key].items():
-                                combined_val = int(combined_val_str)
-                                source_class = combined_val // 1000
-                                target_class = combined_val % 1000
-                                area_ha = count * 0.09
-                                
-                                if source_class > 0 and target_class > 0 and area_ha > 0:
-                                    # For Hansen, use stratum names; for MapBiomas, use numeric IDs
-                                    if 'Hansen' in st.session_state.territory_source:
-                                        from hansen_reference_mapping import get_stratum_name
-                                        source_key = get_stratum_name(source_class)
-                                        target_key = get_stratum_name(target_class)
-                                    else:
-                                        source_key = source_class
-                                        target_key = target_class
-                                    
-                                    if source_key not in transitions:
-                                        transitions[source_key] = {}
-                                    # Aggregate transitions
-                                    if target_key not in transitions[source_key]:
-                                        transitions[source_key][target_key] = area_ha
-                                    else:
-                                        transitions[source_key][target_key] += area_ha
-                    
-                    if transitions:
-                        # For Hansen, use stratum colors; for MapBiomas, use class colors
-                        if 'Hansen' in st.session_state.territory_source:
-                            from hansen_reference_mapping import HANSEN_STRATUM_COLORS, get_stratum
-                            
-                            # Build color and name dicts for stratum names
-                            class_colors = {}
-                            class_names = {}
-                            
-                            # Map stratum number to stratum name
-                            from hansen_reference_mapping import HANSEN_STRATUM_NAMES
-                            stratum_num_to_name = {v: k for k, v in HANSEN_STRATUM_NAMES.items()}
-                            
-                            # Assign colors to all strata in transitions
-                            for source_name in transitions.keys():
-                                if source_name not in class_colors:
-                                    # Find stratum number for this stratum name
-                                    stratum_num = None
-                                    for num, name in HANSEN_STRATUM_NAMES.items():
-                                        if name == source_name:
-                                            stratum_num = num
-                                            break
-                                    
-                                    if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
-                                        class_colors[source_name] = HANSEN_STRATUM_COLORS[stratum_num]
-                                    else:
-                                        class_colors[source_name] = '#cccccc'
-                                    class_names[source_name] = source_name
-                                
-                                for target_name in transitions[source_name].keys():
-                                    if target_name not in class_colors:
-                                        stratum_num = None
-                                        for num, name in HANSEN_STRATUM_NAMES.items():
-                                            if name == target_name:
-                                                stratum_num = num
-                                                break
-                                        
-                                        if stratum_num and stratum_num in HANSEN_STRATUM_COLORS:
-                                            class_colors[target_name] = HANSEN_STRATUM_COLORS[stratum_num]
-                                        else:
-                                            class_colors[target_name] = '#cccccc'
-                                        class_names[target_name] = target_name
-                        else:
-                            class_colors = MAPBIOMAS_COLOR_MAP
-                            class_names = MAPBIOMAS_LABELS
-                        
-                        sankey_fig = create_sankey_transitions(
-                            transitions,
-                            st.session_state.territory_year,
-                            st.session_state.territory_year2,
-                            class_colors=class_colors,
-                            class_names=class_names
-                        )
-                        if sankey_fig:
-                            st.plotly_chart(sankey_fig, width="stretch")
-                            # Store Sankey for export
-                            if 'analysis_figures' not in st.session_state:
-                                st.session_state.analysis_figures = {}
-                            st.session_state.analysis_figures['territory_sankey'] = sankey_fig
-                            # Store transitions data for export
-                            st.session_state.territory_transitions = transitions
-                        else:
-                            st.info("Could not generate Sankey diagram")
+                        buffer_result_y1 = st.session_state.get('buffer_result_mapbiomas')
+                        buffer_result_y2 = st.session_state.get('buffer_result_mapbiomas_y2')
                     else:
-                        st.info("No transition data available")
+                        buffer_result_y1 = st.session_state.get('buffer_result_hansen')
+                        buffer_result_y2 = st.session_state.get('buffer_result_hansen_y2')
+                    
+                    if buffer_result_y1 is not None:
+                        render_territory_comparison_content(
+                            buffer_result_y1,
+                            buffer_result_y2 if buffer_result_y2 is not None else None,
+                            st.session_state.territory_year,
+                            st.session_state.get('territory_year2'),
+                            f"Buffer Zone ({buffer_meta['buffer_size_km']}km)",
+                            st.session_state.territory_source,
+                            buffer_geom,
+                            area_prefix="buffer"
+                        )
+                    else:
+                        st.info(f"📊 No buffer analysis data yet. Click 'Analyze Buffer Zone' in the sidebar to generate buffer comparison data.")
                 else:
-                    st.warning("Territory geometry not available. Run analysis from Analyze Territory first.")
-            except Exception as e:
-                st.warning(f"Could not display Sankey diagram: {str(e)[:100]}")
+                    st.info(f"📊 No buffer analysis data. Click 'Analyze Buffer Zone' in the sidebar to generate buffer comparison data.")
+        else:
+            # Standard comparison without buffer
+            render_territory_comparison_content(
+                st.session_state.territory_result,
+                st.session_state.territory_result_year2,
+                st.session_state.territory_year,
+                st.session_state.territory_year2,
+                st.session_state.territory_name,
+                st.session_state.territory_source,
+                territory_geom,
+                area_prefix="territory"
+            )
     
     else:
-        # Single year analysis
+        # Single year analysis - keep existing code
         st.subheader(f"🏛️ Territory Analysis - {st.session_state.territory_name}")
         
         # Show territory results in tabs
@@ -1517,9 +1627,10 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             st.info(f"Year: **{st.session_state.territory_year}**")
             st.info(f"Data Source: **{st.session_state.territory_source}**")
 
+
 if st.session_state.data_loaded and st.session_state.app:
     st.divider()
-    st.subheader("📊 Analysis & Statistics")
+    st.subheader("📊 Polygon Analysis & Statistics")
     
     # Check if a feature was drawn
     if st.session_state.last_drawn_feature:
