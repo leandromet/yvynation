@@ -14,7 +14,7 @@ import io
 import json
 from datetime import datetime
 import ee
-from config import MAPBIOMAS_COLOR_MAP, HANSEN_CONSOLIDATED_COLORS
+from config import MAPBIOMAS_COLOR_MAP, MAPBIOMAS_PALETTE, HANSEN_CONSOLIDATED_COLORS
 import urllib.request
 import urllib.parse
 import warnings
@@ -59,7 +59,8 @@ def get_basemap_image(geom_bounds, tile_provider='google'):
         
         # Start with a zoom that shows the full extent at reasonable resolution
         # Using a target of ~256 pixels per tile to maintain reasonable detail
-        z = max(6, min(15, int(np.log2(360.0 / max(lon_span, lat_span * 1.2)))))
+        # Add +1 for one step more detailed resolution
+        z = max(6, min(15, int(np.log2(360.0 / max(lon_span, lat_span * 1.2))) + 1))
         print(f"DEBUG: Bounds span: lon={lon_span:.4f}°, lat={lat_span:.4f}°, calculated zoom={z}")
         
         # Get tile coordinates for bounds - careful with lat/lng order!
@@ -139,85 +140,164 @@ def get_basemap_image(geom_bounds, tile_provider='google'):
         return None, None
 
 
-def get_ee_layer_image(geometry, layer_type, year, vis_params=None):
+def get_ee_layer_image(geom_bounds, geometry, layer_type, year, vis_params=None):
     """
     Get Earth Engine layer as a PIL Image for a given geometry and year
+    Uses getDownloadURL() to export a complete image instead of tile stitching
     
     Note: This requires proper Earth Engine authentication and asset access.
     MapBiomas Collection 9 and Hansen GFC datasets must be accessible to your EE account.
     
     Args:
-        geometry: ee.Geometry bounding box
+        geom_bounds: Tuple of (min_lon, min_lat, max_lon, max_lat) for display extent
+        geometry: ee.Geometry bounding box for clipping
         layer_type: 'mapbiomas' or 'hansen'
         year: Year for the layer
         vis_params: Visualization parameters dict
     
     Returns:
-        PIL.Image or None if failed (e.g., due to permission issues)
+        (PIL.Image, bounds_tuple) or (None, None) if failed
     """
     try:
         if layer_type == 'mapbiomas':
-            # Get MapBiomas image
+            # Get MapBiomas image - use correct public asset path
             print(f"DEBUG: Accessing MapBiomas Collection 9 for year {year}...")
-            mapbiomas_v9 = ee.ImageCollection('projects/mapbiomas-workspace/public/collection9/mapbiomas_collection90_integration_v1')
-            image = mapbiomas_v9.filterDate(f'{year}-01-01', f'{year}-12-31').mosaic()
-            image = image.select('classification')
+            mapbiomas_asset = 'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1'
+            mapbiomas_image = ee.Image(mapbiomas_asset)
+            print(f"DEBUG: Loaded MapBiomas asset")
             
-            # Use MapBiomas color palette
+            # Select the classification band for the specific year
+            band_name = f'classification_{year}'
+            print(f"DEBUG: Selecting band: {band_name}")
+            image = mapbiomas_image.select(band_name)
+            print(f"DEBUG: Band selected successfully")
+            
+            # Use MapBiomas color palette (0-62 range with proper colors)
             if vis_params is None:
+                # MAPBIOMAS_PALETTE is a list of hex colors (without '#') for classes 0-62
+                palette_str = ','.join(MAPBIOMAS_PALETTE)
+                print(f"DEBUG: Using MapBiomas palette with {len(MAPBIOMAS_PALETTE)} colors")
                 vis_params = {
                     'min': 0,
                     'max': 62,
-                    'palette': ','.join(MAPBIOMAS_COLOR_MAP.values()) if isinstance(MAPBIOMAS_COLOR_MAP, dict) else None
+                    'palette': palette_str
                 }
         
         elif layer_type == 'hansen':
             # Get Hansen Global Forest Change layer
             print(f"DEBUG: Accessing Hansen GFC 2021 dataset for year {year}...")
-            gfc = ee.Image('UMD/Hansen/global_forest_change_2021_v1_9')
-            image = gfc.select(['treecover2000', 'loss', 'gain'])
+            # Use the correct Hansen dataset path
+            from config import HANSEN_DATASETS
+            
+            if str(year) not in HANSEN_DATASETS:
+                print(f"WARNING: Hansen dataset not available for year {year}")
+                return None, None
+            
+            hansen_asset = HANSEN_DATASETS[str(year)]
+            hansen_image = ee.Image(hansen_asset)
+            image = hansen_image
             
             if vis_params is None:
                 vis_params = {
                     'min': 0,
-                    'max': 3,
+                    'max': 255,
                     'palette': 'ffffff,1a9850,66bd63,a6d96a,d9ef8b'
                 }
         
         else:
-            return None
+            return None, None
         
         # Clip to geometry
+        print(f"DEBUG: Clipping image to geometry...")
         clipped = image.clip(geometry)
+        print(f"DEBUG: Image clipped successfully")
         
-        # Get download URL from Earth Engine
-        print(f"DEBUG: Generating thumbnail URL for {layer_type}...")
-        url = clipped.getThumbURL({
-            'min': vis_params.get('min', 0),
-            'max': vis_params.get('max', 100),
-            'palette': vis_params.get('palette'),
+        # Visualize the image with the palette
+        print(f"DEBUG: Applying visualization with palette...")
+        print(f"DEBUG: Vis params - min: {vis_params.get('min')}, max: {vis_params.get('max')}")
+        print(f"DEBUG: Palette length: {len(vis_params.get('palette', ''))}")
+        visualized = clipped.visualize(**vis_params)
+        print(f"DEBUG: Visualization applied")
+        
+        # Use getDownloadURL() to export the complete image as PNG
+        print(f"DEBUG: Generating download URL for complete {layer_type} image...")
+        min_lon, min_lat, max_lon, max_lat = geom_bounds
+        
+        # Get download URL with proper region and scale
+        # Use maxPixels to allow larger exports, but respect Earth Engine's 50MB limit
+        # For large regions, we need a coarser scale to stay under the limit
+        lon_span = max_lon - min_lon
+        
+        # Earth Engine has a ~50MB limit for downloads
+        # Each RGBA pixel is 4 bytes, so ~50MB ÷ 4 = ~12.5M pixels max
+        # For a square region: sqrt(12.5M) ≈ 3500 pixels per side
+        # Conservative target: ~2000 pixels wide to stay well under the limit
+        # But for very large regions, we need to scale back further
+        max_pixels_width = max(512, min(2000, int(111000 * lon_span / 10)))  # pixels
+        scale = max(10, int(lon_span * 111000 / max_pixels_width))  # meters per pixel
+        print(f"DEBUG: Calculated scale for region: {scale}m per pixel, target width: {max_pixels_width}px")
+        
+        url = visualized.getDownloadURL({
             'region': geometry,
-            'dimensions': [512, 512],
-            'format': 'png'
+            'scale': scale,
+            'format': 'png',
+            'maxPixels': 1e8  # 100 million pixels (more conservative)
         })
         
+        print(f"DEBUG: Download URL generated successfully")
+        print(f"DEBUG: URL length: {len(url)}, first 150 chars: {url[:150]}...")
+        
         # Download image
-        response = urllib.request.urlopen(url, timeout=15)
+        print(f"DEBUG: Downloading complete image from Earth Engine...")
+        response = urllib.request.urlopen(url, timeout=30)
+        print(f"DEBUG: Response received, downloading...")
         img = Image.open(response)
+        print(f"DEBUG: Image opened, size: {img.size}, mode: {img.mode}")
+        
+        # Calculate accurate bounds based on actual image dimensions
+        # Earth Engine returns images at the specified scale, so bounds need to account for pixel size
+        img_width, img_height = img.size
+        lon_span = max_lon - min_lon
+        lat_span = max_lat - min_lat
+        
+        # Pixel size in degrees
+        pixel_lon = lon_span / img_width
+        pixel_lat = lat_span / img_height
+        
+        # Adjust bounds to align with pixel boundaries (top-left corner registration)
+        # This ensures the image pixels align exactly with the geographic coordinates
+        adjusted_max_lat = max_lat  # Top edge stays at max_lat
+        adjusted_min_lon = min_lon  # Left edge stays at min_lon
+        adjusted_min_lat = adjusted_max_lat - (img_height * pixel_lat)
+        adjusted_max_lon = adjusted_min_lon + (img_width * pixel_lon)
+        
+        ee_bounds = (adjusted_min_lat, adjusted_min_lon, adjusted_max_lat, adjusted_max_lon)
+        print(f"DEBUG: Actual image bounds: ({adjusted_min_lat:.6f}, {adjusted_min_lon:.6f}) to ({adjusted_max_lat:.6f}, {adjusted_max_lon:.6f})")
+        print(f"DEBUG: Pixel size: lon={pixel_lon:.8f}°, lat={pixel_lat:.8f}°")
+        
+        # Return image with calculated bounds
         print(f"DEBUG: Successfully loaded {layer_type} {year} image")
-        return img
+        return img, ee_bounds
     
     except Exception as e:
         error_msg = str(e)
+        print(f"DEBUG: Error occurred in get_ee_layer_image: {type(e).__name__}")
+        print(f"DEBUG: Error message: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        
         if "not found" in error_msg or "does not exist" in error_msg:
             print(f"ERROR: {layer_type} dataset not accessible: {e}")
             print(f"       Check your Earth Engine credentials and dataset permissions")
         elif "permission" in error_msg.lower():
             print(f"ERROR: Permission denied accessing {layer_type}: {e}")
             print(f"       Your Earth Engine account may not have access to this dataset")
+        elif "400" in error_msg or "400 Bad Request" in error_msg:
+            print(f"ERROR: Bad request to Earth Engine (400): {e}")
+            print(f"       This may indicate invalid visualization parameters or geometry")
         else:
             print(f"ERROR: Could not get {layer_type} {year} image: {e}")
-        return None
+        return None, None
 
 
 
@@ -264,12 +344,16 @@ def create_pdf_map_figure(
     # Try to get basemap tiles - use Google Maps (respect usage policy)
     print(f"DEBUG: Creating map for layer_type={layer_type}, year={year}, bounds=({min_lat:.4f}, {min_lon:.4f}) to ({max_lat:.4f}, {max_lon:.4f})")
     
-    # Determine which basemap to use
-    if layer_type == 'satellite':
+    # Determine which basemap to use (skip for mapbiomas and hansen - they have their own layers)
+    if layer_type in ['mapbiomas', 'hansen']:
+        # For MapBiomas and Hansen, don't use basemap - show only the EE layer
+        print(f"DEBUG: Skipping basemap for {layer_type} - showing EE layer only")
+        basemap, basemap_bounds = None, None
+    elif layer_type == 'satellite':
         print(f"DEBUG: Fetching Google satellite basemap...")
         basemap, basemap_bounds = get_basemap_image(geom_bounds, 'google_satellite')
     else:
-        # For all other types (mapbiomas, hansen, maps, etc), use Google Maps roadmap as background
+        # For all other types (maps, etc), use Google Maps roadmap as background
         print(f"DEBUG: Fetching Google Maps basemap...")
         basemap, basemap_bounds = get_basemap_image(geom_bounds, 'google')
     
@@ -287,12 +371,18 @@ def create_pdf_map_figure(
     if ee_geometry and year and layer_type in ['mapbiomas', 'hansen']:
         try:
             print(f"DEBUG: Fetching {layer_type} raster data for year {year}...")
-            ee_img = get_ee_layer_image(ee_geometry, layer_type, year)
-            if ee_img:
-                print(f"DEBUG: Displaying {layer_type} overlay...")
-                # Display the image covering the map area
-                ax.imshow(ee_img, extent=[min_lon, max_lon, min_lat, max_lat], 
-                         origin='upper', zorder=1, alpha=0.7)
+            result = get_ee_layer_image(geom_bounds, ee_geometry, layer_type, year)
+            if result and isinstance(result, tuple):
+                ee_img, ee_bounds = result
+                print(f"DEBUG: Got {layer_type} image, size: {ee_img.size}")
+                print(f"DEBUG: Displaying {layer_type} overlay with full opacity...")
+                # Display the image covering the tile bounds (not the original bounds)
+                ee_min_lat, ee_min_lon, ee_max_lat, ee_max_lon = ee_bounds
+                ax.imshow(ee_img, extent=[ee_min_lon, ee_max_lon, ee_min_lat, ee_max_lat], 
+                         origin='upper', zorder=1, alpha=1.0)
+                print(f"DEBUG: {layer_type} overlay displayed successfully")
+            else:
+                print(f"WARNING: {layer_type} image is None - fetch may have failed")
         except Exception as e:
             print(f"WARNING: Could not display {layer_name} EE data: {e}")
             import traceback
@@ -490,7 +580,7 @@ def bounds_to_ee_geometry(geom_bounds):
         ee.Geometry.Rectangle
     """
     try:
-        min_lat, min_lon, max_lat, max_lon = geom_bounds
+        min_lon, min_lat, max_lon, max_lat = geom_bounds
         return ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])
     except Exception as e:
         print(f"Warning: Could not create EE geometry: {e}")
@@ -667,18 +757,17 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers):
 def render_map_export_section():
     """
     Render UI section for exporting maps with polygon overlays and territory boundaries
-    Shows options to export maps as PDFs
+    Shows options to export maps as PDFs and PNGs
     """
     st.divider()
-    st.subheader("🗺️ Export Maps (PDF)")
+    st.subheader("🗺️ Export Maps")
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.caption(
-            "Export static PDF maps showing drawn polygons and/or territory boundaries "
-            "with scale bars. Maps are saved as high-quality PDF files "
-            "suitable for reports and presentations."
+            "Export static maps showing drawn polygons and/or territory boundaries "
+            "with scale bars. Available formats: PDF (all layer types) and PNG (MapBiomas/Hansen)"
         )
     
     with col2:
@@ -692,58 +781,128 @@ def render_map_export_section():
         if not has_polygons and not has_territory:
             st.warning("⚠ Draw polygons or select a territory")
     
-    # Export button
-    export_button_col, info_col = st.columns([1, 2])
+    # Tab interface for PDF and PNG exports
+    tab_pdf, tab_png = st.tabs(["📄 PDF Export (All Layers)", "🖼️ PNG Export (MapBiomas/Hansen)"])
     
-    with export_button_col:
-        if st.button("📊 Prepare Maps for Export", key="prepare_maps_export", width="stretch"):
-            has_polygons = st.session_state.get('all_drawn_features') is not None and len(st.session_state.get('all_drawn_features', [])) > 0
-            has_territory = st.session_state.get('territory_geom') is not None
-            
-            if not has_polygons and not has_territory:
-                st.error("Please draw at least one polygon or select a territory")
-            else:
-                with st.spinner("Creating PDF maps..."):
-                    try:
-                        # Get active layers
-                        active_layers = {
-                            'mapbiomas_layers': st.session_state.get('mapbiomas_layers', {}),
-                            'hansen_layers': st.session_state.get('hansen_layers', {})
-                        }
-                        
-                        # Get territories - can be from territories_geojson or territory_geom
-                        territories_geojson = None
-                        if st.session_state.get('territory_geom'):
-                            try:
-                                # territory_geom is an EE geometry, get its info
-                                territories_geojson = st.session_state.get('territory_geom').getInfo()
-                            except:
+    with tab_pdf:
+        # PDF Export section
+        export_button_col, info_col = st.columns([1, 2])
+        
+        with export_button_col:
+            if st.button("📊 Prepare PDF Maps", key="prepare_maps_export", width="stretch"):
+                has_polygons = st.session_state.get('all_drawn_features') is not None and len(st.session_state.get('all_drawn_features', [])) > 0
+                has_territory = st.session_state.get('territory_geom') is not None
+                
+                if not has_polygons and not has_territory:
+                    st.error("Please draw at least one polygon or select a territory")
+                else:
+                    with st.spinner("Creating PDF maps..."):
+                        try:
+                            # Get active layers
+                            active_layers = {
+                                'mapbiomas_layers': st.session_state.get('mapbiomas_layers', {}),
+                                'hansen_layers': st.session_state.get('hansen_layers', {})
+                            }
+                            
+                            # Get territories - can be from territories_geojson or territory_geom
+                            territories_geojson = None
+                            if st.session_state.get('territory_geom'):
+                                try:
+                                    # territory_geom is an EE geometry, get its info
+                                    territories_geojson = st.session_state.get('territory_geom').getInfo()
+                                except:
+                                    territories_geojson = st.session_state.get('territories_geojson')
+                            else:
                                 territories_geojson = st.session_state.get('territories_geojson')
-                        else:
-                            territories_geojson = st.session_state.get('territories_geojson')
-                        
-                        # Create maps
-                        map_figures = create_pdf_map_set(
-                            drawn_features=st.session_state.get('all_drawn_features') if has_polygons else None,
-                            territories_geojson=territories_geojson if has_territory else None,
-                            active_layers=active_layers
-                        )
-                        
-                        # Store in session state for export
-                        st.session_state.prepared_map_exports = map_figures
-                        st.session_state.export_maps_ready = True
-                        
-                        if map_figures:
-                            st.success(f"✓ {len(map_figures)} map(s) prepared! They will be included in the Export All ZIP file.")
-                        else:
-                            st.warning("No maps were successfully created.")
-                    except Exception as e:
-                        st.error(f"Error preparing maps: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                            
+                            # Create maps
+                            map_figures = create_pdf_map_set(
+                                drawn_features=st.session_state.get('all_drawn_features') if has_polygons else None,
+                                territories_geojson=territories_geojson if has_territory else None,
+                                active_layers=active_layers
+                            )
+                            
+                            # Store in session state for export
+                            st.session_state.prepared_map_exports = map_figures
+                            st.session_state.export_maps_ready = True
+                            
+                            if map_figures:
+                                st.success(f"✓ {len(map_figures)} PDF map(s) prepared!")
+                            else:
+                                st.warning("No maps were successfully created.")
+                        except Exception as e:
+                            st.error(f"Error preparing maps: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
+        
+        with info_col:
+            st.caption(
+                "Creates PDF maps: MapBiomas, Hansen, Satellite, and Maps "
+                "basemaps with your polygons and scale bars"
+            )
     
-    with info_col:
-        st.caption(
-            "Creates static PDF maps: MapBiomas, Hansen, Satellite, and Maps "
-            "basemaps with your polygons and scale bars"
-        )
+    with tab_png:
+        # PNG Export section for MapBiomas and Hansen
+        from png_export import export_pngs_direct, create_pngs_zip
+        
+        st.caption("Export MapBiomas and Hansen layers as PNG images (organized in zip)")
+        
+        # Get available MapBiomas and Hansen years
+        mapbiomas_years = [int(y) for y, enabled in st.session_state.get('mapbiomas_layers', {}).items() if enabled]
+        hansen_years = [int(y) for y, enabled in st.session_state.get('hansen_layers', {}).items() if enabled]
+        
+        if not mapbiomas_years and not hansen_years:
+            st.info("Enable MapBiomas or Hansen layers from the analysis tabs to export as PNG")
+        else:
+            # Single button to export all layers as a zip
+            if st.button("📦 Export All PNGs as ZIP", key="export_all_pngs_zip", width="stretch"):
+                has_polygons = st.session_state.get('all_drawn_features') is not None and len(st.session_state.get('all_drawn_features', [])) > 0
+                has_territory = st.session_state.get('territory_geom') is not None
+                
+                if not has_polygons and not has_territory:
+                    st.error("Please draw at least one polygon or select a territory")
+                else:
+                    with st.spinner("Exporting Earth Engine layers as PNGs..."):
+                        try:
+                            # Get geometry data
+                            drawn_features = st.session_state.get('all_drawn_features') if has_polygons else None
+                            territory_geojson = None
+                            
+                            if has_territory and st.session_state.get('territory_geom'):
+                                territory_geom = st.session_state.get('territory_geom')
+                                try:
+                                    territory_geojson = territory_geom.getInfo()
+                                except:
+                                    pass
+                            
+                            # Batch export all PNGs directly
+                            png_results = export_pngs_direct(
+                                drawn_features=drawn_features,
+                                territory_geojson=territory_geojson,
+                                mapbiomas_years=mapbiomas_years,
+                                hansen_years=hansen_years
+                            )
+                            
+                            # Check if any images were successfully exported
+                            total_images = len(png_results.get('mapbiomas', {})) + len(png_results.get('hansen', {}))
+                            if total_images == 0:
+                                st.error("No images were successfully exported. Check Earth Engine access and dataset availability.")
+                            else:
+                                # Create zip file
+                                zip_bytes = create_pngs_zip(png_results)
+                                
+                                # Offer zip download
+                                st.download_button(
+                                    label="✅ Download PNG ZIP",
+                                    data=zip_bytes,
+                                    file_name="EE_Layers_PNGs.zip",
+                                    mime="application/zip",
+                                    key="download_pngs_zip"
+                                )
+                                
+                                st.success("✓ All PNGs exported successfully!")
+                                st.info(f"📦 ZIP contains: {len(png_results.get('mapbiomas', {}))} MapBiomas + {len(png_results.get('hansen', {}))} Hansen layers")
+                        except Exception as e:
+                            st.error(f"Error exporting PNGs: {str(e)}")
+                            import traceback
+                            traceback.print_exc()
