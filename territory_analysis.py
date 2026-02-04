@@ -164,6 +164,12 @@ def initialize_territory_session_state():
         st.session_state.add_territory_layer_to_map = False
     if "territory_layer_name" not in st.session_state:
         st.session_state.territory_layer_name = None    
+    if "add_buffer_layer_to_map" not in st.session_state:
+        st.session_state.add_buffer_layer_to_map = False
+    if "buffer_geom_for_display" not in st.session_state:
+        st.session_state.buffer_geom_for_display = None
+    if "buffer_layer_name" not in st.session_state:
+        st.session_state.buffer_layer_name = None
     if "territory_analysis_image" not in st.session_state:
         st.session_state.territory_analysis_image = None
     if "territory_analysis_source" not in st.session_state:

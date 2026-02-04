@@ -103,6 +103,51 @@ def build_and_display_map():
         except Exception as e:
             print(f"[Error] Adding territory layer failed: {e}")
 
+    # Add buffer boundary layer if requested
+    if st.session_state.add_buffer_layer_to_map and st.session_state.buffer_geom_for_display and st.session_state.buffer_layer_name:
+        try:
+            buffer_geom = st.session_state.buffer_geom_for_display
+            buffer_name = st.session_state.buffer_layer_name
+            
+            # Get buffer GeoJSON directly
+            buffer_geojson = buffer_geom.getInfo()
+            
+            # Create a GeoJSON layer with distinct styling (blue for buffer)
+            folium.GeoJson(
+                data=buffer_geojson,
+                name=f"Buffer: {buffer_name}",
+                style_function=lambda x: {
+                    'fillColor': '#0000FF',
+                    'color': '#0000FF',
+                    'weight': 2,
+                    'opacity': 0.7,
+                    'fillOpacity': 0.15
+                },
+                overlay=True,
+                control=True,
+                highlight_function=lambda x: {
+                    'fillColor': '#6B6BFF',
+                    'color': '#6B6BFF',
+                    'weight': 3,
+                    'opacity': 1.0,
+                    'fillOpacity': 0.2
+                }
+            ).add_to(display_map)
+            
+            # Zoom to buffer bounds
+            bounds_info = buffer_geom.bounds().getInfo()
+            if bounds_info and bounds_info.get('coordinates'):
+                coords = bounds_info['coordinates'][0]
+                lons = [c[0] for c in coords]
+                lats = [c[1] for c in coords]
+                sw = [min(lats), min(lons)]
+                ne = [max(lats), max(lons)]
+                display_map.fit_bounds([sw, ne])
+                print(f"[Map] Buffer layer added: {buffer_name}")
+        
+        except Exception as e:
+            print(f"[Error] Adding buffer layer failed: {e}")
+
     # Add analyzed data layer if available
     if st.session_state.add_analysis_layer_to_map and st.session_state.territory_analysis_image and st.session_state.territory_geom:
         try:
