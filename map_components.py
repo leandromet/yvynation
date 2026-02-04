@@ -96,10 +96,10 @@ def build_and_display_map():
                 sw = [min(lats), min(lons)]
                 ne = [max(lats), max(lons)]
                 display_map.fit_bounds([sw, ne])
-                print(f"✓ Territory {territory_name} added to map with bounds: {sw} to {ne}")
+                print(f"[Map] Territory layer added: {territory_name}")
         
         except Exception as e:
-            print(f"❌ Error adding territory layer: {e}")
+            print(f"[Error] Adding territory layer failed: {e}")
 
     # Add analyzed data layer if available
     if st.session_state.add_analysis_layer_to_map and st.session_state.territory_analysis_image and st.session_state.territory_geom:
@@ -195,7 +195,19 @@ def build_and_display_map():
         st.metric("Active Layers", active_layers)
 
     try:
-        map_data = st_folium(display_map, use_container_width=True, height=600)
+        # Store map object and territories for export functionality
+        st.session_state.map_object = display_map
+        if st.session_state.data_loaded and st.session_state.app:
+            st.session_state.territories_geojson = st.session_state.app.territories.getInfo()
+            st.session_state.territory_style = lambda x: {
+                'fillColor': '#4B0082',
+                'color': '#4B0082',
+                'weight': 1,
+                'opacity': 0.6,
+                'fillOpacity': 0.1
+            }
+        
+        map_data = st_folium(display_map, width="stretch", height=600)
         return map_data
     
     except Exception as e:

@@ -23,6 +23,7 @@ def create_export_zip(
     territory_comparison_data=None,
     territory_figures=None,
     all_figures=None,
+    map_exports=None,
     metadata=None
 ):
     """
@@ -46,6 +47,8 @@ def create_export_zip(
         Dict of {name: matplotlib.figure.Figure} for territory plots
     all_figures : dict
         Dict of {name: matplotlib.figure.Figure} for all figures
+    map_exports : dict
+        Dict of {map_name: html_string} for exported map overlays
     metadata : dict
         Metadata about the analysis
         
@@ -196,6 +199,23 @@ def create_export_zip(
                             zf.writestr(f'figures/{name}.html', html_str)
                         except Exception as e:
                             print(f"Warning: Could not export Plotly figure {name}: {e}")
+        
+        # 6. Write map exports as PDF files
+        if map_exports:
+            maps_folder = 'maps'
+            for map_name, map_figure in map_exports.items():
+                try:
+                    if isinstance(map_figure, Figure):
+                        # Matplotlib figure - save as PDF
+                        pdf_buffer = io.BytesIO()
+                        map_figure.savefig(pdf_buffer, format='pdf', dpi=150, bbox_inches='tight')
+                        pdf_buffer.seek(0)
+                        zf.writestr(f'{maps_folder}/{map_name}.pdf', pdf_buffer.getvalue())
+                        plt.close(map_figure)
+                    else:
+                        print(f"Warning: Map {map_name} is not a matplotlib figure")
+                except Exception as e:
+                    print(f"Warning: Could not export map {map_name}: {e}")
     
     zip_buffer.seek(0)
     return zip_buffer.getvalue()
@@ -343,6 +363,7 @@ def generate_export_button(session_state):
     """
     Generate an export button for the current analysis.
     Organizes exports into folders by polygon and territory.
+    Includes interactive maps with polygon overlays.
     
     Parameters:
     -----------
@@ -368,11 +389,21 @@ def generate_export_button(session_state):
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        if st.button("📦 Export All Data & Visualizations", use_container_width=True, key="export_all"):
+        if st.button("📦 Export All Data & Visualizations", width="stretch", key="export_all"):
             with st.spinner("🔄 Preparing export package..."):
                 try:
                     # Get data from session state
                     polygon_analyses, territory_data, territory_comparison, territory_figs, all_figs, metadata = capture_current_analysis_exports(session_state)
+                    
+                    # Use pre-prepared map exports if available (now matplotlib figures, not HTML)
+                    map_exports = {}
+                    if session_state.get('prepared_map_exports'):
+                        map_exports = session_state.get('prepared_map_exports', {})
+                        metadata['num_exported_maps'] = len(map_exports)
+                        st.info(f"✓ Including {len(map_exports)} PDF maps in export")
+                    else:
+                        st.info("ℹ No maps were prepared. Use 'Prepare Maps for Export' button to include them.")
+                        metadata['num_exported_maps'] = 0
                     
                     # Add polygon count to metadata
                     metadata['drawn_polygons_count'] = len(session_state.get('all_drawn_features', []))
@@ -388,6 +419,7 @@ def generate_export_button(session_state):
                         territory_comparison_data=territory_comparison if territory_comparison else None,
                         territory_figures=territory_figs if territory_figs else None,
                         all_figures=all_figs if all_figs else None,
+                        map_exports=map_exports if map_exports else None,
                         metadata=metadata
                     )
                     
@@ -431,12 +463,22 @@ def generate_export_button(session_state):
                           - `*_comparison_*.csv` - Comparison data
                           - `*.png` - All territory visualizations
                         
+                        **Map Exports:** (if available)
+                        - `maps/` - High-quality PDF maps with polygon overlays
+                          - `MapBiomas_*.pdf` - MapBiomas layers with your polygons
+                          - `Hansen_*.pdf` - Hansen layers with your polygons
+                          - `Satellite_Basemap.pdf` - Satellite reference map
+                          - `GoogleMaps_Basemap.pdf` - Maps reference map
+                        
+                        All maps include scale bars, grid, and labeled polygons.
+                        
                         ### 📊 Summary:
                         - **Polygons:** {metadata.get('drawn_polygons_count', 0)} drawn
                         - **Territory:** {"Yes ✓" if metadata.get('has_territory') else "No"}
                         - **Territory Name:** {metadata.get('territory_analyzed', 'N/A')}
                         - **Data Source:** {metadata.get('data_source', 'N/A')}
                         - **Years:** {metadata.get('analysis_year', 'N/A')} {f"to {metadata.get('comparison_year', '')}" if metadata.get('comparison_year') else ""}
+                        - **Maps:** {metadata.get('num_exported_maps', 0)} interactive maps
                         """)
                 
                 except Exception as e:

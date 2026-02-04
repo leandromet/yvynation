@@ -162,7 +162,7 @@ def render_map_instructions():
 def render_load_button(col):
     """Render the Load Core Data button"""
     with col:
-        if st.button("Load Core Data", key="btn_load_core_data", use_container_width=True):
+        if st.button("Load Core Data", key="btn_load_core_data", width="stretch"):
             with st.spinner("Loading Earth Engine data..."):
                 try:
                     from streamlit_app import init_earth_engine

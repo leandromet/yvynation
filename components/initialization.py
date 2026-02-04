@@ -18,15 +18,21 @@ def initialize_earth_engine_and_data():
     2. Loads MapBiomas and territories data
     3. Initializes session state variables
     """
-    print("\n🚀 Yvynation App Starting...")
-
-    # Initialize Earth Engine
-    try:
-        st.session_state.ee_module = initialize_earth_engine()
-        print("✓ Earth Engine initialized")
-    except Exception as e:
-        st.error(f"❌ Failed to initialize Earth Engine: {e}")
-        st.stop()
+    # Initialize Earth Engine only once
+    @st.cache_resource
+    def _init_ee():
+        print("\n🚀 Yvynation App Starting...")
+        try:
+            ee_module = initialize_earth_engine()
+            print("✓ Earth Engine initialized")
+            return ee_module
+        except Exception as e:
+            st.error(f"❌ Failed to initialize Earth Engine: {e}")
+            st.stop()
+    
+    # Initialize EE
+    if "ee_module" not in st.session_state:
+        st.session_state.ee_module = _init_ee()
 
     # Auto-load core data
     @st.cache_resource

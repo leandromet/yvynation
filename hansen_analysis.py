@@ -91,7 +91,7 @@ def render_hansen_area_analysis():
                 )
             
             with col_btn:
-                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_hansen_drawn", use_container_width=True)
+                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_hansen_drawn", width="stretch")
             
             if analyze_btn and st.session_state.hansen_selected_drawn_area:
                 with st.spinner("Analyzing your drawn area with Hansen data..."):

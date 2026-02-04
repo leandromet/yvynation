@@ -44,7 +44,7 @@ def render_layer_selection():
                 value=st.session_state.current_mapbiomas_year,
                 key="mb_year_slider"
             )
-            if st.button("➕ Add MapBiomas Layer", use_container_width=True, key="add_mapbiomas"):
+            if st.button("➕ Add MapBiomas Layer", width="stretch", key="add_mapbiomas"):
                 st.session_state.mapbiomas_layers[mapbiomas_year] = True
                 st.session_state.current_mapbiomas_year = mapbiomas_year
                 st.success(f"✓ Added MapBiomas {mapbiomas_year}")
@@ -59,7 +59,7 @@ def render_layer_selection():
                 index=hansen_years.index(st.session_state.current_hansen_year),
                 key="hansen_year_select"
             )
-            if st.button("➕ Add Hansen Layer", use_container_width=True, key="add_hansen"):
+            if st.button("➕ Add Hansen Layer", width="stretch", key="add_hansen"):
                 st.session_state.hansen_layers[hansen_year] = True
                 st.session_state.current_hansen_year = hansen_year
                 st.success(f"✓ Added Hansen {hansen_year}")
@@ -139,9 +139,9 @@ def render_territory_analysis():
                         
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", use_container_width=True)
+                            analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", width="stretch")
                         with col_btn2:
-                            add_layer_btn = st.button("➕ Zoom to Territory", key="btn_add_territory_layer", use_container_width=True)
+                            add_layer_btn = st.button("➕ Zoom to Territory", key="btn_add_territory_layer", width="stretch")
                         
                         if add_layer_btn:
                             try:

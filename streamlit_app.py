@@ -79,6 +79,7 @@ from map_components import (
     render_polygon_selector,
     render_layer_reference_guide
 )
+from map_pdf_export import render_map_export_section
 
 # ============================================================================
 # INITIALIZATION
@@ -289,6 +290,9 @@ render_layer_reference_guide()
 # ANALYSIS SECTION
 # ============================================================================
 
+# Map export section
+render_map_export_section()
+
 # Export all button at the top
 st.divider()
 with st.container():
@@ -326,7 +330,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                     st.session_state.territory_year2,
                     top_n=12
                 )
-                st.pyplot(fig, use_container_width=True)
+                st.pyplot(fig, width="stretch")
                 st.session_state.analysis_figures['territory_comparison'] = fig
         
         with col_right:
@@ -339,7 +343,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         st.session_state.territory_year2,
                         top_n=12
                     )
-                    st.pyplot(fig, use_container_width=True)
+                    st.pyplot(fig, width="stretch")
                     st.session_state.analysis_figures['territory_gains_losses'] = fig
                     
                     # Summary stats
@@ -366,7 +370,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                 
                 with tab_y1:
                     display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result.columns else ['Class_ID', 'Pixels', 'Area_ha']
-                    st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
+                    st.dataframe(st.session_state.territory_result[display_cols], width="stretch")
                     csv1 = st.session_state.territory_result.to_csv(index=False)
                     st.download_button(
                         label="📥 Download CSV",
@@ -378,7 +382,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                 
                 with tab_y2:
                     display_cols = ['Class', 'Class_ID', 'Pixels', 'Area_ha'] if 'Class' in st.session_state.territory_result_year2.columns else ['Class_ID', 'Pixels', 'Area_ha']
-                    st.dataframe(st.session_state.territory_result_year2[display_cols], use_container_width=True)
+                    st.dataframe(st.session_state.territory_result_year2[display_cols], width="stretch")
                     csv2 = st.session_state.territory_result_year2.to_csv(index=False)
                     st.download_button(
                         label="📥 Download CSV",
@@ -398,7 +402,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         st.session_state.territory_year2,
                         top_n=12
                     )
-                    st.pyplot(fig, use_container_width=True)
+                    st.pyplot(fig, width="stretch")
                     st.session_state.analysis_figures['territory_change_percentage'] = fig
                     
                     # Top gainers and losers
@@ -407,13 +411,13 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                         st.markdown("**Top Gainers**")
                         top_gainers = comparison_df[comparison_df['Change_km2'] > 0].nlargest(5, 'Change_km2')
                         if len(top_gainers) > 0:
-                            st.dataframe(top_gainers[['Class', 'Change_km2', 'Change_pct']], use_container_width=True)
+                            st.dataframe(top_gainers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
                     
                     with tcol2:
                         st.markdown("**Top Losers**")
                         top_losers = comparison_df[comparison_df['Change_km2'] < 0].nsmallest(5, 'Change_km2')
                         if len(top_losers) > 0:
-                            st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], use_container_width=True)
+                            st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
         
         # Add Sankey diagram with pixel-level transitions
         with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
@@ -546,7 +550,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                             class_names=class_names
                         )
                         if sankey_fig:
-                            st.plotly_chart(sankey_fig, use_container_width=True)
+                            st.plotly_chart(sankey_fig, width="stretch")
                             # Store Sankey for export
                             if 'analysis_figures' not in st.session_state:
                                 st.session_state.analysis_figures = {}
@@ -574,14 +578,14 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
         with terr_tab1:
             st.markdown(f"### Land Cover Distribution in {st.session_state.territory_name} ({st.session_state.territory_year})")
             fig = plot_area_distribution(st.session_state.territory_result, year=st.session_state.territory_year, top_n=15)
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width="stretch")
             st.session_state.analysis_figures['territory_distribution'] = fig
         
         with terr_tab2:
             st.markdown(f"### Raw Data - {st.session_state.territory_name} ({st.session_state.territory_year})")
             # Display with Name column if available
             display_cols = ['Name', 'Class_ID', 'Pixels', 'Area_ha'] if 'Name' in st.session_state.territory_result.columns else ['Class', 'Class_ID', 'Pixels', 'Area_ha']
-            st.dataframe(st.session_state.territory_result[display_cols], use_container_width=True)
+            st.dataframe(st.session_state.territory_result[display_cols], width="stretch")
             
             # Download CSV option
             csv = st.session_state.territory_result.to_csv(index=False)
@@ -688,11 +692,11 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
                                                 
                                                 # Show data table
-                                                st.dataframe(df[['Class', 'Pixels', 'Area_ha']], use_container_width=True)
+                                                st.dataframe(df[['Class', 'Pixels', 'Area_ha']], width="stretch")
                                                 
                                                 # Show plot
                                                 fig = plot_area_distribution(df, year=year, top_n=15)
-                                                st.pyplot(fig, use_container_width=True)
+                                                st.pyplot(fig, width="stretch")
                                                 st.success(f"✓ {year}: {len(records)} classes found")
                                             else:
                                                 st.warning(f"Empty histogram for {year}")
@@ -752,13 +756,13 @@ if st.session_state.data_loaded and st.session_state.app:
                                                 # Only show columns that exist
                                                 display_cols = [col for col in display_cols if col in df_display.columns]
                                                 if display_cols:
-                                                    st.dataframe(df_display[display_cols], use_container_width=True)
+                                                    st.dataframe(df_display[display_cols], width="stretch")
                                                 else:
-                                                    st.dataframe(df_display, use_container_width=True)
+                                                    st.dataframe(df_display, width="stretch")
                                                 
                                                 # Show plot with consolidation
                                                 fig = plot_area_distribution(df_display, year=year, top_n=15)
-                                                st.pyplot(fig, use_container_width=True)
+                                                st.pyplot(fig, width="stretch")
                                                 
                                                 # Show consolidated summary
                                                 if st.session_state.use_consolidated_classes:
@@ -805,7 +809,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     key="mapbiomas_comp_year2"
                                 )
                             
-                            if st.button("🔄 Compare MapBiomas Years", use_container_width=True, key="mapbiomas_compare"):
+                            if st.button("🔄 Compare MapBiomas Years", width="stretch", key="mapbiomas_compare"):
                                 try:
                                     from config import MAPBIOMAS_LABELS
                                     
@@ -941,7 +945,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     key="hansen_comp_year2"
                                 )
                             
-                            if st.button("🔄 Compare Hansen Years", use_container_width=True, key="hansen_compare"):
+                            if st.button("🔄 Compare Hansen Years", width="stretch", key="hansen_compare"):
                                 try:
                                     from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
                                     
@@ -1059,13 +1063,13 @@ if st.session_state.data_loaded and st.session_state.app:
                             st.markdown(f"#### 🌱 MapBiomas ({result['year1']} vs {result['year2']})")
                             
                             with st.expander("📋 Data Table"):
-                                st.dataframe(result['df'], use_container_width=True)
+                                st.dataframe(result['df'], width="stretch")
                             
                             with st.expander("📊 Side-by-side Charts"):
                                 col_left, col_right = st.columns(2)
                                 with col_left:
                                     fig = plot_area_distribution(result['df_year1'], year=result['year1'], top_n=10)
-                                    st.pyplot(fig, use_container_width=True)
+                                    st.pyplot(fig, width="stretch")
                                     # Store for export (use 1-based indexing for consistency with folder names)
                                     polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
@@ -1073,7 +1077,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_mapbiomas_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df_year2'], year=result['year2'], top_n=10)
-                                    st.pyplot(fig, use_container_width=True)
+                                    st.pyplot(fig, width="stretch")
                                     # Store for export (use 1-based indexing for consistency with folder names)
                                     polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
@@ -1096,7 +1100,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                             result['year2'],
                                             top_n=12
                                         )
-                                        st.pyplot(fig, use_container_width=True)
+                                        st.pyplot(fig, width="stretch")
                                         # Store for export (use 1-based indexing for consistency with folder names)
                                         polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                         if 'analysis_figures' not in st.session_state:
@@ -1114,7 +1118,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     try:
                                         sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
                                         if sankey_fig:
-                                            st.plotly_chart(sankey_fig, use_container_width=True)
+                                            st.plotly_chart(sankey_fig, width="stretch")
                                             # Store Sankey for export (use 1-based indexing)
                                             polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                             if 'analysis_figures' not in st.session_state:
@@ -1149,13 +1153,13 @@ if st.session_state.data_loaded and st.session_state.app:
                             st.markdown(f"#### 🌍 Hansen ({result['year1']} vs {result['year2']})")
                             
                             with st.expander("📋 Data Table"):
-                                st.dataframe(result['df_comp'], use_container_width=True)
+                                st.dataframe(result['df_comp'], width="stretch")
                             
                             with st.expander("📊 Side-by-side Charts"):
                                 col_left, col_right = st.columns(2)
                                 with col_left:
                                     fig = plot_area_distribution(result['df1_disp'], year=result['year1'], top_n=10)
-                                    st.pyplot(fig, use_container_width=True)
+                                    st.pyplot(fig, width="stretch")
                                     # Store for export (use 1-based indexing for consistency with folder names)
                                     polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
@@ -1163,7 +1167,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     st.session_state.analysis_figures[f'polygon_{polygon_idx}_hansen_year1'] = fig
                                 with col_right:
                                     fig = plot_area_distribution(result['df2_disp'], year=result['year2'], top_n=10)
-                                    st.pyplot(fig, use_container_width=True)
+                                    st.pyplot(fig, width="stretch")
                                     # Store for export (use 1-based indexing for consistency with folder names)
                                     polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                     if 'analysis_figures' not in st.session_state:
@@ -1194,7 +1198,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                             result['year2'],
                                             top_n=12
                                         )
-                                        st.pyplot(fig, use_container_width=True)
+                                        st.pyplot(fig, width="stretch")
                                         # Store for export (use 1-based indexing for consistency with folder names)
                                         polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                         if 'analysis_figures' not in st.session_state:
@@ -1212,7 +1216,7 @@ if st.session_state.data_loaded and st.session_state.app:
                                     try:
                                         sankey_fig = create_sankey_transitions(result['transitions'], result['year1'], result['year2'])
                                         if sankey_fig:
-                                            st.plotly_chart(sankey_fig, use_container_width=True)
+                                            st.plotly_chart(sankey_fig, width="stretch")
                                             # Store Sankey for export (use 1-based indexing)
                                             polygon_idx = st.session_state.get('selected_feature_index', 0) + 1
                                             if 'analysis_figures' not in st.session_state:
