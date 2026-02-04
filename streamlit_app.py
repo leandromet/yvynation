@@ -147,6 +147,12 @@ if "use_consolidated_classes" not in st.session_state:
 if "analysis_figures" not in st.session_state:
     st.session_state.analysis_figures = {}  # Store matplotlib figures for export
 
+# Initialize buffer storage
+if "buffer_geometries" not in st.session_state:
+    st.session_state.buffer_geometries = {}  # {buffer_name: ee.Geometry}
+if "buffer_metadata" not in st.session_state:
+    st.session_state.buffer_metadata = {}  # {buffer_name: metadata_dict}
+
 # Initialize territory analysis session state
 initialize_territory_session_state()
 
@@ -625,6 +631,16 @@ if st.session_state.data_loaded and st.session_state.app:
         try:
             feature_data = st.session_state.last_drawn_feature
             geometry = None
+            is_buffer = False
+            buffer_name = None
+            
+            # Check if this is a buffer feature
+            if isinstance(feature_data, dict) and 'properties' in feature_data:
+                props = feature_data.get('properties', {})
+                if props.get('type') == 'external_buffer':
+                    is_buffer = True
+                    buffer_name = props.get('name', 'External Buffer')
+                    st.info(f"🔵 Analyzing: {buffer_name}")
             
             # Extract geometry from drawn feature GeoJSON
             if isinstance(feature_data, dict):

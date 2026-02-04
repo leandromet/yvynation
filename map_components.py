@@ -10,7 +10,9 @@ from streamlit_folium import st_folium
 from map_manager import create_base_map, add_territories_layer
 from ee_layers import add_mapbiomas_layer, add_hansen_layer
 from config import MAPBIOMAS_PALETTE, HANSEN_PALETTE
+from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
 import ee
+import traceback
 
 
 def build_and_display_map():
@@ -159,6 +161,39 @@ def build_and_display_map():
         except Exception as e:
             print(f"❌ Error adding analysis layer: {e}")
 
+    # Add buffer zones as visible layers
+    if 'buffer_geometries' in st.session_state and st.session_state.buffer_geometries:
+        for buffer_name, buffer_geom in st.session_state.buffer_geometries.items():
+            try:
+                # Get buffer GeoJSON
+                buffer_geojson = buffer_geom.getInfo()
+                
+                # Add buffer as GeoJSON layer with distinct styling
+                folium.GeoJson(
+                    data=buffer_geojson,
+                    name=f"Buffer: {buffer_name}",
+                    style_function=lambda x: {
+                        'fillColor': '#00BFFF',
+                        'color': '#0080FF',
+                        'weight': 2,
+                        'opacity': 0.8,
+                        'fillOpacity': 0.15
+                    },
+                    overlay=True,
+                    control=True,
+                    highlight_function=lambda x: {
+                        'fillColor': '#87CEEB',
+                        'color': '#4169E1',
+                        'weight': 3,
+                        'opacity': 1.0,
+                        'fillOpacity': 0.25
+                    }
+                ).add_to(display_map)
+                
+                print(f"[Map] Buffer layer added: {buffer_name}")
+            except Exception as e:
+                print(f"[Error] Adding buffer layer failed for {buffer_name}: {e}")
+
     # Add layer control with enhanced styling
     layer_control = folium.LayerControl(position='topright', collapsed=False)
     layer_control.add_to(display_map)
@@ -251,6 +286,15 @@ def render_polygon_selector():
         polygon_labels = []
         for idx, feature in enumerate(st.session_state.all_drawn_features):
             try:
+                # Check if this is a buffer
+                props = feature.get('properties', {})
+                if props.get('type') == 'external_buffer':
+                    # This is a buffer - use its name directly
+                    buffer_name = props.get('name', f'Buffer {idx+1}')
+                    polygon_labels.append(f"🔵 {buffer_name}")
+                    continue
+                
+                # Regular polygon - create label from geometry
                 geom = feature.get('geometry', {})
                 geom_type = geom.get('type', 'Unknown')
                 coords = geom.get('coordinates', [[]])
@@ -278,7 +322,64 @@ def render_polygon_selector():
         if selected_idx is not None:
             st.session_state.selected_feature_index = selected_idx
             st.session_state.last_drawn_feature = st.session_state.all_drawn_features[selected_idx]
-            st.info(f"✓ Selected Polygon {selected_idx + 1} for analysis")
+            
+            # Check if selected is a buffer
+            selected_feature = st.session_state.all_drawn_features[selected_idx]
+            is_buffer = selected_feature.get('properties', {}).get('type') == 'external_buffer'
+            
+            if is_buffer:
+                buffer_name = selected_feature.get('properties', {}).get('name', '')
+                st.info(f"✓ Selected: {buffer_name}")
+            else:
+                st.info(f"✓ Selected Polygon {selected_idx + 1} for analysis")
+                
+                # Add buffer creation UI for non-buffer polygons
+                st.divider()
+                st.markdown("**Create External Buffer Zone**")
+                st.caption("Create a ring-shaped buffer around this polygon for analysis")
+                
+                col_dist, col_create = st.columns([2, 1])
+                with col_dist:
+                    buffer_distance = st.selectbox(
+                        "Buffer Distance",
+                        options=[2, 5, 10],
+                        format_func=lambda x: f"{x} km",
+                        key="polygon_buffer_distance"
+                    )
+                with col_create:
+                    create_buffer_btn = st.button("🔵 Create Buffer", key="btn_create_polygon_buffer", width="stretch")
+                
+                if create_buffer_btn:
+                    try:
+                        # Extract geometry from selected feature
+                        feature_geom = selected_feature.get('geometry', {})
+                        
+                        # Convert to ee.Geometry
+                        if feature_geom.get('type') == 'Polygon':
+                            coords = feature_geom.get('coordinates', [[]])
+                            ee_geom = ee.Geometry.Polygon(coords)
+                        else:
+                            st.error("❌ Can only create buffers for polygon features")
+                            return
+                        
+                        # Create and store the buffer
+                        polygon_name = f"Polygon {selected_idx + 1}"
+                        buffer_name = add_buffer_to_session_state(
+                            ee_geom,
+                            buffer_distance,
+                            polygon_name
+                        )
+                        
+                        # Add to polygon list
+                        add_buffer_to_polygon_list(buffer_name)
+                        
+                        st.success(f"✅ Created {buffer_distance}km buffer around {polygon_name}")
+                        st.info("📍 Buffer added to polygon list - refresh to select it")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Failed to create buffer: {e}")
+                        traceback.print_exc()
 
 
 def render_layer_reference_guide():
@@ -293,6 +394,7 @@ def render_layer_reference_guide():
             "<span><span style='color: #4B0082; font-size: 16px;'>■</span> Indigenous Territories</span>"
             "<span><span style='color: #FF0000; font-size: 16px;'>■</span> Selected Territory</span>"
             "<span><span style='color: #0033FF; font-size: 16px;'>■</span> Drawn Polygon</span>"
+            "<span><span style='color: #00BFFF; font-size: 16px;'>■</span> External Buffer Zone</span>"
             "</div>",
             unsafe_allow_html=True
         )

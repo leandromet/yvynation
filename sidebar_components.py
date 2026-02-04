@@ -12,6 +12,7 @@ from territory_analysis import (
     analyze_territory_mapbiomas,
     analyze_territory_hansen
 )
+from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
 
 
 def render_sidebar_header():
@@ -142,6 +143,46 @@ def render_territory_analysis():
                             analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", width="stretch")
                         with col_btn2:
                             add_layer_btn = st.button("➕ Zoom to Territory", key="btn_add_territory_layer", width="stretch")
+                        
+                        # Add buffer zone option
+                        st.divider()
+                        st.markdown("**Create External Buffer Zone**")
+                        st.caption("Create a ring-shaped buffer around the territory for analysis")
+                        
+                        col_dist, col_create = st.columns([2, 1])
+                        with col_dist:
+                            buffer_distance = st.selectbox(
+                                "Buffer Distance",
+                                options=[2, 5, 10],
+                                format_func=lambda x: f"{x} km",
+                                key="territory_buffer_distance"
+                            )
+                        with col_create:
+                            create_buffer_btn = st.button("🔵 Create Buffer", key="btn_create_territory_buffer", width="stretch")
+                        
+                        if create_buffer_btn:
+                            try:
+                                # Get territory geometry
+                                territory_geom = territories_fc.filter(
+                                    ee.Filter.eq(name_prop, selected_territory)
+                                ).first().geometry()
+                                
+                                # Create and store the buffer
+                                buffer_name = add_buffer_to_session_state(
+                                    territory_geom,
+                                    buffer_distance,
+                                    selected_territory
+                                )
+                                
+                                # Add to polygon list
+                                add_buffer_to_polygon_list(buffer_name)
+                                
+                                st.success(f"✅ Created {buffer_distance}km buffer around '{selected_territory}'")
+                                st.info("📍 Buffer added to polygon list - scroll down to select and analyze it")
+                                
+                            except Exception as e:
+                                st.error(f"❌ Failed to create buffer: {e}")
+                                traceback.print_exc()
                         
                         if add_layer_btn:
                             try:
