@@ -8,7 +8,13 @@ import folium
 from folium.plugins import Draw
 from streamlit_folium import st_folium
 from map_manager import create_base_map, add_territories_layer
-from ee_layers import add_mapbiomas_layer, add_hansen_layer
+from ee_layers import (
+    add_mapbiomas_layer, 
+    add_hansen_layer, 
+    add_hansen_gfc_tree_cover,
+    add_hansen_gfc_tree_loss,
+    add_hansen_gfc_tree_gain
+)
 from config import MAPBIOMAS_PALETTE, HANSEN_PALETTE
 from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
 import ee
@@ -30,33 +36,55 @@ def build_and_display_map():
 
     # Add territories
     if st.session_state.data_loaded and st.session_state.app:
-        display_map = add_territories_layer(
+        result = add_territories_layer(
             display_map,
             st.session_state.app.territories,
             opacity=0.7
         )
+        if result is not None:
+            display_map = result
 
     # Add stored MapBiomas layers
     if st.session_state.data_loaded and st.session_state.app:
         for year in st.session_state.mapbiomas_layers:
             if st.session_state.mapbiomas_layers[year]:
-                display_map = add_mapbiomas_layer(
+                result = add_mapbiomas_layer(
                     display_map,
                     st.session_state.app.mapbiomas_v9,
                     year,
                     opacity=0.8
                 )
+                if result is not None:
+                    display_map = result
 
     # Add stored Hansen layers
     if st.session_state.data_loaded and st.session_state.app:
         for year in st.session_state.hansen_layers:
             if st.session_state.hansen_layers[year]:
-                display_map = add_hansen_layer(
+                result = add_hansen_layer(
                     display_map,
                     year,
                     opacity=0.8,
                     use_consolidated=st.session_state.use_consolidated_classes
                 )
+                if result is not None:
+                    display_map = result
+    
+    # Add Hansen Global Forest Change layers
+    if st.session_state.get('hansen_gfc_tree_cover', False):
+        result = add_hansen_gfc_tree_cover(display_map, opacity=0.8, shown=True)
+        if result is not None:
+            display_map = result
+    
+    if st.session_state.get('hansen_gfc_tree_loss', False):
+        result = add_hansen_gfc_tree_loss(display_map, opacity=0.8, shown=True)
+        if result is not None:
+            display_map = result
+    
+    if st.session_state.get('hansen_gfc_tree_gain', False):
+        result = add_hansen_gfc_tree_gain(display_map, opacity=0.8, shown=True)
+        if result is not None:
+            display_map = result
 
     # Add territory boundary layer if requested
     if st.session_state.add_territory_layer_to_map and st.session_state.territory_geom and st.session_state.territory_layer_name:
@@ -479,7 +507,7 @@ def render_layer_reference_guide():
         st.markdown(mapbiomas_legend_html, unsafe_allow_html=True)
         
         # Hansen Consolidated Legend
-        st.markdown("### 🌍 Hansen Global Forest Change Classes")
+        st.markdown("### 🌍 Hansen/GLAD Global Land Cover Classes")
         hansen_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
         hansen_legend_data = [
             ("Dense Tree Cover", "#1F8040"),
@@ -496,6 +524,20 @@ def render_layer_reference_guide():
             hansen_legend_html += f"<span><span style='color: {color}; font-size: 16px;'>■</span> {label}</span>"
         hansen_legend_html += "</div>"
         st.markdown(hansen_legend_html, unsafe_allow_html=True)
+        
+        # Hansen Global Forest Change Legend
+        st.markdown("### 🌲 Hansen Global Forest Change (UMD 2024)")
+        st.caption("Tree cover change analysis from 2000-2024")
+        hansen_gfc_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
+        hansen_gfc_legend_data = [
+            ("Tree Cover 2000", "black → green", "0-100% tree canopy cover"),
+            ("Tree Loss Year", "yellow → red", "Forest loss 2001-2024"),
+            ("Tree Gain", "green", "Forest gain 2000-2012"),
+        ]
+        for label, color, desc in hansen_gfc_legend_data:
+            hansen_gfc_legend_html += f"<div style='margin: 5px 0;'><strong>{label}:</strong> <span style='color: gray;'>{color}</span> - {desc}</div>"
+        hansen_gfc_legend_html += "</div>"
+        st.markdown(hansen_gfc_legend_html, unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         

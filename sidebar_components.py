@@ -64,6 +64,29 @@ def render_layer_selection():
                 st.session_state.hansen_layers[hansen_year] = True
                 st.session_state.current_hansen_year = hansen_year
                 st.success(f"✓ Added Hansen {hansen_year}")
+        
+        # Hansen Global Forest Change section
+        with st.sidebar.expander("🌲 Hansen Global Forest Change", expanded=False):
+            st.write("Global forest cover, loss, and gain (2000-2024):")
+            st.caption("University of Maryland dataset tracking forest dynamics worldwide")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🌳 Tree Cover 2000", key="add_hansen_gfc_cover", use_container_width=True):
+                    st.session_state.hansen_gfc_tree_cover = True
+                    st.success("✓ Added Tree Cover 2000")
+                    
+                if st.button("🌲 Tree Gain", key="add_hansen_gfc_gain", use_container_width=True):
+                    st.session_state.hansen_gfc_tree_gain = True
+                    st.success("✓ Added Tree Gain (2000-2012)")
+            
+            with col2:
+                if st.button("🔥 Tree Loss", key="add_hansen_gfc_loss", use_container_width=True):
+                    st.session_state.hansen_gfc_tree_loss = True
+                    st.success("✓ Added Tree Loss (2001-2024)")
+            
+            st.info("💡 Tree loss shows years 2001-2024 in yellow→red gradient", icon="ℹ️")
+
 
 
 def render_territory_analysis():

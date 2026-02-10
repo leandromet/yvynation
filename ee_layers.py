@@ -6,7 +6,9 @@ Handles adding MapBiomas, Hansen/GLAD, and other EE layers to maps.
 import folium
 import ee
 from config import (
-    MAPBIOMAS_PALETTE, HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE
+    MAPBIOMAS_PALETTE, HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE,
+    HANSEN_GFC_DATASET, HANSEN_GFC_TREE_COVER_VIS, HANSEN_GFC_TREE_LOSS_VIS,
+    HANSEN_GFC_TREE_GAIN_VIS
 )
 from hansen_reference_mapping import (
     HANSEN_CLASS_TO_STRATUM, HANSEN_STRATUM_COLORS, HANSEN_STRATUM_NAMES
@@ -150,3 +152,137 @@ def remove_layer(m, layer_name):
     except Exception as e:
         print(f"❌ Error removing {layer_name}: {e}")
         return m
+
+
+def add_hansen_gfc_tree_cover(m, opacity=1.0, shown=True):
+    """
+    Add Hansen Global Forest Change tree cover 2000 layer to map.
+    
+    Args:
+        m (folium.Map): Map object to add layer to
+        opacity (float): Layer opacity (0-1)
+        shown (bool): Whether layer is visible by default
+    
+    Returns:
+        folium.Map: Updated map object or None if error
+    """
+    try:
+        print(f"Adding Hansen GFC Tree Cover 2000 layer...")
+        
+        dataset = ee.Image(HANSEN_GFC_DATASET)
+        tree_cover = dataset.select(['treecover2000'])
+        
+        vis_params = HANSEN_GFC_TREE_COVER_VIS
+        map_id = tree_cover.getMapId(vis_params)
+        
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr='Map data: Hansen/UMD Global Forest Change',
+            name=f"Hansen GFC - Tree Cover 2000",
+            overlay=True,
+            control=True,
+            opacity=opacity,
+            show=shown
+        ).add_to(m)
+        
+        print(f"✓ Hansen GFC Tree Cover 2000 added")
+        return m
+    except Exception as e:
+        print(f"❌ Error adding Hansen GFC Tree Cover: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def add_hansen_gfc_tree_loss(m, opacity=1.0, shown=True):
+    """
+    Add Hansen Global Forest Change tree loss by year layer to map.
+    Shows forest loss from 2001-2024 (coded as 1-24).
+    
+    Args:
+        m (folium.Map): Map object to add layer to
+        opacity (float): Layer opacity (0-1)
+        shown (bool): Whether layer is visible by default
+    
+    Returns:
+        folium.Map: Updated map object or None if error
+    """
+    try:
+        print(f"Adding Hansen GFC Tree Loss Year layer...")
+        
+        dataset = ee.Image(HANSEN_GFC_DATASET)
+        tree_loss = dataset.select(['lossyear'])
+        
+        vis_params = HANSEN_GFC_TREE_LOSS_VIS
+        map_id = tree_loss.getMapId(vis_params)
+        
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr='Map data: Hansen/UMD Global Forest Change',
+            name=f"Hansen GFC - Tree Loss Year (2001-2024)",
+            overlay=True,
+            control=True,
+            opacity=opacity,
+            show=shown
+        ).add_to(m)
+        
+        print(f"✓ Hansen GFC Tree Loss Year added")
+        return m
+    except Exception as e:
+        print(f"❌ Error adding Hansen GFC Tree Loss: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def add_hansen_gfc_tree_gain(m, opacity=1.0, shown=True):
+    """
+    Add Hansen Global Forest Change tree gain layer to map.
+    Shows areas with tree cover gain from 2000-2012.
+    
+    Args:
+        m (folium.Map): Map object to add layer to
+        opacity (float): Layer opacity (0-1)
+        shown (bool): Whether layer is visible by default
+    
+    Returns:
+        folium.Map: Updated map object or None if error
+    """
+    try:
+        print(f"Adding Hansen GFC Tree Gain layer...")
+        
+        dataset = ee.Image(HANSEN_GFC_DATASET)
+        tree_gain = dataset.select(['gain'])
+        
+        # Create binary mask for gain pixels only
+        gain_binary = tree_gain.eq(1)
+        
+        # Mask to show only gain pixels (value = 1)
+        gain_masked = gain_binary.selfMask()
+        
+        # Use simple visualization with only one color for gain pixels
+        vis_params = {
+            'min': 0,
+            'max': 1,
+            'palette': ['#00FF00']  # Only green for gain
+        }
+        
+        map_id = gain_masked.getMapId(vis_params)
+        
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr='Map data: Hansen/UMD Global Forest Change',
+            name=f"Hansen GFC - Tree Gain (2000-2012)",
+            overlay=True,
+            control=True,
+            opacity=opacity,
+            show=shown
+        ).add_to(m)
+        
+        print(f"✓ Hansen GFC Tree Gain added")
+        return m
+    except Exception as e:
+        print(f"❌ Error adding Hansen GFC Tree Gain: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

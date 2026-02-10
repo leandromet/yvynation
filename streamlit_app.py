@@ -158,7 +158,133 @@ def analyze_hansen_geometry(geometry, year, area_name="Area"):
     return None
 
 
-def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original", buffer_name=None, buffer_size=None):
+def analyze_hansen_gfc_geometry(geometry, area_name="Area"):
+    """
+    Analyze Hansen Global Forest Change data for a given geometry.
+    Analyzes tree cover 2000, tree loss years, and tree gain.
+    
+    Returns:
+        dict: Dictionary with 'tree_cover', 'tree_loss', 'tree_gain' DataFrames
+    """
+    try:
+        from config import HANSEN_GFC_DATASET
+        dataset = ee.Image(HANSEN_GFC_DATASET)
+        
+        results = {}
+        
+        with st.spinner(f"🌲 Analyzing Hansen GFC data for {area_name} (3 layers)..."):
+            print(f"[GFC Analysis] Starting analysis for {area_name}")
+            
+            # Analyze Tree Cover 2000 (0-100% canopy cover)
+            try:
+                print("[GFC Analysis] Processing tree cover 2000...")
+                tree_cover = dataset.select(['treecover2000'])
+                cover_stats = tree_cover.reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
+                
+                if cover_stats and 'treecover2000' in cover_stats:
+                    histogram = cover_stats['treecover2000']
+                    records = []
+                    for percent_str, count in histogram.items():
+                        percent = int(percent_str)
+                        area_ha = count * 0.09
+                        records.append({
+                            'Percent_Cover': percent,
+                            'Pixels': int(count),
+                            'Area_ha': round(area_ha, 2)
+                        })
+                    results['tree_cover'] = pd.DataFrame(records).sort_values('Percent_Cover')
+                    print(f"[GFC Analysis] Tree cover: {len(records)} data points")
+            except Exception as cover_err:
+                print(f"[GFC Analysis] Warning - tree cover analysis failed: {cover_err}")
+                st.warning(f"Tree cover analysis partial: {str(cover_err)[:100]}")
+            
+            # Analyze Tree Loss Year (0=no loss, 1-24=year 2001-2024)
+            try:
+                print("[GFC Analysis] Processing tree loss...")
+                tree_loss = dataset.select(['lossyear'])
+                loss_stats = tree_loss.reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
+                
+                if loss_stats and 'lossyear' in loss_stats:
+                    histogram = loss_stats['lossyear']
+                    records = []
+                    for year_code_str, count in histogram.items():
+                        year_code = int(year_code_str)
+                        if year_code == 0:
+                            year_label = 'No Loss'
+                        else:
+                            year_label = f'{2000 + year_code}'
+                        area_ha = count * 0.09
+                        records.append({
+                            'Year_Code': year_code,
+                            'Year': year_label,
+                            'Pixels': int(count),
+                            'Area_ha': round(area_ha, 2)
+                        })
+                    results['tree_loss'] = pd.DataFrame(records).sort_values('Year_Code')
+                    print(f"[GFC Analysis] Tree loss: {len(records)} data points")
+            except Exception as loss_err:
+                print(f"[GFC Analysis] Warning - tree loss analysis failed: {loss_err}")
+                st.warning(f"Tree loss analysis partial: {str(loss_err)[:100]}")
+            
+            # Analyze Tree Gain (0=no gain, 1=gain 2000-2012)
+            try:
+                print("[GFC Analysis] Processing tree gain...")
+                tree_gain = dataset.select(['gain'])
+                gain_stats = tree_gain.reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=30,
+                    maxPixels=1e9
+                ).getInfo()
+                
+                if gain_stats and 'gain' in gain_stats:
+                    histogram = gain_stats['gain']
+                    records = []
+                    for gain_code_str, count in histogram.items():
+                        gain_code = int(gain_code_str)
+                        gain_label = 'Gain (2000-2012)' if gain_code == 1 else 'No Gain'
+                        area_ha = count * 0.09
+                        records.append({
+                            'Gain_Code': gain_code,
+                            'Status': gain_label,
+                            'Pixels': int(count),
+                            'Area_ha': round(area_ha, 2)
+                        })
+                    results['tree_gain'] = pd.DataFrame(records).sort_values('Gain_Code')
+                    print(f"[GFC Analysis] Tree gain: {len(records)} data points")
+            except Exception as gain_err:
+                print(f"[GFC Analysis] Warning - tree gain analysis failed: {gain_err}")
+                st.warning(f"Tree gain analysis partial: {str(gain_err)[:100]}")
+        
+        if results:
+            print(f"[GFC Analysis] Completed with {len(results)} datasets: {list(results.keys())}")
+            st.success(f"✓ Analysis complete! Found data for: {', '.join(results.keys())}")
+            return results
+        else:
+            print("[GFC Analysis] No data returned from analysis")
+            st.warning("No Hansen GFC data found in this area")
+            return None
+        
+    except Exception as e:
+        import traceback
+        error_msg = str(e)[:300]
+        print(f"[GFC Analysis] CRITICAL ERROR: {e}")
+        traceback.print_exc()
+        st.error(f"Error analyzing Hansen GFC for {area_name}: {error_msg}")
+    return None
+
+
+def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, area_prefix="original", buffer_name=None, buffer_size=None):
     """
     Render the complete analysis tab structure for a given geometry.
     Can be used for both original area and buffer zone.
@@ -167,7 +293,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original
     -----------
     geometry : ee.Geometry
         The geometry to analyze
-    tab1, tab2, tab3, tab4 : streamlit tabs
+    tab1, tab2, tab3, tab4, tab5 : streamlit tabs
         The tab objects to render into
     area_prefix : str
         Prefix for file exports ("original" or "buffer")
@@ -355,6 +481,189 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original
             st.info("Load data and add a Hansen layer to begin analysis")
     
     with tab3:
+        st.markdown("### 🌲 Hansen Global Forest Change Analysis")
+        st.caption("Analyze tree cover, loss, and gain from 2000-2024")
+        
+        # Check if Hansen GFC layers are enabled
+        has_gfc_layers = any([
+            st.session_state.get('hansen_gfc_tree_cover', False),
+            st.session_state.get('hansen_gfc_tree_loss', False),
+            st.session_state.get('hansen_gfc_tree_gain', False)
+        ])
+        
+        if has_gfc_layers:
+            if st.button("🔍 Analyze Hansen GFC Data", key=f"analyze_gfc_{area_prefix}_{id(geometry)}", use_container_width=True):
+                gfc_results = analyze_hansen_gfc_geometry(geometry, area_name=f"{area_prefix} area")
+                
+                if gfc_results:
+                    # Store results in session state
+                    session_key = f'hansen_gfc_results_{area_prefix}'
+                    st.session_state[session_key] = gfc_results
+            
+            # Display results if available
+            session_key = f'hansen_gfc_results_{area_prefix}'
+            if session_key in st.session_state and st.session_state[session_key]:
+                gfc_results = st.session_state[session_key]
+                
+                # Create sub-tabs for each type of analysis
+                gfc_tab1, gfc_tab2, gfc_tab3 = st.tabs(["🌳 Tree Cover 2000", "🔥 Tree Loss", "🌲 Tree Gain"])
+                
+                # Tree Cover 2000
+                with gfc_tab1:
+                    if 'tree_cover' in gfc_results:
+                        df_cover = gfc_results['tree_cover']
+                        st.markdown("#### Tree Canopy Cover in Year 2000")
+                        st.caption("Percent of canopy cover (0-100%)")
+                        
+                        # Calculate statistics
+                        total_area = df_cover['Area_ha'].sum()
+                        
+                        # Group into categories
+                        df_cover['Category'] = df_cover['Percent_Cover'].apply(lambda x: 
+                            'No Tree Cover (0%)' if x == 0 else
+                            'Low Cover (1-25%)' if x <= 25 else
+                            'Medium Cover (26-50%)' if x <= 50 else
+                            'High Cover (51-75%)' if x <= 75 else
+                            'Very High Cover (76-100%)'
+                        )
+                        
+                        # Aggregate by category
+                        df_grouped = df_cover.groupby('Category').agg({
+                            'Pixels': 'sum',
+                            'Area_ha': 'sum'
+                        }).reset_index()
+                        df_grouped['Percentage'] = (df_grouped['Area_ha'] / total_area * 100).round(2)
+                        
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            st.dataframe(df_grouped[['Category', 'Area_ha', 'Percentage']], use_container_width=True)
+                        with col2:
+                            st.metric("Total Area", f"{total_area:,.0f} ha")
+                            avg_cover = (df_cover['Percent_Cover'] * df_cover['Area_ha']).sum() / total_area
+                            st.metric("Average Cover", f"{avg_cover:.1f}%")
+                        
+                        # Download option
+                        csv = df_cover.to_csv(index=False)
+                        st.download_button(
+                            "📥 Download Detailed Data",
+                            csv,
+                            f"{area_prefix}_tree_cover_2000.csv",
+                            "text/csv",
+                            key=f"dl_{area_prefix}_tree_cover_{id(geometry)}"
+                        )
+                    else:
+                        st.info("No tree cover data available")
+                
+                # Tree Loss
+                with gfc_tab2:
+                    if 'tree_loss' in gfc_results:
+                        df_loss = gfc_results['tree_loss']
+                        st.markdown("#### Forest Loss by Year (2001-2024)")
+                        st.caption("Areas where tree cover was lost")
+                        
+                        # Separate no loss from loss years
+                        df_no_loss = df_loss[df_loss['Year_Code'] == 0]
+                        df_with_loss = df_loss[df_loss['Year_Code'] > 0]
+                        
+                        if not df_with_loss.empty:
+                            total_loss_area = df_with_loss['Area_ha'].sum()
+                            total_area = df_loss['Area_ha'].sum()
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Total Loss", f"{total_loss_area:,.0f} ha")
+                            with col2:
+                                loss_pct = (total_loss_area / total_area * 100)
+                                st.metric("% of Area", f"{loss_pct:.2f}%")
+                            with col3:
+                                st.metric("Years with Loss", len(df_with_loss))
+                            
+                            # Show year-by-year breakdown
+                            st.markdown("**Loss by Year:**")
+                            df_display = df_with_loss[['Year', 'Area_ha', 'Pixels']].copy()
+                            df_display['% of Total Loss'] = (df_display['Area_ha'] / total_loss_area * 100).round(2)
+                            st.dataframe(df_display, use_container_width=True)
+                            
+                            # Plot loss over time
+                            import matplotlib.pyplot as plt
+                            fig, ax = plt.subplots(figsize=(10, 4))
+                            ax.bar(df_with_loss['Year'], df_with_loss['Area_ha'], color='#FF4444')
+                            ax.set_xlabel('Year')
+                            ax.set_ylabel('Area Lost (ha)')
+                            ax.set_title('Forest Loss Timeline')
+                            ax.grid(axis='y', alpha=0.3)
+                            plt.xticks(rotation=45)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                            
+                            # Download option
+                            csv = df_loss.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Loss Data",
+                                csv,
+                                f"{area_prefix}_tree_loss.csv",
+                                "text/csv",
+                                key=f"dl_{area_prefix}_tree_loss_{id(geometry)}"
+                            )
+                        else:
+                            st.success("✅ No forest loss detected in this area!")
+                            if not df_no_loss.empty:
+                                st.info(f"Total area with intact forest: {df_no_loss['Area_ha'].sum():,.0f} ha")
+                    else:
+                        st.info("No tree loss data available")
+                
+                # Tree Gain
+                with gfc_tab3:
+                    if 'tree_gain' in gfc_results:
+                        df_gain = gfc_results['tree_gain']
+                        st.markdown("#### Tree Cover Gain (2000-2012)")
+                        st.caption("Areas with forest regrowth or afforestation")
+                        
+                        # Separate gain from no gain
+                        df_with_gain = df_gain[df_gain['Gain_Code'] == 1]
+                        df_no_gain = df_gain[df_gain['Gain_Code'] == 0]
+                        
+                        total_area = df_gain['Area_ha'].sum()
+                        
+                        if not df_with_gain.empty:
+                            gain_area = df_with_gain['Area_ha'].sum()
+                            gain_pct = (gain_area / total_area * 100)
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Area with Gain", f"{gain_area:,.0f} ha", delta=f"{gain_pct:.2f}% of analyzed area")
+                            with col2:
+                                if not df_no_gain.empty:
+                                    no_gain_area = df_no_gain['Area_ha'].sum()
+                                    st.metric("Area without Gain", f"{no_gain_area:,.0f} ha")
+                            
+                            st.dataframe(df_gain[['Status', 'Area_ha', 'Pixels']], use_container_width=True)
+                            
+                            # Download option
+                            csv = df_gain.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Gain Data",
+                                csv,
+                                f"{area_prefix}_tree_gain.csv",
+                                "text/csv",
+                                key=f"dl_{area_prefix}_tree_gain_{id(geometry)}"
+                            )
+                        else:
+                            st.info("No tree gain detected in this area during 2000-2012")
+                    else:
+                        st.info("No tree gain data available")
+        else:
+            st.info("👆 Add Hansen Global Forest Change layers from the sidebar to analyze tree cover dynamics")
+            st.markdown("""
+            **Available Layers:**
+            - 🌳 **Tree Cover 2000**: Baseline canopy cover percentage
+            - 🔥 **Tree Loss Year**: Annual forest loss from 2001-2024
+            - 🌲 **Tree Gain**: Forest regrowth from 2000-2012
+            
+            Add these layers from the sidebar under **🌲 Hansen Global Forest Change** section.
+            """)
+    
+    with tab4:
                     st.markdown("### Multi-Year Comparison")
                     
                     # MapBiomas comparison
@@ -815,7 +1124,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original
                     if not (st.session_state.mapbiomas_layers or st.session_state.hansen_layers):
                         st.info("Add layers from the sidebar to enable comparisons")
     
-    with tab4:
+    with tab5:
         col1, col2 = st.columns(2)
         with col1:
             with st.expander("📍 MapBiomas Info"):
@@ -835,6 +1144,19 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original
                 - Forest loss and gain tracking
                 - Available 2000-2020+
                 """)
+        
+        with st.expander("🌲 Hansen Global Forest Change Info"):
+            st.markdown("""
+            **Hansen Global Forest Change (UMD 2024)** provides comprehensive forest monitoring:
+            - **Tree Cover 2000**: Tree canopy density for year 2000 (0-100%)
+            - **Tree Loss**: Annual forest loss detection from 2001-2024
+            - **Tree Gain**: Forest regrowth identification from 2000-2012
+            - **Global Coverage**: Available for all land areas worldwide
+            - **30-meter Resolution**: Detailed spatial analysis
+            - **Source**: University of Maryland, based on Landsat imagery
+            
+            [Learn more](https://developers.google.com/earth-engine/datasets/catalog/UMD_hansen_global_forest_change_2024_v1_12)
+            """)
 
 
 # ============================================================================
@@ -886,6 +1208,12 @@ if "mapbiomas_layers" not in st.session_state:
     st.session_state.mapbiomas_layers = {}  # {year: True/False}
 if "hansen_layers" not in st.session_state:
     st.session_state.hansen_layers = {}  # {year: True/False}
+if "hansen_gfc_tree_cover" not in st.session_state:
+    st.session_state.hansen_gfc_tree_cover = False
+if "hansen_gfc_tree_loss" not in st.session_state:
+    st.session_state.hansen_gfc_tree_loss = False
+if "hansen_gfc_tree_gain" not in st.session_state:
+    st.session_state.hansen_gfc_tree_gain = False
 if "last_drawn_feature" not in st.session_state:
     st.session_state.last_drawn_feature = None
 if "all_drawn_features" not in st.session_state:
@@ -1129,7 +1457,7 @@ with st.expander("📚 How to Use This Platform", expanded=False):
 
 # Display current layer configuration
 if st.session_state.data_loaded:
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Base Layer", "OpenStreetMap", help="Switch in map controls (top-right)")
@@ -1140,12 +1468,20 @@ if st.session_state.data_loaded:
         
     with col3:
         hansen_count = len([y for y, v in st.session_state.hansen_layers.items() if v])
-        st.metric("Hansen Layers", hansen_count, help="Global forest change (2000-2020)")
+        st.metric("Hansen/GLAD Layers", hansen_count, help="Global land cover (2000-2020)")
+    
+    with col4:
+        hansen_gfc_count = sum([
+            st.session_state.get('hansen_gfc_tree_cover', False),
+            st.session_state.get('hansen_gfc_tree_loss', False),
+            st.session_state.get('hansen_gfc_tree_gain', False)
+        ])
+        st.metric("Hansen GFC Layers", hansen_gfc_count, help="Global Forest Change (2000-2024)")
     
     # Show active layers
     st.divider()
     st.subheader("📋 Active Layers")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.session_state.mapbiomas_layers:
@@ -1162,12 +1498,29 @@ if st.session_state.data_loaded:
         if st.session_state.hansen_layers:
             years = sorted([y for y, v in st.session_state.hansen_layers.items() if v])
             if years:
-                st.write("**Hansen Years:**")
+                st.write("**Hansen/GLAD Years:**")
                 st.write(", ".join(map(str, years)))
             else:
                 st.caption("No Hansen layers selected")
         else:
             st.caption("No Hansen layers added")
+    
+    with col3:
+        hansen_gfc_layers = []
+        if st.session_state.get('hansen_gfc_tree_cover', False):
+            hansen_gfc_layers.append("Tree Cover 2000")
+        if st.session_state.get('hansen_gfc_tree_loss', False):
+            hansen_gfc_layers.append("Tree Loss (2001-2024)")
+        if st.session_state.get('hansen_gfc_tree_gain', False):
+            hansen_gfc_layers.append("Tree Gain (2000-2012)")
+        
+        if hansen_gfc_layers:
+            st.write("**Hansen GFC:**")
+            for layer in hansen_gfc_layers:
+                st.caption(f"• {layer}")
+        else:
+            st.caption("No Hansen GFC layers added")
+
 
 # ============================================================================
 # MAP DISPLAY
@@ -1682,31 +2035,31 @@ if st.session_state.data_loaded and st.session_state.app:
                     
                     # ===== ORIGINAL AREA TAB =====
                     with main_tab1:
-                        tab1, tab2, tab3, tab4 = st.tabs(
-                            ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                        tab1, tab2, tab3, tab4, tab5 = st.tabs(
+                            ["📍 MapBiomas Analysis", "🌍 Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "📈 Comparison", "ℹ️ About"]
                         )
                         
                         # Use existing analysis code for original geometry
-                        render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original")
+                        render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, area_prefix="original")
                     
                     # ===== BUFFER ZONE TAB =====
                     with main_tab2:
-                        buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4 = st.tabs(
-                            ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                        buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5 = st.tabs(
+                            ["📍 MapBiomas Analysis", "🌍 Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "📈 Comparison", "ℹ️ About"]
                         )
                         
                         # Use same analysis code for buffer geometry
-                        render_analysis_tabs(buffer_geom, buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, 
+                        render_analysis_tabs(buffer_geom, buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5,
                                            area_prefix="buffer", buffer_name=st.session_state.current_buffer_for_analysis,
                                            buffer_size=buffer_meta['buffer_size_km'])
                 else:
                     # Standard tabs without buffer comparison
-                    tab1, tab2, tab3, tab4 = st.tabs(
-                        ["📍 MapBiomas Analysis", "🌍 Hansen Analysis", "📈 Comparison", "ℹ️ About"]
+                    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+                        ["📍 MapBiomas Analysis", "🌍 Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "📈 Comparison", "ℹ️ About"]
                     )
                     
                     # Render standard analysis
-                    render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, area_prefix="original")
+                    render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, area_prefix="original")
         except Exception as e:
             st.error(f"Error processing drawn feature: {e}")
             print(f"Analysis error: {e}")

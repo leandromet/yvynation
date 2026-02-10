@@ -60,6 +60,8 @@ earthengine authenticate
 ### Run the Application
 
 ```bash
+#use an alternative python environment
+source .venv/bin/activate
 # Start the Streamlit app
 streamlit run streamlit_app.py
 ```

@@ -45,6 +45,38 @@ HANSEN_DATASETS = {
 
 HANSEN_OCEAN_MASK = 'projects/glad/OceanMask'
 
+# ==============================================================================
+# HANSEN GLOBAL FOREST CHANGE CONFIGURATION
+# ==============================================================================
+# Hansen/UMD Global Forest Change dataset
+# Tracks global tree cover, loss, and gain from 2000-2024
+# Reference: https://developers.google.com/earth-engine/datasets/catalog/UMD_hansen_global_forest_change_2024_v1_12
+HANSEN_GFC_DATASET = 'UMD/hansen/global_forest_change_2024_v1_12'
+
+# Tree cover visualization parameters (year 2000)
+HANSEN_GFC_TREE_COVER_VIS = {
+    'bands': ['treecover2000'],
+    'min': 0,
+    'max': 100,
+    'palette': ['black', 'green']
+}
+
+# Tree loss by year visualization parameters (years 0-24 = 2001-2024)
+HANSEN_GFC_TREE_LOSS_VIS = {
+    'bands': ['lossyear'],
+    'min': 0,
+    'max': 24,
+    'palette': ['yellow', 'red']
+}
+
+# Tree gain visualization parameters
+HANSEN_GFC_TREE_GAIN_VIS = {
+    'bands': ['gain'],
+    'min': 0,
+    'max': 1,
+    'palette': ['#000000', '#00FF00']
+}
+
 HANSEN_PALETTE = [
     "FEFECC","FAFAC3","F7F7BB","F4F4B3","F1F1AB","EDEDA2","EAEA9A","E7E792","E4E48A",
     "E0E081","DDDD79","DADA71","D7D769","D3D360","D0D058","CDCD50","CACA48","C6C63F","C3C337","C0C02F","BDBD27","B9B91E","B6B616",
