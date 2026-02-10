@@ -275,3 +275,58 @@ for i in range(63):
         MAPBIOMAS_PALETTE.append(MAPBIOMAS_COLOR_MAP[i].lstrip('#'))
     else:
         MAPBIOMAS_PALETTE.append('808080')  # Gray for undefined classes
+
+# ==============================================================================
+# AAFC ANNUAL CROP INVENTORY (CANADA)
+# ==============================================================================
+# Agriculture and Agri-Food Canada crop inventory dataset
+# Available for 2009-2024 with 30m resolution
+# Reference: https://developers.google.com/earth-engine/datasets/catalog/AAFC_ACI
+AAFC_ACI_DATASET = 'AAFC/ACI'
+
+# Crop labels for AAFC (value -> description)
+AAFC_LABELS = {
+    10: "Cloud", 20: "Water", 30: "Exposed Land and Barren", 34: "Urban and Developed",
+    35: "Greenhouses", 50: "Shrubland", 60: "Forest Fire and Burnt Area", 80: "Wetland",
+    85: "Peatland", 110: "Grassland", 120: "Agriculture (undifferentiated)", 121: "Cropland",
+    122: "Pasture and Forages", 130: "Too Wet to be Seeded", 131: "Fallow", 132: "Cereals",
+    133: "Barley", 134: "Other Grains", 135: "Millet", 136: "Oats", 137: "Rye", 138: "Spelt",
+    139: "Triticale", 140: "Wheat", 141: "Switchgrass", 142: "Sorghum", 143: "Quinoa",
+    145: "Winter Wheat", 146: "Spring Wheat", 147: "Corn for Grain", 148: "Tobacco",
+    149: "Ginseng", 150: "Oilseeds", 151: "Borage", 152: "Camelina", 153: "Canola and Rapeseed",
+    154: "Flaxseed", 155: "Mustard", 156: "Safflower", 157: "Sunflower", 158: "Soybeans",
+    159: "Other Oilseeds", 160: "Pulses", 161: "Other Pulses", 162: "Peas", 163: "Chickpeas",
+    167: "Beans", 168: "Fababeans", 174: "Lentils", 175: "Vegetables", 176: "Tomatoes",
+    177: "Potatoes", 178: "Sugarbeets", 179: "Other Vegetables", 180: "Fruits", 181: "Berries",
+    182: "Blueberry", 183: "Cranberry", 185: "Other Berries", 188: "Orchards", 189: "Other Fruits",
+    190: "Vineyards", 191: "Hops", 192: "Sod", 193: "Herbs", 194: "Nursery", 195: "Buckwheat",
+    196: "Canaryseed", 197: "Hemp", 198: "Vetch", 199: "Other Crops", 200: "Forest (undifferentiated)",
+    210: "Coniferous", 220: "Broadleaf", 230: "Mixedwood"
+}
+
+# AAFC color map for visualization (discrete AAFC values and their colors)
+AAFC_COLOR_MAP = {
+    10: "#000000", 20: "#3333ff", 30: "#996666", 34: "#cc6699", 35: "#e1e1e1",
+    50: "#ffff00", 60: "#666666", 80: "#993399", 85: "#501b50", 110: "#cccc00",
+    120: "#cc6600", 121: "#ff9933", 122: "#ffcc33", 130: "#7899f6", 131: "#ff9900",
+    132: "#660000", 133: "#dae31d", 134: "#99cc00", 135: "#d2db25", 136: "#d1d52b",
+    137: "#cacd32", 138: "#c3c63a", 139: "#b9bc44", 140: "#a7b34d", 141: "#b9c64e",
+    142: "#999900", 143: "#e9e2b1", 145: "#809769", 146: "#92a55b", 147: "#ffff99",
+    148: "#98887c", 149: "#799b93", 150: "#5ea263", 151: "#52ae77", 152: "#41bf7a",
+    153: "#d6ff70", 154: "#8c8cff", 155: "#d6cc00", 156: "#ff7f00", 157: "#315491",
+    158: "#cc9933", 159: "#5ea296", 160: "#896e43", 161: "#996633", 162: "#8f6c3d",
+    163: "#b6a472", 167: "#82654a", 168: "#a39069", 174: "#b85900", 175: "#b74b15",
+    176: "#ff8a8a", 177: "#ffcccc", 178: "#6f55ca", 179: "#ffccff", 180: "#dc5424",
+    181: "#d05a30", 182: "#d20000", 183: "#cc0000", 185: "#dc3200", 188: "#ff6666",
+    189: "#c5453b", 190: "#7442bd", 191: "#ffcc99", 192: "#b5fb05", 193: "#ccff05",
+    194: "#07f98c", 195: "#00ffcc", 196: "#cc33cc", 197: "#8e7672", 198: "#b1954f",
+    199: "#749a66", 200: "#009900", 210: "#006600", 220: "#00cc00", 230: "#cc9900"
+}
+
+# Build 256-element palette for Earth Engine visualization
+# AAFC pixel values are discrete (10, 20, 30, 34, 35, 50... 230), not sequential
+# Map each value to its color; unmapped indices default to grey
+AAFC_PALETTE = ["cccccc"] * 256  # Initialize all 256 positions with grey
+for value, color in AAFC_COLOR_MAP.items():
+    # Remove '#' from color hex and add to palette at the value's index
+    AAFC_PALETTE[value] = color.lstrip('#')

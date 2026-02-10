@@ -284,6 +284,58 @@ def analyze_hansen_gfc_geometry(geometry, area_name="Area"):
     return None
 
 
+def analyze_aafc_geometry(geometry, year, area_name="Area"):
+    """
+    Analyze AAFC Annual Crop Inventory data for a given geometry and year (Canada).
+    
+    Returns:
+        pd.DataFrame: Analysis results or None if error
+    """
+    try:
+        from config import AAFC_ACI_DATASET, AAFC_LABELS
+        
+        with st.spinner(f"Analyzing AAFC {year} for {area_name}..."):
+            # Filter image collection to specific year
+            aafc_image = ee.ImageCollection(AAFC_ACI_DATASET).filter(
+                ee.Filter.date(f'{year}-01-01', f'{year}-12-31')
+            ).first()
+            
+            if aafc_image is None:
+                st.warning(f"No AAFC data found for year {year}")
+                return None
+            
+            # Get the landcover band
+            landcover = aafc_image.select(['landcover'])
+            
+            stats = landcover.reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=geometry,
+                scale=30,
+                maxPixels=1e9
+            ).getInfo()
+            
+            if stats:
+                histogram = stats.get('landcover', {})
+                if histogram:
+                    records = []
+                    for value_str, count in histogram.items():
+                        value = int(value_str)
+                        crop_name = AAFC_LABELS.get(value, f"Class {value}")
+                        area_ha = count * 0.09
+                        records.append({
+                            'Class_ID': value,
+                            'Class': crop_name,
+                            'Pixels': int(count),
+                            'Area_ha': round(area_ha, 2)
+                        })
+                    df = pd.DataFrame(records).sort_values('Area_ha', ascending=False)
+                    return df
+    except Exception as e:
+        st.error(f"Error analyzing AAFC for {area_name}: {str(e)[:200]}")
+        print(f"Full error: {e}")
+    return None
+
+
 def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, area_prefix="original", buffer_name=None, buffer_size=None):
     """
     Render the complete analysis tab structure for a given geometry.
@@ -1206,10 +1258,14 @@ if "current_mapbiomas_year" not in st.session_state:
     st.session_state.current_mapbiomas_year = 2023
 if "current_hansen_year" not in st.session_state:
     st.session_state.current_hansen_year = "2020"
+if "current_aafc_year" not in st.session_state:
+    st.session_state.current_aafc_year = 2023
 if "mapbiomas_layers" not in st.session_state:
     st.session_state.mapbiomas_layers = {}  # {year: True/False}
 if "hansen_layers" not in st.session_state:
     st.session_state.hansen_layers = {}  # {year: True/False}
+if "aafc_layers" not in st.session_state:
+    st.session_state.aafc_layers = {}  # {year: True/False}
 if "hansen_gfc_tree_cover" not in st.session_state:
     st.session_state.hansen_gfc_tree_cover = False
 if "hansen_gfc_tree_loss" not in st.session_state:

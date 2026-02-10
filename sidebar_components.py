@@ -116,7 +116,29 @@ def render_layer_selection():
                     st.success("✓ Added Tree Loss (2001-2024)")
             
             st.info("💡 Tree loss shows years 2001-2024 in yellow→red gradient", icon="ℹ️")
-
+        
+        # AAFC Annual Crop Inventory section - Only show for Canada
+        if st.session_state.selected_country == "Canada":
+            with st.sidebar.expander("🚜 AAFC Crop Inventory (Canada)", expanded=False):
+                st.write("Agricultural land cover in Canada (2009-2024):")
+                st.caption("Agriculture and Agri-Food Canada detailed crop classification at 30m resolution")
+                
+                aafc_years = list(range(2009, 2025))
+                aafc_year = st.select_slider(
+                    "Year",
+                    options=aafc_years,
+                    value=st.session_state.get('current_aafc_year', 2023),
+                    key="aafc_year_slider"
+                )
+                if st.button("➕ Add AAFC Layer", width="stretch", key="add_aafc"):
+                    st.session_state.aafc_layers[aafc_year] = True
+                    st.session_state.current_aafc_year = aafc_year
+                    st.success(f"✓ Added AAFC {aafc_year}")
+                
+                st.info("💡 Shows detailed crop types, forests, water, and urban areas", icon="ℹ️")
+        else:
+            if st.session_state.selected_country == "Brazil":
+                st.info("🚜 AAFC Crop Inventory is only available for Canada. Select Canada above to access.", icon="ℹ️")
 
 
 def render_territory_analysis():

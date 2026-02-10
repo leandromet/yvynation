@@ -13,7 +13,8 @@ from ee_layers import (
     add_hansen_layer, 
     add_hansen_gfc_tree_cover,
     add_hansen_gfc_tree_loss,
-    add_hansen_gfc_tree_gain
+    add_hansen_gfc_tree_gain,
+    add_aafc_layer
 )
 from config import MAPBIOMAS_PALETTE, HANSEN_PALETTE
 from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
@@ -86,6 +87,14 @@ def build_and_display_map():
         result = add_hansen_gfc_tree_gain(display_map, opacity=0.8, shown=True)
         if result is not None:
             display_map = result
+
+    # Add AAFC Annual Crop Inventory layers (Canada)
+    if st.session_state.get('aafc_layers'):
+        for year in st.session_state.aafc_layers:
+            if st.session_state.aafc_layers[year]:
+                result = add_aafc_layer(display_map, year=year, opacity=0.8, shown=True)
+                if result is not None:
+                    display_map = result
 
     # Add territory boundary layer if requested
     if st.session_state.add_territory_layer_to_map and st.session_state.territory_geom and st.session_state.territory_layer_name:
@@ -301,6 +310,7 @@ def build_and_display_map():
             active_layers = 1  # Basemap
             active_layers += len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
             active_layers += len([y for y, v in st.session_state.hansen_layers.items() if v])
+            active_layers += len([y for y, v in st.session_state.get('aafc_layers', {}).items() if v])
         st.metric("Active Layers", active_layers)
 
     try:
@@ -540,6 +550,29 @@ def render_layer_reference_guide():
         hansen_gfc_legend_html += "</div>"
         st.markdown(hansen_gfc_legend_html, unsafe_allow_html=True)
         
+        # AAFC Legend
+        st.markdown("### 🚜 AAFC Annual Crop Inventory (Canada)")
+        st.caption("Agricultural land cover in Canada (2009-2024, 30m resolution)")
+        aafc_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
+        aafc_legend_data = [
+            ("Agriculture (undifferentiated)", "#cc6600"),
+            ("Cropland", "#ff9933"),
+            ("Pasture and Forages", "#ffcc33"),
+            ("Cereals", "#660000"),
+            ("Wheat", "#a7b34d"),
+            ("Canola and Rapeseed", "#d6ff70"),
+            ("Corn for Grain", "#ffff99"),
+            ("Soybeans", "#cc9933"),
+            ("Grassland", "#cccc00"),
+            ("Forest", "#009900"),
+            ("Water", "#3333ff"),
+            ("Urban and Developed", "#cc6699"),
+        ]
+        for label, color in aafc_legend_data:
+            aafc_legend_html += f"<span><span style='color: {color}; font-size: 16px;'>■</span> {label}</span>"
+        aafc_legend_html += "</div>"
+        st.markdown(aafc_legend_html, unsafe_allow_html=True)
+        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -565,5 +598,6 @@ def render_layer_reference_guide():
             st.caption("""
             - 🌱 MapBiomas: Brazilian land cover (1985-2023)
             - 🌍 Hansen: Global forest change (2000-2020)
+            - 🚜 AAFC: Canadian crop inventory (2009-2024)
             - 📍 Indigenous Territories
             """)

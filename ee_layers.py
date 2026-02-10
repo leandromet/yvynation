@@ -286,3 +286,62 @@ def add_hansen_gfc_tree_gain(m, opacity=1.0, shown=True):
         import traceback
         traceback.print_exc()
         return None
+
+
+def add_aafc_layer(m, year, opacity=1.0, shown=True):
+    """
+    Add AAFC Annual Crop Inventory layer to map for a specific year (Canada only).
+    
+    Args:
+        m (folium.Map): Map object to add layer to
+        year (int): Year to display (2009-2024)
+        opacity (float): Layer opacity (0-1)
+        shown (bool): Whether layer is visible by default
+    
+    Returns:
+        folium.Map: Updated map object or None if error
+    """
+    try:
+        from config import AAFC_ACI_DATASET, AAFC_PALETTE
+        
+        print(f"Adding AAFC Annual Crop Inventory {year} layer...")
+        
+        # Filter image collection to specific year
+        aafc_image = ee.ImageCollection(AAFC_ACI_DATASET).filter(
+            ee.Filter.date(f'{year}-01-01', f'{year}-12-31')
+        ).first()
+        
+        if aafc_image is None:
+            print(f"❌ No AAFC data found for year {year}")
+            return None
+        
+        # Get the landcover band
+        landcover = aafc_image.select(['landcover'])
+        
+        # Use 256-element palette with discrete AAFC values (10, 20, 30, 34, 35... 230)
+        # Unmapped pixel values default to grey
+        vis_params = {
+            'min': 0,
+            'max': 255,
+            'palette': AAFC_PALETTE
+        }
+        
+        map_id = landcover.getMapId(vis_params)
+        
+        folium.TileLayer(
+            tiles=map_id['tile_fetcher'].url_format,
+            attr='Map data: AAFC Annual Crop Inventory',
+            name=f"AAFC Crop Inventory {year}",
+            overlay=True,
+            control=True,
+            opacity=opacity,
+            show=shown
+        ).add_to(m)
+        
+        print(f"✓ AAFC {year} added")
+        return m
+    except Exception as e:
+        print(f"❌ Error adding AAFC layer: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
