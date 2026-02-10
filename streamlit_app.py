@@ -1198,6 +1198,8 @@ if "app" not in st.session_state:
         st.session_state.data_loaded = True
 
 # Initialize session state
+if "selected_country" not in st.session_state:
+    st.session_state.selected_country = "Brazil"
 if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 if "current_mapbiomas_year" not in st.session_state:

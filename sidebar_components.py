@@ -23,6 +23,33 @@ def render_sidebar_header():
     st.sidebar.divider()
 
 
+def render_country_selection():
+    """Render country selection controls."""
+    st.sidebar.subheader("🌎 Select Region")
+    
+    # Initialize country selection if not present
+    if "selected_country" not in st.session_state:
+        st.session_state.selected_country = "Brazil"
+    
+    # Country selection with flags
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button(f"🇧🇷 Brazil", 
+                    use_container_width=True,
+                    type="primary" if st.session_state.selected_country == "Brazil" else "secondary"):
+            st.session_state.selected_country = "Brazil"
+            st.rerun()
+    
+    with col2:
+        if st.button(f"🇨🇦 Canada", 
+                    use_container_width=True,
+                    type="primary" if st.session_state.selected_country == "Canada" else "secondary"):
+            st.session_state.selected_country = "Canada"
+            st.rerun()
+    
+    st.caption(f"Current region: **{st.session_state.selected_country}**")
+
+
 def render_map_controls():
     """Render map controls help section."""
     with st.sidebar.expander("🎛️ Map Controls", expanded=False):
@@ -36,19 +63,22 @@ def render_layer_selection():
     if st.session_state.data_loaded:
         st.sidebar.subheader("🗺️ Add Map Layers")
         
-        # MapBiomas section
-        with st.sidebar.expander("MapBiomas (Brazil)", expanded=True):
-            st.write("Select a year and add to map:")
-            mapbiomas_year = st.select_slider(
-                "Year",
-                options=list(range(1985, 2024)),
-                value=st.session_state.current_mapbiomas_year,
-                key="mb_year_slider"
-            )
-            if st.button("➕ Add MapBiomas Layer", width="stretch", key="add_mapbiomas"):
-                st.session_state.mapbiomas_layers[mapbiomas_year] = True
-                st.session_state.current_mapbiomas_year = mapbiomas_year
-                st.success(f"✓ Added MapBiomas {mapbiomas_year}")
+        # MapBiomas section - Only show for Brazil
+        if st.session_state.selected_country == "Brazil":
+            with st.sidebar.expander("MapBiomas (Brazil)", expanded=True):
+                st.write("Select a year and add to map:")
+                mapbiomas_year = st.select_slider(
+                    "Year",
+                    options=list(range(1985, 2024)),
+                    value=st.session_state.current_mapbiomas_year,
+                    key="mb_year_slider"
+                )
+                if st.button("➕ Add MapBiomas Layer", width="stretch", key="add_mapbiomas"):
+                    st.session_state.mapbiomas_layers[mapbiomas_year] = True
+                    st.session_state.current_mapbiomas_year = mapbiomas_year
+                    st.success(f"✓ Added MapBiomas {mapbiomas_year}")
+        else:
+            st.info("🇧🇷 MapBiomas is only available for Brazil. Select Brazil above to access.", icon="ℹ️")
         
         # Hansen section
         with st.sidebar.expander("Hansen/GLAD (Global)", expanded=False):
@@ -507,6 +537,8 @@ def render_about_section():
 def render_complete_sidebar():
     """Render the entire sidebar with all components."""
     render_sidebar_header()
+    render_country_selection()
+    st.sidebar.divider()
     render_map_controls()
     st.sidebar.divider()
     render_layer_selection()

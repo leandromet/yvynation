@@ -32,7 +32,8 @@ def build_and_display_map():
     """
     
     # Build map fresh each time with current layers
-    display_map = create_base_map()
+    selected_country = st.session_state.get('selected_country', 'Brazil')
+    display_map = create_base_map(country=selected_country)
 
     # Add territories
     if st.session_state.data_loaded and st.session_state.app:

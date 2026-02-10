@@ -8,18 +8,32 @@ import ee
 from config import MAPBIOMAS_PALETTE
 
 
-def create_base_map(center_lat=-15, center_lon=-50, zoom=4):
+def create_base_map(country="Brazil", center_lat=None, center_lon=None, zoom=None):
     """
     Create a base Folium map with standard basemap options.
     
     Args:
-        center_lat (float): Center latitude
-        center_lon (float): Center longitude
-        zoom (int): Initial zoom level
+        country (str): Country to center map on ("Brazil" or "Canada")
+        center_lat (float): Override center latitude (default based on country)
+        center_lon (float): Override center longitude (default based on country)
+        zoom (int): Override initial zoom level (default based on country)
     
     Returns:
         folium.Map: Base map object
     """
+    # Set coordinates based on country if not manually overridden
+    country_coordinates = {
+        "Brazil": {"lat": -15, "lon": -50, "zoom": 4},
+        "Canada": {"lat": 56, "lon": -95, "zoom": 3}
+    }
+    
+    coords = country_coordinates.get(country, country_coordinates["Brazil"])
+    if center_lat is None:
+        center_lat = coords["lat"]
+    if center_lon is None:
+        center_lon = coords["lon"]
+    if zoom is None:
+        zoom = coords["zoom"]
     # Create map with OpenStreetMap initially, then switch to Google Maps as default
     m = folium.Map(
         location=[center_lat, center_lon],
