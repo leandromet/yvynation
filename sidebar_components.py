@@ -13,19 +13,48 @@ from territory_analysis import (
     analyze_territory_hansen
 )
 from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
+from translations import t
 
 
 def render_sidebar_header():
     """Render the sidebar title and description."""
-    st.sidebar.title("🌎🌍🌏🏞️ Yvynation 🛰️🗺️🌳🌲")
-    st.sidebar.markdown("Indigenous Land Monitoring Platform")
-    st.sidebar.markdown("Leandro M. Biondo - PhD Candidate - IGS/UBCO")
+    st.sidebar.title(t("app_title"))
+    st.sidebar.markdown(t("app_subtitle"))
+    st.sidebar.markdown(t("author"))
+    st.sidebar.divider()
+
+
+def render_language_selection():
+    """Render language selection controls."""
+    st.sidebar.subheader(t("language"))
+    
+    # Initialize language if not present
+    if "language" not in st.session_state:
+        st.session_state.language = "en"
+    
+    # Language selection
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("🇬🇧 English",
+                    use_container_width=True,
+                    type="primary" if st.session_state.language == "en" else "secondary"):
+            st.session_state.language = "en"
+            st.rerun()
+    
+    with col2:
+        if st.button("🇧🇷 Português",
+                    use_container_width=True,
+                    type="primary" if st.session_state.language == "pt-br" else "secondary"):
+            st.session_state.language = "pt-br"
+            st.rerun()
+    
+    st.caption(f"**{st.session_state.language.upper()}**")
     st.sidebar.divider()
 
 
 def render_country_selection():
     """Render country selection controls."""
-    st.sidebar.subheader("🌎 Select Region")
+    st.sidebar.subheader(t("select_region"))
     
     # Initialize country selection if not present
     if "selected_country" not in st.session_state:
@@ -34,111 +63,111 @@ def render_country_selection():
     # Country selection with flags
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        if st.button(f"🇧🇷 Brazil", 
+        if st.button(t("brazil"),
                     use_container_width=True,
                     type="primary" if st.session_state.selected_country == "Brazil" else "secondary"):
             st.session_state.selected_country = "Brazil"
             st.rerun()
     
     with col2:
-        if st.button(f"🇨🇦 Canada", 
+        if st.button(t("canada"),
                     use_container_width=True,
                     type="primary" if st.session_state.selected_country == "Canada" else "secondary"):
             st.session_state.selected_country = "Canada"
             st.rerun()
     
-    st.caption(f"Current region: **{st.session_state.selected_country}**")
+    st.caption(f"{t('current_region')} **{st.session_state.selected_country}**")
 
 
 def render_map_controls():
     """Render map controls help section."""
-    with st.sidebar.expander("🎛️ Map Controls", expanded=False):
-        st.markdown("**Layer Control:** Look for the ⌗ icon in the top-right corner of the map to toggle layers on/off")
-        st.markdown("**Basemaps:** 6 basemap options available (OpenStreetMap, Google Maps, Google Satellite, ArcGIS Street, ArcGIS Satellite, ArcGIS Terrain) - Google Maps is selected by default")
-        st.info("Tip: Overlay multiple basemaps and data layers to compare different views", icon="💡")
+    with st.sidebar.expander(t("map_controls"), expanded=False):
+        st.markdown(f"**{t('layer_control')}:** {t('layer_control_hint')}")
+        st.markdown(f"**{t('basemaps_section')}:** {t('basemaps_info')} - {t('basemap_default')}")
+        st.info(f"💡 {t('overlay_tip')}", icon="💡")
 
 
 def render_layer_selection():
     """Render map layer selection controls (MapBiomas and Hansen)."""
     if st.session_state.data_loaded:
-        st.sidebar.subheader("🗺️ Add Map Layers")
+        st.sidebar.subheader("🗺️ " + t("add_layer_to_analyze").split("{")[0].strip())
         
         # MapBiomas section - Only show for Brazil
         if st.session_state.selected_country == "Brazil":
-            with st.sidebar.expander("MapBiomas (Brazil)", expanded=True):
-                st.write("Select a year and add to map:")
+            with st.sidebar.expander(t("mapbiomas_layer"), expanded=True):
+                st.write(t("year") + ":")
                 mapbiomas_year = st.select_slider(
-                    "Year",
+                    t("year"),
                     options=list(range(1985, 2024)),
                     value=st.session_state.current_mapbiomas_year,
                     key="mb_year_slider"
                 )
-                if st.button("➕ Add MapBiomas Layer", width="stretch", key="add_mapbiomas"):
+                if st.button(t("add_layer"), width="stretch", key="add_mapbiomas"):
                     st.session_state.mapbiomas_layers[mapbiomas_year] = True
                     st.session_state.current_mapbiomas_year = mapbiomas_year
-                    st.success(f"✓ Added MapBiomas {mapbiomas_year}")
+                    st.success(f"✓ {t('mapbiomas_layer')} {mapbiomas_year}")
         else:
-            st.info("🇧🇷 MapBiomas is only available for Brazil. Select Brazil above to access.", icon="ℹ️")
+            st.info(f"🇧🇷 {t('mapbiomas_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("brazil"), icon="ℹ️")
         
          # AAFC Annual Crop Inventory section - Only show for Canada
         if st.session_state.selected_country == "Canada":
-            with st.sidebar.expander("🚜 AAFC Crop Inventory (Canada)", expanded=True):
-                st.write("Agricultural land cover in Canada (2009-2024):")
-                st.caption("Agriculture and Agri-Food Canada detailed crop classification at 30m resolution")
+            with st.sidebar.expander(t("aafc_layer"), expanded=True):
+                st.write(t("analyze_territory") + ":")
+                st.caption(t("aafc_subtitle"))
                 
                 aafc_years = list(range(2009, 2025))
                 aafc_year = st.select_slider(
-                    "Year",
+                    t("year"),
                     options=aafc_years,
                     value=st.session_state.get('current_aafc_year', 2023),
                     key="aafc_year_slider"
                 )
-                if st.button("➕ Add AAFC Layer", width="stretch", key="add_aafc"):
+                if st.button(t("add_layer"), width="stretch", key="add_aafc"):
                     st.session_state.aafc_layers[aafc_year] = True
                     st.session_state.current_aafc_year = aafc_year
-                    st.success(f"✓ Added AAFC {aafc_year}")
+                    st.success(f"✓ {t('aafc_layer')} {aafc_year}")
                 
-                st.info("💡 Shows detailed crop types, forests, water, and urban areas", icon="ℹ️")
+                st.info(t("aafc_info"), icon="ℹ️")
         else:
             if st.session_state.selected_country == "Brazil":
-                st.info("🚜 AAFC Crop Inventory is only available for Canada. Select Canada above to access.", icon="ℹ️")
+                st.info(f"🚜 {t('aafc_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("canada"), icon="ℹ️")
 
         # Hansen section
-        with st.sidebar.expander("Hansen/GLAD (Global)", expanded=False):
-            st.write("Select a year and add to map:")
+        with st.sidebar.expander(t("hansen_layer"), expanded=False):
+            st.write("Select a year:")
             hansen_years = ["2000", "2005", "2010", "2015", "2020"]
             hansen_year = st.selectbox(
-                "Year",
+                t("year"),
                 options=hansen_years,
                 index=hansen_years.index(st.session_state.current_hansen_year),
                 key="hansen_year_select"
             )
-            if st.button("➕ Add Hansen Layer", width="stretch", key="add_hansen"):
+            if st.button(t("add_layer"), width="stretch", key="add_hansen"):
                 st.session_state.hansen_layers[hansen_year] = True
                 st.session_state.current_hansen_year = hansen_year
-                st.success(f"✓ Added Hansen {hansen_year}")
+                st.success(f"✓ {t('hansen_layer')} {hansen_year}")
         
         # Hansen Global Forest Change section
-        with st.sidebar.expander("🌲 Hansen Global Forest Change", expanded=False):
-            st.write("Global forest cover, loss, and gain (2000-2024):")
-            st.caption("University of Maryland dataset tracking forest dynamics worldwide")
+        with st.sidebar.expander(t("hansen_gfc_layer"), expanded=False):
+            st.write(t("tree_gain_desc") + ":")
+            st.caption(t("gfc_info"))
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🌳 Tree Cover 2000", key="add_hansen_gfc_cover", use_container_width=True):
+                if st.button(t("tree_cover"), key="add_hansen_gfc_cover", use_container_width=True):
                     st.session_state.hansen_gfc_tree_cover = True
-                    st.success("✓ Added Tree Cover 2000")
+                    st.success(f"✓ {t('tree_cover')}")
                     
-                if st.button("🌲 Tree Gain", key="add_hansen_gfc_gain", use_container_width=True):
+                if st.button(t("tree_gain"), key="add_hansen_gfc_gain", use_container_width=True):
                     st.session_state.hansen_gfc_tree_gain = True
-                    st.success("✓ Added Tree Gain (2000-2012)")
+                    st.success(f"✓ {t('tree_gain')}")
             
             with col2:
-                if st.button("🔥 Tree Loss", key="add_hansen_gfc_loss", use_container_width=True):
+                if st.button(t("tree_loss"), key="add_hansen_gfc_loss", use_container_width=True):
                     st.session_state.hansen_gfc_tree_loss = True
-                    st.success("✓ Added Tree Loss (2001-2024)")
+                    st.success(f"✓ {t('tree_loss')}")
             
-            st.info("💡 Tree loss shows years 2001-2024 in yellow→red gradient", icon="ℹ️")
+            st.info(t("tree_loss_desc"), icon="ℹ️")
         
        
 
@@ -146,29 +175,29 @@ def render_layer_selection():
 def render_territory_analysis():
     """Render territory analysis controls."""
     if st.session_state.data_loaded:
-        with st.sidebar.expander("🏛️ Indigenous Territories Analysis", expanded=False):
-            st.write("Analyze land cover in indigenous territories:")
+        with st.sidebar.expander(t("territory_analysis_title"), expanded=False):
+            st.write(t("analyze_territory_intro"))
             
             try:
                 territories_fc = st.session_state.app.territories
                 if territories_fc is None:
-                    st.error("❌ Territories data not loaded.")
+                    st.error(t("territories_not_loaded"))
                 else:
                     # Get territory names from Earth Engine
                     territory_names, name_prop = get_territory_names(territories_fc)
                     
                     if not territory_names or not name_prop:
-                        st.error("❌ Could not load territory names")
+                        st.error(t("territory_names_error"))
                     else:
                         selected_territory = st.selectbox(
-                            "Select a territory",
+                            t("select_a_territory"),
                             territory_names,
                             key="territory_select"
                         )
                         
                         # Data source selection
                         data_source = st.radio(
-                            "Data Source",
+                            t("data_source_label"),
                             ["MapBiomas", "Hansen/GLAD"],
                             horizontal=True,
                             key="territory_source_radio"
@@ -180,7 +209,7 @@ def render_territory_analysis():
                         with col1:
                             if data_source == "MapBiomas":
                                 territory_year = st.selectbox(
-                                    "Year 1",
+                                    t("year_1"),
                                     range(1985, 2024),
                                     index=38,
                                     key="year_territory_1"
@@ -188,18 +217,18 @@ def render_territory_analysis():
                             else:
                                 hansen_years = ["2000", "2005", "2010", "2015", "2020"]
                                 territory_year = st.selectbox(
-                                    "Year 1",
+                                    t("year_1"),
                                     hansen_years,
                                     index=4,
                                     key="year_territory_h1"
                                 )
                         
                         with col2:
-                            compare_mode = st.checkbox("Compare Years", value=False, key="territory_compare")
+                            compare_mode = st.checkbox(t("compare_years_label"), value=False, key="territory_compare")
                             if compare_mode:
                                 if data_source == "MapBiomas":
                                     territory_year2 = st.selectbox(
-                                        "Year 2",
+                                        t("year_2"),
                                         range(1985, 2024),
                                         index=30,
                                         key="year_territory_2"
@@ -207,7 +236,7 @@ def render_territory_analysis():
                                 else:
                                     hansen_years = ["2000", "2005", "2010", "2015", "2020"]
                                     territory_year2 = st.selectbox(
-                                        "Year 2",
+                                        t("year_2"),
                                         hansen_years,
                                         index=0,
                                         key="year_territory_h2"
@@ -217,9 +246,9 @@ def render_territory_analysis():
                         
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            analyze_btn = st.button("📊 Analyze", key="btn_analyze_territory", width="stretch")
+                            analyze_btn = st.button(t("btn_analyze"), key="btn_analyze_territory", width="stretch")
                         with col_btn2:
-                            add_layer_btn = st.button("➕ Zoom to Territory", key="btn_add_territory_layer", width="stretch")
+                            add_layer_btn = st.button(t("btn_zoom_territory"), key="btn_add_territory_layer", width="stretch")
                         if add_layer_btn:
                                 try:
                                     # Filter to selected territory and store geometry
@@ -233,14 +262,14 @@ def render_territory_analysis():
                                     st.session_state.add_territory_layer_to_map = True
                                     st.session_state.territory_layer_name = selected_territory
                                     
-                                    st.success(f"✅ Territory '{selected_territory}' added to map")
+                                    st.success(t("territory_added", territory=selected_territory))
                                 
                                 except Exception as e:
-                                    st.error(f"❌ Failed to add territory layer: {e}")
+                                    st.error(t("territory_add_failed", error=str(e)))
                                     traceback.print_exc()
                             
                         if analyze_btn:
-                                with st.spinner(f"Analyzing {selected_territory}..."):
+                                with st.spinner(t("analyzing_territory", territory=selected_territory)):
                                     try:
                                         # Save compare mode and year2 to session state for use in buffer analysis
                                         st.session_state.territory_compare_mode = compare_mode
@@ -249,7 +278,7 @@ def render_territory_analysis():
                                         # Get territory geometry
                                         territory_geom = get_territory_geometry(territories_fc, selected_territory, name_prop)
                                         if not territory_geom:
-                                            st.error("❌ Could not get territory geometry")
+                                            st.error(t("territory_geometry_error"))
                                         else:
                                             # Store geometry with distinct key for analysis
                                             st.session_state.territory_geom = territory_geom
@@ -317,24 +346,24 @@ def render_territory_analysis():
                                                     raise
                                             
                                             st.session_state.add_analysis_layer_to_map = True
-                                            st.success(f"✅ Analysis complete for {selected_territory}")
+                                            st.success(t("analysis_complete", territory=selected_territory))
                                     
                                     except Exception as e:
-                                        st.error(f"❌ Analysis failed: {e}")
+                                        st.error(t("analysis_failed", error=str(e)))
                                         traceback.print_exc()
 
 
                     # Add buffer zone option
                     st.divider()
-                    with st.sidebar.expander("⭕ Territory External Buffer Zone Analysis", expanded=False):
-                            st.markdown("**Create External Buffer Zone**")
-                            st.caption("Create a ring-shaped buffer around the territory for analysis")
+                    with st.sidebar.expander(t("buffer_zone_title"), expanded=False):
+                            st.markdown(f"**{t('buffer_zone_desc')}**")
+                            st.caption(t("buffer_zone_hint"))
                             
                             # Buffer compare mode toggle
                             buffer_compare = st.checkbox(
-                                "📊 Compare Territory vs Buffer",
+                                t("compare_buffer"),
                                 value=st.session_state.buffer_compare_mode,
-                                help="Analyze both territory and buffer zone side-by-side",
+                                help=t("compare_buffer_help"),
                                 key="territory_buffer_compare_toggle"
                             )
                             st.session_state.buffer_compare_mode = buffer_compare
@@ -342,13 +371,13 @@ def render_territory_analysis():
                             col_dist, col_create = st.columns([2, 1])
                             with col_dist:
                                 buffer_distance = st.selectbox(
-                                    "Buffer Distance",
+                                    t("buffer_distance_label"),
                                     options=[1, 2, 5, 10],
-                                    format_func=lambda x: f"{x} km",
+                                    format_func=lambda x: t("km_format", distance=x),
                                     key="territory_buffer_distance"
                                 )
                             with col_create:
-                                create_buffer_btn = st.button("🔵 Create Buffer", key="btn_create_territory_buffer", width="stretch")
+                                create_buffer_btn = st.button(t("btn_create_buffer"), key="btn_create_territory_buffer", width="stretch")
                             
                             if create_buffer_btn:
                                 try:
@@ -370,29 +399,29 @@ def render_territory_analysis():
                                     # If compare mode, set this buffer for comparison
                                     if st.session_state.buffer_compare_mode:
                                         st.session_state.current_buffer_for_analysis = buffer_name
-                                        st.success(f"✅ Created {buffer_distance}km buffer - Compare mode enabled!")
-                                        st.info("📊 Click 'Analyze' to compare territory vs buffer zone")
+                                        st.success(t("buffer_created", distance=buffer_distance))
+                                        st.info(t("buffer_compare_info"), icon="📊")
                                     else:
                                         st.session_state.current_buffer_for_analysis = buffer_name
-                                        st.success(f"✅ Created {buffer_distance}km buffer around '{selected_territory}'")
-                                        st.info("🔽 Use 'Analyze Buffer' button below to analyze just the buffer zone")
+                                        st.success(t("buffer_created_compare", distance=buffer_distance, territory=selected_territory))
+                                        st.info(t("buffer_analyze_info"), icon="🔽")
                                     
                                 except Exception as e:
-                                    st.error(f"❌ Failed to create buffer: {e}")
+                                    st.error(t("buffer_create_failed", error=str(e)))
                                     traceback.print_exc()
                             
                             # Show Analyze Buffer button if buffer exists
                             if st.session_state.current_buffer_for_analysis and st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries:
                                 st.divider()
-                                st.markdown("**🔵 Buffer Zone Analysis**")
+                                st.markdown(f"**{t('buffer_zone_analysis')}**")
                                 buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
-                                st.caption(f"Analyze the {buffer_meta['buffer_size_km']}km buffer zone around {buffer_meta['source_name']}")
+                                st.caption(t("buffer_analysis_hint", distance=buffer_meta['buffer_size_km'], territory=buffer_meta['source_name']))
                                 
                                 col_buffer_analyze, col_buffer_zoom = st.columns(2)
                                 with col_buffer_analyze:
-                                    analyze_buffer_btn = st.button("🔍 Analyze Buffer Zone", key="btn_analyze_territory_buffer", width="stretch")
+                                    analyze_buffer_btn = st.button(t("btn_analyze_buffer"), key="btn_analyze_territory_buffer", width="stretch")
                                 with col_buffer_zoom:
-                                    zoom_buffer_btn = st.button("🔭 Zoom to Buffer", key="btn_zoom_territory_buffer", width="stretch")
+                                    zoom_buffer_btn = st.button(t("btn_zoom_buffer"), key="btn_zoom_territory_buffer", width="stretch")
                                 
                                 if zoom_buffer_btn:
                                     try:
@@ -405,14 +434,14 @@ def render_territory_analysis():
                                         st.session_state.add_buffer_layer_to_map = True
                                         st.session_state.buffer_layer_name = buffer_name
                                         
-                                        st.success(f"✅ Buffer '{buffer_meta['buffer_size_km']}km' added to map - scroll down to see map")
+                                        st.success(t("buffer_added", distance=buffer_meta['buffer_size_km']))
                                     
                                     except Exception as e:
-                                        st.error(f"❌ Failed to add buffer layer: {e}")
+                                        st.error(t("buffer_added_error", error=str(e)))
                                         traceback.print_exc()
                                 
                                 if analyze_buffer_btn:
-                                    with st.spinner(f"Analyzing buffer zone..."):
+                                    with st.spinner(t("buffer_analyzing")):
                                         try:
                                             # Get buffer geometry and metadata
                                             buffer_name = st.session_state.current_buffer_for_analysis
@@ -474,11 +503,11 @@ def render_territory_analysis():
                                                     )
                                                     st.session_state.buffer_result_hansen_y2 = area_df2
                                             
-                                            st.success(f"✅ Buffer zone analysis complete!")
-                                            st.info("📊 Scroll down to see results")
+                                            st.success(t("buffer_analysis_complete"))
+                                            st.info(t("buffer_analysis_info"), icon="📊")
                                         
                                         except Exception as e:
-                                            st.error(f"❌ Failed to analyze buffer: {e}")
+                                            st.error(t("buffer_analysis_failed", error=str(e)))
                                             import traceback
                                             st.error(f"Full error: {traceback.format_exc()}")
                                             traceback.print_exc()
@@ -486,81 +515,74 @@ def render_territory_analysis():
                            
             
             except Exception as e:
-                st.error(f"❌ Territory analysis error: {e}")
+                st.error(t("territory_error", error=str(e)))
 
 
 def render_view_options():
     """Render view options (consolidated classes toggle)."""
-    with st.sidebar.expander("🎨 View Options", expanded=True):
+    with st.sidebar.expander(t("view_options"), expanded=True):
         use_consolidated = st.checkbox(
-            "Show Consolidated Classes",
+            t("show_consolidated"),
             value=st.session_state.use_consolidated_classes,
-            help="Group Hansen 256 classes into 12 consolidated categories for cleaner visualization"
+            help=t("consolidated_help")
         )
         st.session_state.use_consolidated_classes = use_consolidated
         
         if use_consolidated:
-            st.caption("📊 Consolidated view: 256 classes → 12 categories")
+            st.caption(t("consolidated_view"))
         else:
-            st.caption("📊 Detailed view: All 256 original classes")
+            st.caption(t("detailed_view"))
 
 
 def render_about_section():
     """Render the about/info section."""
-    with st.sidebar.expander("ℹ️ About", expanded=False):
-        st.sidebar.markdown("""
-        ### Project Overview
+    with st.sidebar.expander(t("about_title"), expanded=False):
+        st.sidebar.markdown(f"""
+        ### {t("about_overview")}
 
-        This land use and land cover analysis tool is part of a research project studying 
-        environmental changes in Brazilian Indigenous Territories using Google Earth Engine 
-        and MapBiomas data. This data is compared with policy changes and deforestation trends 
-        to understand the impacts on these critical lands.
+        {t("about_desc")}
 
-        **Leandro Meneguelli Biondo** - PhD Candidate in Sustainability - IGS/UBCO
-        Supervisor: Dr. Jon Corbett
+        **{t("about_author")}** - {t("about_role")} - {t("about_university")}
+        {t("about_supervisor")}
 
-        **Yvynation** is a name for this app, as it is not the full project content.
+        **{t("about_app_name")}** {t("about_app_note")}
 
-        "Yvy" (Tupi–Guarani) means land, earth, or territory — emphasizing the ground we walk 
-        on and our sacred connection to nature. It often relates to the concept of 
-        "Yvy marãe'ỹ" (Land without evil).
+        {t("yvynation_meaning")}
 
-        "Nation" refers to a self-governing community or people with shared culture, 
-        history, language, and land. It signifies self-determination and governance.
+        {t("nation_meaning")}
 
-        ### Data Sources
-        - **MapBiomas Collection 9**
-          - Resolution: 30 m
-          - Period: 1985–2023 (annual)
-          - Classes: 62 land cover categories
-          - License: Creative Commons Attribution 4.0
+        ### {t("data_sources_title")}
+        - **{t("mapbiomas_title")}**
+          - {t("mapbiomas_resolution")}
+          - {t("mapbiomas_period")}
+          - {t("mapbiomas_classes")}
+          - {t("mapbiomas_license")}
 
-        - **Indigenous Territories**
-          - 700+ Brazilian territories
-          - Vector boundaries with attributes
-          - MapBiomas Territories Project
+        - **{t("territories_title")}**
+          - {t("territories_desc")}
 
-        ### Features
+        ### {t("features_title")}
 
-        ✅ Interactive mapping with real-time data  
-        ✅ Area calculations and change detection  
-        ✅ Territory filtering by state or name  
-        ✅ Statistical visualizations  
-        ✅ Data export capabilities
+        ✅ {t("feature_mapping")}  
+        ✅ {t("feature_calculation")}  
+        ✅ {t("feature_filtering")}  
+        ✅ {t("feature_visualization")}  
+        ✅ {t("feature_export")}
 
-        ### Technologies
+        ### {t("tech_title")}
 
-        - Python 3.8+
-        - Google Earth Engine API
-        - geemap (interactive mapping)
-        - Streamlit (web interface)
-        - pandas, matplotlib, seaborn (analysis & visualization)
+        - {t("tech_python")}
+        - {t("tech_gee")}
+        - {t("tech_geemap")}
+        - {t("tech_streamlit")}
+        - {t("tech_science")}
         """)
 
 
 def render_complete_sidebar():
     """Render the entire sidebar with all components."""
     render_sidebar_header()
+    render_language_selection()
     render_country_selection()
     st.sidebar.divider()
     render_map_controls()

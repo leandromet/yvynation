@@ -5,9 +5,12 @@ Interactive analysis tool for land cover changes in indigenous territories
 
 import streamlit as st
 
+# Import translation helper
+from translations import t, get_translation
+
 # Page configuration
 st.set_page_config(
-    page_title="Yvynation - Earth Engine Analysis",
+    page_title=t("page_title"),
     page_icon="🏞️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -356,11 +359,11 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
     """
     
     with tab1:
-        st.markdown("### MapBiomas Land Cover Analysis")
+        st.markdown(f"### {t('mapbiomas_header')}")
         if st.session_state.mapbiomas_layers and st.session_state.app.mapbiomas_v9:
             years_to_analyze = [y for y, enabled in st.session_state.mapbiomas_layers.items() if enabled]
             if years_to_analyze:
-                st.write(f"Analyzing {len(years_to_analyze)} year(s) of data...")
+                st.write(t("analyzing_years", count=len(years_to_analyze)))
                 for year in sorted(years_to_analyze):
                     col1, col2 = st.columns([2, 1])
                     with col1:
@@ -407,7 +410,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                     # Show plot
                                     fig = plot_area_distribution(df, year=year, top_n=15)
                                     st.pyplot(fig, width="stretch")
-                                    st.success(f"✓ {year}: {len(records)} classes found")
+                                    st.success(t("year_classes_found", year=year, count=len(records)))
                                     
                                     # Store results for export
                                     if buffer_name:
@@ -428,19 +431,19 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                         key=f"dl_{area_prefix}_mb_{year}_{id(geometry)}"
                                     )
                                 else:
-                                    st.warning(f"Empty histogram for {year}")
+                                    st.warning(t("empty_histogram", year=year))
                             else:
-                                st.warning(f"No stats returned for {year}")
+                                st.warning(t("no_stats_returned", year=year))
                         except Exception as e:
-                            st.error(f"Error analyzing {year}: {str(e)[:200]}")
+                            st.error(t("error_analyzing_year", year=year, error=str(e)[:200]))
                             print(f"Full error: {e}")
             else:
-                st.info("Add a MapBiomas layer from the sidebar to analyze")
+                st.info(t("no_mapbiomas_layer"))
         else:
-            st.info("Load data and add a MapBiomas layer to begin analysis")
+            st.info(t("load_data_mapbiomas"))
     
     with tab2:
-        st.markdown("### Hansen/GLAD Forest Change Analysis")
+        st.markdown(f"### {t('hansen_header')}")
         if st.session_state.hansen_layers and st.session_state.app:
             years_to_analyze = [y for y, enabled in st.session_state.hansen_layers.items() if enabled]
             if years_to_analyze:
@@ -522,18 +525,18 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                         key=f"dl_{area_prefix}_hansen_{year}_{id(geometry)}"
                                     )
                                 else:
-                                    st.info("No data in selected area for this year")
+                                    st.info(t("no_data_area"))
                             else:
                                 st.info("No data in selected area for this year")
                         except Exception as e:
-                            st.error(f"Error analyzing {year}: {e}")
+                            st.error(t("error_analyzing_year", year=year, error=str(e)))
             else:
-                st.info("Add a Hansen layer from the sidebar to analyze")
+                st.info(t("no_hansen_layer"))
         else:
-            st.info("Load data and add a Hansen layer to begin analysis")
+            st.info(t("load_data_hansen"))
     
     with tab3:
-        st.markdown("### 🌲 Hansen Global Forest Change Analysis")
+        st.markdown(f"### {t('hansen_gfc_header')}")
         st.caption("Analyze tree cover, loss, and gain from 2000-2024")
         
         # Check if Hansen GFC layers are enabled
@@ -564,7 +567,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                 with gfc_tab1:
                     if 'tree_cover' in gfc_results:
                         df_cover = gfc_results['tree_cover']
-                        st.markdown("#### Tree Canopy Cover in Year 2000")
+                        st.markdown(f"#### {t('tree_cover_header')}")
                         st.caption("Percent of canopy cover (0-100%)")
                         
                         # Calculate statistics
@@ -604,13 +607,13 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             key=f"dl_{area_prefix}_tree_cover_{id(geometry)}"
                         )
                     else:
-                        st.info("No tree cover data available")
+                        st.info(t('no_tree_data'))
                 
                 # Tree Loss
                 with gfc_tab2:
                     if 'tree_loss' in gfc_results:
                         df_loss = gfc_results['tree_loss']
-                        st.markdown("#### Forest Loss by Year (2001-2024)")
+                        st.markdown(f"#### {t('tree_loss_header')}")
                         st.caption("Areas where tree cover was lost")
                         
                         # Separate no loss from loss years
@@ -662,13 +665,13 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             if not df_no_loss.empty:
                                 st.info(f"Total area with intact forest: {df_no_loss['Area_ha'].sum():,.0f} ha")
                     else:
-                        st.info("No tree loss data available")
+                        st.info(t('no_tree_loss_data'))
                 
                 # Tree Gain
                 with gfc_tab3:
                     if 'tree_gain' in gfc_results:
                         df_gain = gfc_results['tree_gain']
-                        st.markdown("#### Tree Cover Gain (2000-2012)")
+                        st.markdown(f"#### {t('tree_gain_header')}")
                         st.caption("Areas with forest regrowth or afforestation")
                         
                         # Separate gain from no gain
@@ -701,11 +704,11 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                 key=f"dl_{area_prefix}_tree_gain_{id(geometry)}"
                             )
                         else:
-                            st.info("No tree gain detected in this area during 2000-2012")
+                            st.info(t('no_gain_detected'))
                     else:
-                        st.info("No tree gain data available")
+                        st.info(t('no_tree_gain_data'))
         else:
-            st.info("👆 Add Hansen Global Forest Change layers from the sidebar to analyze tree cover dynamics")
+            st.info(t('add_gfc_layers'))
             st.markdown("""
             **Available Layers:**
             - 🌳 **Tree Cover 2000**: Baseline canopy cover percentage
@@ -716,7 +719,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
             """)
     
     with tab4:
-        st.markdown("### 🚜 AAFC Annual Crop Inventory Analysis (Canada)")
+        st.markdown(f"### {t('aafc_header')}")
         st.caption("Analyze crop and land cover classifications from Canada's Agricultural and Agri-Food dataset")
         
         # Check if we're in Canada and have AAFC data
@@ -1405,16 +1408,50 @@ render_complete_sidebar()
 # MAIN CONTENT
 # ============================================================================
 
+# Helper to get current language
+def get_lang():
+    return st.session_state.get('language', 'en')
+
 st.title("🌎 Yvynation - Land Cover Analysis 🏞️")
 
 # Tutorial section - main location
-with st.expander("📚 How to Use This Platform", expanded=False):
-    st.markdown("### 🎯 Getting Started\n\nThis platform enables comprehensive land cover analysis for Brazil and global forest monitoring. You can analyze custom areas, indigenous territories, and external buffer zones.")
+with st.expander(f"📚 {t('getting_started_header')}", expanded=False):
+    st.markdown(f"### {t('getting_started_title')}\n\n{t('getting_started_intro')}")
     
-    with st.expander("1️⃣ **Analyze a Custom Polygon**", expanded=False):
-        st.markdown("""
-        **Draw and analyze any area on the map:**
+    with st.expander(t('step_custom_polygon'), expanded=False):
+        st.markdown(f"**{t('step1_draw_intro')}**")
+        if get_lang() == 'pt-br':
+            st.markdown("""
+        1. **Ferramentas de Desenho** (canto superior esquerdo do mapa):
+           - Clique na ferramenta **Retângulo** (⬜) para seleções retangulares rápidas
+           - Clique na ferramenta **Polígono** (🔷) para formas personalizadas com múltiplos pontos
+           - Clique duplo ou clique no primeiro ponto novamente para completar um polígono
         
+        2. **Selecione Camadas de Dados** (barra lateral esquerda):
+           - **MapBiomas**: Cobertura do solo brasileira (1985-2023, 62 classes, resolução 30m)
+           - **Hansen/GLAD**: Mudanças florestais globais (2000-2020, 256 classes, resolução 30m)
+           - Alterne vários anos para ativar comparações
+        
+        3. **Resultados da Análise**:
+           - Distribuição de cobertura do solo por classe
+           - Estatísticas de área (hectares e percentuais)
+           - Gráficos visuais e tabelas de dados
+           - Arquivos CSV para download com prefixo "original_"
+        
+        4. **Análise de Zona de Buffer** (NOVO):
+           - Após desenhar, clique em "🔵 Adicionar Zona de Buffer"
+           - Escolha a distância do buffer: **2km**, **5km** ou **10km**
+           - Cria uma zona em forma de anel ao redor do seu polígono
+           - Ative "📊 Comparar Polígono vs Buffer" para analisar ambas as áreas lado a lado
+           - Arquivos CSV terão prefixo "buffer_" para dados da zona de buffer
+        
+        💡 **Dicas**:
+        - Exclua polígonos indesejados clicando no ícone de lixeira (🗑️) nas ferramentas de desenho
+        - Desenhe múltiplas áreas pequenas para comparar diferentes locais
+        - Use zonas de buffer para entender efeitos de borda e uso do solo circundante
+            """)
+        else:
+            st.markdown("""
         1. **Drawing Tools** (top-left corner of map):
            - Click the **Rectangle** tool (⬜) for quick rectangular selections
            - Click the **Polygon** tool (🔷) for custom shapes with multiple points
@@ -1442,10 +1479,41 @@ with st.expander("📚 How to Use This Platform", expanded=False):
         - Delete unwanted polygons by clicking the trash icon (🗑️) in drawing tools
         - Draw multiple small areas to compare different locations
         - Use buffer zones to understand edge effects and surrounding land use
-        """)
+            """)
     
-    with st.expander("2️⃣ **Analyze an Indigenous Territory**", expanded=False):
-        st.markdown("""
+    with st.expander(t('step_territory'), expanded=False):
+        st.markdown(f"**{t('step2_territory_intro')}**")
+        if get_lang() == 'pt-br':
+            st.markdown("""
+        **Limites de territórios indígenas pré-definidos com análise histórica:**
+        
+        1. **Selecionar Território** (aba 📊 Territory Analysis na barra lateral):
+           - Filtrar por **Estado** ou explorar todos os territórios
+           - Escolher entre 400+ terras indígenas oficialmente reconhecidas
+           - Ver metadados do território: área, localização, status de reconhecimento
+        
+        2. **Recursos de Análise de Território**:
+           - Mudanças históricas de cobertura do solo (1985-2023)
+           - Mudanças de área por classe de cobertura
+           - Tendências de desmatamento e regeneração
+           - Diagramas de transição (gráficos Sankey) mostrando conversões entre classes
+           - Exportar todos os dados e visualizações
+        
+        3. **Análise de Zona de Amortecimento para Territórios**:
+           - Criar **zonas de amortecimento externas** (2km/5km/10km) ao redor de todo o território
+           - Comparar uso do solo **dentro vs fora** da fronteira protegida
+           - Identificar zonas de pressão e padrões de invasão
+           - Ativar caixa "📊 Compare Territory vs Buffer"
+           - Resultados aparecem em abas separadas: **"📍 Original Area"** e **"🔵 Buffer Zone Xkm"**
+        
+        💡 **Dicas**:
+        - Compare múltiplos territórios no mesmo estado para identificar padrões regionais
+        - Use análise de amortecimento para avaliar ameaças externas e integridade de limites
+        - Comparações de longo prazo (1985 vs 2023) revelam efetividade da proteção
+        - Exporte dados para integração com software SIG ou relatórios
+            """)
+        else:
+            st.markdown("""
         **Pre-defined indigenous territory boundaries with historical analysis:**
         
         1. **Select Territory** (📊 Territory Analysis tab in sidebar):
@@ -1472,10 +1540,44 @@ with st.expander("📚 How to Use This Platform", expanded=False):
         - Use buffer analysis to assess external threats and boundary integrity
         - Long-term comparisons (1985 vs 2023) reveal protection effectiveness
         - Export data for integration with GIS software or reports
-        """)
+            """)
     
-    with st.expander("3️⃣ **Multi-Year Comparison**", expanded=False):
-        st.markdown("""
+    with st.expander(t('step_comparison'), expanded=False):
+        st.markdown(f"**{t('step3_comparison_intro')}**")
+        if get_lang() == 'pt-br':
+            st.markdown("""
+        **Compare mudanças de cobertura do solo entre quaisquer dois anos:**
+        
+        1. **Configurar Comparação** (aba 📈 Comparison):
+           - Primeiro selecione **2+ anos** nos controles de camada (barra lateral)
+           - Desenhe um polígono ou selecione um território
+           - Navegue até a aba **📈 Comparison**
+           - Escolha **Year 1** (linha de base) e **Year 2** (comparação)
+        
+        2. **Clique nos Botões de Comparação**:
+           - **🔄 Compare MapBiomas Years**: Mudanças de cobertura do solo brasileira
+           - **🔄 Compare Hansen Years**: Mudanças de floresta global
+        
+        3. **Ver Resultados**:
+           - **Data Table**: Valores de área lado a lado com cálculos de mudança
+           - **Side-by-side Charts**: Distribuição visual para cada ano
+           - **Gains & Losses**: Gráfico de barras horizontal mostrando aumentos/diminuições
+           - **Sankey Diagram**: Gráfico de fluxo mostrando transições de cobertura do solo
+           - **Summary Metrics**: Estatísticas-chave de uma olhada
+        
+        4. **Modo de Comparação de Amortecimento**:
+           - Quando comparação de amortecimento está habilitada, execute comparações em ambas as áreas
+           - Resultados aparecem em abas separadas para zonas originais e de amortecimento
+           - Baixe arquivos CSV separados para cada área
+        
+        💡 **Dicas**:
+        - **Tendências de longo prazo**: Compare 1985 vs 2023 para 38 anos de mudança
+        - **Mudanças recentes**: Compare anos consecutivos (2022 vs 2023) para atividade atual
+        - **Impacto de política**: Compare anos antes/depois da implementação de política
+        - **Eventos de desmatamento**: Use intervalos de 5 anos para identificar grandes mudanças
+            """)
+        else:
+            st.markdown("""
         **Compare land cover changes between any two years:**
         
         1. **Setup Comparison** (📈 Comparison tab):
@@ -1505,10 +1607,29 @@ with st.expander("📚 How to Use This Platform", expanded=False):
         - **Recent changes**: Compare consecutive years (2022 vs 2023) for current activity
         - **Policy impact**: Compare years before/after policy implementation
         - **Deforestation events**: Use 5-year intervals to identify major changes
-        """)
+            """)
     
-    with st.expander("4️⃣ **Export and Download Results**", expanded=False):
-        st.markdown("""
+    with st.expander(t('step_export'), expanded=False):
+        st.markdown(f"**{t('step4_export_intro')}**")
+        if get_lang() == 'pt-br':
+            st.markdown("""
+        **Salve os resultados da sua análise para relatórios e análise adicional:**
+        
+        - **Downloads CSV**: Clique em botões "📥 Download CSV" em cada aba de análise
+          - Dados de ano individual: `original_mapbiomas_2023.csv`
+          - Dados de zona de amortecimento: `buffer_mapbiomas_2023.csv`
+          - Tabelas de comparação com cálculos de mudança
+        
+        - **Exportações PNG**: Imagens de alta resolução do Earth Engine
+          - Exporte regiões de análise como imagens georreferenciadas
+          - Adequado para software SIG e publicações
+        
+        - **Relatórios PDF** (futuro): Resumos de análise abrangentes
+        
+        💡 **Dica**: Todos os downloads usam convenções de nomenclatura consistentes para fácil organização
+            """)
+        else:
+            st.markdown("""
         **Save your analysis results for reports and further analysis:**
         
         - **CSV Downloads**: Click "📥 Download CSV" buttons in each analysis tab
@@ -1523,10 +1644,44 @@ with st.expander("📚 How to Use This Platform", expanded=False):
         - **PDF Reports** (future): Comprehensive analysis summaries
         
         💡 **Tip**: All downloads use consistent naming conventions for easy organization
-        """)
+            """)
     
-    with st.expander("🗺️ **Map Controls & Navigation**", expanded=False):
-            st.markdown("""
+    with st.expander(t('step_map_controls'), expanded=False):
+            st.markdown(f"**{t('step5_map_controls_intro', default='Map Controls & Navigation')}**")
+            if get_lang() == 'pt-br':
+                st.markdown("""
+            **Navegação Básica:**
+            - **Zoom In/Out**: 
+              - Roda de scroll do mouse
+              - Botões **+/−** (canto superior esquerdo)
+              - Clique duplo para fazer zoom
+            - **Pan**: Clique e arraste em qualquer lugar do mapa
+            - **Fullscreen**: Clique no botão de tela cheia (área superior esquerda) para vista maior
+            
+            **Ferramentas de Desenho** (canto superior esquerdo):
+            - **✏️ Edit Layers**: Modifique polígonos existentes
+            - **🗑️ Delete Layers**: Remova polígonos indesejados
+            - **⬜ Draw Rectangle**: Áreas retangulares rápidas
+            - **🔷 Draw Polygon**: Formas personalizadas com múltiplos pontos
+            - **Finish Drawing**: Clique duplo ou clique no primeiro ponto para completar
+            
+            **Controles de Camada** (canto superior direito):
+            - **Base Layers**: Alterne entre visualizações OpenStreetMap, Satélite, Terreno
+            - **Overlays**: Alterne camadas MapBiomas e Hansen ligadas/desligadas
+            - **Transparency**: Algumas camadas suportam ajuste de transparência
+            - **Territory Boundaries**: Mostrar/ocultar limites de territórios indígenas
+            
+            **Recursos do Mapa:**
+            - **Anéis azul-céu**: Zonas de amortecimento externas (quando criadas)
+            - **Polígonos coloridos**: Suas áreas de análise desenhadas
+            - **Limites de território**: Limites de terras indígenas pré-carregados
+            - **Barra de escala**: Parte inferior esquerda mostra escala do mapa
+            - **Coordenadas**: Passe o mouse para ver latitude/longitude (se habilitado)
+            
+            💡 **Dica de Navegação**: Clique no botão de início para redefinir o mapa para vista inicial do Brasil
+                """)
+            else:
+                st.markdown("""
             **Basic Navigation:**
             - **Zoom In/Out**: 
               - Mouse scroll wheel
@@ -1556,10 +1711,52 @@ with st.expander("📚 How to Use This Platform", expanded=False):
             - **Coordinates**: Hover to see latitude/longitude (if enabled)
             
             💡 **Navigation Tip**: Click the home button to reset the map to initial Brazil view
-            """)
+                """)
         
-    with st.expander("📊 **Understanding the Data & Results**", expanded=False):
-            st.markdown("""
+    with st.expander(t('step_data_understanding'), expanded=False):
+            st.markdown(f"**{t('step6_data_understanding_intro', default='Understanding Data & Results')}**")
+            if get_lang() == 'pt-br':
+                st.markdown("""
+            **Fontes de Dados:**
+            
+            **MapBiomas Collection 9** (Brasil):
+            - **Cobertura**: Todo o Brasil, 1985-2023
+            - **Resolução**: 30 metros (baseado em Landsat)
+            - **Classes**: 62 tipos de cobertura do solo incluindo:
+              - Vegetação natural (floresta, savana, pastagem, zona úmida)
+              - Agricultura (culturas, pastagem, plantações)
+              - Áreas urbanas, corpos d'água, mineração
+            - **Frequência de atualização**: Lançamentos anuais
+            - **Precisão**: ~90% no geral (varia por classe e região)
+            
+            **Hansen/GLAD Global Forest Change**:
+            - **Cobertura**: Global (todos os continentes)
+            - **Resolução**: 30 metros (baseado em Landsat)
+            - **Classes**: 256 classes de uso do solo combinando:
+              - Presença/ausência de cobertura florestal
+              - Ano de perda de floresta (2000-2020)
+              - Ganho de floresta (2000-2012)
+              - Categorias de uso do solo
+            - **Melhor para**: Detecção e monitoramento de mudanças florestais
+            - **Consolidação**: Alterne "Use consolidated classes" para vista simplificada de 12 classes
+            
+            **Interpretação de Resultados:**
+            - **Área (ha)**: Hectares = 10.000 m² (cerca de 2,5 acres)
+            - **Pixels**: Cada pixel = 900 m² (30m × 30m)
+            - **Percentagens**: Calculadas a partir da área total analisada
+            - **Valores de mudança**: Positivo = aumento, Negativo = diminuição
+            - **Transições**: Fluxo de uma classe de cobertura do solo para outra
+            
+            **Gráficos & Visualizações:**
+            - **Gráficos de barras**: 15 principais classes por área (personalizável)
+            - **Diagramas Sankey**: Fluxo de transições de cobertura do solo entre anos
+            - **Ganhos & Perdas**: Barras horizontais mostrando aumentos (direita) e diminuições (esquerda)
+            - **Métricas de resumo**: Estatísticas-chave de uma olhada
+            
+            💡 **Nota de Precisão**: Os resultados dependem da qualidade dos dados de origem. Valide referenciando os dois conjuntos de dados.
+                """)
+            else:
+                st.markdown("""
             **Data Sources:**
             
             **MapBiomas Collection 9** (Brazil):
@@ -1597,7 +1794,7 @@ with st.expander("📚 How to Use This Platform", expanded=False):
             - **Summary metrics**: Key statistics at a glance
             
             💡 **Accuracy Note**: Results depend on source data quality. Cross-reference with both datasets for validation.
-            """)
+                """)
 
 # Display current layer configuration
 if st.session_state.data_loaded:
