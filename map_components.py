@@ -18,6 +18,7 @@ from ee_layers import (
 )
 from config import MAPBIOMAS_PALETTE, HANSEN_PALETTE
 from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
+from translations import t
 import ee
 import traceback
 
@@ -108,7 +109,7 @@ def build_and_display_map():
             # Create a GeoJSON layer with strong styling
             folium.GeoJson(
                 data=territory_geojson,
-                name=f"Territory: {territory_name}",
+                name=t("territory_layer", territory_name=territory_name),
                 style_function=lambda x: {
                     'fillColor': '#FF0000',
                     'color': '#FF0000',
@@ -153,7 +154,7 @@ def build_and_display_map():
             # Create a GeoJSON layer with distinct styling (blue for buffer)
             folium.GeoJson(
                 data=buffer_geojson,
-                name=f"Buffer: {buffer_name}",
+                name=t("buffer_geojson", buffer_name=buffer_name),
                 style_function=lambda x: {
                     'fillColor': '#0000FF',
                     'color': '#0000FF',
@@ -297,12 +298,12 @@ def build_and_display_map():
     draw.add_to(display_map)
 
     # Display the map and capture drawing data
-    st.subheader("🗺️ Interactive Map")
+    st.subheader(t("interactive_map"))
 
     # Show layer legend
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.caption("🎨 Draw polygons on the map to analyze land cover. Use the layer control (⌗ top-right) to toggle layers.")
+        st.caption(t("draw_instruction"))
     with col2:
         # Quick layer summary
         active_layers = 0
@@ -311,7 +312,7 @@ def build_and_display_map():
             active_layers += len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
             active_layers += len([y for y, v in st.session_state.hansen_layers.items() if v])
             active_layers += len([y for y, v in st.session_state.get('aafc_layers', {}).items() if v])
-        st.metric("Active Layers", active_layers)
+        st.metric(t("active_layers"), active_layers)
 
     try:
         # Store map object and territories for export functionality
@@ -330,7 +331,7 @@ def build_and_display_map():
         return map_data
     
     except Exception as e:
-        st.warning(f"Map display error: {e}")
+        st.warning(t("map_display_error", error=str(e)))
         print(f"Error displaying map: {e}")
         return None
 
@@ -352,19 +353,19 @@ def process_drawn_features(map_data):
             st.session_state.last_drawn_feature = map_data["all_drawings"][-1]
             
             # Show success message with count
-            st.success(f"✓ Captured {len(map_data['all_drawings'])} polygon(s). Select one below to analyze.")
+            st.success(t("captured_polygons", count=len(map_data['all_drawings'])))
         elif "last_active_drawing" in map_data and map_data["last_active_drawing"]:
             if map_data["last_active_drawing"] not in st.session_state.all_drawn_features:
                 st.session_state.all_drawn_features.append(map_data["last_active_drawing"])
             st.session_state.last_drawn_feature = map_data["last_active_drawing"]
-            st.success("✓ Polygon captured. Scroll down to analyze.")
+            st.success(t("polygon_captured"))
 
 
 def render_polygon_selector():
     """Render the polygon selector UI if multiple drawings exist."""
     if st.session_state.all_drawn_features:
         st.divider()
-        st.subheader("🎨 Select Polygon to Analyze")
+        st.subheader(t("select_polygon"))
         
         # Create labels for each polygon
         polygon_labels = []
@@ -374,7 +375,7 @@ def render_polygon_selector():
                 props = feature.get('properties', {})
                 if props.get('type') == 'external_buffer':
                     # This is a buffer - use its name directly
-                    buffer_name = props.get('name', f'Buffer {idx+1}')
+                    buffer_name = props.get('name', t("buffer_label", number=idx+1))
                     polygon_labels.append(f"🔵 {buffer_name}")
                     continue
                 
@@ -390,14 +391,14 @@ def render_polygon_selector():
                         bbox = f"[{min(all_lats):.2f}, {min(all_lons):.2f}, {max(all_lats):.2f}, {max(all_lons):.2f}]"
                     else:
                         bbox = "N/A"
-                    polygon_labels.append(f"Polygon {idx+1} - {geom_type} - Bounds: {bbox}")
+                    polygon_labels.append(t("polygon_bounds", number=idx+1, type=geom_type, bounds=bbox))
                 else:
-                    polygon_labels.append(f"Polygon {idx+1} - {geom_type}")
+                    polygon_labels.append(t("polygon_bounds", number=idx+1, type=geom_type, bounds="N/A"))
             except:
-                polygon_labels.append(f"Polygon {idx+1}")
+                polygon_labels.append(t("buffer_label", number=idx+1))
         
         selected_idx = st.selectbox(
-            "Choose a polygon to analyze:",
+            t("choose_polygon"),
             options=range(len(st.session_state.all_drawn_features)),
             format_func=lambda i: polygon_labels[i],
             key="polygon_selector"
@@ -413,20 +414,20 @@ def render_polygon_selector():
             
             if is_buffer:
                 buffer_name = selected_feature.get('properties', {}).get('name', '')
-                st.info(f"✓ Selected: {buffer_name}")
+                st.info(t("selected_buffer", buffer_name=buffer_name))
             else:
-                st.info(f"✓ Selected Polygon {selected_idx + 1} for analysis")
+                st.info(t("selected_polygon", number=selected_idx + 1))
                 
                 # Add buffer creation UI for non-buffer polygons
                 st.divider()
-                st.markdown("**Create External Buffer Zone**")
-                st.caption("Create a ring-shaped buffer around this polygon for analysis")
+                st.markdown("**" + t("buffer_zone_desc") + "**")
+                st.caption(t("buffer_ring_help"))
                 
                 # Buffer compare mode toggle
                 buffer_compare = st.checkbox(
-                    "📊 Compare Polygon vs Buffer",
+                    t("buffer_comparison"),
                     value=st.session_state.buffer_compare_mode,
-                    help="Analyze both polygon and buffer zone side-by-side",
+                    help=t("compare_help"),
                     key="polygon_buffer_compare_toggle"
                 )
                 st.session_state.buffer_compare_mode = buffer_compare
@@ -434,13 +435,13 @@ def render_polygon_selector():
                 col_dist, col_create = st.columns([2, 1])
                 with col_dist:
                     buffer_distance = st.selectbox(
-                        "Buffer Distance",
+                        t("buffer_distance"),
                         options=[2, 5, 10],
                         format_func=lambda x: f"{x} km",
                         key="polygon_buffer_distance"
                     )
                 with col_create:
-                    create_buffer_btn = st.button("🔵 Create Buffer", key="btn_create_polygon_buffer", width="stretch")
+                    create_buffer_btn = st.button(t("create_buffer"), key="btn_create_polygon_buffer", width="stretch")
                 
                 if create_buffer_btn:
                     try:
@@ -452,7 +453,7 @@ def render_polygon_selector():
                             coords = feature_geom.get('coordinates', [[]])
                             ee_geom = ee.Geometry.Polygon(coords)
                         else:
-                            st.error("❌ Can only create buffers for polygon features")
+                            st.error(t("polygon_only_error"))
                             return
                         
                         # Create and store the buffer
@@ -469,36 +470,36 @@ def render_polygon_selector():
                         # If compare mode, set this buffer for comparison
                         if st.session_state.buffer_compare_mode:
                             st.session_state.current_buffer_for_analysis = buffer_name
-                            st.success(f"✅ Created {buffer_distance}km buffer - Compare mode enabled!")
-                            st.info("📊 Analysis tabs will show both polygon and buffer results")
+                            st.success(t("buffer_created_compare", distance=buffer_distance))
+                            st.info(t("analysis_compare_info"))
                         else:
-                            st.success(f"✅ Created {buffer_distance}km buffer around {polygon_name}")
-                            st.info("📍 Buffer added to polygon list - refresh to select it")
+                            st.success(t("buffer_created", distance=buffer_distance, name=polygon_name))
+                            st.info(t("buffer_added_info"))
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"❌ Failed to create buffer: {e}")
+                        st.error(t("buffer_creation_error", error=str(e)))
                         traceback.print_exc()
 
 
 def render_layer_reference_guide():
     """Render the layer reference guide with legends."""
     st.divider()
-    with st.expander("📚 Layer Reference Guide - legends", expanded=False):
+    with st.expander(t("layer_reference_full"), expanded=False):
 
          # Indigenous Territories Legend
-        st.markdown("### 📍 Indigenous Lands & Territories")
+        st.markdown("### " + t("indigenous_territories_legend"))
         st.markdown(
             "<div style='display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;'>"
-            "<span><span style='color: #4B0082; font-size: 16px;'>■</span> Indigenous Territories</span>"
-            "<span><span style='color: #FF0000; font-size: 16px;'>■</span> Selected Territory</span>"
-            "<span><span style='color: #0033FF; font-size: 16px;'>■</span> Drawn Polygon</span>"
-            "<span><span style='color: #00BFFF; font-size: 16px;'>■</span> External Buffer Zone</span>"
+            "<span><span style='color: #4B0082; font-size: 16px;'>■</span> " + t("indigenous_territories_label") + "</span>"
+            "<span><span style='color: #FF0000; font-size: 16px;'>■</span> " + t("selected_territory_label") + "</span>"
+            "<span><span style='color: #0033FF; font-size: 16px;'>■</span> " + t("drawn_polygon_label") + "</span>"
+            "<span><span style='color: #00BFFF; font-size: 16px;'>■</span> " + t("buffer_zone_label") + "</span>"
             "</div>",
             unsafe_allow_html=True
         )
         # MapBiomas Legend
-        st.markdown("### 🌱 MapBiomas Land Cover Classes")
+        st.markdown("### " + t("mapbiomas_legend"))
         mapbiomas_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
         mapbiomas_legend_data = [
             ("Forest", "#1f8d49"),
@@ -518,7 +519,7 @@ def render_layer_reference_guide():
         st.markdown(mapbiomas_legend_html, unsafe_allow_html=True)
         
         # Hansen Consolidated Legend
-        st.markdown("### 🌍 Hansen/GLAD Global Land Cover Classes")
+        st.markdown("### " + t("hansen_legend"))
         hansen_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
         hansen_legend_data = [
             ("Dense Tree Cover", "#1F8040"),
@@ -537,8 +538,8 @@ def render_layer_reference_guide():
         st.markdown(hansen_legend_html, unsafe_allow_html=True)
         
         # Hansen Global Forest Change Legend
-        st.markdown("### 🌲 Hansen Global Forest Change (UMD 2024)")
-        st.caption("Tree cover change analysis from 2000-2024")
+        st.markdown("### " + t("gfc_legend"))
+        st.caption(t("gfc_legend_desc"))
         hansen_gfc_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
         hansen_gfc_legend_data = [
             ("Tree Cover 2000", "black → green", "0-100% tree canopy cover"),
@@ -551,8 +552,8 @@ def render_layer_reference_guide():
         st.markdown(hansen_gfc_legend_html, unsafe_allow_html=True)
         
         # AAFC Legend
-        st.markdown("### 🚜 AAFC Annual Crop Inventory (Canada)")
-        st.caption("Agricultural land cover in Canada (2009-2024, 30m resolution)")
+        st.markdown("### " + t("aafc_legend"))
+        st.caption(t("aafc_legend_desc"))
         aafc_legend_html = "<div style='display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;'>"
         aafc_legend_data = [
             ("Agriculture (undifferentiated)", "#cc6600"),
@@ -576,7 +577,7 @@ def render_layer_reference_guide():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**Basemaps**")
+            st.markdown("**" + t("basemaps") + "**")
             st.caption("""
             - 🗺️ OpenStreetMap
             - 🛰️ Google Maps (default)
@@ -586,18 +587,18 @@ def render_layer_reference_guide():
             - ⛰️ ArcGIS Terrain
             """)
             
-            st.markdown("**Controls**")
-            st.caption("""
-            - ⌗ Layer Control: top-right corner
-            - ✏️ Drawing Tools: top-left corner
-            - 🎨 Opacity: Adjust in sidebar
+            st.markdown("**" + t("legend_controls") + "**")
+            st.caption(f"""
+            - ⌗ {t("legend_layer_control")}
+            - ✏️ {t("legend_drawing_tools")}
+            - 🎨 {t("legend_opacity")}
             """)
         
         with col2:
-            st.markdown("**Data Layers Overview**")
-            st.caption("""
-            - 🌱 MapBiomas: Brazilian land cover (1985-2023)
-            - 🌍 Hansen: Global forest change (2000-2020)
-            - 🚜 AAFC: Canadian crop inventory (2009-2024)
-            - 📍 Indigenous Territories
+            st.markdown("**" + t("legend_data_overview") + "**")
+            st.caption(f"""
+            - {t("legend_data_brazilian")}
+            - {t("legend_data_global")}
+            - {t("legend_data_agriculture")}
+            - {t("legend_data_territories")}
             """)
