@@ -124,11 +124,17 @@ def render_layer_selection():
                 st.caption(t("aafc_subtitle"))
                 
                 aafc_years = list(range(2009, 2025))
+                
+                def update_aafc_year():
+                    """Update session state when slider changes"""
+                    st.session_state.current_aafc_year = st.session_state[f"aafc_year_slider_{suffix}"]
+                
                 aafc_year = st.select_slider(
                     t("year"),
                     options=aafc_years,
                     value=st.session_state.get('current_aafc_year', 2023),
-                    key=f"aafc_year_slider_{render_id}"
+                    key=f"aafc_year_slider_{suffix}",
+                    on_change=update_aafc_year
                 )
                 if st.button(t("add_layer"), width="stretch", key=f"add_aafc_{suffix}"):
                     st.session_state.aafc_layers[aafc_year] = True
