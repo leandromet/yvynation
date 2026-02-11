@@ -375,6 +375,59 @@ TRANSLATIONS = {
         "adding_territory_error": "[Error] Adding territory layer failed: {error}",
         "adding_buffer_error": "[Error] Adding buffer layer failed for {name}: {error}",
         
+        # Analysis Messages - Additional
+        "no_forest_loss": "✅ No forest loss detected in this area!",
+        "forest_loss_intact": "Total area with intact forest: {area:,.0f} ha",
+        "area_with_gain": "Area with Gain",
+        "area_without_gain": "Area without Gain",
+        "download_gain_data": "📥 Download Gain Data",
+        "gfc_available_layers": "Available Layers:",
+        "gfc_layer_tree_cover": "🌳 **Tree Cover 2000**: Baseline canopy cover percentage",
+        "gfc_layer_tree_loss": "🔥 **Tree Loss Year**: Annual forest loss from 2001-2024",
+        "gfc_layer_tree_gain": "🌲 **Tree Gain**: Forest regrowth from 2000-2012",
+        "gfc_add_from_sidebar": "Add these layers from the sidebar under **🌲 Hansen Global Forest Change** section.",
+        "aafc_analyzing_years": "Analyzing {count} year(s) of AAFC data...",
+        "aafc_year_label": "Year {year}",
+        "aafc_total_area": "Total Area",
+        "aafc_classes_detected": "Classes Detected",
+        "aafc_largest_class": "Largest Class",
+        "aafc_download_csv": "📥 Download CSV ({year})",
+        "aafc_analysis_complete": "✓ {year}: Analysis complete",
+        "aafc_no_data_year": "No AAFC data found for {year} in this area",
+        "aafc_analysis_error": "Error analyzing AAFC {year}: {error}",
+        
+        # Legend and Display
+        "legend_areas_with_forest_loss": "Areas with forest loss detected",
+        "legend_no_forest_loss": "Areas with no forest loss",
+        "legend_areas_with_gain": "Areas with forest gain",
+        "legend_no_forest_gain": "Areas with no forest gain",
+        
+        # Initialization & Loading
+        "initializing_ee": "Initializing Earth Engine...",
+        "loading_data": "Loading data...",
+        "ee_init_error": "❌ Failed to initialize Earth Engine: {error}",
+        "data_loaded": "✅ Data loaded successfully",
+        "data_load_error": "❌ Error loading data: {error}",
+        
+        # Comparison Messages
+        "no_comparison_data": "No comparison data available",
+        "hansen_unavailable": "Hansen data not available for years {year1} and {year2}",
+        "sankey_generation_error": "Could not generate Sankey diagram",
+        "no_transition_data": "No transition data available",
+        "geometry_not_available": "Geometry not available. Run analysis first.",
+        "sankey_display_error": "Could not display Sankey diagram: {error}",
+        
+        # Buffer Comparison Messages
+        "buffer_compare_on": "✓ Buffer Compare Mode: ON",
+        "buffer_compare_off": "Buffer Compare Mode: OFF",
+        "buffer_compare_active": "✓ Buffer: {buffer_name}",
+        "buffer_compare_none": "⚠ No Buffer Created",
+        
+        # Download and Export
+        "download_csv_label": "📥 Download CSV",
+        "download_success": "✅ Download ready",
+        "export_error": "❌ Error exporting data: {error}",
+        
         # Layer Reference Guide
         "layer_reference_full": "📚 Layer Reference Guide - legends",
         "indigenous_territories_legend": "📍 Indigenous Lands & Territories",
@@ -397,6 +450,8 @@ TRANSLATIONS = {
         "legend_data_global": "🌍 Hansen: Global forest change (2000-2020)",
         "legend_data_agriculture": "🚜 AAFC: Canadian crop inventory (2009-2024)",
         "legend_data_territories": "📍 Indigenous Territories"
+
+
     },
     "pt-br": {
         # Header
@@ -788,7 +843,101 @@ TRANSLATIONS = {
         "legend_data_brazilian": "🌱 MapBiomas: Cobertura do solo brasileiro (1985-2023)",
         "legend_data_global": "🌍 Hansen: Mudança florestal global (2000-2020)",
         "legend_data_agriculture": "🚜 AAFC: Inventário de cultivos canadense (2009-2024)",
-        "legend_data_territories": "📍 Territórios Indígenas"
+        "legend_data_territories": "📍 Territórios Indígenas",
+        
+        # Analysis Messages - Additional
+        "no_forest_loss": "✅ Nenhuma perda florestal detectada nesta área!",
+        "forest_loss_intact": "Área total com floresta intacta: {area:,.0f} ha",
+        "area_with_gain": "Área com Ganho",
+        "area_without_gain": "Área sem Ganho",
+        "download_gain_data": "📥 Baixar Dados de Ganho",
+        "gfc_available_layers": "Camadas Disponíveis:",
+        "gfc_layer_tree_cover": "🌳 **Cobertura Florestal 2000**: Percentual de cobertura basal de referência",
+        "gfc_layer_tree_loss": "🔥 **Ano de Perda Florestal**: Perda florestal anual de 2001-2024",
+        "gfc_layer_tree_gain": "🌲 **Ganho Florestal**: Reflorestamento de 2000-2012",
+        "gfc_add_from_sidebar": "Adicione essas camadas da barra lateral sob **🌲 Mudanças Florestais Globais Hansen**.",
+        "aafc_analyzing_years": "Analisando {count} ano(s) de dados AAFC...",
+        "aafc_year_label": "Ano {year}",
+        "aafc_total_area": "Área Total",
+        "aafc_classes_detected": "Classes Detectadas",
+        "aafc_largest_class": "Classe Maior",
+        "aafc_download_csv": "📥 Baixar CSV ({year})",
+        "aafc_analysis_complete": "✓ {year}: Análise concluída",
+        "aafc_no_data_year": "Nenhum dado AAFC encontrado para {year} nesta área",
+        "aafc_analysis_error": "Erro ao analisar AAFC {year}: {error}",
+        
+        # Legend and Display
+        "legend_areas_with_forest_loss": "Áreas com perda florestal detectada",
+        "legend_no_forest_loss": "Áreas sem perda florestal",
+        "legend_areas_with_gain": "Áreas com ganho florestal",
+        "legend_no_forest_gain": "Áreas sem ganho florestal",
+        
+        # Initialization & Loading
+        "initializing_ee": "Inicializando Google Earth Engine...",
+        "loading_data": "Carregando dados...",
+        "ee_init_error": "❌ Falha ao inicializar Earth Engine: {error}",
+        "data_loaded": "✅ Dados carregados com sucesso",
+        "data_load_error": "❌ Erro ao carregar dados: {error}",
+        
+        # Comparison Messages
+        "no_comparison_data": "Nenhum dado de comparação disponível",
+        "hansen_unavailable": "Dados Hansen não disponíveis para os anos {year1} e {year2}",
+        "sankey_generation_error": "Não foi possível gerar diagrama de Sankey",
+        "no_transition_data": "Nenhum dado de transição disponível",
+        "geometry_not_available": "Geometria não disponível. Execute análise primeiro.",
+        "sankey_display_error": "Não foi possível exibir diagrama de Sankey: {error}",
+        
+        # Buffer Comparison Messages
+        "buffer_compare_on": "✓ Modo de Comparação de Buffer: ATIVO",
+        "buffer_compare_off": "Modo de Comparação de Buffer: INATIVO",
+        "buffer_compare_active": "✓ Buffer: {buffer_name}",
+        "buffer_compare_none": "⚠ Nenhum Buffer Criado",
+        
+        # Download and Export
+        "download_csv_label": "📥 Baixar CSV",
+        "download_success": "✅ Download pronto",
+        "export_error": "❌ Erro ao exportar dados: {error}",
+        
+        # Export Maps Section
+        "export_maps_intro": "🗺️ Export Maps with Polygon Overlays",
+        "export_maps_description": "Export interactive maps showing each active layer with your drawn polygons and scale bars. Maps are saved as HTML files and can be opened in any web browser.",
+        "export_maps_caption": "Maps include: MapBiomas overlays, Hansen overlays, Google Satellite, Google Maps, scale bars, and layer controls",
+        "export_maps_ready": "✓ {count} polygon(s) ready for export",
+        "export_maps_warning": "⚠ Draw at least one polygon on the map to export with overlays",
+        "export_maps_no_polygons": "Please draw at least one polygon on the map first",
+        "export_maps_no_object": "Map object not found. Please refresh the page and try again.",
+        "export_maps_preparing": "Creating export maps...",
+        "export_maps_button": "📊 Prepare Maps for Export",
+        "export_maps_success": "✓ {count} map(s) prepared! They will be included in the Export All ZIP file.",
+        "export_maps_no_created": "No maps were successfully created. Check console for errors.",
+        "export_maps_error": "Error preparing maps: {error}",
+        "export_maps_convert_error": "Could not convert {name} to HTML: {error}",
+        "export_maps_export_error": "Could not export {name}: {error}",
+        "export_analysis": "💾 Export Analysis",
+        "polygon_analysis_header": "📊 Polygon Analysis & Statistics",
+        "analyzing_polygon": "🔵 Analyzing: {name}",
+        "export_analysis": "💾 Exportar Análise",
+        "polygon_analysis_header": "📊 Análise e Estatísticas de Polígonos",
+        "analyzing_polygon": "🔵 Analisando: {name}",
+        "download_csv_label": "📥 Baixar CSV",
+        "download_success": "✅ Download pronto",
+        "export_error": "❌ Erro ao exportar dados: {error}",
+        
+        # Export Maps Section
+        "export_maps_intro": "🗺️ Exportar Mapas com Sobreposições de Polígonos",
+        "export_maps_description": "Exporte mapas interativos mostrando cada camada ativa com seus polígonos desenhados e barras de escala. Os mapas são salvos como arquivos HTML e podem ser abertos em qualquer navegador da web.",
+        "export_maps_caption": "Os mapas incluem: sobreposições MapBiomas, sobreposições Hansen, Satélite Google, Google Maps, barras de escala e controles de camadas",
+        "export_maps_ready": "✓ {count} polígono(s) pronto(s) para exportar",
+        "export_maps_warning": "⚠ Desenhe pelo menos um polígono no mapa para exportar com sobreposições",
+        "export_maps_no_polygons": "Por favor, desenhe pelo menos um polígono no mapa primeiro",
+        "export_maps_no_object": "Objeto do mapa não encontrado. Por favor, atualize a página e tente novamente.",
+        "export_maps_preparing": "Criando mapas para exportação...",
+        "export_maps_button": "📊 Preparar Mapas para Exportação",
+        "export_maps_success": "✓ {count} mapa(s) preparado(s)! Será(ão) incluído(s) no arquivo ZIP de Exportação Completa.",
+        "export_maps_no_created": "Nenhum mapa foi criado com sucesso. Verifique o console para erros.",
+        "export_maps_error": "Erro ao preparar mapas: {error}",
+        "export_maps_convert_error": "Não foi possível converter {name} em HTML: {error}",
+        "export_maps_export_error": "Não foi possível exportar {name}: {error}"
     }
 }
 

@@ -353,7 +353,7 @@ try:
     st.session_state.ee_module = initialize_earth_engine()
     print("✓ Earth Engine initialized")
 except Exception as e:
-    st.error(f"❌ Failed to initialize Earth Engine: {e}")
+    st.error(t("ee_init_error", error=str(e)))
     st.stop()
 
 # Auto-load core data
@@ -809,7 +809,7 @@ render_map_export_section()
 # Export all button at the top
 st.divider()
 with st.container():
-    st.subheader("💾 Export Analysis")
+    st.subheader(t("export_analysis"))
     generate_export_button(st.session_state)
 
 st.divider()
@@ -987,7 +987,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
 
 if st.session_state.data_loaded and st.session_state.app:
     st.divider()
-    st.subheader("📊 Polygon Analysis & Statistics")
+    st.subheader(t("polygon_analysis_header"))
     
     # Check if a feature was drawn
     if st.session_state.last_drawn_feature:
@@ -1003,7 +1003,7 @@ if st.session_state.data_loaded and st.session_state.app:
                 if props.get('type') == 'external_buffer':
                     is_buffer = True
                     buffer_name = props.get('name', 'External Buffer')
-                    st.info(f"🔵 Analyzing: {buffer_name}")
+                    st.info(t("analyzing_polygon", name=buffer_name))
             
             # Extract geometry from drawn feature GeoJSON
             if isinstance(feature_data, dict):

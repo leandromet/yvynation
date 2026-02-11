@@ -7,6 +7,7 @@ import streamlit as st
 import folium
 from folium.plugins import Draw, MeasureControl, MousePosition
 from streamlit_folium import st_folium
+from translations import t
 import ee
 import os
 import json
@@ -265,34 +266,30 @@ def render_map_export_section():
     Shows options to export maps with different layers
     """
     st.divider()
-    st.subheader("🗺️ Export Maps with Polygon Overlays")
+    st.subheader(t("export_maps_intro"))
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.caption(
-            "Export interactive maps showing each active layer with your drawn "
-            "polygons and scale bars. Maps are saved as HTML files and can be "
-            "opened in any web browser."
-        )
+        st.caption(t("export_maps_description"))
     
     with col2:
         if st.session_state.get('all_drawn_features'):
-            st.success(f"✓ {len(st.session_state.get('all_drawn_features', []))} polygon(s) ready for export")
+            st.success(t("export_maps_ready", count=len(st.session_state.get('all_drawn_features', []))))
         else:
-            st.warning("⚠ Draw at least one polygon on the map to export with overlays")
+            st.warning(t("export_maps_warning"))
     
     # Export button
     export_button_col, info_col = st.columns([1, 2])
     
     with export_button_col:
-        if st.button("📊 Prepare Maps for Export", key="prepare_maps_export", width="stretch"):
+        if st.button(t("export_maps_button"), key="prepare_maps_export", width="stretch"):
             if not st.session_state.get('all_drawn_features'):
-                st.error("Please draw at least one polygon on the map first")
+                st.error(t("export_maps_no_polygons"))
             elif not st.session_state.get('map_object'):
-                st.error("Map object not found. Please refresh the page and try again.")
+                st.error(t("export_maps_no_object"))
             else:
-                with st.spinner("Creating export maps..."):
+                with st.spinner(t("export_maps_preparing")):
                     try:
                         # Actually create the maps now
                         export_maps = create_export_map_set(st.session_state.get('map_object'))
@@ -305,26 +302,23 @@ def render_map_export_section():
                                 if html_content:
                                     map_exports[map_name] = html_content
                             except Exception as e:
-                                st.warning(f"Could not convert {map_name} to HTML: {e}")
+                                st.warning(t("export_maps_convert_error", name=map_name, error=str(e)))
                         
                         # Store in session state for export
                         st.session_state.prepared_map_exports = map_exports
                         st.session_state.export_maps_ready = True
                         
                         if map_exports:
-                            st.success(f"✓ {len(map_exports)} map(s) prepared! They will be included in the Export All ZIP file.")
+                            st.success(t("export_maps_success", count=len(map_exports)))
                         else:
-                            st.warning("No maps were successfully created. Check console for errors.")
+                            st.warning(t("export_maps_no_created"))
                     except Exception as e:
-                        st.error(f"Error preparing maps: {str(e)}")
+                        st.error(t("export_maps_error", error=str(e)))
                         import traceback
                         traceback.print_exc()
     
     with info_col:
-        st.caption(
-            "Maps include: MapBiomas overlays, Hansen overlays, Google Satellite, "
-            "Google Maps, scale bars, and layer controls"
-        )
+        st.caption(t("export_maps_caption"))
 
 
 def get_map_export_figures():

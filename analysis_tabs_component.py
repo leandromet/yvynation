@@ -298,7 +298,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                 else:
                                     st.info(t("no_data_area"))
                             else:
-                                st.info("No data in selected area for this year")
+                                st.info(t("no_data_area"))
                         except Exception as e:
                             st.error(t("error_analyzing_year", year=year, error=str(e)))
             else:
@@ -419,9 +419,9 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                 key=f"dl_{area_prefix}_tree_loss_{id(geometry)}"
                             )
                         else:
-                            st.success("✅ No forest loss detected in this area!")
+                            st.success(t("no_forest_loss"))
                             if not df_no_loss.empty:
-                                st.info(f"Total area with intact forest: {df_no_loss['Area_ha'].sum():,.0f} ha")
+                                st.info(t("forest_loss_intact", area=df_no_loss['Area_ha'].sum()))
                     else:
                         st.info(t('no_tree_loss_data'))
                 
@@ -442,17 +442,17 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric("Area with Gain", f"{gain_area:,.0f} ha", delta=f"{gain_pct:.2f}% of analyzed area")
+                                st.metric(t("area_with_gain"), f"{gain_area:,.0f} ha", delta=f"{gain_pct:.2f}% of analyzed area")
                             with col2:
                                 if not df_no_gain.empty:
                                     no_gain_area = df_no_gain['Area_ha'].sum()
-                                    st.metric("Area without Gain", f"{no_gain_area:,.0f} ha")
+                                    st.metric(t("area_without_gain"), f"{no_gain_area:,.0f} ha")
                             
                             st.dataframe(df_gain[['Status', 'Area_ha', 'Pixels']], use_container_width=True)
                             
                             csv = df_gain.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Gain Data",
+                                t("download_gain_data"),
                                 csv,
                                 f"{area_prefix}_tree_gain.csv",
                                 "text/csv",
@@ -464,13 +464,13 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                         st.info(t('no_tree_gain_data'))
         else:
             st.info(t('add_gfc_layers'))
-            st.markdown("""
-            **Available Layers:**
-            - 🌳 **Tree Cover 2000**: Baseline canopy cover percentage
-            - 🔥 **Tree Loss Year**: Annual forest loss from 2001-2024
-            - 🌲 **Tree Gain**: Forest regrowth from 2000-2012
+            st.markdown(f"""
+            **{t('gfc_available_layers')}**
+            - {t('gfc_layer_tree_cover')}
+            - {t('gfc_layer_tree_loss')}
+            - {t('gfc_layer_tree_gain')}
             
-            Add these layers from the sidebar under **🌲 Hansen Global Forest Change** section.
+            {t('gfc_add_from_sidebar')}
             """)
     
     with tab4:
@@ -483,11 +483,11 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
             if st.session_state.get('aafc_layers'):
                 years_to_analyze = [y for y, enabled in st.session_state.aafc_layers.items() if enabled]
                 if years_to_analyze:
-                    st.write(f"Analyzing {len(years_to_analyze)} year(s) of AAFC data...")
+                    st.write(t("aafc_analyzing_years", count=len(years_to_analyze)))
                     for year in sorted(years_to_analyze):
                         col1, col2 = st.columns([2, 1])
                         with col1:
-                            st.markdown(f"**Year {year}**")
+                            st.markdown(f"**{t('aafc_year_label', year=year)}**")
                             try:
                                 df = analyze_aafc_geometry(geometry, year, area_name=f"{area_prefix} area")
                                 
@@ -499,11 +499,11 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                     
                                     col_a, col_b, col_c = st.columns(3)
                                     with col_a:
-                                        st.metric("Total Area", f"{total_area:,.0f} ha")
+                                        st.metric(t("aafc_total_area"), f"{total_area:,.0f} ha")
                                     with col_b:
-                                        st.metric("Classes Detected", num_classes)
+                                        st.metric(t("aafc_classes_detected"), num_classes)
                                     with col_c:
-                                        st.metric("Largest Class", largest_class)
+                                        st.metric(t("aafc_largest_class"), largest_class)
                                     
                                     st.dataframe(df[['Class', 'Pixels', 'Area_ha']], use_container_width=True)
                                     
@@ -520,17 +520,17 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                     csv = df.to_csv(index=False)
                                     filename = f"{area_prefix}_aafc_{year}.csv"
                                     st.download_button(
-                                        label=f"📥 Download CSV ({year})",
+                                        label=t("aafc_download_csv", year=year),
                                         data=csv,
                                         file_name=filename,
                                         mime="text/csv",
                                         key=f"dl_{area_prefix}_aafc_{year}_{id(geometry)}"
                                     )
-                                    st.success(f"✓ {year}: Analysis complete")
+                                    st.success(t("aafc_analysis_complete", year=year))
                                 else:
-                                    st.warning(f"No AAFC data found for {year} in this area")
+                                    st.warning(t("aafc_no_data_year", year=year))
                             except Exception as e:
-                                st.error(f"Error analyzing AAFC {year}: {str(e)[:200]}")
+                                st.error(t("aafc_analysis_error", year=year, error=str(e)[:200]))
                                 print(f"Full AAFC error: {e}")
                 else:
                     st.info("Add an AAFC layer from the sidebar to analyze")
