@@ -16,25 +16,50 @@ def hansen_histogram_to_dataframe(stats, year):
     """Convert Hansen histogram stats to DataFrame"""
     from config import HANSEN_CONSOLIDATED_MAPPING
     
-    histogram_data = stats.get('b1', stats.get('classification', {}))
+    # Try different band names for Hansen data
+    histogram_data = {}
+    for key in ['b1', 'classification', 'VV']:
+        if key in stats and isinstance(stats[key], dict):
+            histogram_data = stats[key]
+            break
+    
+    # If still empty, try first available key that contains histogram data
+    if not histogram_data:
+        for key, value in stats.items():
+            if isinstance(value, dict) and len(value) > 0:
+                histogram_data = value
+                break
+    
+    if not histogram_data:
+        print(f"[DEBUG] Hansen {year}: stats keys = {list(stats.keys())}, no histogram data found")
+        return pd.DataFrame()
+    
     records = []
     
     for class_id_str, count in histogram_data.items():
-        class_id = int(float(class_id_str))
-        area_ha = count * 0.09
-        
-        # Get the class name/description from mapping if available
-        class_name = f"Class {class_id}"
-        
-        records.append({
-            "Class_ID": class_id,
-            "Class": class_name,
-            "Pixels": int(count),
-            "Area_ha": round(area_ha, 2)
-        })
+        try:
+            class_id = int(float(class_id_str))
+            area_ha = count * 0.09
+            
+            # Get the class name/description from mapping if available
+            class_name = f"Class {class_id}"
+            
+            records.append({
+                "Class_ID": class_id,
+                "Class": class_name,
+                "Pixels": int(count),
+                "Area_ha": round(area_ha, 2)
+            })
+        except (ValueError, TypeError):
+            continue
     
-    df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
-    return df
+    if records:
+        df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+        return df
+    else:
+        print(f"[DEBUG] Hansen {year}: histogram_data exists but no valid records")
+        return pd.DataFrame()
+
 
 
 def aggregate_to_consolidated(df):
@@ -90,25 +115,54 @@ def analyze_aafc_geometry(geometry, year, area_name="Area"):
         if not stats:
             return None
         
-        histogram_data = stats.get('b1', {})
+        # AAFC can have different band names, try to find the histogram data
+        histogram_data = {}
+        
+        # Try common band names
+        for key in ['b1', 'classification', 'cropland', 'asters_classification_1']:
+            if key in stats and isinstance(stats[key], dict):
+                histogram_data = stats[key]
+                break
+        
+        # If still empty, try first available key that contains histogram data
+        if not histogram_data:
+            for key, value in stats.items():
+                if isinstance(value, dict) and len(value) > 0:
+                    histogram_data = value
+                    break
+        
+        if not histogram_data:
+            print(f"[DEBUG] AAFC {year}: stats keys = {list(stats.keys())}, no histogram data found")
+            return None
+        
         records = []
         
         for class_id_str, count in histogram_data.items():
-            class_id = int(float(class_id_str))
-            class_name = AAFC_LABELS.get(class_id, f"Class {class_id}")
-            area_ha = count * 0.09
-            
-            records.append({
-                "Class_ID": class_id,
-                "Class": class_name,
-                "Pixels": int(count),
-                "Area_ha": round(area_ha, 2)
-            })
+            try:
+                class_id = int(float(class_id_str))
+                class_name = AAFC_LABELS.get(class_id, f"Class {class_id}")
+                area_ha = count * 0.09
+                
+                records.append({
+                    "Class_ID": class_id,
+                    "Class": class_name,
+                    "Pixels": int(count),
+                    "Area_ha": round(area_ha, 2)
+                })
+            except (ValueError, TypeError):
+                continue
         
-        df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
-        return df
+        # Only sort if we have records
+        if records:
+            df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
+            return df
+        else:
+            print(f"[DEBUG] AAFC {year}: histogram_data has keys but no valid records. Keys: {list(histogram_data.keys())[:5]}")
+            return None
     except Exception as e:
-        print(f"AAFC analysis error: {e}")
+        print(f"AAFC analysis error ({year}): {str(e)[:100]}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -318,18 +372,25 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
         ])
         
         if has_gfc_layers:
-            if st.button("🔍 Analyze Hansen GFC Data", key=f"analyze_gfc_{area_prefix}_{id(geometry)}", use_container_width=True):
-                from streamlit_app import analyze_hansen_gfc_geometry
-                gfc_results = analyze_hansen_gfc_geometry(geometry, area_name=f"{area_prefix} area")
-                
-                if gfc_results:
-                    session_key = f'hansen_gfc_results_{area_prefix}'
-                    st.session_state[session_key] = gfc_results
+            # Automatically run GFC analysis without button
+            session_key = f'hansen_gfc_results_{area_prefix}'
+            if session_key not in st.session_state or st.session_state[session_key] is None:
+                try:
+                    with st.spinner("Analyzing Hansen GFC Data..."):
+                        from streamlit_app import analyze_hansen_gfc_geometry
+                        gfc_results = analyze_hansen_gfc_geometry(geometry, area_name=f"{area_prefix} area")
+                        
+                        if gfc_results:
+                            st.session_state[session_key] = gfc_results
+                        else:
+                            st.session_state[session_key] = None
+                except Exception as e:
+                    print(f"[Error] Hansen GFC analysis failed: {e}")
+                    st.session_state[session_key] = None
             
             # Display results if available
-            session_key = f'hansen_gfc_results_{area_prefix}'
-            if session_key in st.session_state and st.session_state[session_key]:
-                gfc_results = st.session_state[session_key]
+            gfc_results = st.session_state.get(session_key)
+            if gfc_results and isinstance(gfc_results, dict) and len(gfc_results) > 0:
                 gfc_tab1, gfc_tab2, gfc_tab3 = st.tabs(["🌳 Tree Cover 2000", "🔥 Tree Loss", "🌲 Tree Gain"])
                 
                 with gfc_tab1:
@@ -370,7 +431,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             key=f"dl_{area_prefix}_tree_cover_{id(geometry)}"
                         )
                     else:
-                        st.info(t('no_tree_data'))
+                        st.info("Tree cover data not available in selected layers")
                 
                 with gfc_tab2:
                     if 'tree_loss' in gfc_results:
@@ -423,7 +484,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             if not df_no_loss.empty:
                                 st.info(t("forest_loss_intact", area=df_no_loss['Area_ha'].sum()))
                     else:
-                        st.info(t('no_tree_loss_data'))
+                        st.info("Tree loss data not available in selected layers")
                 
                 with gfc_tab3:
                     if 'tree_gain' in gfc_results:
@@ -461,7 +522,13 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                         else:
                             st.info(t('no_gain_detected'))
                     else:
-                        st.info(t('no_tree_gain_data'))
+                        st.info("Tree gain data not available in selected layers")
+            else:
+                # Analysis ran but returned no data, or still analyzing
+                if gfc_results is None:
+                    st.warning("No Hansen GFC data found in this area")
+                else:
+                    st.info("Waiting for analysis results...")
         else:
             st.info(t('add_gfc_layers'))
             st.markdown(f"""
@@ -551,17 +618,17 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                     year1 = st.selectbox(
                         "Year 1 (baseline)",
                         options=mapbiomas_years,
-                        key="mapbiomas_comp_year1"
+                        key=f"mapbiomas_comp_year1_{area_prefix}"
                     )
                 with col2:
                     year2 = st.selectbox(
                         "Year 2 (comparison)",
                         options=mapbiomas_years,
                         index=len(mapbiomas_years)-1,
-                        key="mapbiomas_comp_year2"
+                        key=f"mapbiomas_comp_year2_{area_prefix}"
                     )
                 
-                if st.button("🔄 Compare MapBiomas Years", width="stretch", key="mapbiomas_compare"):
+                if st.button("🔄 Compare MapBiomas Years", width="stretch", key=f"mapbiomas_compare_{area_prefix}"):
                     try:
                         with st.spinner(f"Comparing MapBiomas {year1} vs {year2}..."):
                             band1 = f'classification_{year1}'
@@ -675,17 +742,17 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                     h_year1 = st.selectbox(
                         "Year 1 (baseline)",
                         options=hansen_years,
-                        key="hansen_comp_year1"
+                        key=f"hansen_comp_year1_{area_prefix}"
                     )
                 with col2:
                     h_year2 = st.selectbox(
                         "Year 2 (comparison)",
                         options=hansen_years,
                         index=len(hansen_years)-1,
-                        key="hansen_comp_year2"
+                        key=f"hansen_comp_year2_{area_prefix}"
                     )
                 
-                if st.button("🔄 Compare Hansen Years", width="stretch", key="hansen_compare"):
+                if st.button("🔄 Compare Hansen Years", width="stretch", key=f"hansen_compare_{area_prefix}"):
                     try:
                         with st.spinner(f"Comparing Hansen {h_year1} vs {h_year2}..."):
                             landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)

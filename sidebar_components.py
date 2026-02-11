@@ -18,83 +18,89 @@ from translations import t
 
 def render_sidebar_header():
     """Render the sidebar title and description."""
-    st.sidebar.title(t("app_title"))
-    st.sidebar.markdown(t("app_subtitle"))
-    st.sidebar.markdown(t("author"))
-    st.sidebar.divider()
+    st.sidebar.markdown(f"### {t('app_title')}")
+    st.sidebar.caption(f"{t('app_subtitle')} · {t('author')}")
 
 
 def render_language_selection():
     """Render language selection controls."""
-    st.sidebar.subheader(t("language"))
+    st.sidebar.markdown("**" + t("language") + "**")
     
     # Initialize language if not present
     if "language" not in st.session_state:
         st.session_state.language = "en"
     
+    # Use render ID to make keys unique across multiple renders
+    render_id = st.session_state.get('_current_render_id', '')
+    
     # Language selection
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        if st.button("🇬🇧 English",
+        if st.button("🇬🇧 EN",
                     use_container_width=True,
+                    key=f"lang_en_{render_id}",
                     type="primary" if st.session_state.language == "en" else "secondary"):
             st.session_state.language = "en"
             st.rerun()
     
     with col2:
-        if st.button("🇧🇷 Português",
+        if st.button("🇧🇷 PT",
                     use_container_width=True,
+                    key=f"lang_pt_{render_id}",
                     type="primary" if st.session_state.language == "pt-br" else "secondary"):
             st.session_state.language = "pt-br"
             st.rerun()
-    
-    st.caption(f"**{st.session_state.language.upper()}**")
-    st.sidebar.divider()
 
 
 def render_country_selection():
     """Render country selection controls."""
-    st.sidebar.subheader(t("select_region"))
+    st.sidebar.markdown("**" + t("select_region") + "**")
     
     # Initialize country selection if not present
     if "selected_country" not in st.session_state:
         st.session_state.selected_country = "Brazil"
     
+    # Use render ID to make keys unique across multiple renders
+    render_id = st.session_state.get('_current_render_id', '')
+    
     # Country selection with flags
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        if st.button(t("brazil"),
+        if st.button("🇧🇷 BR",
                     use_container_width=True,
+                    key=f"region_br_{render_id}",
                     type="primary" if st.session_state.selected_country == "Brazil" else "secondary"):
             st.session_state.selected_country = "Brazil"
             st.rerun()
     
     with col2:
-        if st.button(t("canada"),
+        if st.button("🇨🇦 CA",
                     use_container_width=True,
+                    key=f"region_ca_{render_id}",
                     type="primary" if st.session_state.selected_country == "Canada" else "secondary"):
             st.session_state.selected_country = "Canada"
             st.rerun()
-    
-    st.caption(f"{t('current_region')} **{st.session_state.selected_country}**")
 
 
 def render_map_controls():
     """Render map controls help section."""
-    with st.sidebar.expander(t("map_controls"), expanded=False):
-        st.markdown(f"**{t('layer_control')}:** {t('layer_control_hint')}")
-        st.markdown(f"**{t('basemaps_section')}:** {t('basemaps_info')} - {t('basemap_default')}")
-        st.info(f"💡 {t('overlay_tip')}", icon="💡")
+    with st.sidebar.expander("🗺️ " + t("map_controls"), expanded=False):
+        st.caption(f"**{t('layer_control')}:** {t('layer_control_hint')}")
+        st.caption(f"**{t('basemaps_section')}:** {t('basemaps_info')}")
+        st.caption(f"💡 {t('overlay_tip')}")
 
 
 def render_layer_selection():
     """Render map layer selection controls (MapBiomas and Hansen)."""
     if st.session_state.data_loaded:
-        st.sidebar.subheader("🗺️ " + t("add_layer_to_analyze").split("{")[0].strip())
+        st.sidebar.markdown("**🗺️ " + t("add_layer_to_analyze").split("{")[0].strip() + "**")
+        
+        # Use render ID to make keys unique across multiple renders
+        render_id = st.session_state.get('_current_render_id', '')
         
         # MapBiomas section - Only show for Brazil
         if st.session_state.selected_country == "Brazil":
-            with st.sidebar.expander(t("mapbiomas_layer"), expanded=True):
+            with st.sidebar.expander(t("mapbiomas_layer"), expanded=False):
                 st.write(t("year") + ":")
                 mapbiomas_year = st.select_slider(
                     t("year"),
@@ -102,7 +108,7 @@ def render_layer_selection():
                     value=st.session_state.current_mapbiomas_year,
                     key="mb_year_slider"
                 )
-                if st.button(t("add_layer"), width="stretch", key="add_mapbiomas"):
+                if st.button(t("add_layer"), width="stretch", key=f"add_mapbiomas_{render_id}"):
                     st.session_state.mapbiomas_layers[mapbiomas_year] = True
                     st.session_state.current_mapbiomas_year = mapbiomas_year
                     st.success(f"✓ {t('mapbiomas_layer')} {mapbiomas_year}")
@@ -111,7 +117,7 @@ def render_layer_selection():
         
          # AAFC Annual Crop Inventory section - Only show for Canada
         if st.session_state.selected_country == "Canada":
-            with st.sidebar.expander(t("aafc_layer"), expanded=True):
+            with st.sidebar.expander(t("aafc_layer"), expanded=False):
                 st.write(t("analyze_territory") + ":")
                 st.caption(t("aafc_subtitle"))
                 
@@ -122,7 +128,7 @@ def render_layer_selection():
                     value=st.session_state.get('current_aafc_year', 2023),
                     key="aafc_year_slider"
                 )
-                if st.button(t("add_layer"), width="stretch", key="add_aafc"):
+                if st.button(t("add_layer"), width="stretch", key=f"add_aafc_{render_id}"):
                     st.session_state.aafc_layers[aafc_year] = True
                     st.session_state.current_aafc_year = aafc_year
                     st.success(f"✓ {t('aafc_layer')} {aafc_year}")
@@ -142,7 +148,7 @@ def render_layer_selection():
                 index=hansen_years.index(st.session_state.current_hansen_year),
                 key="hansen_year_select"
             )
-            if st.button(t("add_layer"), width="stretch", key="add_hansen"):
+            if st.button(t("add_layer"), width="stretch", key=f"add_hansen_{render_id}"):
                 st.session_state.hansen_layers[hansen_year] = True
                 st.session_state.current_hansen_year = hansen_year
                 st.success(f"✓ {t('hansen_layer')} {hansen_year}")
@@ -154,27 +160,28 @@ def render_layer_selection():
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button(t("tree_cover"), key="add_hansen_gfc_cover", use_container_width=True):
+                if st.button(t("tree_cover"), key=f"add_hansen_gfc_cover_{render_id}", use_container_width=True):
                     st.session_state.hansen_gfc_tree_cover = True
                     st.success(f"✓ {t('tree_cover')}")
                     
-                if st.button(t("tree_gain"), key="add_hansen_gfc_gain", use_container_width=True):
+                if st.button(t("tree_gain"), key=f"add_hansen_gfc_gain_{render_id}", use_container_width=True):
                     st.session_state.hansen_gfc_tree_gain = True
                     st.success(f"✓ {t('tree_gain')}")
             
             with col2:
-                if st.button(t("tree_loss"), key="add_hansen_gfc_loss", use_container_width=True):
+                if st.button(t("tree_loss"), key=f"add_hansen_gfc_loss_{render_id}", use_container_width=True):
                     st.session_state.hansen_gfc_tree_loss = True
                     st.success(f"✓ {t('tree_loss')}")
             
             st.info(t("tree_loss_desc"), icon="ℹ️")
-        
-       
 
 
 def render_territory_analysis():
     """Render territory analysis controls."""
     if st.session_state.data_loaded:
+        # Use render ID to make keys unique across multiple renders
+        render_id = st.session_state.get('_current_render_id', '')
+        
         with st.sidebar.expander(t("territory_analysis_title"), expanded=False):
             st.write(t("analyze_territory_intro"))
             
@@ -246,9 +253,9 @@ def render_territory_analysis():
                         
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            analyze_btn = st.button(t("btn_analyze"), key="btn_analyze_territory", width="stretch")
+                            analyze_btn = st.button(t("btn_analyze"), key=f"btn_analyze_territory_{render_id}", width="stretch")
                         with col_btn2:
-                            add_layer_btn = st.button(t("btn_zoom_territory"), key="btn_add_territory_layer", width="stretch")
+                            add_layer_btn = st.button(t("btn_zoom_territory"), key=f"btn_add_territory_layer_{render_id}", width="stretch")
                         if add_layer_btn:
                                 try:
                                     # Filter to selected territory and store geometry
@@ -352,9 +359,7 @@ def render_territory_analysis():
                                         st.error(t("analysis_failed", error=str(e)))
                                         traceback.print_exc()
 
-
                     # Add buffer zone option
-                    st.divider()
                     with st.sidebar.expander(t("buffer_zone_title"), expanded=False):
                             st.markdown(f"**{t('buffer_zone_desc')}**")
                             st.caption(t("buffer_zone_hint"))
@@ -377,7 +382,7 @@ def render_territory_analysis():
                                     key="territory_buffer_distance"
                                 )
                             with col_create:
-                                create_buffer_btn = st.button(t("btn_create_buffer"), key="btn_create_territory_buffer", width="stretch")
+                                create_buffer_btn = st.button(t("btn_create_buffer"), key=f"btn_create_territory_buffer_{render_id}", width="stretch")
                             
                             if create_buffer_btn:
                                 try:
@@ -412,16 +417,15 @@ def render_territory_analysis():
                             
                             # Show Analyze Buffer button if buffer exists
                             if st.session_state.current_buffer_for_analysis and st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries:
-                                st.divider()
                                 st.markdown(f"**{t('buffer_zone_analysis')}**")
                                 buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
                                 st.caption(t("buffer_analysis_hint", distance=buffer_meta['buffer_size_km'], territory=buffer_meta['source_name']))
                                 
                                 col_buffer_analyze, col_buffer_zoom = st.columns(2)
                                 with col_buffer_analyze:
-                                    analyze_buffer_btn = st.button(t("btn_analyze_buffer"), key="btn_analyze_territory_buffer", width="stretch")
+                                    analyze_buffer_btn = st.button(t("btn_analyze_buffer"), key=f"btn_analyze_territory_buffer_{unique_suffix}", width="stretch")
                                 with col_buffer_zoom:
-                                    zoom_buffer_btn = st.button(t("btn_zoom_buffer"), key="btn_zoom_territory_buffer", width="stretch")
+                                    zoom_buffer_btn = st.button(t("btn_zoom_buffer"), key=f"btn_zoom_territory_buffer_{unique_suffix}", width="stretch")
                                 
                                 if zoom_buffer_btn:
                                     try:
@@ -520,7 +524,7 @@ def render_territory_analysis():
 
 def render_view_options():
     """Render view options (consolidated classes toggle)."""
-    with st.sidebar.expander(t("view_options"), expanded=True):
+    with st.sidebar.expander(t("view_options"), expanded=False):
         use_consolidated = st.checkbox(
             t("show_consolidated"),
             value=st.session_state.use_consolidated_classes,
@@ -584,13 +588,10 @@ def render_complete_sidebar():
     render_sidebar_header()
     render_language_selection()
     render_country_selection()
-    st.sidebar.divider()
     render_map_controls()
-    st.sidebar.divider()
     render_layer_selection()
     st.sidebar.divider()
     render_territory_analysis()
-    st.sidebar.divider()
     render_view_options()
     st.sidebar.divider()
     render_about_section()

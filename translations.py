@@ -21,6 +21,24 @@ TRANSLATIONS = {
         "brazil": "🇧🇷 Brazil",
         "canada": "🇨🇦 Canada",
         
+        # Auto-Detection
+        "auto_detect_title": "🌍 Auto-Detect Preferences",
+        "auto_detect_subtitle": "Help us set the right language and region for you!",
+        "auto_detect_what": "What we'll detect:",
+        "auto_detect_country": "🌍 Your country (from IP) → Sets region",
+        "auto_detect_language": "🌐 Your browser language → Sets language preference",
+        "auto_detect_privacy": "Privacy:",
+        "auto_detect_no_precise": "No precise location data collected",
+        "auto_detect_only_country": "Only country-level geolocation",
+        "auto_detect_no_personal": "No personal information stored",
+        "auto_detect_session_only": "Data used only during your session",
+        "auto_detect_allow": "✅ Allow Auto-Detect",
+        "auto_detect_manual": "⊘ Manual Selection",
+        "auto_detect_confirmation": "✨ Preferences Auto-Detected",
+        "auto_detect_language_detected": "🌐 Language: {lang}",
+        "auto_detect_region_detected": "🌍 Region: {region}",
+        "auto_detect_can_change": "💡 You can change these anytime in the sidebar below",
+        
         # Layers
         "mapbiomas_layer": "🌱 MapBiomas Land Cover",
         "hansen_layer": "🌍 Hansen/GLAD Forest Change",
@@ -613,6 +631,24 @@ TRANSLATIONS = {
         # Countries
         "brazil": "🇧🇷 Brasil",
         "canada": "🇨🇦 Canadá",
+        
+        # Auto-Detection
+        "auto_detect_title": "🌍 Detectar Preferências Automaticamente",
+        "auto_detect_subtitle": "Ajude-nos a definir o idioma e a região corretos para você!",
+        "auto_detect_what": "O que vamos detectar:",
+        "auto_detect_country": "🌍 Seu país (por IP) → Define a região",
+        "auto_detect_language": "🌐 Idioma do seu navegador → Define preferência de idioma",
+        "auto_detect_privacy": "Privacidade:",
+        "auto_detect_no_precise": "Nenhum dado de localização precisa coletado",
+        "auto_detect_only_country": "Apenas geolocalização em nível de país",
+        "auto_detect_no_personal": "Nenhuma informação pessoal armazenada",
+        "auto_detect_session_only": "Dados usados apenas durante sua sessão",
+        "auto_detect_allow": "✅ Permitir Detecção Automática",
+        "auto_detect_manual": "⊘ Seleção Manual",
+        "auto_detect_confirmation": "✨ Preferências Detectadas Automaticamente",
+        "auto_detect_language_detected": "🌐 Idioma: {lang}",
+        "auto_detect_region_detected": "🌍 Região: {region}",
+        "auto_detect_can_change": "💡 Você pode mudar isso a qualquer momento na barra lateral abaixo",
         
         # Layers
         "mapbiomas_layer": "🌱 MapBiomas Cobertura do Solo",

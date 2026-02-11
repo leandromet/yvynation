@@ -23,11 +23,28 @@ def render_getting_started_tutorial():
             st.markdown(f"**{t('step0_language_region_intro')}**")
             if get_lang() == 'pt-br':
                 st.markdown("""
-        ### **Seleção de Idioma**
+        ### **🎯 Auto-Detecção na Primeira Visita**
         
-        Clique no botão 🌐 **Idioma** no canto superior direito para alternar entre Inglês e Português (Brasil). Sua escolha é salva para sua sessão.
+        Na sua primeira visita, o aplicativo oferece permissão para acessar sua localização (GPS):
         
-        ### **Seleção de Região**
+        - **📍 Permissão de Localização**: Clique no botão para permitir que o navegador detecte sua localização
+        - **⚡ Detecção Automática**: Baseado em suas coordenadas GPS:
+          - **América do Norte** (latitude > 10°N, longitude < 0°W) → Define **🇨🇦 Canadá**
+          - **Fora da América do Norte** → Define **English (EN)**
+          - **América do Sul** → Usa o idioma do navegador ou **Português (PT)**
+        
+        Você pode **rever ou recusar** a permissão a qualquer momento — a seleção manual está sempre disponível abaixo.
+        
+        ### **🌐 Seleção Manual de Idioma**
+        
+        Clique no botão 🌐 **Idioma** no canto superior direito para alternar entre:
+        
+        - **🇬🇧 English (EN)**: Interface completa em inglês
+        - **🇧🇷 Português (PT)**: Interface completa em português brasileiro
+        
+        Sua escolha é salva para sua sessão. Você pode alterar a qualquer momento.
+        
+        ### **🌎 Seleção Manual de Região**
         
         Use o menu suspenso **🌎 Selecionar Região** na barra lateral para escolher entre:
         
@@ -38,11 +55,28 @@ def render_getting_started_tutorial():
                 """)
             else:
                 st.markdown("""
-        ### **Language Selection**
+        ### **🎯 Auto-Detection on First Visit**
         
-        Click the 🌐 **Language** button in the top-right corner to switch between English and Portuguese (Brazil). Your choice is saved for your session.
+        On your first visit, the app offers permission to access your location (GPS):
         
-        ### **Region Selection**
+        - **📍 Location Permission**: Click the button to allow the browser to detect your location
+        - **⚡ Automatic Detection**: Based on your GPS coordinates:
+          - **North America** (latitude > 10°N, longitude < 0°W) → Sets **🇨🇦 Canada**
+          - **Outside North America** → Sets **English (EN)**
+          - **South America** → Uses browser language or **Portuguese (PT)**
+        
+        You can **review or reject** the permission at any time — manual selection is always available below.
+        
+        ### **🌐 Manual Language Selection**
+        
+        Click the 🌐 **Language** button in the top-right corner to switch between:
+        
+        - **🇬🇧 English (EN)**: Complete interface in English
+        - **🇧🇷 Português (PT)**: Complete interface in Brazilian Portuguese
+        
+        Your choice is saved for your session. You can change it at any time.
+        
+        ### **🌎 Manual Region Selection**
         
         Use the **🌎 Select Region** dropdown in the sidebar to choose between:
         
@@ -51,6 +85,7 @@ def render_getting_started_tutorial():
         
         The map will center on your selected region. You can still analyze other global areas using the drawing tools.
                 """)
+
         
         # Step 1: Custom Polygon Analysis
         with st.expander(t('step_custom_polygon'), expanded=False):

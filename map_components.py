@@ -26,6 +26,8 @@ import traceback
 def build_and_display_map():
     """
     Build the interactive map with all current layers and return map data.
+    Uses a single global map that pans/zooms - no separate Brazil/Canada maps.
+    Preserves user's current map view (center, zoom).
     
     Returns:
     --------
@@ -33,9 +35,46 @@ def build_and_display_map():
         Data from st_folium containing drawn features
     """
     
-    # Build map fresh each time with current layers
-    selected_country = st.session_state.get('selected_country', 'Brazil')
-    display_map = create_base_map(country=selected_country)
+    # Get last known map view state or use default
+    last_view = st.session_state.get('last_map_view', None)
+    if last_view and 'center' in last_view:
+        center_lat, center_lon = last_view['center']
+        zoom_level = last_view.get('zoom', 3)
+    else:
+        center_lat, center_lon = 0, 0
+        zoom_level = 3
+    
+    # Always build map from scratch but preserve user's view
+    display_map = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=zoom_level,
+        tiles="OpenStreetMap"
+    )
+    
+    # Add basemap options
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Satellite',
+        overlay=False,
+        control=True
+    ).add_to(display_map)
+    
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        attr='Tiles &copy; Esri',
+        name='ArcGIS Street',
+        overlay=False,
+        control=True
+    ).add_to(display_map)
+    
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Tiles &copy; Esri',
+        name='ArcGIS Satellite',
+        overlay=False,
+        control=True
+    ).add_to(display_map)
 
     # Add territories
     if st.session_state.data_loaded and st.session_state.app:
@@ -249,38 +288,113 @@ def build_and_display_map():
     if 'buffer_geometries' in st.session_state and st.session_state.buffer_geometries:
         for buffer_name, buffer_geom in st.session_state.buffer_geometries.items():
             try:
-                # Get buffer GeoJSON
-                buffer_geojson = buffer_geom.getInfo()
-                
-                # Add buffer as GeoJSON layer with distinct styling
-                folium.GeoJson(
-                    data=buffer_geojson,
-                    name=f"Buffer: {buffer_name}",
-                    style_function=lambda x: {
-                        'fillColor': '#00BFFF',
-                        'color': '#0080FF',
-                        'weight': 2,
-                        'opacity': 0.8,
-                        'fillOpacity': 0.15
-                    },
-                    overlay=True,
-                    control=True,
-                    highlight_function=lambda x: {
-                        'fillColor': '#87CEEB',
-                        'color': '#4169E1',
-                        'weight': 3,
-                        'opacity': 1.0,
-                        'fillOpacity': 0.25
-                    }
-                ).add_to(display_map)
-                
-                print(f"[Map] Buffer layer added: {buffer_name}")
+                # Get buffer GeoJSON - safely convert ee.Geometry to GeoJSON
+                if buffer_geom is not None:
+                    try:
+                        buffer_geojson = buffer_geom.getInfo()
+                    except Exception as geom_error:
+                        print(f"[Warning] Could not convert buffer {buffer_name} to GeoJSON: {geom_error}")
+                        continue
+                    
+                    # Add buffer as GeoJSON layer with distinct styling
+                    folium.GeoJson(
+                        data=buffer_geojson,
+                        name=f"Buffer: {buffer_name}",
+                        style_function=lambda x: {
+                            'fillColor': '#00BFFF',
+                            'color': '#0080FF',
+                            'weight': 2,
+                            'opacity': 0.8,
+                            'fillOpacity': 0.15
+                        },
+                        overlay=True,
+                        control=True,
+                        highlight_function=lambda x: {
+                            'fillColor': '#87CEEB',
+                            'color': '#4169E1',
+                            'weight': 3,
+                            'opacity': 1.0,
+                            'fillOpacity': 0.25
+                        }
+                    ).add_to(display_map)
+                    
+                    print(f"[Map] Buffer layer added: {buffer_name}")
             except Exception as e:
                 print(f"[Error] Adding buffer layer failed for {buffer_name}: {e}")
+                import traceback
+                traceback.print_exc()
 
     # Add layer control with enhanced styling
     layer_control = folium.LayerControl(position='topright', collapsed=False)
     layer_control.add_to(display_map)
+
+    # Re-add previously drawn features as GeoJSON layers
+    if st.session_state.all_drawn_features:
+        for idx, feature in enumerate(st.session_state.all_drawn_features):
+            try:
+                props = feature.get('properties', {})
+                is_buffer = props.get('type') == 'external_buffer'
+                
+                # Define styling before using in lambda
+                if is_buffer:
+                    # Buffer zone - light blue ring
+                    color = '#00BFFF'
+                    fill_color = '#00BFFF'
+                    layer_name = props.get('name', f"Buffer {idx+1}")
+                    highlight_color = '#87CEEB'
+                    highlight_border = '#4169E1'
+                else:
+                    # Regular polygon - blue
+                    color = '#0033FF'
+                    fill_color = '#0033FF'
+                    layer_name = f"Polygon {idx+1}"
+                    highlight_color = '#FF6B6B'
+                    highlight_border = '#FF0000'
+                
+                # Create style function with closure
+                def make_style_fn(col, fcol):
+                    return lambda x: {
+                        'fillColor': fcol,
+                        'color': col,
+                        'weight': 2,
+                        'opacity': 0.8,
+                        'fillOpacity': 0.25
+                    }
+                
+                def make_highlight_fn(hcol, hborder):
+                    return lambda x: {
+                        'fillColor': hcol,
+                        'color': hborder,
+                        'weight': 3,
+                        'opacity': 1.0,
+                        'fillOpacity': 0.4
+                    }
+                
+                folium.GeoJson(
+                    data=feature,
+                    name=layer_name,
+                    style_function=make_style_fn(color, fill_color),
+                    overlay=True,
+                    control=True,
+                    highlight_function=make_highlight_fn(highlight_color, highlight_border)
+                ).add_to(display_map)
+            except Exception as e:
+                print(f"[Warning] Could not re-add drawn feature {idx}: {e}")
+        
+        # Fit map bounds to show drawn features
+        try:
+            first_feature = st.session_state.all_drawn_features[0]
+            geom = first_feature.get('geometry', {})
+            if geom.get('type') == 'Polygon' and geom.get('coordinates'):
+                coords = geom['coordinates'][0]
+                lons = [c[0] for c in coords]
+                lats = [c[1] for c in coords]
+                if lons and lats:
+                    sw = [min(lats), min(lons)]
+                    ne = [max(lats), max(lons)]
+                    display_map.fit_bounds([sw, ne])
+        except Exception as e:
+            print(f"[Warning] Could not fit bounds to drawn features: {e}")
 
     # Add drawing tools
     draw = Draw(
@@ -327,12 +441,29 @@ def build_and_display_map():
                 'fillOpacity': 0.1
             }
         
+        # Display map and capture data
         map_data = st_folium(display_map, width="stretch", height=600)
+        
+        # Store current map view state for persistence across reruns
+        if map_data:
+            try:
+                if 'center' in map_data:
+                    center = map_data.get('center')
+                    zoom = map_data.get('zoom', 3)
+                    st.session_state.last_map_view = {
+                        'center': (center.get('lat', 0), center.get('lng', 0)),
+                        'zoom': zoom
+                    }
+            except Exception as view_error:
+                print(f"[Debug] Could not capture map view: {view_error}")
+        
         return map_data
     
     except Exception as e:
-        st.warning(t("map_display_error", error=str(e)))
+        st.warning(t("map_display_error", error=str(e)[:200]))
         print(f"Error displaying map: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

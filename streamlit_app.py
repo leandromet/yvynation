@@ -8,6 +8,9 @@ import streamlit as st
 # Import translation helper
 from translations import t, get_translation
 
+# Import auto-detection for language and region
+from auto_detect_preferences import initialize_preferences
+
 # Page configuration
 st.set_page_config(
     page_title=t("page_title"),
@@ -15,6 +18,87 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Custom CSS to reduce vertical spacing
+st.markdown("""
+<style>
+    /* Reduce padding and margin globally, but keep top padding for top bar */
+    .block-container { 
+        padding-top: 3.5rem !important; 
+        padding-bottom: 0.8rem !important;
+        max-width: 100%;
+    }
+    
+    /* Reduce spacing between elements */
+    h1, h2, h3, h4, h5, h6 { 
+        margin-top: 0.2rem !important; 
+        margin-bottom: 0.2rem !important;
+        padding: 0 !important;
+    }
+    
+    p { 
+        margin-bottom: 0.1rem !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Reduce spacing in sidebar */
+    [data-testid="stSidebar"] { 
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Reduce expander padding and spacing */
+    [data-testid="stExpander"] { 
+        margin-bottom: 0.2rem !important;
+        padding: 0 !important;
+    }
+    
+    .streamlit-expanderHeader { 
+        padding: 0.2rem 0 !important;
+    }
+    
+    .streamlit-expanderContent { 
+        padding: 0.2rem 0 !important;
+    }
+    
+    /* Reduce divider space */
+    hr { 
+        margin-top: 0.2rem !important; 
+        margin-bottom: 0.2rem !important;
+    }
+    
+    /* Reduce caption spacing */
+    .streamlit-caption {
+        margin: 0 !important;
+        line-height: 1.1 !important;
+    }
+    
+    /* Reduce markdown spacing */
+    .streamlit-markdown {
+        margin: 0 !important;
+    }
+    
+    /* Reduce button spacing */
+    button {
+        margin: 0.1rem 0 !important;
+    }
+    
+    /* Reduce column gaps */
+    [data-testid="column"] { 
+        gap: 0.2rem !important;
+        padding: 0 !important;
+    }
+    
+    /* Reduce select box spacing */
+    [data-testid="selectbox"] {
+        margin-bottom: 0.1rem !important;
+    }
+    
+    /* Reduce slider spacing */
+    [data-testid="slider"] {
+        margin-bottom: 0.1rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Standard imports
 import ee
@@ -409,6 +493,8 @@ if "all_drawn_features" not in st.session_state:
     st.session_state.all_drawn_features = []  # List of all captured polygons
 if "selected_feature_index" not in st.session_state:
     st.session_state.selected_feature_index = None
+if "last_map_view" not in st.session_state:
+    st.session_state.last_map_view = {'center': (0, 0), 'zoom': 3}  # Preserve map view (center, zoom)
 if "analysis_results" not in st.session_state:
     st.session_state.analysis_results = None
 if "mapbiomas_comparison_result" not in st.session_state:
@@ -434,6 +520,18 @@ if "current_buffer_for_analysis" not in st.session_state:
 
 # Initialize territory analysis session state
 initialize_territory_session_state()
+
+# ============================================================================
+# AUTO-DETECT LANGUAGE & REGION PREFERENCES
+# ============================================================================
+# Initialize auto-detection on first visit or if user enabled it
+initialize_preferences()
+
+# Initialize unique suffix for sidebar button keys (used by all sidebar functions)
+# This ensures all buttons have stable, unique keys across renders
+if "_sidebar_key_suffix" not in st.session_state:
+    import uuid
+    st.session_state._sidebar_key_suffix = str(uuid.uuid4())[:8]
 
 # ============================================================================
 # SIDEBAR
@@ -1039,7 +1137,7 @@ if st.session_state.data_loaded and st.session_state.app:
                     # ===== ORIGINAL AREA TAB =====
                     with main_tab1:
                         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-                            ["📍 MapBiomas Analysis", "🌲 Hansen GFC Analysis", "🌍 Hansen/GLAD Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
+                            ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
                         )
                         
                         # Use existing analysis code for original geometry
@@ -1048,7 +1146,7 @@ if st.session_state.data_loaded and st.session_state.app:
                     # ===== BUFFER ZONE TAB =====
                     with main_tab2:
                         buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5, buffer_tab6 = st.tabs(
-                            ["📍 MapBiomas Analysis", "🌲 Hansen GFC Analysis", "🌍 Hansen/GLAD Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
+                            ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
                         )
                         
                         # Use same analysis code for buffer geometry
@@ -1058,7 +1156,7 @@ if st.session_state.data_loaded and st.session_state.app:
                 else:
                     # Standard tabs without buffer comparison
                     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-                        ["📍 MapBiomas Analysis", "🌲 Hansen GFC Analysis", "🌍 Hansen/GLAD Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
+                        ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
                     )
                     
                     # Render standard analysis

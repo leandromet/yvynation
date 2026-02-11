@@ -73,7 +73,7 @@ def add_buffer_to_session_state(geometry, buffer_size_km, source_name):
     st.session_state.buffer_metadata[buffer_name] = {
         'source_name': source_name,
         'buffer_size_km': buffer_size_km,
-        'source_geometry': geometry,
+        # Don't store ee.Geometry objects in metadata to avoid serialization issues
         'type': 'external_buffer'
     }
     
@@ -97,23 +97,27 @@ def get_buffer_as_feature(buffer_name):
     if buffer_name not in st.session_state.buffer_geometries:
         return None
     
-    buffer_geom = st.session_state.buffer_geometries[buffer_name]
-    
-    # Get the GeoJSON representation from Earth Engine
-    buffer_geojson = buffer_geom.getInfo()
-    
-    # Create feature structure compatible with drawn features
-    feature = {
-        'type': 'Feature',
-        'geometry': buffer_geojson,
-        'properties': {
-            'name': buffer_name,
-            'type': 'external_buffer',
-            'metadata': st.session_state.buffer_metadata.get(buffer_name, {})
+    try:
+        buffer_geom = st.session_state.buffer_geometries[buffer_name]
+        
+        # Get the GeoJSON representation from Earth Engine
+        buffer_geojson = buffer_geom.getInfo()
+        
+        # Create feature structure compatible with drawn features
+        feature = {
+            'type': 'Feature',
+            'geometry': buffer_geojson,
+            'properties': {
+                'name': buffer_name,
+                'type': 'external_buffer',
+                'metadata': st.session_state.buffer_metadata.get(buffer_name, {})
+            }
         }
-    }
-    
-    return feature
+        
+        return feature
+    except Exception as e:
+        print(f"[Error] Could not convert buffer {buffer_name} to feature: {e}")
+        return None
 
 
 def add_buffer_to_polygon_list(buffer_name):
