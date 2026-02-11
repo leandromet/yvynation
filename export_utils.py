@@ -12,6 +12,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+from translations import t
 
 
 def create_export_zip(
@@ -417,7 +418,7 @@ def generate_export_button(session_state):
     )
     
     if not has_data:
-        st.info("💡 No data to export yet. Draw polygons or analyze territories to generate exports.")
+        st.info(t("no_export_data"))
         return
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -434,9 +435,9 @@ def generate_export_button(session_state):
                     if session_state.get('prepared_map_exports'):
                         map_exports = session_state.get('prepared_map_exports', {})
                         metadata['num_exported_maps'] = len(map_exports)
-                        st.info(f"✓ Including {len(map_exports)} PDF maps in export")
+                        st.info(t("export_maps_prepared", count=len(map_exports)))
                     else:
-                        st.info("ℹ No maps were prepared. Use 'Prepare Maps for Export' button to include them.")
+                        st.info(t("export_maps_no_prepared"))
                         metadata['num_exported_maps'] = 0
                     
                     # Add polygon count to metadata

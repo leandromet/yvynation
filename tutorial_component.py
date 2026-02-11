@@ -18,6 +18,40 @@ def render_getting_started_tutorial():
     with st.expander(f"📚 {t('getting_started_header')}", expanded=False):
         st.markdown(f"### {t('getting_started_title')}\n\n{t('getting_started_intro')}")
         
+        # Step 0: Language & Region Selection
+        with st.expander(t('step_language_region'), expanded=False):
+            st.markdown(f"**{t('step0_language_region_intro')}**")
+            if get_lang() == 'pt-br':
+                st.markdown("""
+        ### **Seleção de Idioma**
+        
+        Clique no botão 🌐 **Idioma** no canto superior direito para alternar entre Inglês e Português (Brasil). Sua escolha é salva para sua sessão.
+        
+        ### **Seleção de Região**
+        
+        Use o menu suspenso **🌎 Selecionar Região** na barra lateral para escolher entre:
+        
+        - **🇧🇷 Brasil**: Cobertura completa de MapBiomas (1985-2023) + dados globais de Hansen/GLAD
+        - **🇨🇦 Canadá**: Inventário de cultivos AAFC + dados globais de Hansen/GLAD
+        
+        O mapa será centralizado em sua região selecionada. Você ainda pode analisar outras áreas globais usando as ferramentas de desenho.
+                """)
+            else:
+                st.markdown("""
+        ### **Language Selection**
+        
+        Click the 🌐 **Language** button in the top-right corner to switch between English and Portuguese (Brazil). Your choice is saved for your session.
+        
+        ### **Region Selection**
+        
+        Use the **🌎 Select Region** dropdown in the sidebar to choose between:
+        
+        - **🇧🇷 Brazil**: Full MapBiomas coverage (1985-2023) + Hansen/GLAD global data
+        - **🇨🇦 Canada**: AAFC crop inventory + Hansen/GLAD global data
+        
+        The map will center on your selected region. You can still analyze other global areas using the drawing tools.
+                """)
+        
         # Step 1: Custom Polygon Analysis
         with st.expander(t('step_custom_polygon'), expanded=False):
             st.markdown(f"**{t('step1_draw_intro')}**")
@@ -31,6 +65,7 @@ def render_getting_started_tutorial():
         2. **Selecione Camadas de Dados** (barra lateral esquerda):
            - **MapBiomas**: Cobertura do solo brasileira (1985-2023, 62 classes, resolução 30m)
            - **Hansen/GLAD**: Mudanças florestais globais (2000-2020, 256 classes, resolução 30m)
+           - **Hansen GFC**: Mudanças Globais de Floresta (2000-2024, resolução 30m) - incluindo ganho e perda de cobertura florestal
            - Alterne vários anos para ativar comparações
         
         3. **Resultados da Análise**:
@@ -50,6 +85,7 @@ def render_getting_started_tutorial():
         - Exclua polígonos indesejados clicando no ícone de lixeira (🗑️) nas ferramentas de desenho
         - Desenhe múltiplas áreas pequenas para comparar diferentes locais
         - Use zonas de buffer para entender efeitos de borda e uso do solo circundante
+        - Hansen GFC é ideal para monitorar perda e ganho florestal em qualquer lugar do mundo
                 """)
             else:
                 st.markdown("""
@@ -61,6 +97,7 @@ def render_getting_started_tutorial():
         2. **Select Data Layers** (left sidebar):
            - **MapBiomas**: Brazilian land cover (1985-2023, 62 classes, 30m resolution)
            - **Hansen/GLAD**: Global forest change (2000-2020, 256 classes, 30m resolution)
+           - **Hansen GFC**: Global Forest Change (2000-2024, 30m resolution) - includes forest cover gain and loss
            - Toggle multiple years to enable comparisons
         
         3. **Analysis Results**:
@@ -80,6 +117,7 @@ def render_getting_started_tutorial():
         - Delete unwanted polygons by clicking the trash icon (🗑️) in drawing tools
         - Draw multiple small areas to compare different locations
         - Use buffer zones to understand edge effects and surrounding land use
+        - Hansen GFC is ideal for monitoring forest loss and gain anywhere in the world
                 """)
         
         # Step 2: Territory Analysis

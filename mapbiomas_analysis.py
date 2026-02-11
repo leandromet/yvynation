@@ -4,6 +4,7 @@ Handles all MapBiomas (Brazil) land cover analysis
 """
 
 import streamlit as st
+from translations import t
 import ee
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -21,14 +22,14 @@ def calculate_area_by_class(image, geometry, year):
         ).getInfo()
         
         if not stats:
-            st.warning("No data found in the selected area")
+            st.warning(t("mapbiomas_no_data"))
             return pd.DataFrame()
         
         # Handle different possible key names from EE
         data = stats.get('b1') or stats.get('classification') or stats.get(list(stats.keys())[0] if stats else None)
         
         if not data:
-            st.warning("Could not extract classification data from the results")
+            st.warning(t("mapbiomas_no_classification"))
             return pd.DataFrame()
         
         from config import MAPBIOMAS_LABELS
@@ -45,18 +46,18 @@ def calculate_area_by_class(image, geometry, year):
                     "Area_ha": count * 0.09  # 30m pixels ≈ 0.09 ha
                 })
             except (ValueError, TypeError) as e:
-                st.warning(f"Could not process class {class_id}: {e}")
+                st.warning(t("mapbiomas_process_error", class_id=class_id, error=str(e)))
                 continue
         
         if not records:
-            st.warning("No valid class data found")
+            st.warning(t("mapbiomas_no_valid_data"))
             return pd.DataFrame()
         
         df = pd.DataFrame(records).sort_values("Area_ha", ascending=False)
         
         # Debug: show class mapping
-        with st.expander("🔍 Class Mapping Debug", expanded=False):
-            st.write("**Found classes in area:**")
+        with st.expander(t("mapbiomas_class_mapping"), expanded=False):
+            st.write(t("mapbiomas_found_classes"))
             for _, row in df.head(10).iterrows():
                 class_name = MAPBIOMAS_LABELS.get(row['Class_ID'], "Unknown")
                 pixels = int(row['Pixels']) if row['Pixels'] else 0
@@ -64,7 +65,7 @@ def calculate_area_by_class(image, geometry, year):
         
         return df
     except Exception as e:
-        st.error(f"Error calculating area: {str(e)}")
+        st.error(t("mapbiomas_calc_error", error=str(e)))
         return pd.DataFrame()
 
 
@@ -76,12 +77,12 @@ def plot_area_distribution(df, year=None, top_n=15):
         
         # Check if dataframe is empty
         if df is None or df.empty:
-            st.warning("No data available to plot")
+            st.warning(t("mapbiomas_no_plot_data"))
             return None
         
         # Ensure Class_ID column exists
         if 'Class_ID' not in df.columns:
-            st.error(f"Missing 'Class_ID' column. Available columns: {df.columns.tolist()}")
+            st.error(t("mapbiomas_missing_column", columns=str(df.columns.tolist())))
             return None
         
         top_df = df.head(top_n)
@@ -97,7 +98,7 @@ def plot_area_distribution(df, year=None, top_n=15):
         plt.tight_layout()
         return fig
     except Exception as e:
-        st.error(f"Error plotting: {str(e)}")
+        st.error(t("mapbiomas_plot_error", error=str(e)))
         return None
 
 
@@ -108,12 +109,12 @@ def plot_area_comparison(df_start, df_end, year_start=None, year_end=None):
         
         # Check if dataframes are empty
         if (df_start is None or df_start.empty) or (df_end is None or df_end.empty):
-            st.warning("No data available to compare")
+            st.warning(t("mapbiomas_no_comparison"))
             return None
         
         # Ensure Class_ID column exists
         if 'Class_ID' not in df_start.columns or 'Class_ID' not in df_end.columns:
-            st.error("Missing 'Class_ID' column in comparison data")
+            st.error(t("mapbiomas_missing_comparison"))
             return None
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -135,7 +136,7 @@ def plot_area_comparison(df_start, df_end, year_start=None, year_end=None):
         plt.tight_layout()
         return fig
     except Exception as e:
-        st.error(f"Error plotting comparison: {str(e)}")
+        st.error(t("mapbiomas_comparison_error", error=str(e)))
         return None
 
 
@@ -151,7 +152,7 @@ def plot_temporal_trend(df, years=None):
             plt.tight_layout()
         return fig
     except Exception as e:
-        st.error(f"Error plotting trend: {e}")
+        st.error(t("mapbiomas_trend_error", error=str(e)))
         return None
 
 
@@ -159,10 +160,10 @@ def render_mapbiomas_area_analysis():
     """Render MapBiomas drawn area analysis section"""
     
     if not st.session_state.mapbiomas_drawn_areas:
-        st.info("👈 Draw an area on the map to begin analysis")
+        st.info(t("mapbiomas_draw_hint"))
         return
     
-    st.success(f"✅ {len(st.session_state.mapbiomas_drawn_areas)} drawing(s) captured")
+    st.success(t("mapbiomas_drawings_captured", count=len(st.session_state.mapbiomas_drawn_areas)))
     
     # Ensure selected area exists
     area_keys = list(st.session_state.mapbiomas_drawn_areas.keys())
@@ -173,7 +174,7 @@ def render_mapbiomas_area_analysis():
     col_select, col_delete = st.columns([3, 1])
     with col_select:
         selected_area = st.selectbox(
-            "Select drawn area to analyze",
+            t("mapbiomas_select_area"),
             area_keys,
             index=area_keys.index(st.session_state.mapbiomas_selected_drawn_area),
             key="mapbiomas_area_select",
@@ -181,7 +182,7 @@ def render_mapbiomas_area_analysis():
         )
     
     with col_delete:
-        if st.button("🗑️ Clear All", key="clear_drawn_mapbiomas"):
+        if st.button(t("mapbiomas_clear_all"), key="clear_drawn_mapbiomas"):
             st.session_state.mapbiomas_drawn_areas = {}
             st.session_state.mapbiomas_drawn_area_count = 0
             st.session_state.mapbiomas_selected_drawn_area = None
@@ -197,13 +198,13 @@ def render_mapbiomas_area_analysis():
             
             col_year, col_btn = st.columns([2, 1])
             with col_year:
-                year = st.selectbox("Year", range(1985, 2024), index=38, key="year_mapbiomas_drawn")
+                year = st.selectbox(t("mapbiomas_select_year"), range(1985, 2024), index=38, key="year_mapbiomas_drawn")
             
             with col_btn:
-                analyze_btn = st.button("📍 Analyze & Zoom", key="btn_mapbiomas_drawn", width="stretch")
+                analyze_btn = st.button(t("mapbiomas_analyze_btn"), key="btn_mapbiomas_drawn", width="stretch")
             
             if analyze_btn and st.session_state.mapbiomas_selected_drawn_area:
-                with st.spinner("Analyzing your drawn area..."):
+                with st.spinner(t("mapbiomas_analyzing")):
                     try:
                         mapbiomas = st.session_state.app.mapbiomas_v9
                         band = f'classification_{year}'
@@ -228,10 +229,10 @@ def render_mapbiomas_area_analysis():
                         st.session_state.mapbiomas_zoom_bounds = bounds
                         st.session_state.mapbiomas_should_zoom_to_feature = True
                         
-                        st.success(f"✅ Analysis complete for {year}")
+                        st.success(t("mapbiomas_analysis_complete", year=year))
                         
                     except Exception as e:
-                        st.error(f"Analysis failed: {e}")
+                        st.error(t("mapbiomas_analysis_failed", error=str(e)))
         
         # Display results if available
         if st.session_state.drawn_area_result is not None:
@@ -243,23 +244,23 @@ def render_mapbiomas_area_analysis():
                     lons = [c[0] for c in coords]
                     lats = [c[1] for c in coords]
                     st.info(
-                        f"📍 **Drawn Area Bounds:**\n"
-                        f"**Lat:** {min(lats):.4f} to {max(lats):.4f}\n"
-                        f"**Lon:** {min(lons):.4f} to {max(lons):.4f}"
+                        t("mapbiomas_bounds", 
+                          lat_min=min(lats), lat_max=max(lats),
+                          lon_min=min(lons), lon_max=max(lons))
                     )
             
-            st.markdown(f"#### 📊 Land Cover Distribution Chart (Drawn Area - {st.session_state.drawn_area_year})")
+            st.markdown(f"#### {t('mapbiomas_distribution_title', year=st.session_state.drawn_area_year)}")
             fig = plot_area_distribution(st.session_state.drawn_area_result, 
                                         year=st.session_state.drawn_area_year, top_n=15)
             if fig:
                 st.pyplot(fig, width="stretch")
             
-            st.markdown("#### 📋 Detailed Statistics")
+            st.markdown(f"#### {t('mapbiomas_statistics_title')}")
             st.dataframe(st.session_state.drawn_area_result.head(20), width="stretch")
-            st.success("✅ View the drawn area on the map!")
+            st.success(t("mapbiomas_view_map"))
             
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(t("mapbiomas_error", error=str(e)))
 
 
 def filter_territories_by_names(territories, names, name_prop='territory_name'):
@@ -353,16 +354,16 @@ def render_mapbiomas_territory_analysis():
     
     col_search, col_refresh = st.columns([3, 1])
     with col_search:
-        st.caption("Search and select a territory from all available indigenous territories, or click on one on the map")
+        st.caption(t("mapbiomas_territory_caption"))
     
     with col_refresh:
-        if st.button("🔄 Refresh", key="refresh_territories_mapbiomas"):
+        if st.button(t("mapbiomas_refresh"), key="refresh_territories_mapbiomas"):
             st.rerun()
     
     try:
         territories = st.session_state.app.territories
         if territories is None:
-            st.error("Territories not loaded. Please click 'Load Core Data' first.")
+            st.error(t("mapbiomas_territories_not_loaded"))
             return
         
         # Get all territories (no state filtering since uf_sigla is empty)
@@ -371,7 +372,7 @@ def render_mapbiomas_territory_analysis():
         # Get features to extract territory names
         features = territories_fc.getInfo()["features"]
         if not features:
-            st.error("No territory features found")
+            st.error(t("mapbiomas_no_territory_features"))
             return
         
         # Detect the correct property name for territory names
@@ -418,9 +419,9 @@ def render_mapbiomas_territory_analysis():
                 on_change=lambda: st.session_state.update({'territory_select': st.session_state.territory_select})
             )
         with col_year:
-            territory_year = st.selectbox("Year", range(1985, 2024), index=38, key="territory_year")
+            territory_year = st.selectbox(t("mapbiomas_territory_year"), range(1985, 2024), index=38, key="territory_year")
         
-        if st.button("📍 Analyze Territory", key="btn_territory", width="stretch"):
+        if st.button(t("mapbiomas_analyze_territory"), key="btn_territory", width="stretch"):
             with st.spinner(f"Analyzing {territory_name}..."):
                 try:
                     mapbiomas = st.session_state.app.mapbiomas_v9
@@ -457,7 +458,7 @@ def render_mapbiomas_territory_analysis():
             if fig:
                 st.pyplot(fig, width="stretch")
             
-            st.markdown("#### 📋 Detailed Statistics")
+            st.markdown(f"#### {t('mapbiomas_territory_statistics_title')}")
             st.dataframe(st.session_state.territory_result.head(20), width="stretch")
             st.success(f"✅ View {st.session_state.territory_name} on the map!")
             
@@ -469,11 +470,11 @@ def render_mapbiomas_multiyear_analysis():
     """Render MapBiomas multi-year territory analysis section"""
     
     if "app" not in st.session_state or st.session_state.app is None:
-        st.info("Load data first to enable multi-year analysis")
+        st.info(t("mapbiomas_load_data_first"))
         return
     
     if st.session_state.last_analyzed_geom is None:
-        st.info("👈 First, analyze a drawn area or select a territory above")
+        st.info(t("mapbiomas_first_analyze_area"))
         return
     
     st.info(f"📍 Analyzing: **{st.session_state.last_analyzed_name}**")
@@ -484,7 +485,7 @@ def render_mapbiomas_multiyear_analysis():
     with col2:
         end_year = st.slider("End Year", 1985, 2023, 2023, key="end_year_current")
     
-    if st.button("Analyze Multi-Year Changes", width="stretch", key="btn_multiyear_mapbiomas"):
+    if st.button(t("mapbiomas_multiyear_analyze"), width="stretch", key="btn_multiyear_mapbiomas"):
         with st.spinner(f"Analyzing {st.session_state.last_analyzed_name} from {start_year} to {end_year}..."):
             try:
                 mapbiomas = st.session_state.app.mapbiomas_v9
@@ -534,7 +535,7 @@ def render_mapbiomas_multiyear_analysis():
         except Exception as e:
             st.warning(f"Chart rendering issue: {e}")
         
-        st.markdown("#### 📋 Statistics by Year")
+        st.markdown(f"#### {t('mapbiomas_statistics_by_year')}")
         
         col_start, col_end = st.columns(2)
         with col_start:
@@ -556,7 +557,7 @@ def render_mapbiomas_change_analysis():
     """Render MapBiomas change detection section"""
     
     if st.session_state.multiyear_results is None:
-        st.info("Run analysis in the 'Multi-Year Territory Analysis' section first")
+        st.info(t("mapbiomas_run_analysis_first"))
         return
     
     results = st.session_state.multiyear_results
@@ -577,7 +578,7 @@ def render_mapbiomas_change_analysis():
         change_df = change_df.sort_values("Change (ha)", key=abs, ascending=False)
         
         # Change table
-        st.write("**Land Cover Changes (hectares)**")
+        st.write(t("mapbiomas_land_cover_changes"))
         st.dataframe(change_df.head(20), width="stretch")
         
         # Change visualization
@@ -590,4 +591,4 @@ def render_mapbiomas_change_analysis():
         except Exception as e:
             st.warning(f"Visualization issue: {e}")
     else:
-        st.warning("Results format not recognized")
+        st.warning(t("mapbiomas_format_not_recognized"))

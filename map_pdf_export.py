@@ -895,7 +895,7 @@ def render_map_export_section():
         hansen_years = [int(y) for y, enabled in st.session_state.get('hansen_layers', {}).items() if enabled]
         
         if not mapbiomas_years and not hansen_years:
-            st.info("Enable MapBiomas or Hansen layers from the analysis tabs to export as PNG")
+            st.info(t("export_png_enable_layers"))
         else:
             # Single button to export all layers as a zip
             if st.button("📦 Export All PNGs as ZIP", key="export_all_pngs_zip", width="stretch"):
@@ -944,7 +944,7 @@ def render_map_export_section():
                                 )
                                 
                                 st.success("✓ All PNGs exported successfully!")
-                                st.info(f"📦 ZIP contains: {len(png_results.get('mapbiomas', {}))} MapBiomas + {len(png_results.get('hansen', {}))} Hansen layers")
+                                st.info(t("export_png_zip_contains", mapbiomas_count=len(png_results.get('mapbiomas', {})), hansen_count=len(png_results.get('hansen', {}))))
                         except Exception as e:
                             st.error(f"Error exporting PNGs: {str(e)}")
                             import traceback

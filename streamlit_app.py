@@ -789,9 +789,9 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
                         if area_prefix == "territory":
                             st.session_state.territory_transitions = transitions
                     else:
-                        st.info("Could not generate Sankey diagram")
+                        st.info(t("sankey_generation_error"))
                 else:
-                    st.info("No transition data available")
+                    st.info(t("no_transition_data_available"))
             else:
                 st.warning("Geometry not available. Run analysis first.")
         except Exception as e:
@@ -828,7 +828,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                 if st.session_state.buffer_compare_mode:
                     st.success("✓ Buffer Compare Mode: ON")
                 else:
-                    st.info("Buffer Compare Mode: OFF")
+                    st.info(t("buffer_compare_mode_off"))
             with buffer_status_cols[1]:
                 if st.session_state.current_buffer_for_analysis:
                     st.success(f"✓ Buffer: {st.session_state.current_buffer_for_analysis}")
@@ -859,7 +859,7 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
         # Show buffer status hint if buffer mode is on but buffer not ready
         if st.session_state.buffer_compare_mode and not buffer_exists:
             if not st.session_state.current_buffer_for_analysis:
-                st.info("💡 **How to enable buffer comparison:** Go to the sidebar → Territory Analysis section → Enable '📊 Compare Territory vs Buffer' → Select distance → Click '🔵 Create Buffer' → Click 'Analyze Buffer Zone'")
+                st.info(t("buffer_comparison_help"))
             elif st.session_state.current_buffer_for_analysis not in st.session_state.buffer_geometries:
                 st.warning("⚠️ Buffer geometry not found. Please create the buffer again in the sidebar.")
         
@@ -870,9 +870,9 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
             
             if has_buffer_results:
-                st.info(f"📊 Compare Mode: Switch between Territory and Buffer Zone ({buffer_meta['buffer_size_km']}km) tabs below")
+                st.info(t("buffer_compare_mode_info", buffer_km=buffer_meta['buffer_size_km']))
             else:
-                st.info(f"📊 Buffer Mode: Use 'Analyze Buffer Zone' button in sidebar to populate buffer tab data")
+                st.info(t("buffer_mode_info"))
             
             # Create outer tabs for Territory vs Buffer - ALWAYS SHOW BOTH TABS
             territory_main_tab, buffer_main_tab = st.tabs([
@@ -917,9 +917,9 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
                             area_prefix="buffer"
                         )
                     else:
-                        st.info(f"📊 No buffer analysis data yet. Click 'Analyze Buffer Zone' in the sidebar to generate buffer comparison data.")
+                        st.info(t("no_buffer_data_yet"))
                 else:
-                    st.info(f"📊 No buffer analysis data. Click 'Analyze Buffer Zone' in the sidebar to generate buffer comparison data.")
+                    st.info(t("no_buffer_data"))
         else:
             # Standard comparison without buffer
             render_territory_comparison_content(
@@ -979,9 +979,9 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
             with col3:
                 st.metric("Largest Class", largest_class['Class'], help=f"{largest_class['Area_ha']:,.0f} ha")
             
-            st.info(f"Territory: **{st.session_state.territory_name}**")
-            st.info(f"Year: **{st.session_state.territory_year}**")
-            st.info(f"Data Source: **{st.session_state.territory_source}**")
+            st.info(t("territory_info_label", name=st.session_state.territory_name))
+            st.info(t("year_info_label", year=st.session_state.territory_year))
+            st.info(t("data_source_info_label", source=st.session_state.territory_source))
 
 
 if st.session_state.data_loaded and st.session_state.app:
@@ -1031,7 +1031,7 @@ if st.session_state.data_loaded and st.session_state.app:
                     buffer_geom = st.session_state.buffer_geometries[st.session_state.current_buffer_for_analysis]
                     buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
                     
-                    st.info(f"📊 Compare Mode: Switch between Original Area and Buffer Zone ({buffer_meta['buffer_size_km']}km) tabs below")
+                    st.info(t("polygon_compare_mode_info", buffer_km=buffer_meta['buffer_size_km']))
                     
                     # Create outer tabs for Original vs Buffer
                     main_tab1, main_tab2 = st.tabs(["📍 Original Area", f"🔵 Buffer Zone ({buffer_meta['buffer_size_km']}km)"])
@@ -1067,7 +1067,7 @@ if st.session_state.data_loaded and st.session_state.app:
             st.error(f"Error processing drawn feature: {e}")
             print(f"Analysis error: {e}")
     else:
-        st.info("🎨 Draw a polygon on the map to start analyzing land cover in that area. Use the drawing tools in the top-left of the map.")
+        st.info(t("draw_polygon_instruction"))
 
 
 print("\n✓ Yvynation App Loaded Successfully")
