@@ -13,4 +13,5 @@ requests>=2.31.0
 ipython>=8.15.0
 streamlit>=1.28.1
 streamlit-folium>=0.15.0
+streamlit-geolocation>=0.0.3
 geojson>=3.0.0
