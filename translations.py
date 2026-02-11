@@ -146,13 +146,6 @@ TRANSLATIONS = {
         "exporting": "Exporting...",
         "export_complete": "Export complete!",
         
-        # About
-        "about": "ℹ️ About Yvynation",
-        "platform_description": "Yvynation is an interactive platform for monitoring changes in indigenous territories and regions.",
-        "data_sources": "Data Sources",
-        "technologies": "Technologies Used",
-        "contact": "Contact & Support",
-        
         # Errors & Warnings
         "error_map": "Error displaying map",
         "error_analysis": "Error analyzing data",
@@ -170,7 +163,7 @@ TRANSLATIONS = {
         "basemap_default": "Google Maps is selected by default",
         "overlay_tip": "Tip: Overlay multiple basemaps and data layers to compare different views",
         
-        # Territory Analysis
+        # Territory Analysis (detailed)
         "territory_analysis_title": "🏛️ Indigenous Territories Analysis",
         "analyze_territory_intro": "Analyze land cover in indigenous territories:",
         "territories_not_loaded": "❌ Territories data not loaded.",
@@ -186,7 +179,6 @@ TRANSLATIONS = {
         "territory_add_failed": "❌ Failed to add territory layer: {error}",
         "analyzing_territory": "Analyzing {territory}...",
         "territory_geometry_error": "❌ Could not get territory geometry",
-        "analysis_complete": "✅ Analysis complete for {territory}",
         "analysis_failed": "❌ Analysis failed: {error}",
         "hansen_analysis_failed": "❌ Hansen analysis failed: {error}",
         "territory_error": "❌ Territory analysis error: {error}",
@@ -216,8 +208,7 @@ TRANSLATIONS = {
         "buffer_analysis_info": "📊 Scroll down to see results",
         "buffer_analysis_failed": "❌ Failed to analyze buffer: {error}",
         
-        # View Options
-        "view_options": "🎨 View Options",
+        # Consolidated View Options
         "show_consolidated": "Show Consolidated Classes",
         "consolidated_help": "Group Hansen 256 classes into 12 consolidated categories for cleaner visualization",
         "consolidated_view": "📊 Consolidated view: 256 classes → 12 categories",
@@ -287,7 +278,6 @@ TRANSLATIONS = {
         "tree_gain_header": "Tree Cover Gain (2000-2012)",
         
         # Data Availability Messages
-        "no_tree_data": "No tree cover data available",
         "no_tree_loss_data": "No tree loss data available",
         "no_tree_gain_data": "No tree gain data available",
         "no_loss_detected": "✅ No forest loss detected in this area!",
@@ -303,8 +293,6 @@ TRANSLATIONS = {
         "no_aafc_data_year": "No AAFC data found for {year} in this area",
         
         # Results Display
-        "consolidated_view": "Consolidated View (12 classes)",
-        "detailed_view": "Detailed View (256 classes)",
         "loss_by_year": "Loss by Year:",
         
         # Error Messages
@@ -334,17 +322,12 @@ TRANSLATIONS = {
         "step_map_controls": "🗺️ **Map Controls & Navigation**",
         "step_data_understanding": "📊 **Understanding the Data & Results**",
         
-        # Tutorial Content - Step 1
+        # Tutorial Content
         "step1_draw_intro": "Draw and analyze any area on the map:",
-        # Tutorial Content - Step 2
         "step2_territory_intro": "Pre-defined indigenous territory boundaries with historical analysis:",
-        # Tutorial Content - Step 3
         "step3_comparison_intro": "Compare land cover changes between any two years:",
-        # Tutorial Content - Step 4
         "step4_export_intro": "Save your analysis results for reports and further analysis:",
-        # Tutorial Content - Step 5
         "step5_map_controls_intro": "Map Controls & Navigation",
-        # Tutorial Content - Step 6
         "step6_data_understanding_intro": "Understanding Data & Results",
         
         # Map Components - Territory & Buffer
@@ -362,9 +345,7 @@ TRANSLATIONS = {
         "map_display_error": "Map display error: {error}",
         "polygon_only_error": "❌ Can only create buffers for polygon features",
         "buffer_creation_error": "❌ Failed to create buffer: {error}",
-        "buffer_created_compare": "✅ Created {distance}km buffer - Compare mode enabled!",
         "analysis_compare_info": "📊 Analysis tabs will show both polygon and buffer results",
-        "buffer_created": "✅ Created {distance}km buffer around {name}",
         "buffer_added_info": "📍 Buffer added to polygon list - refresh to select it",
         "territory_added_map": "Territory layer added: {name}",
         "buffer_added_map": "Buffer layer added: {name}",
@@ -404,7 +385,6 @@ TRANSLATIONS = {
         
         # Initialization & Loading
         "initializing_ee": "Initializing Earth Engine...",
-        "loading_data": "Loading data...",
         "ee_init_error": "❌ Failed to initialize Earth Engine: {error}",
         "data_loaded": "✅ Data loaded successfully",
         "data_load_error": "❌ Error loading data: {error}",
@@ -428,9 +408,37 @@ TRANSLATIONS = {
         "download_success": "✅ Download ready",
         "export_error": "❌ Error exporting data: {error}",
         
+        # Export Maps Section
+        "export_maps_intro": "🗺️ Export Maps with Polygon Overlays",
+        "export_maps_description": "Export interactive maps showing each active layer with your drawn polygons and scale bars. Maps are saved as HTML files and can be opened in any web browser.",
+        "export_maps_caption": "Maps include: MapBiomas overlays, Hansen overlays, Google Satellite, Google Maps, scale bars, and layer controls",
+        "export_maps_ready": "✓ {count} polygon(s) ready for export",
+        "export_maps_warning": "⚠ Draw at least one polygon on the map to export with overlays",
+        "export_maps_no_polygons": "Please draw at least one polygon on the map first",
+        "export_maps_no_object": "Map object not found. Please refresh the page and try again.",
+        "export_maps_preparing": "Creating export maps...",
+        "export_maps_button": "📊 Prepare Maps for Export",
+        "export_maps_success": "✓ {count} map(s) prepared! They will be included in the Export All ZIP file.",
+        "export_maps_no_created": "No maps were successfully created. Check console for errors.",
+        "export_maps_error": "Error preparing maps: {error}",
+        "export_maps_convert_error": "Could not convert {name} to HTML: {error}",
+        "export_maps_export_error": "Could not export {name}: {error}",
+        "export_analysis": "💾 Export Analysis",
+        "polygon_analysis_header": "📊 Polygon Analysis & Statistics",
+        "analyzing_polygon": "🔵 Analyzing: {name}",
+        "active_layers_header": "📋 Active Layers",
+        "map_title": "🌎 Yvynation - Land Cover Analysis 🏞️",
+        "export_maps_static": "🗺️ Export Maps",
+        "export_maps_static_desc": "Export static maps showing drawn polygons and/or territory boundaries with scale bars. Available formats: PDF (all layer types) and PNG (MapBiomas/Hansen)",
+        "export_maps_no_data": "⚠ Draw polygons or select a territory",
+        "export_pdf_button": "Prepare PDF maps",
+        "export_pdf_desc": "Creates PDF maps: MapBiomas, Hansen, Satellite, and Maps basemaps with your polygons and scale bars",
+        "no_export_data": "💡 No data to export yet. Draw polygons or analyze territories to generate exports.",
+        "draw_polygon_instruction": "🎨 Draw a polygon on the map to start analyzing land cover in that area. Use the drawing tools in the top-left of the map.",
+        
         # Layer Reference Guide
         "layer_reference_full": "📚 Layer Reference Guide - legends",
-        "indigenous_territories_legend": "📍 Indigenous Lands & Territories",
+        "indigenous_territories_legend": "📍 Terras & Territórios Indígenas",
         "indigenous_territories_label": "Indigenous Territories",
         "selected_territory_label": "Selected Territory",
         "drawn_polygon_label": "Drawn Polygon",
@@ -449,9 +457,7 @@ TRANSLATIONS = {
         "legend_data_brazilian": "🌱 MapBiomas: Brazilian land cover (1985-2023)",
         "legend_data_global": "🌍 Hansen: Global forest change (2000-2020)",
         "legend_data_agriculture": "🚜 AAFC: Canadian crop inventory (2009-2024)",
-        "legend_data_territories": "📍 Indigenous Territories"
-
-
+        "legend_data_territories": "📍 Indigenous Territories",
     },
     "pt-br": {
         # Header
@@ -593,13 +599,6 @@ TRANSLATIONS = {
         "exporting": "Exportando...",
         "export_complete": "Exportação concluída!",
         
-        # About
-        "about": "ℹ️ Sobre o Yvynation",
-        "platform_description": "Yvynation é uma plataforma interativa para monitorar mudanças em territórios indígenas e regiões.",
-        "data_sources": "Fontes de Dados",
-        "technologies": "Tecnologias Utilizadas",
-        "contact": "Contato & Suporte",
-        
         # Errors & Warnings
         "error_map": "Erro ao exibir mapa",
         "error_analysis": "Erro ao analisar dados",
@@ -617,7 +616,7 @@ TRANSLATIONS = {
         "basemap_default": "Google Maps está selecionado por padrão",
         "overlay_tip": "Dica: Sobreponha múltiplos mapas base e camadas de dados para comparar diferentes visualizações",
         
-        # Territory Analysis
+        # Territory Analysis (detailed)
         "territory_analysis_title": "🏛️ Análise de Territórios Indígenas",
         "analyze_territory_intro": "Analise cobertura do solo em territórios indígenas:",
         "territories_not_loaded": "❌ Dados de territórios não carregados.",
@@ -633,7 +632,6 @@ TRANSLATIONS = {
         "territory_add_failed": "❌ Falha ao adicionar camada de território: {error}",
         "analyzing_territory": "Analisando {territory}...",
         "territory_geometry_error": "❌ Não foi possível obter geometria do território",
-        "analysis_complete": "✅ Análise concluída para {territory}",
         "analysis_failed": "❌ Análise falhou: {error}",
         "hansen_analysis_failed": "❌ Análise Hansen falhou: {error}",
         "territory_error": "❌ Erro na análise de território: {error}",
@@ -663,8 +661,7 @@ TRANSLATIONS = {
         "buffer_analysis_info": "📊 Role para baixo para ver resultados",
         "buffer_analysis_failed": "❌ Falha ao analisar buffer: {error}",
         
-        # View Options
-        "view_options": "🎨 Opções de Visualização",
+        # Consolidated View Options
         "show_consolidated": "Mostrar Classes Consolidadas",
         "consolidated_help": "Agrupe 256 classes Hansen em 12 categorias consolidadas para visualização mais limpa",
         "consolidated_view": "📊 Visualização consolidada: 256 classes → 12 categorias",
@@ -734,7 +731,6 @@ TRANSLATIONS = {
         "tree_gain_header": "Ganho de Cobertura Arbórea (2000-2012)",
         
         # Data Availability Messages
-        "no_tree_data": "Nenhum dado de cobertura arbórea disponível",
         "no_tree_loss_data": "Nenhum dado de perda florestal disponível",
         "no_tree_gain_data": "Nenhum dado de ganho de cobertura disponível",
         "no_loss_detected": "✅ Nenhuma perda florestal detectada nesta área!",
@@ -750,8 +746,6 @@ TRANSLATIONS = {
         "no_aafc_data_year": "Nenhum dado AAFC encontrado para {year} nesta área",
         
         # Results Display
-        "consolidated_view": "Visualização Consolidada (12 classes)",
-        "detailed_view": "Visualização Detalhada (256 classes)",
         "loss_by_year": "Perda por Ano:",
         
         # Error Messages
@@ -781,17 +775,12 @@ TRANSLATIONS = {
         "step_map_controls": "🗺️ **Controles do Mapa e Navegação**",
         "step_data_understanding": "📊 **Entendendo os Dados e Resultados**",
         
-        # Tutorial Content - Step 1
+        # Tutorial Content
         "step1_draw_intro": "Desenhe e analise qualquer área no mapa:",
-        # Tutorial Content - Step 2
         "step2_territory_intro": "Limites de territórios indígenas pré-definidos com análise histórica:",
-        # Tutorial Content - Step 3
         "step3_comparison_intro": "Compare mudanças de cobertura do solo entre dois anos:",
-        # Tutorial Content - Step 4
         "step4_export_intro": "Salve os resultados da sua análise para relatórios e análise posterior:",
-        # Tutorial Content - Step 5
         "step5_map_controls_intro": "Controles de Mapa & Navegação",
-        # Tutorial Content - Step 6
         "step6_data_understanding_intro": "Compreendendo Dados & Resultados",
         
         # Map Components - Territory & Buffer
@@ -809,9 +798,7 @@ TRANSLATIONS = {
         "map_display_error": "Erro de exibição do mapa: {error}",
         "polygon_only_error": "❌ Buffers podem ser criados apenas para recursos poligonais",
         "buffer_creation_error": "❌ Falha ao criar buffer: {error}",
-        "buffer_created_compare": "✅ Buffer de {distance}km criado - Modo de comparação ativado!",
         "analysis_compare_info": "📊 As abas de análise mostrarão resultados tanto do polígono quanto do buffer",
-        "buffer_created": "✅ Buffer de {distance}km criado ao redor de {name}",
         "buffer_added_info": "📍 Buffer adicionado à lista de polígonos - atualize para selecioná-lo",
         "territory_added_map": "Camada de territórios adicionada: {name}",
         "buffer_added_map": "Camada de buffer adicionada: {name}",
@@ -821,29 +808,6 @@ TRANSLATIONS = {
         "analysis_error": "❌ Erro ao adicionar camada de análise: {error}",
         "adding_territory_error": "[Erro] Falha ao adicionar camada de territórios: {error}",
         "adding_buffer_error": "[Erro] Falha ao adicionar camada de buffer para {name}: {error}",
-        
-        # Layer Reference Guide
-        "layer_reference_full": "📚 Guia de Referência de Camadas - legendas",
-        "indigenous_territories_legend": "📍 Terras & Territórios Indígenas",
-        "indigenous_territories_label": "Territórios Indígenas",
-        "selected_territory_label": "Território Selecionado",
-        "drawn_polygon_label": "Polígono Desenhado",
-        "buffer_zone_label": "Zona de Buffer Externo",
-        "mapbiomas_legend": "🌱 Classes de Cobertura do Solo MapBiomas",
-        "hansen_legend": "🌍 Classes de Cobertura do Solo Global Hansen/GLAD",
-        "gfc_legend": "🌲 Mudanças Florestais Globais Hansen (UMD 2024)",
-        "gfc_legend_desc": "Análise de mudança de cobertura florestal de 2000-2024",
-        "aafc_legend": "🚜 Inventário Anual de Cultivos AAFC (Canadá)",
-        "aafc_legend_desc": "Cobertura de terra agrícola no Canadá (2009-2024, resolução 30m)",
-        "legend_controls": "Instruções de Controle",
-        "legend_layer_control": "Controle de Camadas: canto superior direito",
-        "legend_drawing_tools": "Ferramentas de Desenho: canto superior esquerdo",
-        "legend_opacity": "Opacidade: Ajuste na barra lateral",
-        "legend_data_overview": "Visão Geral de Camadas de Dados",
-        "legend_data_brazilian": "🌱 MapBiomas: Cobertura do solo brasileiro (1985-2023)",
-        "legend_data_global": "🌍 Hansen: Mudança florestal global (2000-2020)",
-        "legend_data_agriculture": "🚜 AAFC: Inventário de cultivos canadense (2009-2024)",
-        "legend_data_territories": "📍 Territórios Indígenas",
         
         # Analysis Messages - Additional
         "no_forest_loss": "✅ Nenhuma perda florestal detectada nesta área!",
@@ -874,7 +838,6 @@ TRANSLATIONS = {
         
         # Initialization & Loading
         "initializing_ee": "Inicializando Google Earth Engine...",
-        "loading_data": "Carregando dados...",
         "ee_init_error": "❌ Falha ao inicializar Earth Engine: {error}",
         "data_loaded": "✅ Dados carregados com sucesso",
         "data_load_error": "❌ Erro ao carregar dados: {error}",
@@ -899,31 +862,6 @@ TRANSLATIONS = {
         "export_error": "❌ Erro ao exportar dados: {error}",
         
         # Export Maps Section
-        "export_maps_intro": "🗺️ Export Maps with Polygon Overlays",
-        "export_maps_description": "Export interactive maps showing each active layer with your drawn polygons and scale bars. Maps are saved as HTML files and can be opened in any web browser.",
-        "export_maps_caption": "Maps include: MapBiomas overlays, Hansen overlays, Google Satellite, Google Maps, scale bars, and layer controls",
-        "export_maps_ready": "✓ {count} polygon(s) ready for export",
-        "export_maps_warning": "⚠ Draw at least one polygon on the map to export with overlays",
-        "export_maps_no_polygons": "Please draw at least one polygon on the map first",
-        "export_maps_no_object": "Map object not found. Please refresh the page and try again.",
-        "export_maps_preparing": "Creating export maps...",
-        "export_maps_button": "📊 Prepare Maps for Export",
-        "export_maps_success": "✓ {count} map(s) prepared! They will be included in the Export All ZIP file.",
-        "export_maps_no_created": "No maps were successfully created. Check console for errors.",
-        "export_maps_error": "Error preparing maps: {error}",
-        "export_maps_convert_error": "Could not convert {name} to HTML: {error}",
-        "export_maps_export_error": "Could not export {name}: {error}",
-        "export_analysis": "💾 Export Analysis",
-        "polygon_analysis_header": "📊 Polygon Analysis & Statistics",
-        "analyzing_polygon": "🔵 Analyzing: {name}",
-        "export_analysis": "💾 Exportar Análise",
-        "polygon_analysis_header": "📊 Análise e Estatísticas de Polígonos",
-        "analyzing_polygon": "🔵 Analisando: {name}",
-        "download_csv_label": "📥 Baixar CSV",
-        "download_success": "✅ Download pronto",
-        "export_error": "❌ Erro ao exportar dados: {error}",
-        
-        # Export Maps Section
         "export_maps_intro": "🗺️ Exportar Mapas com Sobreposições de Polígonos",
         "export_maps_description": "Exporte mapas interativos mostrando cada camada ativa com seus polígonos desenhados e barras de escala. Os mapas são salvos como arquivos HTML e podem ser abertos em qualquer navegador da web.",
         "export_maps_caption": "Os mapas incluem: sobreposições MapBiomas, sobreposições Hansen, Satélite Google, Google Maps, barras de escala e controles de camadas",
@@ -937,7 +875,42 @@ TRANSLATIONS = {
         "export_maps_no_created": "Nenhum mapa foi criado com sucesso. Verifique o console para erros.",
         "export_maps_error": "Erro ao preparar mapas: {error}",
         "export_maps_convert_error": "Não foi possível converter {name} em HTML: {error}",
-        "export_maps_export_error": "Não foi possível exportar {name}: {error}"
+        "export_maps_export_error": "Não foi possível exportar {name}: {error}",
+        "export_analysis": "💾 Exportar Análise",
+        "polygon_analysis_header": "📊 Análise e Estatísticas de Polígonos",
+        "analyzing_polygon": "🔵 Analisando: {name}",
+        "active_layers_header": "📋 Camadas Ativas",
+        "map_title": "🌎 Yvynation - Análise de Cobertura do Solo 🏞️",
+        "export_maps_static": "🗺️ Exportar Mapas",
+        "export_maps_static_desc": "Exporte mapas estáticos mostrando polígonos desenhados e/ou limites de territórios com barras de escala. Formatos disponíveis: PDF (todos os tipos de camadas) e PNG (MapBiomas/Hansen)",
+        "export_maps_no_data": "⚠ Desenhe polígonos ou selecione um território",
+        "export_pdf_button": "Preparar mapas PDF",
+        "export_pdf_desc": "Cria mapas PDF: bases MapBiomas, Hansen, Satélite e Mapas com seus polígonos e barras de escala",
+        "no_export_data": "💡 Nenhum dado para exportar ainda. Desenhe polígonos ou analise territórios para gerar exportações.",
+        "draw_polygon_instruction": "🎨 Desenhe um polígono no mapa para começar a analisar a cobertura do solo naquela área. Use as ferramentas de desenho no canto superior esquerdo do mapa.",
+        
+        # Layer Reference Guide
+        "layer_reference_full": "📚 Guia de Referência de Camadas - legendas",
+        "indigenous_territories_legend": "📍 Terras & Territórios Indígenas",
+        "indigenous_territories_label": "Territórios Indígenas",
+        "selected_territory_label": "Território Selecionado",
+        "drawn_polygon_label": "Polígono Desenhado",
+        "buffer_zone_label": "Zona de Buffer Externo",
+        "mapbiomas_legend": "🌱 Classes de Cobertura do Solo MapBiomas",
+        "hansen_legend": "🌍 Classes de Cobertura do Solo Global Hansen/GLAD",
+        "gfc_legend": "🌲 Mudanças Florestais Globais Hansen (UMD 2024)",
+        "gfc_legend_desc": "Análise de mudança de cobertura florestal de 2000-2024",
+        "aafc_legend": "🚜 Inventário Anual de Cultivos AAFC (Canadá)",
+        "aafc_legend_desc": "Cobertura de terra agrícola no Canadá (2009-2024, resolução 30m)",
+        "legend_controls": "Instruções de Controle",
+        "legend_layer_control": "Controle de Camadas: canto superior direito",
+        "legend_drawing_tools": "Ferramentas de Desenho: canto superior esquerdo",
+        "legend_opacity": "Opacidade: Ajuste na barra lateral",
+        "legend_data_overview": "Visão Geral de Camadas de Dados",
+        "legend_data_brazilian": "🌱 MapBiomas: Cobertura do solo brasileiro (1985-2023)",
+        "legend_data_global": "🌍 Hansen: Mudança florestal global (2000-2020)",
+        "legend_data_agriculture": "🚜 AAFC: Inventário de cultivos canadense (2009-2024)",
+        "legend_data_territories": "📍 Territórios Indígenas"
     }
 }
 
