@@ -134,7 +134,7 @@ def create_map_with_layer(
                             icon=folium.Icon(color='blue', icon='info-sign'),
                         ).add_to(export_map)
             except Exception as e:
-                st.warning(f"Could not add polygon {idx + 1} to export map: {str(e)}")
+                st.warning(t("export_maps_polygon_error", idx=idx + 1, error=str(e)))
     
     # Add scale bar and measure control
     MeasureControl(primary_length_unit='kilometers').add_to(export_map)
@@ -204,7 +204,7 @@ def create_export_map_set(base_map):
     drawn_features = st.session_state.get('all_drawn_features', [])
     
     if not drawn_features:
-        st.warning("No polygons drawn. Export maps require drawn polygons to be useful.")
+        st.warning(t("export_maps_no_polygons_warn"))
         return export_maps
     
     # Get territories
@@ -346,9 +346,9 @@ def get_map_export_figures():
                 html_string = folium_map._repr_html_()
                 map_figures[map_name] = html_string
             except Exception as e:
-                st.warning(f"Could not export {map_name}: {str(e)}")
+                st.warning(t("export_maps_export_error", name=map_name, error=str(e)))
     
     except Exception as e:
-        st.warning(f"Error creating export maps: {str(e)}")
+        st.warning(t("export_maps_create_error", error=str(e)))
     
     return map_figures

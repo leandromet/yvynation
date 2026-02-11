@@ -4,6 +4,7 @@ Creates publication-quality PDF maps with layers and polygon overlays
 """
 
 import streamlit as st
+from translations import t
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import Polygon as MplPolygon
@@ -635,7 +636,7 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
     
     # Check if we have anything to map
     if not drawn_features and not territories_geojson:
-        st.warning("No polygons or territory selected. Cannot create maps.")
+        st.warning(t("export_pdf_no_polygons"))
         return map_figures
     
     # Get bounds from features and territory combined
@@ -681,9 +682,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
                         ee_geometry=ee_geometry
                     )
                     map_figures[map_name] = fig
-                    st.info(f"✓ Created {map_name}")
+                    st.info(t("export_pdf_created", name=map_name))
                 except Exception as e:
-                    st.warning(f"Could not create {map_name}: {e}")
+                    st.warning(t("export_pdf_create_error", name=map_name, error=str(e)))
         
         # Hansen maps
         for year, is_active in hansen_years.items():
@@ -702,9 +703,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
                         ee_geometry=ee_geometry
                     )
                     map_figures[map_name] = fig
-                    st.info(f"✓ Created {map_name}")
+                    st.info(t("export_pdf_created", name=map_name))
                 except Exception as e:
-                    st.warning(f"Could not create {map_name}: {e}")
+                    st.warning(t("export_pdf_create_error", name=map_name, error=str(e)))
     
     # Add territory analysis layers if available
     if st.session_state.get('territory_analysis_image') and st.session_state.get('territory_analysis_source'):
@@ -726,9 +727,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
                 ee_geometry=ee_geometry
             )
             map_figures[map_name] = fig
-            st.info(f"✓ Created {map_name}")
+            st.info(t("export_pdf_created", name=map_name))
         except Exception as e:
-            st.warning(f"Could not create analysis map: {e}")
+            st.warning(t("export_pdf_create_error", name=map_name, error=str(e)))
     
     # Add second year analysis if available
     if st.session_state.get('territory_analysis_image_year2') and st.session_state.get('territory_analysis_source_year2'):
@@ -750,9 +751,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
                 ee_geometry=ee_geometry
             )
             map_figures[map_name2] = fig
-            st.info(f"✓ Created {map_name2}")
+            st.info(t("export_pdf_created", name=map_name2))
         except Exception as e:
-            st.warning(f"Could not create second analysis map: {e}")
+            st.warning(t("export_pdf_create_error", name=map_name2, error=str(e)))
     
     # Always create satellite and maps basemaps
     try:
@@ -766,9 +767,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
             title="Satellite Basemap - Location Reference"
         )
         map_figures['Satellite_Basemap'] = fig_satellite
-        st.info("✓ Created Satellite_Basemap")
+        st.info(t("export_pdf_created", name="Satellite_Basemap"))
     except Exception as e:
-        st.warning(f"Could not create Satellite_Basemap: {e}")
+        st.warning(t("export_pdf_create_error", name="Satellite_Basemap", error=str(e)))
     
     try:
         fig_maps = create_pdf_map_figure(
@@ -781,9 +782,9 @@ def create_pdf_map_set(drawn_features, territories_geojson, active_layers, buffe
             title="Maps Basemap - Location Reference"
         )
         map_figures['GoogleMaps_Basemap'] = fig_maps
-        st.info("✓ Created GoogleMaps_Basemap")
+        st.info(t("export_pdf_created", name="GoogleMaps_Basemap"))
     except Exception as e:
-        st.warning(f"Could not create GoogleMaps_Basemap: {e}")
+        st.warning(t("export_pdf_create_error", name="GoogleMaps_Basemap", error=str(e)))
     
     return map_figures
 
@@ -794,43 +795,40 @@ def render_map_export_section():
     Shows options to export maps as PDFs and PNGs
     """
     st.divider()
-    st.subheader("🗺️ Export Maps")
+    st.subheader(t("export_pdf_export_title"))
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.caption(
-            "Export static maps showing drawn polygons and/or territory boundaries "
-            "with scale bars. Available formats: PDF (all layer types) and PNG (MapBiomas/Hansen)"
-        )
+        st.caption(t("export_pdf_description"))
     
     with col2:
         has_polygons = st.session_state.get('all_drawn_features') is not None and len(st.session_state.get('all_drawn_features', [])) > 0
         has_territory = st.session_state.get('territory_geom') is not None
         
         if has_polygons:
-            st.success(f"✓ {len(st.session_state.get('all_drawn_features', []))} polygon(s)")
+            st.success(t("export_pdf_polygon_count", count=len(st.session_state.get('all_drawn_features', []))))
         if has_territory:
-            st.success(f"✓ Territory selected")
+            st.success(t("export_pdf_territory_selected"))
         if not has_polygons and not has_territory:
-            st.warning("⚠ Draw polygons or select a territory")
+            st.warning(t("export_pdf_no_data"))
     
     # Tab interface for PDF and PNG exports
-    tab_pdf, tab_png = st.tabs(["📄 PDF Export (All Layers)", "🖼️ PNG Export (MapBiomas/Hansen)"])
+    tab_pdf, tab_png = st.tabs([t("export_pdf_tab"), t("export_png_tab")])
     
     with tab_pdf:
         # PDF Export section
         export_button_col, info_col = st.columns([1, 2])
         
         with export_button_col:
-            if st.button("📊 Prepare PDF Maps", key="prepare_maps_export", width="stretch"):
+            if st.button(t("export_pdf_button"), key="prepare_maps_export", width="stretch"):
                 has_polygons = st.session_state.get('all_drawn_features') is not None and len(st.session_state.get('all_drawn_features', [])) > 0
                 has_territory = st.session_state.get('territory_geom') is not None
                 
                 if not has_polygons and not has_territory:
-                    st.error("Please draw at least one polygon or select a territory")
+                    st.error(t("export_pdf_no_data_error"))
                 else:
-                    with st.spinner("Creating PDF maps..."):
+                    with st.spinner(t("export_pdf_creating")):
                         try:
                             # Get active layers
                             active_layers = {
@@ -875,25 +873,22 @@ def render_map_export_section():
                             st.session_state.export_maps_ready = True
                             
                             if map_figures:
-                                st.success(f"✓ {len(map_figures)} PDF map(s) prepared!")
+                                st.success(t("export_pdf_success", count=len(map_figures)))
                             else:
-                                st.warning("No maps were successfully created.")
+                                st.warning(t("export_pdf_no_created"))
                         except Exception as e:
-                            st.error(f"Error preparing maps: {str(e)}")
+                            st.error(t("export_pdf_error", error=str(e)))
                             import traceback
                             traceback.print_exc()
         
         with info_col:
-            st.caption(
-                "Creates PDF maps: MapBiomas, Hansen, Satellite, and Maps "
-                "basemaps with your polygons and scale bars"
-            )
+            st.caption(t("export_pdf_caption"))
     
     with tab_png:
         # PNG Export section for MapBiomas and Hansen
         from png_export import export_pngs_direct, create_pngs_zip
         
-        st.caption("Export MapBiomas and Hansen layers as PNG images (organized in zip)")
+        st.caption(t("export_png_caption"))
         
         # Get available MapBiomas and Hansen years
         mapbiomas_years = [int(y) for y, enabled in st.session_state.get('mapbiomas_layers', {}).items() if enabled]
