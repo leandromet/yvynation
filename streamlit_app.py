@@ -454,7 +454,7 @@ render_complete_sidebar()
 def get_lang():
     return st.session_state.get('language', 'en')
 
-st.title("🌎 Yvynation - Land Cover Analysis 🏞️")
+st.title(t("main_page_title"))
 
 # Render bilingual tutorial component
 render_getting_started_tutorial()
@@ -464,15 +464,15 @@ if st.session_state.data_loaded:
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Base Layer", "OpenStreetMap", help="Switch in map controls (top-right)")
+        st.metric(t("base_layer"), "OpenStreetMap", help=t("base_layer_hint"))
         
     with col2:
         mapbiomas_count = len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
-        st.metric("MapBiomas Layers", mapbiomas_count, help="Brazil land cover (1985-2023)")
+        st.metric(t("mapbiomas_layers_label"), mapbiomas_count, help=t("mapbiomas_layers_hint"))
         
     with col3:
         hansen_count = len([y for y, v in st.session_state.hansen_layers.items() if v])
-        st.metric("Hansen/GLAD Layers", hansen_count, help="Global land cover (2000-2020)")
+        st.metric(t("hansen_layers_label"), hansen_count, help=t("hansen_layers_hint"))
     
     with col4:
         hansen_gfc_count = sum([
@@ -480,50 +480,50 @@ if st.session_state.data_loaded:
             st.session_state.get('hansen_gfc_tree_loss', False),
             st.session_state.get('hansen_gfc_tree_gain', False)
         ])
-        st.metric("Hansen GFC Layers", hansen_gfc_count, help="Global Forest Change (2000-2024)")
+        st.metric(t("hansen_gfc_layers_label"), hansen_gfc_count, help=t("hansen_gfc_layers_hint"))
     
     # Show active layers
     st.divider()
-    st.subheader("📋 Active Layers")
+    st.subheader(t("active_layers"))
     col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.session_state.mapbiomas_layers:
             years = sorted([y for y, v in st.session_state.mapbiomas_layers.items() if v])
             if years:
-                st.write("**MapBiomas Years:**")
+                st.write(f"**{t('mapbiomas_years')}**")
                 st.write(", ".join(map(str, years)))
             else:
-                st.caption("No MapBiomas layers selected")
+                st.caption(t("no_mapbiomas_selected"))
         else:
-            st.caption("No MapBiomas layers added")
+            st.caption(t("no_mapbiomas_added"))
     
     with col2:
         if st.session_state.hansen_layers:
             years = sorted([y for y, v in st.session_state.hansen_layers.items() if v])
             if years:
-                st.write("**Hansen/GLAD Years:**")
+                st.write(f"**{t('hansen_years')}**")
                 st.write(", ".join(map(str, years)))
             else:
-                st.caption("No Hansen layers selected")
+                st.caption(t("no_hansen_selected"))
         else:
-            st.caption("No Hansen layers added")
+            st.caption(t("no_hansen_added"))
     
     with col3:
         hansen_gfc_layers = []
         if st.session_state.get('hansen_gfc_tree_cover', False):
-            hansen_gfc_layers.append("Tree Cover 2000")
+            hansen_gfc_layers.append(t("tree_cover_2000"))
         if st.session_state.get('hansen_gfc_tree_loss', False):
-            hansen_gfc_layers.append("Tree Loss (2001-2024)")
+            hansen_gfc_layers.append(t("tree_loss_period"))
         if st.session_state.get('hansen_gfc_tree_gain', False):
-            hansen_gfc_layers.append("Tree Gain (2000-2012)")
+            hansen_gfc_layers.append(t("tree_gain_period"))
         
         if hansen_gfc_layers:
-            st.write("**Hansen GFC:**")
+            st.write(f"**{t('hansen_gfc_label')}**")
             for layer in hansen_gfc_layers:
                 st.caption(f"• {layer}")
         else:
-            st.caption("No Hansen GFC layers added")
+            st.caption(t("no_hansen_gfc_added"))
 
 
 # ============================================================================
@@ -563,8 +563,8 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
     col_left, col_right = st.columns(2)
     
     with col_left:
-        with st.expander("📊 Side-by-Side Comparison", expanded=True):
-            st.markdown(f"Land Cover Distribution Comparison")
+        with st.expander(t("side_by_side_comparison"), expanded=True):
+            st.markdown(f"{t('land_cover_distribution')} {t('comparison')}")
             fig = plot_area_comparison(
                 result_y1,
                 result_y2,
@@ -576,8 +576,8 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
             st.session_state.analysis_figures[f'{area_prefix}_comparison'] = fig
     
     with col_right:
-        with st.expander("🎯 Gains & Losses (km²)", expanded=True):
-            st.markdown(f"Class Gains and Losses ({year1} to {year2})")
+        with st.expander(t("gains_losses"), expanded=True):
+            st.markdown(f"{t('class_gains_losses')} ({year1} {t('to')} {year2})")
             if len(comparison_df) > 0:
                 fig = plot_gains_losses(
                     comparison_df,
@@ -595,19 +595,19 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Gains", f"{total_gains:,.1f} km²")
+                    st.metric(t("gains"), f"{total_gains:,.1f} km²")
                 with col2:
-                    st.metric("Losses", f"{total_losses:,.1f} km²")
+                    st.metric(t("losses"), f"{total_losses:,.1f} km²")
                 with col3:
-                    st.metric("Net", f"{net_change:+,.1f} km²")
+                    st.metric(t("net"), f"{net_change:+,.1f} km²")
             else:
-                st.info("No comparison data available")
+                st.info(t("no_comparison_data_available"))
     
     # Data tables and change analysis
     col1, col2 = st.columns(2)
     
     with col1:
-        with st.expander("📋 Data Tables", expanded=False):
+        with st.expander(t("data_tables"), expanded=False):
             tab_y1, tab_y2 = st.tabs([f"Year {year1}", f"Year {year2}"])
             
             with tab_y1:
@@ -635,8 +635,7 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
                 )
     
     with col2:
-        with st.expander("📈 Change Analysis", expanded=False):
-            st.markdown(f"Percentage Change Analysis")
+        with st.expander(t("change_analysis"), expanded=False):
             if len(comparison_df) > 0:
                 fig = plot_change_percentage(
                     comparison_df,
@@ -662,7 +661,7 @@ def render_territory_comparison_content(result_y1, result_y2, year1, year2, area
                         st.dataframe(top_losers[['Class', 'Change_km2', 'Change_pct']], width="stretch")
     
     # Add Sankey diagram with pixel-level transitions
-    with st.expander("🔄 Land Cover Transitions (Sankey)", expanded=False):
+    with st.expander(t("land_cover_transitions"), expanded=False):
         st.markdown(f"Pixel-level transitions from {year1} to {year2}")
         try:
             if geometry is not None:

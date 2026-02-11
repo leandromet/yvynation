@@ -4,11 +4,12 @@ Handles main page layout and display components
 """
 
 import streamlit as st
+from translations import t
 
 
 def render_main_content():
     """Render the main content area with title and tutorials."""
-    st.title("🌎 Yvynation - Land Cover Analysis 🏞️")
+    st.title(t("main_page_title"))
     
     # Import and render tutorial from components
     from .tutorial import render_tutorial
@@ -21,54 +22,54 @@ def render_layer_metrics():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Base Layer", "OpenStreetMap", help="Switch in map controls (top-right)")
+            st.metric(t("base_layer"), "OpenStreetMap", help=t("base_layer_hint"))
             
         with col2:
             mapbiomas_count = len([y for y, v in st.session_state.mapbiomas_layers.items() if v])
-            st.metric("MapBiomas Layers", mapbiomas_count, help="Brazil land cover (1985-2023)")
+            st.metric(t("mapbiomas_layers_label"), mapbiomas_count, help=t("mapbiomas_layers_hint"))
             
         with col3:
             hansen_count = len([y for y, v in st.session_state.hansen_layers.items() if v])
-            st.metric("Hansen Layers", hansen_count, help="Global forest change (2000-2020)")
+            st.metric(t("hansen_layers_label"), hansen_count, help=t("hansen_layers_hint"))
         
         # Show active layers
         st.divider()
-        st.subheader("📋 Active Layers")
+        st.subheader(t("active_layers"))
         col1, col2 = st.columns(2)
         
         with col1:
             if st.session_state.mapbiomas_layers:
                 years = sorted([y for y, v in st.session_state.mapbiomas_layers.items() if v])
                 if years:
-                    st.write("**MapBiomas Years:**")
+                    st.write(f"**{t('mapbiomas_years')}**")
                     st.write(", ".join(map(str, years)))
                 else:
-                    st.caption("No MapBiomas layers selected")
+                    st.caption(t("no_mapbiomas_selected"))
             else:
-                st.caption("No MapBiomas layers added")
+                st.caption(t("no_mapbiomas_added"))
         
         with col2:
             if st.session_state.hansen_layers:
                 years = sorted([y for y, v in st.session_state.hansen_layers.items() if v])
                 if years:
-                    st.write("**Hansen Years:**")
+                    st.write(f"**{t('hansen_years')}**")
                     st.write(", ".join(map(str, years)))
                 else:
-                    st.caption("No Hansen layers selected")
+                    st.caption(t("no_hansen_selected"))
             else:
-                st.caption("No Hansen layers added")
+                st.caption(t("no_hansen_added"))
 
 
 def render_footer():
     """Render page footer."""
     st.divider()
     st.markdown(
-        """
+        f"""
         <div style='text-align: center'>
         <small>
-        🌎 Yvynation | MapBiomas + Indigenous Territories Analysis
+        {t("footer_description")}
         <br/>
-        Built with Earth Engine, geemap, and Streamlit
+        {t("footer_credits")}
         </small>
         </div>
         """,
