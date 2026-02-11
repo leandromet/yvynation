@@ -371,30 +371,57 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
             st.session_state.get('hansen_gfc_tree_gain', False)
         ])
         
-        if has_gfc_layers:
-            # Automatically run GFC analysis without button
+        if not has_gfc_layers:
+            st.info(t('add_gfc_layers'))
+            st.markdown(f"""
+            **{t('gfc_available_layers')}**
+            - {t('gfc_layer_tree_cover')}
+            - {t('gfc_layer_tree_loss')}
+            - {t('gfc_layer_tree_gain')}
+            
+            {t('gfc_add_from_sidebar')}
+            """)
+        else:
+            # Simple analysis button
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**Analyzing area: {area_prefix}**")
+            with col2:
+                if st.button("🔄 Analyze GFC", key=f"gfc_analyze_{area_prefix}"):
+                    st.session_state[f'gfc_force_rerun_{area_prefix}'] = True
+            
+            # Run analysis if button clicked or first time
             session_key = f'hansen_gfc_results_{area_prefix}'
-            if session_key not in st.session_state or st.session_state[session_key] is None:
+            attempt_key = f'hansen_gfc_analysis_attempted_{area_prefix}'
+            
+            should_analyze = (
+                st.session_state.get(f'gfc_force_rerun_{area_prefix}', False) or
+                (attempt_key not in st.session_state)
+            )
+            
+            if should_analyze and attempt_key not in st.session_state:
+                st.session_state[attempt_key] = True
+                st.session_state[f'gfc_force_rerun_{area_prefix}'] = False
+                
                 try:
-                    with st.spinner("Analyzing Hansen GFC Data..."):
-                        from streamlit_app import analyze_hansen_gfc_geometry
-                        gfc_results = analyze_hansen_gfc_geometry(geometry, area_name=f"{area_prefix} area")
-                        
-                        if gfc_results:
-                            st.session_state[session_key] = gfc_results
-                        else:
-                            st.session_state[session_key] = None
+                    from gfc_analysis import analyze_hansen_gfc_geometry
+                    gfc_results = analyze_hansen_gfc_geometry(geometry, area_name=f"{area_prefix} area")
+                    st.session_state[session_key] = gfc_results if gfc_results else None
                 except Exception as e:
                     print(f"[Error] Hansen GFC analysis failed: {e}")
+                    import traceback
+                    traceback.print_exc()
                     st.session_state[session_key] = None
             
-            # Display results if available
+            # Display cached results
             gfc_results = st.session_state.get(session_key)
+            
             if gfc_results and isinstance(gfc_results, dict) and len(gfc_results) > 0:
-                gfc_tab1, gfc_tab2, gfc_tab3 = st.tabs(["🌳 Tree Cover 2000", "🔥 Tree Loss", "🌲 Tree Gain"])
+                st.success("✓ Analysis complete!")
                 
-                with gfc_tab1:
-                    if 'tree_cover' in gfc_results:
+                # Simple expanders instead of nested tabs
+                if 'tree_cover' in gfc_results:
+                    with st.expander("🌳 Tree Cover 2000", expanded=True):
                         df_cover = gfc_results['tree_cover']
                         st.markdown(f"#### {t('tree_cover_header')}")
                         st.caption("Percent of canopy cover (0-100%)")
@@ -424,22 +451,19 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                         
                         csv = df_cover.to_csv(index=False)
                         st.download_button(
-                            "📥 Download Detailed Data",
+                            "📥 Download Tree Cover Data",
                             csv,
                             f"{area_prefix}_tree_cover_2000.csv",
                             "text/csv",
-                            key=f"dl_{area_prefix}_tree_cover_{id(geometry)}"
+                            key=f"dl_gfc_cover_{area_prefix}_{id(geometry)}"
                         )
-                    else:
-                        st.info("Tree cover data not available in selected layers")
                 
-                with gfc_tab2:
-                    if 'tree_loss' in gfc_results:
+                if 'tree_loss' in gfc_results:
+                    with st.expander("🔥 Tree Loss"):
                         df_loss = gfc_results['tree_loss']
                         st.markdown(f"#### {t('tree_loss_header')}")
-                        st.caption("Areas where tree cover was lost")
+                        st.caption("Areas where tree cover was lost (2001-2024)")
                         
-                        df_no_loss = df_loss[df_loss['Year_Code'] == 0]
                         df_with_loss = df_loss[df_loss['Year_Code'] > 0]
                         
                         if not df_with_loss.empty:
@@ -456,20 +480,7 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                 st.metric("Years with Loss", len(df_with_loss))
                             
                             st.markdown("**Loss by Year:**")
-                            df_display = df_with_loss[['Year', 'Area_ha', 'Pixels']].copy()
-                            df_display['% of Total Loss'] = (df_display['Area_ha'] / total_loss_area * 100).round(2)
-                            st.dataframe(df_display, use_container_width=True)
-                            
-                            import matplotlib.pyplot as plt
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            ax.bar(df_with_loss['Year'], df_with_loss['Area_ha'], color='#FF4444')
-                            ax.set_xlabel('Year')
-                            ax.set_ylabel('Area Lost (ha)')
-                            ax.set_title('Forest Loss Timeline')
-                            ax.grid(axis='y', alpha=0.3)
-                            plt.xticks(rotation=45)
-                            plt.tight_layout()
-                            st.pyplot(fig)
+                            st.dataframe(df_with_loss[['Year', 'Area_ha', 'Pixels']], use_container_width=True)
                             
                             csv = df_loss.to_csv(index=False)
                             st.download_button(
@@ -477,24 +488,18 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                 csv,
                                 f"{area_prefix}_tree_loss.csv",
                                 "text/csv",
-                                key=f"dl_{area_prefix}_tree_loss_{id(geometry)}"
+                                key=f"dl_gfc_loss_{area_prefix}_{id(geometry)}"
                             )
                         else:
                             st.success(t("no_forest_loss"))
-                            if not df_no_loss.empty:
-                                st.info(t("forest_loss_intact", area=df_no_loss['Area_ha'].sum()))
-                    else:
-                        st.info("Tree loss data not available in selected layers")
                 
-                with gfc_tab3:
-                    if 'tree_gain' in gfc_results:
+                if 'tree_gain' in gfc_results:
+                    with st.expander("🌲 Tree Gain"):
                         df_gain = gfc_results['tree_gain']
                         st.markdown(f"#### {t('tree_gain_header')}")
-                        st.caption("Areas with forest regrowth or afforestation")
+                        st.caption("Areas with forest regrowth or afforestation (2000-2012)")
                         
                         df_with_gain = df_gain[df_gain['Gain_Code'] == 1]
-                        df_no_gain = df_gain[df_gain['Gain_Code'] == 0]
-                        
                         total_area = df_gain['Area_ha'].sum()
                         
                         if not df_with_gain.empty:
@@ -503,42 +508,26 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric(t("area_with_gain"), f"{gain_area:,.0f} ha", delta=f"{gain_pct:.2f}% of analyzed area")
+                                st.metric(t("area_with_gain"), f"{gain_area:,.0f} ha")
                             with col2:
-                                if not df_no_gain.empty:
-                                    no_gain_area = df_no_gain['Area_ha'].sum()
-                                    st.metric(t("area_without_gain"), f"{no_gain_area:,.0f} ha")
+                                st.metric("% of Analyzed Area", f"{gain_pct:.2f}%")
                             
                             st.dataframe(df_gain[['Status', 'Area_ha', 'Pixels']], use_container_width=True)
                             
                             csv = df_gain.to_csv(index=False)
                             st.download_button(
-                                t("download_gain_data"),
+                                "📥 Download Gain Data",
                                 csv,
                                 f"{area_prefix}_tree_gain.csv",
                                 "text/csv",
-                                key=f"dl_{area_prefix}_tree_gain_{id(geometry)}"
+                                key=f"dl_gfc_gain_{area_prefix}_{id(geometry)}"
                             )
                         else:
                             st.info(t('no_gain_detected'))
-                    else:
-                        st.info("Tree gain data not available in selected layers")
+            elif gfc_results is None and attempt_key in st.session_state:
+                st.warning("No Hansen GFC data found in this area")
             else:
-                # Analysis ran but returned no data, or still analyzing
-                if gfc_results is None:
-                    st.warning("No Hansen GFC data found in this area")
-                else:
-                    st.info("Waiting for analysis results...")
-        else:
-            st.info(t('add_gfc_layers'))
-            st.markdown(f"""
-            **{t('gfc_available_layers')}**
-            - {t('gfc_layer_tree_cover')}
-            - {t('gfc_layer_tree_loss')}
-            - {t('gfc_layer_tree_gain')}
-            
-            {t('gfc_add_from_sidebar')}
-            """)
+                st.info("Click 'Analyze GFC' button to start analysis")
     
     with tab4:
         st.markdown(f"### {t('aafc_header')}")

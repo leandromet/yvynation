@@ -88,12 +88,24 @@ def get_user_location_and_region() -> Optional[str]:
     """
     Get user's location from browser geolocation and determine region/language.
     Uses GPS coordinates directly (no reverse geocoding).
+    Only calls streamlit_geolocation() once per session to avoid duplicate key errors.
     
     Returns:
         Region name ('Canada' or 'Brazil') or None if denied/failed
     """
+    # Guard: Only call streamlit_geolocation() once per session
+    # Multiple calls create duplicate 'loc' keys which causes Streamlit errors
+    if "_geolocation_attempted" in st.session_state:
+        return st.session_state.get("detected_region_from_location")
+    
+    st.session_state._geolocation_attempted = True
+    
     # Get location from browser via streamlit-geolocation
-    location = streamlit_geolocation()
+    try:
+        location = streamlit_geolocation()
+    except Exception as e:
+        print(f"[Geolocation] Error: {e}")
+        return None
     
     if location and location.get('latitude') is not None and location.get('longitude') is not None:
         lat = location['latitude']

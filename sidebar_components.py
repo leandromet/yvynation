@@ -30,15 +30,15 @@ def render_language_selection():
     if "language" not in st.session_state:
         st.session_state.language = "en"
     
-    # Use render ID to make keys unique across multiple renders
-    render_id = st.session_state.get('_current_render_id', '')
+    # Use stable suffix for buttons (persists across renders)
+    suffix = st.session_state.get('_sidebar_key_suffix', '')
     
     # Language selection
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("🇬🇧 EN",
                     use_container_width=True,
-                    key=f"lang_en_{render_id}",
+                    key=f"lang_en_{suffix}",
                     type="primary" if st.session_state.language == "en" else "secondary"):
             st.session_state.language = "en"
             st.rerun()
@@ -46,7 +46,7 @@ def render_language_selection():
     with col2:
         if st.button("🇧🇷 PT",
                     use_container_width=True,
-                    key=f"lang_pt_{render_id}",
+                    key=f"lang_pt_{suffix}",
                     type="primary" if st.session_state.language == "pt-br" else "secondary"):
             st.session_state.language = "pt-br"
             st.rerun()
@@ -60,15 +60,15 @@ def render_country_selection():
     if "selected_country" not in st.session_state:
         st.session_state.selected_country = "Brazil"
     
-    # Use render ID to make keys unique across multiple renders
-    render_id = st.session_state.get('_current_render_id', '')
+    # Use stable suffix for buttons (persists across renders)
+    suffix = st.session_state.get('_sidebar_key_suffix', '')
     
     # Country selection with flags
     col1, col2 = st.sidebar.columns(2)
     with col1:
         if st.button("🇧🇷 BR",
                     use_container_width=True,
-                    key=f"region_br_{render_id}",
+                    key=f"region_br_{suffix}",
                     type="primary" if st.session_state.selected_country == "Brazil" else "secondary"):
             st.session_state.selected_country = "Brazil"
             st.rerun()
@@ -76,7 +76,7 @@ def render_country_selection():
     with col2:
         if st.button("🇨🇦 CA",
                     use_container_width=True,
-                    key=f"region_ca_{render_id}",
+                    key=f"region_ca_{suffix}",
                     type="primary" if st.session_state.selected_country == "Canada" else "secondary"):
             st.session_state.selected_country = "Canada"
             st.rerun()
@@ -95,7 +95,9 @@ def render_layer_selection():
     if st.session_state.data_loaded:
         st.sidebar.markdown("**🗺️ " + t("add_layer_to_analyze").split("{")[0].strip() + "**")
         
-        # Use render ID to make keys unique across multiple renders
+        # Use stable suffix for buttons (persists across renders)
+        suffix = st.session_state.get('_sidebar_key_suffix', '')
+        # Use render_id for sliders/selectors that may appear multiple times
         render_id = st.session_state.get('_current_render_id', '')
         
         # MapBiomas section - Only show for Brazil
@@ -106,9 +108,9 @@ def render_layer_selection():
                     t("year"),
                     options=list(range(1985, 2024)),
                     value=st.session_state.current_mapbiomas_year,
-                    key="mb_year_slider"
+                    key=f"mb_year_slider_{render_id}"
                 )
-                if st.button(t("add_layer"), width="stretch", key=f"add_mapbiomas_{render_id}"):
+                if st.button(t("add_layer"), width="stretch", key=f"add_mapbiomas_{suffix}"):
                     st.session_state.mapbiomas_layers[mapbiomas_year] = True
                     st.session_state.current_mapbiomas_year = mapbiomas_year
                     st.success(f"✓ {t('mapbiomas_layer')} {mapbiomas_year}")
@@ -126,9 +128,9 @@ def render_layer_selection():
                     t("year"),
                     options=aafc_years,
                     value=st.session_state.get('current_aafc_year', 2023),
-                    key="aafc_year_slider"
+                    key=f"aafc_year_slider_{render_id}"
                 )
-                if st.button(t("add_layer"), width="stretch", key=f"add_aafc_{render_id}"):
+                if st.button(t("add_layer"), width="stretch", key=f"add_aafc_{suffix}"):
                     st.session_state.aafc_layers[aafc_year] = True
                     st.session_state.current_aafc_year = aafc_year
                     st.success(f"✓ {t('aafc_layer')} {aafc_year}")
@@ -146,9 +148,9 @@ def render_layer_selection():
                 t("year"),
                 options=hansen_years,
                 index=hansen_years.index(st.session_state.current_hansen_year),
-                key="hansen_year_select"
+                key=f"hansen_year_select_{render_id}"
             )
-            if st.button(t("add_layer"), width="stretch", key=f"add_hansen_{render_id}"):
+            if st.button(t("add_layer"), width="stretch", key=f"add_hansen_{suffix}"):
                 st.session_state.hansen_layers[hansen_year] = True
                 st.session_state.current_hansen_year = hansen_year
                 st.success(f"✓ {t('hansen_layer')} {hansen_year}")
@@ -158,20 +160,18 @@ def render_layer_selection():
             st.write(t("tree_gain_desc") + ":")
             st.caption(t("gfc_info"))
             
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(t("tree_cover"), key=f"add_hansen_gfc_cover_{render_id}", use_container_width=True):
-                    st.session_state.hansen_gfc_tree_cover = True
-                    st.success(f"✓ {t('tree_cover')}")
-                    
-                if st.button(t("tree_gain"), key=f"add_hansen_gfc_gain_{render_id}", use_container_width=True):
-                    st.session_state.hansen_gfc_tree_gain = True
-                    st.success(f"✓ {t('tree_gain')}")
             
-            with col2:
-                if st.button(t("tree_loss"), key=f"add_hansen_gfc_loss_{render_id}", use_container_width=True):
-                    st.session_state.hansen_gfc_tree_loss = True
-                    st.success(f"✓ {t('tree_loss')}")
+            if st.button(t("tree_cover"), key=f"add_hansen_gfc_cover_{suffix}", use_container_width=True):
+                st.session_state.hansen_gfc_tree_cover = True
+                st.success(f"✓ {t('tree_cover')}")
+                
+            if st.button(t("tree_gain"), key=f"add_hansen_gfc_gain_{suffix}", use_container_width=True):
+                st.session_state.hansen_gfc_tree_gain = True
+                st.success(f"✓ {t('tree_gain')}")
+        
+            if st.button(t("tree_loss"), key=f"add_hansen_gfc_loss_{suffix}", use_container_width=True):
+                st.session_state.hansen_gfc_tree_loss = True
+                st.success(f"✓ {t('tree_loss')}")
             
             st.info(t("tree_loss_desc"), icon="ℹ️")
 
@@ -179,7 +179,9 @@ def render_layer_selection():
 def render_territory_analysis():
     """Render territory analysis controls."""
     if st.session_state.data_loaded:
-        # Use render ID to make keys unique across multiple renders
+        # Use stable suffix for buttons (persists across renders)
+        suffix = st.session_state.get('_sidebar_key_suffix', '')
+        # Use render_id for sliders/selectors/checkboxes that may appear multiple times
         render_id = st.session_state.get('_current_render_id', '')
         
         with st.sidebar.expander(t("territory_analysis_title"), expanded=False):
@@ -199,7 +201,7 @@ def render_territory_analysis():
                         selected_territory = st.selectbox(
                             t("select_a_territory"),
                             territory_names,
-                            key="territory_select"
+                            key=f"territory_select_{render_id}"
                         )
                         
                         # Data source selection
@@ -207,7 +209,7 @@ def render_territory_analysis():
                             t("data_source_label"),
                             ["MapBiomas", "Hansen/GLAD"],
                             horizontal=True,
-                            key="territory_source_radio"
+                            key=f"territory_source_radio_{render_id}"
                         )
                         st.session_state.territory_source = data_source
                         
@@ -219,7 +221,7 @@ def render_territory_analysis():
                                     t("year_1"),
                                     range(1985, 2024),
                                     index=38,
-                                    key="year_territory_1"
+                                    key=f"year_territory_1_{render_id}"
                                 )
                             else:
                                 hansen_years = ["2000", "2005", "2010", "2015", "2020"]
@@ -227,18 +229,18 @@ def render_territory_analysis():
                                     t("year_1"),
                                     hansen_years,
                                     index=4,
-                                    key="year_territory_h1"
+                                    key=f"year_territory_h1_{render_id}"
                                 )
                         
                         with col2:
-                            compare_mode = st.checkbox(t("compare_years_label"), value=False, key="territory_compare")
+                            compare_mode = st.checkbox(t("compare_years_label"), value=False, key=f"territory_compare_{render_id}")
                             if compare_mode:
                                 if data_source == "MapBiomas":
                                     territory_year2 = st.selectbox(
                                         t("year_2"),
                                         range(1985, 2024),
                                         index=30,
-                                        key="year_territory_2"
+                                        key=f"year_territory_2_{render_id}"
                                     )
                                 else:
                                     hansen_years = ["2000", "2005", "2010", "2015", "2020"]
@@ -246,16 +248,16 @@ def render_territory_analysis():
                                         t("year_2"),
                                         hansen_years,
                                         index=0,
-                                        key="year_territory_h2"
+                                        key=f"year_territory_h2_{render_id}"
                                     )
                             else:
                                 territory_year2 = None
                         
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            analyze_btn = st.button(t("btn_analyze"), key=f"btn_analyze_territory_{render_id}", width="stretch")
+                            analyze_btn = st.button(t("btn_analyze"), key=f"btn_analyze_territory_{suffix}", width="stretch")
                         with col_btn2:
-                            add_layer_btn = st.button(t("btn_zoom_territory"), key=f"btn_add_territory_layer_{render_id}", width="stretch")
+                            add_layer_btn = st.button(t("btn_zoom_territory"), key=f"btn_add_territory_layer_{suffix}", width="stretch")
                         if add_layer_btn:
                                 try:
                                     # Filter to selected territory and store geometry
@@ -369,7 +371,7 @@ def render_territory_analysis():
                                 t("compare_buffer"),
                                 value=st.session_state.buffer_compare_mode,
                                 help=t("compare_buffer_help"),
-                                key="territory_buffer_compare_toggle"
+                                key=f"territory_buffer_compare_toggle_{render_id}"
                             )
                             st.session_state.buffer_compare_mode = buffer_compare
                             
@@ -379,10 +381,10 @@ def render_territory_analysis():
                                     t("buffer_distance_label"),
                                     options=[1, 2, 5, 10],
                                     format_func=lambda x: t("km_format", distance=x),
-                                    key="territory_buffer_distance"
+                                    key=f"territory_buffer_distance_{render_id}"
                                 )
                             with col_create:
-                                create_buffer_btn = st.button(t("btn_create_buffer"), key=f"btn_create_territory_buffer_{render_id}", width="stretch")
+                                create_buffer_btn = st.button(t("btn_create_buffer"), key=f"btn_create_territory_buffer_{suffix}", width="stretch")
                             
                             if create_buffer_btn:
                                 try:
@@ -423,9 +425,9 @@ def render_territory_analysis():
                                 
                                 col_buffer_analyze, col_buffer_zoom = st.columns(2)
                                 with col_buffer_analyze:
-                                    analyze_buffer_btn = st.button(t("btn_analyze_buffer"), key=f"btn_analyze_territory_buffer_{unique_suffix}", width="stretch")
+                                    analyze_buffer_btn = st.button(t("btn_analyze_buffer"), key=f"btn_analyze_territory_buffer_{suffix}", width="stretch")
                                 with col_buffer_zoom:
-                                    zoom_buffer_btn = st.button(t("btn_zoom_buffer"), key=f"btn_zoom_territory_buffer_{unique_suffix}", width="stretch")
+                                    zoom_buffer_btn = st.button(t("btn_zoom_buffer"), key=f"btn_zoom_territory_buffer_{suffix}", width="stretch")
                                 
                                 if zoom_buffer_btn:
                                     try:
@@ -525,10 +527,12 @@ def render_territory_analysis():
 def render_view_options():
     """Render view options (consolidated classes toggle)."""
     with st.sidebar.expander(t("view_options"), expanded=False):
+        render_id = st.session_state.get('_current_render_id', '')
         use_consolidated = st.checkbox(
             t("show_consolidated"),
             value=st.session_state.use_consolidated_classes,
-            help=t("consolidated_help")
+            help=t("consolidated_help"),
+            key=f"use_consolidated_{render_id}"
         )
         st.session_state.use_consolidated_classes = use_consolidated
         

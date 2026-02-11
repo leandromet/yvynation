@@ -51,7 +51,8 @@ def render_map_controls():
         st.markdown(bounds_text)
         
         st.divider()
-        if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode, key="compare_layers_mapbiomas"):
+        render_id = st.session_state.get('_current_render_id', '')
+        if st.checkbox("🔀 Compare Layers", value=st.session_state.split_compare_mode, key=f"compare_layers_mapbiomas_{render_id}"):
             st.session_state.split_compare_mode = True
             
             col_left, col_right = st.columns(2)
@@ -60,14 +61,14 @@ def render_map_controls():
                     "Layer 1 Year",
                     range(1985, 2024),
                     index=38,
-                    key="split_left"
+                    key=f"split_left_{render_id}"
                 )
             with col_right:
                 st.session_state.split_right_year = st.selectbox(
                     "Layer 2 Year",
                     range(1985, 2024),
                     index=0,
-                    key="split_right"
+                    key=f"split_right_{render_id}"
                 )
             
             # Opacity sliders
@@ -76,13 +77,13 @@ def render_map_controls():
                 st.session_state.split_left_opacity = st.slider(
                     "Layer 1 Opacity",
                     0.0, 1.0, 1.0, 0.1,
-                    key="opacity_1"
+                    key=f"opacity_1_{render_id}"
                 )
             with col_op2:
                 st.session_state.split_right_opacity = st.slider(
                     "Layer 2 Opacity",
                     0.0, 1.0, 0.7, 0.1,
-                    key="opacity_2"
+                    key=f"opacity_2_{render_id}"
                 )
         else:
             st.session_state.split_compare_mode = False

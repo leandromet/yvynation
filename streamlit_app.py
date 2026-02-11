@@ -247,130 +247,8 @@ def analyze_hansen_geometry(geometry, year, area_name="Area"):
     return None
 
 
-def analyze_hansen_gfc_geometry(geometry, area_name="Area"):
-    """
-    Analyze Hansen Global Forest Change data for a given geometry.
-    Analyzes tree cover 2000, tree loss years, and tree gain.
+
     
-    Returns:
-        dict: Dictionary with 'tree_cover', 'tree_loss', 'tree_gain' DataFrames
-    """
-    try:
-        from config import HANSEN_GFC_DATASET
-        dataset = ee.Image(HANSEN_GFC_DATASET)
-        
-        results = {}
-        
-        with st.spinner(f"🌲 Analyzing Hansen GFC data for {area_name} (3 layers)..."):
-            print(f"[GFC Analysis] Starting analysis for {area_name}")
-            
-            # Analyze Tree Cover 2000 (0-100% canopy cover)
-            try:
-                print("[GFC Analysis] Processing tree cover 2000...")
-                tree_cover = dataset.select(['treecover2000'])
-                cover_stats = tree_cover.reduceRegion(
-                    reducer=ee.Reducer.frequencyHistogram(),
-                    geometry=geometry,
-                    scale=30,
-                    maxPixels=1e9
-                ).getInfo()
-                
-                if cover_stats and 'treecover2000' in cover_stats:
-                    histogram = cover_stats['treecover2000']
-                    records = []
-                    for percent_str, count in histogram.items():
-                        percent = int(percent_str)
-                        area_ha = count * 0.09
-                        records.append({
-                            'Percent_Cover': percent,
-                            'Pixels': int(count),
-                            'Area_ha': round(area_ha, 2)
-                        })
-                    results['tree_cover'] = pd.DataFrame(records).sort_values('Percent_Cover')
-                    print(f"[GFC Analysis] Tree cover: {len(records)} data points")
-            except Exception as cover_err:
-                print(f"[GFC Analysis] Warning - tree cover analysis failed: {cover_err}")
-                st.warning(f"Tree cover analysis partial: {str(cover_err)[:100]}")
-            
-            # Analyze Tree Loss Year (0=no loss, 1-24=year 2001-2024)
-            try:
-                print("[GFC Analysis] Processing tree loss...")
-                tree_loss = dataset.select(['lossyear'])
-                loss_stats = tree_loss.reduceRegion(
-                    reducer=ee.Reducer.frequencyHistogram(),
-                    geometry=geometry,
-                    scale=30,
-                    maxPixels=1e9
-                ).getInfo()
-                
-                if loss_stats and 'lossyear' in loss_stats:
-                    histogram = loss_stats['lossyear']
-                    records = []
-                    for year_code_str, count in histogram.items():
-                        year_code = int(year_code_str)
-                        if year_code == 0:
-                            year_label = 'No Loss'
-                        else:
-                            year_label = f'{2000 + year_code}'
-                        area_ha = count * 0.09
-                        records.append({
-                            'Year_Code': year_code,
-                            'Year': year_label,
-                            'Pixels': int(count),
-                            'Area_ha': round(area_ha, 2)
-                        })
-                    results['tree_loss'] = pd.DataFrame(records).sort_values('Year_Code')
-                    print(f"[GFC Analysis] Tree loss: {len(records)} data points")
-            except Exception as loss_err:
-                print(f"[GFC Analysis] Warning - tree loss analysis failed: {loss_err}")
-                st.warning(f"Tree loss analysis partial: {str(loss_err)[:100]}")
-            
-            # Analyze Tree Gain (0=no gain, 1=gain 2000-2012)
-            try:
-                print("[GFC Analysis] Processing tree gain...")
-                tree_gain = dataset.select(['gain'])
-                gain_stats = tree_gain.reduceRegion(
-                    reducer=ee.Reducer.frequencyHistogram(),
-                    geometry=geometry,
-                    scale=30,
-                    maxPixels=1e9
-                ).getInfo()
-                
-                if gain_stats and 'gain' in gain_stats:
-                    histogram = gain_stats['gain']
-                    records = []
-                    for gain_code_str, count in histogram.items():
-                        gain_code = int(gain_code_str)
-                        gain_label = 'Gain (2000-2012)' if gain_code == 1 else 'No Gain'
-                        area_ha = count * 0.09
-                        records.append({
-                            'Gain_Code': gain_code,
-                            'Status': gain_label,
-                            'Pixels': int(count),
-                            'Area_ha': round(area_ha, 2)
-                        })
-                    results['tree_gain'] = pd.DataFrame(records).sort_values('Gain_Code')
-                    print(f"[GFC Analysis] Tree gain: {len(records)} data points")
-            except Exception as gain_err:
-                print(f"[GFC Analysis] Warning - tree gain analysis failed: {gain_err}")
-                st.warning(f"Tree gain analysis partial: {str(gain_err)[:100]}")
-        
-        if results:
-            print(f"[GFC Analysis] Completed with {len(results)} datasets: {list(results.keys())}")
-            st.success(f"✓ Analysis complete! Found data for: {', '.join(results.keys())}")
-            return results
-        else:
-            print("[GFC Analysis] No data returned from analysis")
-            st.warning("No Hansen GFC data found in this area")
-            return None
-        
-    except Exception as e:
-        import traceback
-        error_msg = str(e)[:300]
-        print(f"[GFC Analysis] CRITICAL ERROR: {e}")
-        traceback.print_exc()
-        st.error(f"Error analyzing Hansen GFC for {area_name}: {error_msg}")
-    return None
 
 
 def analyze_aafc_geometry(geometry, year, area_name="Area"):
@@ -532,6 +410,16 @@ initialize_preferences()
 if "_sidebar_key_suffix" not in st.session_state:
     import uuid
     st.session_state._sidebar_key_suffix = str(uuid.uuid4())[:8]
+
+# Initialize and increment render counter
+# Each render cycle increments this counter, making keys unique: key_suffix_pass1, key_suffix_pass2, etc.
+if "_render_counter" not in st.session_state:
+    st.session_state._render_counter = 0
+st.session_state._render_counter += 1
+
+# Create unique render ID combining suffix and counter
+# Use this for all button keys to ensure uniqueness across multiple renders in same execution
+st.session_state._current_render_id = f"{st.session_state._sidebar_key_suffix}_{st.session_state._render_counter}"
 
 # ============================================================================
 # SIDEBAR

@@ -532,7 +532,7 @@ def render_polygon_selector():
             t("choose_polygon"),
             options=range(len(st.session_state.all_drawn_features)),
             format_func=lambda i: polygon_labels[i],
-            key="polygon_selector"
+            key=f"polygon_selector_{st.session_state.get('_current_render_id', '')}"
         )
         
         if selected_idx is not None:
@@ -555,11 +555,12 @@ def render_polygon_selector():
                 st.caption(t("buffer_ring_help"))
                 
                 # Buffer compare mode toggle
+                render_id = st.session_state.get('_current_render_id', '')
                 buffer_compare = st.checkbox(
                     t("buffer_comparison"),
                     value=st.session_state.buffer_compare_mode,
                     help=t("compare_help"),
-                    key="polygon_buffer_compare_toggle"
+                    key=f"polygon_buffer_compare_toggle_{render_id}"
                 )
                 st.session_state.buffer_compare_mode = buffer_compare
                 
