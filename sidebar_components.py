@@ -115,7 +115,7 @@ def render_layer_selection():
                     st.session_state.current_mapbiomas_year = mapbiomas_year
                     st.success(f"✓ {t('mapbiomas_layer')} {mapbiomas_year}")
         else:
-            st.info(f"🇧🇷 {t('mapbiomas_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("brazil"), icon="ℹ️")
+            st.info(f"🚜 {t('aafc_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("canada"), icon="ℹ️")
         
          # AAFC Annual Crop Inventory section - Only show for Canada
         if st.session_state.selected_country == "Canada":
@@ -144,7 +144,7 @@ def render_layer_selection():
                 st.info(t("aafc_info"), icon="ℹ️")
         else:
             if st.session_state.selected_country == "Brazil":
-                st.info(f"🚜 {t('aafc_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("canada"), icon="ℹ️")
+                st.info(f"🇧🇷 {t('mapbiomas_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("brazil"), icon="ℹ️")
 
         # Hansen section
         with st.sidebar.expander(t("hansen_layer"), expanded=False):
@@ -204,58 +204,109 @@ def render_territory_analysis():
                     if not territory_names or not name_prop:
                         st.error(t("territory_names_error"))
                     else:
+                        # Territory selection with stable key
                         selected_territory = st.selectbox(
                             t("select_a_territory"),
                             territory_names,
-                            key=f"territory_select_{render_id}"
+                            index=territory_names.index(st.session_state.territory_selected) if st.session_state.territory_selected in territory_names else 0,
+                            key=f"territory_select_{suffix}"
                         )
+                        st.session_state.territory_selected = selected_territory
                         
-                        # Data source selection
+                        # Data source selection - use index for radio
+                        source_options = ["MapBiomas", "Hansen/GLAD"]
+                        try:
+                            source_idx = source_options.index(st.session_state.territory_source_selected)
+                        except:
+                            source_idx = 0
+                        
                         data_source = st.radio(
                             t("data_source_label"),
-                            ["MapBiomas", "Hansen/GLAD"],
+                            source_options,
+                            index=source_idx,
                             horizontal=True,
-                            key=f"territory_source_radio_{render_id}"
+                            key=f"territory_source_radio_{suffix}"
                         )
+                        
+                        # Update session state if changed
+                        if data_source != st.session_state.territory_source_selected:
+                            st.session_state.territory_source_selected = data_source
                         st.session_state.territory_source = data_source
                         
-                        # Year selection
+                        # Year selection with stable keys and state preservation
                         col1, col2 = st.columns(2)
                         with col1:
                             if data_source == "MapBiomas":
+                                year_list = list(range(1985, 2024))
+                                try:
+                                    current_idx = year_list.index(st.session_state.territory_year_selected) if st.session_state.territory_year_selected in year_list else 38
+                                except:
+                                    current_idx = 38
+                                
                                 territory_year = st.selectbox(
                                     t("year_1"),
-                                    range(1985, 2024),
-                                    index=38,
-                                    key=f"year_territory_1_{render_id}"
+                                    year_list,
+                                    index=current_idx,
+                                    key=f"year_territory_1_{suffix}"
                                 )
+                                if territory_year != st.session_state.territory_year_selected:
+                                    st.session_state.territory_year_selected = territory_year
                             else:
                                 hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+                                try:
+                                    current_idx = hansen_years.index(str(st.session_state.territory_year_selected)) if str(st.session_state.territory_year_selected) in hansen_years else 4
+                                except:
+                                    current_idx = 4
+                                
                                 territory_year = st.selectbox(
                                     t("year_1"),
                                     hansen_years,
-                                    index=4,
-                                    key=f"year_territory_h1_{render_id}"
+                                    index=current_idx,
+                                    key=f"year_territory_h1_{suffix}"
                                 )
+                                if territory_year != st.session_state.territory_year_selected:
+                                    st.session_state.territory_year_selected = territory_year
                         
                         with col2:
-                            compare_mode = st.checkbox(t("compare_years_label"), value=False, key=f"territory_compare_{render_id}")
+                            compare_mode = st.checkbox(
+                                t("compare_years_label"),
+                                value=st.session_state.territory_compare_mode_selected,
+                                key=f"territory_compare_{suffix}"
+                            )
+                            if compare_mode != st.session_state.territory_compare_mode_selected:
+                                st.session_state.territory_compare_mode_selected = compare_mode
+                            
                             if compare_mode:
                                 if data_source == "MapBiomas":
+                                    year_list = list(range(1985, 2024))
+                                    try:
+                                        current_idx = year_list.index(st.session_state.territory_year2_selected) if st.session_state.territory_year2_selected in year_list else 30
+                                    except:
+                                        current_idx = 30
+                                    
                                     territory_year2 = st.selectbox(
                                         t("year_2"),
-                                        range(1985, 2024),
-                                        index=30,
-                                        key=f"year_territory_2_{render_id}"
+                                        year_list,
+                                        index=current_idx,
+                                        key=f"year_territory_2_{suffix}"
                                     )
+                                    if territory_year2 != st.session_state.territory_year2_selected:
+                                        st.session_state.territory_year2_selected = territory_year2
                                 else:
                                     hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+                                    try:
+                                        current_idx = hansen_years.index(str(st.session_state.territory_year2_selected)) if str(st.session_state.territory_year2_selected) in hansen_years else 0
+                                    except:
+                                        current_idx = 0
+                                    
                                     territory_year2 = st.selectbox(
                                         t("year_2"),
                                         hansen_years,
-                                        index=0,
-                                        key=f"year_territory_h2_{render_id}"
+                                        index=current_idx,
+                                        key=f"year_territory_h2_{suffix}"
                                     )
+                                    if territory_year2 != st.session_state.territory_year2_selected:
+                                        st.session_state.territory_year2_selected = territory_year2
                             else:
                                 territory_year2 = None
                         
@@ -377,9 +428,10 @@ def render_territory_analysis():
                                 t("compare_buffer"),
                                 value=st.session_state.buffer_compare_mode,
                                 help=t("compare_buffer_help"),
-                                key=f"territory_buffer_compare_toggle_{render_id}"
+                                key=f"territory_buffer_compare_toggle_{suffix}"
                             )
-                            st.session_state.buffer_compare_mode = buffer_compare
+                            if buffer_compare != st.session_state.buffer_compare_mode:
+                                st.session_state.buffer_compare_mode = buffer_compare
                             
                             col_dist, col_create = st.columns([2, 1])
                             with col_dist:
@@ -387,8 +439,11 @@ def render_territory_analysis():
                                     t("buffer_distance_label"),
                                     options=[1, 2, 5, 10],
                                     format_func=lambda x: t("km_format", distance=x),
-                                    key=f"territory_buffer_distance_{render_id}"
+                                    index=[1, 2, 5, 10].index(st.session_state.buffer_distance_selected),
+                                    key=f"territory_buffer_distance_{suffix}"
                                 )
+                                if buffer_distance != st.session_state.buffer_distance_selected:
+                                    st.session_state.buffer_distance_selected = buffer_distance
                             with col_create:
                                 create_buffer_btn = st.button(t("btn_create_buffer"), key=f"btn_create_territory_buffer_{suffix}", width="stretch")
                             

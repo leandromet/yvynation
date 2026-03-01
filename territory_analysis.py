@@ -180,3 +180,19 @@ def initialize_territory_session_state():
         st.session_state.territory_analysis_source_year2 = None
     if "add_analysis_layer_to_map" not in st.session_state:
         st.session_state.add_analysis_layer_to_map = False
+    
+    # UI State variables for preserving selections across re-renders
+    if "territory_selected" not in st.session_state:
+        st.session_state.territory_selected = None
+    if "territory_year_selected" not in st.session_state:
+        st.session_state.territory_year_selected = 2023
+    if "territory_year2_selected" not in st.session_state:
+        st.session_state.territory_year2_selected = 2010
+    if "territory_compare_mode_selected" not in st.session_state:
+        st.session_state.territory_compare_mode_selected = False
+    if "territory_source_selected" not in st.session_state:
+        st.session_state.territory_source_selected = "MapBiomas"
+    if "buffer_compare_mode" not in st.session_state:
+        st.session_state.buffer_compare_mode = False
+    if "buffer_distance_selected" not in st.session_state:
+        st.session_state.buffer_distance_selected = 5
