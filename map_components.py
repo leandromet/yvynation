@@ -150,11 +150,14 @@ def build_and_display_map():
                 territory_geojson = None
             
             if territory_geojson:
-                # Create a GeoJSON layer with strong styling
+                # Create a FeatureGroup for territory boundary (appears in layer control)
                 try:
+                    territory_group = folium.FeatureGroup(
+                        name=t("territory_layer", territory_name=territory_name),
+                        show=True
+                    )
                     folium.GeoJson(
                         data=territory_geojson,
-                        name=t("territory_layer", territory_name=territory_name),
                         style_function=lambda x: {
                             'fillColor': '#FF0000',
                             'color': '#FF0000',
@@ -162,8 +165,6 @@ def build_and_display_map():
                             'opacity': 0.9,
                             'fillOpacity': 0.2
                         },
-                        overlay=True,
-                        control=False,
                         highlight_function=lambda x: {
                             'fillColor': '#FF6B6B',
                             'color': '#FF6B6B',
@@ -171,12 +172,11 @@ def build_and_display_map():
                             'opacity': 1.0,
                             'fillOpacity': 0.3
                         }
-                    ).add_to(display_map)
-                    print(f"[Map] Territory layer GeoJSON added: {territory_name}")
+                    ).add_to(territory_group)
+                    territory_group.add_to(display_map)
+                    print(f"[Map] Territory layer added: {territory_name}")
                 except Exception as geojson_add_error:
-                    print(f"[Warning] Could not add territory GeoJSON layer: {geojson_add_error}")
-                
-                # Territory added - map will maintain its current view
+                    print(f"[Warning] Could not add territory layer: {geojson_add_error}")
         
         except Exception as e:
             print(f"[Error] Adding territory layer failed: {e}")
@@ -195,11 +195,14 @@ def build_and_display_map():
                 buffer_geojson = None
             
             if buffer_geojson:
-                # Create a GeoJSON layer with distinct styling (blue for buffer)
+                # Create a FeatureGroup for buffer boundary (appears in layer control)
                 try:
+                    buffer_group = folium.FeatureGroup(
+                        name=t("buffer_geojson", buffer_name=buffer_name),
+                        show=True
+                    )
                     folium.GeoJson(
                         data=buffer_geojson,
-                        name=t("buffer_geojson", buffer_name=buffer_name),
                         style_function=lambda x: {
                             'fillColor': '#0000FF',
                             'color': '#0000FF',
@@ -207,8 +210,6 @@ def build_and_display_map():
                             'opacity': 0.7,
                             'fillOpacity': 0.15
                         },
-                        overlay=True,
-                        control=False,
                         highlight_function=lambda x: {
                             'fillColor': '#6B6BFF',
                             'color': '#6B6BFF',
@@ -216,12 +217,11 @@ def build_and_display_map():
                             'opacity': 1.0,
                             'fillOpacity': 0.2
                         }
-                    ).add_to(display_map)
-                    print(f"[Map] Buffer layer GeoJSON added: {buffer_name}")
+                    ).add_to(buffer_group)
+                    buffer_group.add_to(display_map)
+                    print(f"[Map] Buffer layer added: {buffer_name}")
                 except Exception as geojson_add_error:
-                    print(f"[Warning] Could not add buffer GeoJSON layer: {geojson_add_error}")
-                
-                # Buffer added - map will maintain its current view
+                    print(f"[Warning] Could not add buffer layer: {geojson_add_error}")
         
         except Exception as e:
             print(f"[Error] Adding buffer layer failed: {e}")
@@ -286,7 +286,7 @@ def build_and_display_map():
         except Exception as e:
             print(f"❌ Error adding analysis layer: {e}")
 
-    # Add buffer zones as visible layers
+    # Add buffer zones as visible layers in FeatureGroups
     if 'buffer_geometries' in st.session_state and st.session_state.buffer_geometries:
         for buffer_name, buffer_geom in st.session_state.buffer_geometries.items():
             try:
@@ -298,39 +298,42 @@ def build_and_display_map():
                         print(f"[Warning] Could not convert buffer {buffer_name} to GeoJSON: {geom_error}")
                         continue
                     
-                    # Add buffer as GeoJSON layer with distinct styling
-                    folium.GeoJson(
-                        data=buffer_geojson,
-                        name=f"Buffer: {buffer_name}",
-                        style_function=lambda x: {
-                            'fillColor': '#00BFFF',
-                            'color': '#0080FF',
-                            'weight': 2,
-                            'opacity': 0.8,
-                            'fillOpacity': 0.15
-                        },
-                        overlay=True,
-                        control=False,
-                        highlight_function=lambda x: {
-                            'fillColor': '#87CEEB',
-                            'color': '#4169E1',
-                            'weight': 3,
-                            'opacity': 1.0,
-                            'fillOpacity': 0.25
-                        }
-                    ).add_to(display_map)
-                    
-                    print(f"[Map] Buffer layer added: {buffer_name}")
+                    # Add buffer as FeatureGroup (appears in layer control)
+                    try:
+                        buffer_fg = folium.FeatureGroup(
+                            name=f"Buffer: {buffer_name}",
+                            show=True
+                        )
+                        folium.GeoJson(
+                            data=buffer_geojson,
+                            style_function=lambda x: {
+                                'fillColor': '#00BFFF',
+                                'color': '#0080FF',
+                                'weight': 2,
+                                'opacity': 0.8,
+                                'fillOpacity': 0.15
+                            },
+                            highlight_function=lambda x: {
+                                'fillColor': '#87CEEB',
+                                'color': '#4169E1',
+                                'weight': 3,
+                                'opacity': 1.0,
+                                'fillOpacity': 0.25
+                            }
+                        ).add_to(buffer_fg)
+                        buffer_fg.add_to(display_map)
+                        print(f"[Map] Buffer layer added: {buffer_name}")
+                    except Exception as fg_error:
+                        print(f"[Warning] Could not add buffer FeatureGroup {buffer_name}: {fg_error}")
             except Exception as e:
                 print(f"[Error] Adding buffer layer failed for {buffer_name}: {e}")
                 import traceback
                 traceback.print_exc()
 
-    # Add layer control with enhanced styling
-    layer_control = folium.LayerControl(position='topright', collapsed=False)
-    layer_control.add_to(display_map)
+    # Layer control is automatically created by Folium when FeatureGroups are present
+    # No explicit LayerControl needed to avoid duplicate div errors
 
-    # Re-add previously drawn features as GeoJSON layers
+    # Re-add previously drawn features as FeatureGroups
     if st.session_state.all_drawn_features:
         for idx, feature in enumerate(st.session_state.all_drawn_features):
             try:
@@ -372,14 +375,17 @@ def build_and_display_map():
                         'fillOpacity': 0.4
                     }
                 
+                # Create FeatureGroup for drawn feature (appears in layer control)
+                drawn_fg = folium.FeatureGroup(
+                    name=layer_name,
+                    show=True
+                )
                 folium.GeoJson(
                     data=feature,
-                    name=layer_name,
                     style_function=make_style_fn(color, fill_color),
-                    overlay=True,
-                    control=False,
                     highlight_function=make_highlight_fn(highlight_color, highlight_border)
-                ).add_to(display_map)
+                ).add_to(drawn_fg)
+                drawn_fg.add_to(display_map)
             except Exception as e:
                 print(f"[Warning] Could not re-add drawn feature {idx}: {e}")
         
