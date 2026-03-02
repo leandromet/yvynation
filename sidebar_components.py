@@ -239,9 +239,9 @@ def render_territory_analysis():
                             if data_source == "MapBiomas":
                                 year_list = list(range(1985, 2024))
                                 try:
-                                    current_idx = year_list.index(st.session_state.territory_year_selected) if st.session_state.territory_year_selected in year_list else 38
+                                    current_idx = year_list.index(st.session_state.territory_year_selected) if st.session_state.territory_year_selected in year_list else 0
                                 except:
-                                    current_idx = 38
+                                    current_idx = 0
                                 
                                 territory_year = st.selectbox(
                                     t("year_1"),
@@ -254,9 +254,9 @@ def render_territory_analysis():
                             else:
                                 hansen_years = ["2000", "2005", "2010", "2015", "2020"]
                                 try:
-                                    current_idx = hansen_years.index(str(st.session_state.territory_year_selected)) if str(st.session_state.territory_year_selected) in hansen_years else 4
+                                    current_idx = hansen_years.index(str(st.session_state.territory_year_selected)) if str(st.session_state.territory_year_selected) in hansen_years else 0
                                 except:
-                                    current_idx = 4
+                                    current_idx = 0
                                 
                                 territory_year = st.selectbox(
                                     t("year_1"),
@@ -280,9 +280,9 @@ def render_territory_analysis():
                                 if data_source == "MapBiomas":
                                     year_list = list(range(1985, 2024))
                                     try:
-                                        current_idx = year_list.index(st.session_state.territory_year2_selected) if st.session_state.territory_year2_selected in year_list else 30
+                                        current_idx = year_list.index(st.session_state.territory_year2_selected) if st.session_state.territory_year2_selected in year_list else 38
                                     except:
-                                        current_idx = 30
+                                        current_idx = 38
                                     
                                     territory_year2 = st.selectbox(
                                         t("year_2"),
@@ -295,9 +295,9 @@ def render_territory_analysis():
                                 else:
                                     hansen_years = ["2000", "2005", "2010", "2015", "2020"]
                                     try:
-                                        current_idx = hansen_years.index(str(st.session_state.territory_year2_selected)) if str(st.session_state.territory_year2_selected) in hansen_years else 0
+                                        current_idx = hansen_years.index(str(st.session_state.territory_year2_selected)) if str(st.session_state.territory_year2_selected) in hansen_years else 4
                                     except:
-                                        current_idx = 0
+                                        current_idx = 4
                                     
                                     territory_year2 = st.selectbox(
                                         t("year_2"),
@@ -464,6 +464,12 @@ def render_territory_analysis():
                                     # Add to polygon list
                                     add_buffer_to_polygon_list(buffer_name)
                                     
+                                    # Automatically display buffer on map
+                                    buffer_geom = st.session_state.buffer_geometries[buffer_name]
+                                    st.session_state.buffer_geom_for_display = buffer_geom
+                                    st.session_state.add_buffer_layer_to_map = True
+                                    st.session_state.buffer_layer_name = buffer_name
+                                    
                                     # If compare mode, set this buffer for comparison
                                     if st.session_state.buffer_compare_mode:
                                         st.session_state.current_buffer_for_analysis = buffer_name
@@ -514,6 +520,11 @@ def render_territory_analysis():
                                             buffer_name = st.session_state.current_buffer_for_analysis
                                             buffer_geom = st.session_state.buffer_geometries[buffer_name]
                                             buffer_meta = st.session_state.buffer_metadata[buffer_name]
+                                            
+                                            # IMPORTANT: Preserve buffer display flags during analysis
+                                            preserve_buffer_display = st.session_state.add_buffer_layer_to_map
+                                            preserve_buffer_geom = st.session_state.buffer_geom_for_display
+                                            preserve_buffer_name = st.session_state.buffer_layer_name
                                             
                                             print(f"DEBUG: Buffer analysis - name={buffer_name}, geom_type={type(buffer_geom)}")
                                             
@@ -569,6 +580,11 @@ def render_territory_analysis():
                                                         st.session_state.use_consolidated_classes
                                                     )
                                                     st.session_state.buffer_result_hansen_y2 = area_df2
+                                            
+                                            # IMPORTANT: Restore buffer display flags after analysis
+                                            st.session_state.add_buffer_layer_to_map = preserve_buffer_display
+                                            st.session_state.buffer_geom_for_display = preserve_buffer_geom
+                                            st.session_state.buffer_layer_name = preserve_buffer_name
                                             
                                             st.success(t("buffer_analysis_complete"))
                                             st.info(t("buffer_analysis_info"), icon="📊")

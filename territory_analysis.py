@@ -185,9 +185,9 @@ def initialize_territory_session_state():
     if "territory_selected" not in st.session_state:
         st.session_state.territory_selected = None
     if "territory_year_selected" not in st.session_state:
-        st.session_state.territory_year_selected = 2023
+        st.session_state.territory_year_selected = 1985  # Reference year (baseline/older)
     if "territory_year2_selected" not in st.session_state:
-        st.session_state.territory_year2_selected = 2010
+        st.session_state.territory_year2_selected = 2023  # Comparison year (newer)
     if "territory_compare_mode_selected" not in st.session_state:
         st.session_state.territory_compare_mode_selected = False
     if "territory_source_selected" not in st.session_state:

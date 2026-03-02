@@ -142,41 +142,41 @@ def build_and_display_map():
             territory_geom = st.session_state.territory_geom
             territory_name = st.session_state.territory_layer_name
             
-            # Get territory GeoJSON directly
-            territory_geojson = territory_geom.getInfo()
+            # Get territory GeoJSON directly with error handling
+            try:
+                territory_geojson = territory_geom.getInfo()
+            except Exception as geojson_error:
+                print(f"[Warning] Could not get territory GeoJSON: {geojson_error}")
+                territory_geojson = None
             
-            # Create a GeoJSON layer with strong styling
-            folium.GeoJson(
-                data=territory_geojson,
-                name=t("territory_layer", territory_name=territory_name),
-                style_function=lambda x: {
-                    'fillColor': '#FF0000',
-                    'color': '#FF0000',
-                    'weight': 3,
-                    'opacity': 0.9,
-                    'fillOpacity': 0.2
-                },
-                overlay=True,
-                control=True,
-                highlight_function=lambda x: {
-                    'fillColor': '#FF6B6B',
-                    'color': '#FF6B6B',
-                    'weight': 4,
-                    'opacity': 1.0,
-                    'fillOpacity': 0.3
-                }
-            ).add_to(display_map)
-            
-            # Zoom to territory bounds
-            bounds_info = territory_geom.bounds().getInfo()
-            if bounds_info and bounds_info.get('coordinates'):
-                coords = bounds_info['coordinates'][0]
-                lons = [c[0] for c in coords]
-                lats = [c[1] for c in coords]
-                sw = [min(lats), min(lons)]
-                ne = [max(lats), max(lons)]
-                display_map.fit_bounds([sw, ne])
-                print(f"[Map] Territory layer added: {territory_name}")
+            if territory_geojson:
+                # Create a GeoJSON layer with strong styling
+                try:
+                    folium.GeoJson(
+                        data=territory_geojson,
+                        name=t("territory_layer", territory_name=territory_name),
+                        style_function=lambda x: {
+                            'fillColor': '#FF0000',
+                            'color': '#FF0000',
+                            'weight': 3,
+                            'opacity': 0.9,
+                            'fillOpacity': 0.2
+                        },
+                        overlay=True,
+                        control=False,
+                        highlight_function=lambda x: {
+                            'fillColor': '#FF6B6B',
+                            'color': '#FF6B6B',
+                            'weight': 4,
+                            'opacity': 1.0,
+                            'fillOpacity': 0.3
+                        }
+                    ).add_to(display_map)
+                    print(f"[Map] Territory layer GeoJSON added: {territory_name}")
+                except Exception as geojson_add_error:
+                    print(f"[Warning] Could not add territory GeoJSON layer: {geojson_add_error}")
+                
+                # Territory added - map will maintain its current view
         
         except Exception as e:
             print(f"[Error] Adding territory layer failed: {e}")
@@ -187,44 +187,46 @@ def build_and_display_map():
             buffer_geom = st.session_state.buffer_geom_for_display
             buffer_name = st.session_state.buffer_layer_name
             
-            # Get buffer GeoJSON directly
-            buffer_geojson = buffer_geom.getInfo()
+            # Get buffer GeoJSON directly with error handling
+            try:
+                buffer_geojson = buffer_geom.getInfo()
+            except Exception as geojson_error:
+                print(f"[Warning] Could not get buffer GeoJSON: {geojson_error}")
+                buffer_geojson = None
             
-            # Create a GeoJSON layer with distinct styling (blue for buffer)
-            folium.GeoJson(
-                data=buffer_geojson,
-                name=t("buffer_geojson", buffer_name=buffer_name),
-                style_function=lambda x: {
-                    'fillColor': '#0000FF',
-                    'color': '#0000FF',
-                    'weight': 2,
-                    'opacity': 0.7,
-                    'fillOpacity': 0.15
-                },
-                overlay=True,
-                control=True,
-                highlight_function=lambda x: {
-                    'fillColor': '#6B6BFF',
-                    'color': '#6B6BFF',
-                    'weight': 3,
-                    'opacity': 1.0,
-                    'fillOpacity': 0.2
-                }
-            ).add_to(display_map)
-            
-            # Zoom to buffer bounds
-            bounds_info = buffer_geom.bounds().getInfo()
-            if bounds_info and bounds_info.get('coordinates'):
-                coords = bounds_info['coordinates'][0]
-                lons = [c[0] for c in coords]
-                lats = [c[1] for c in coords]
-                sw = [min(lats), min(lons)]
-                ne = [max(lats), max(lons)]
-                display_map.fit_bounds([sw, ne])
-                print(f"[Map] Buffer layer added: {buffer_name}")
+            if buffer_geojson:
+                # Create a GeoJSON layer with distinct styling (blue for buffer)
+                try:
+                    folium.GeoJson(
+                        data=buffer_geojson,
+                        name=t("buffer_geojson", buffer_name=buffer_name),
+                        style_function=lambda x: {
+                            'fillColor': '#0000FF',
+                            'color': '#0000FF',
+                            'weight': 2,
+                            'opacity': 0.7,
+                            'fillOpacity': 0.15
+                        },
+                        overlay=True,
+                        control=False,
+                        highlight_function=lambda x: {
+                            'fillColor': '#6B6BFF',
+                            'color': '#6B6BFF',
+                            'weight': 3,
+                            'opacity': 1.0,
+                            'fillOpacity': 0.2
+                        }
+                    ).add_to(display_map)
+                    print(f"[Map] Buffer layer GeoJSON added: {buffer_name}")
+                except Exception as geojson_add_error:
+                    print(f"[Warning] Could not add buffer GeoJSON layer: {geojson_add_error}")
+                
+                # Buffer added - map will maintain its current view
         
         except Exception as e:
             print(f"[Error] Adding buffer layer failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Add analyzed data layer if available
     if st.session_state.add_analysis_layer_to_map and st.session_state.territory_analysis_image and st.session_state.territory_geom:
@@ -308,7 +310,7 @@ def build_and_display_map():
                             'fillOpacity': 0.15
                         },
                         overlay=True,
-                        control=True,
+                        control=False,
                         highlight_function=lambda x: {
                             'fillColor': '#87CEEB',
                             'color': '#4169E1',
@@ -375,7 +377,7 @@ def build_and_display_map():
                     name=layer_name,
                     style_function=make_style_fn(color, fill_color),
                     overlay=True,
-                    control=True,
+                    control=False,
                     highlight_function=make_highlight_fn(highlight_color, highlight_border)
                 ).add_to(display_map)
             except Exception as e:
@@ -441,27 +443,35 @@ def build_and_display_map():
                 'fillOpacity': 0.1
             }
         
-        # Display map and capture data
-        map_data = st_folium(display_map, width="stretch", height=600)
-        
-        # Store current map view state for persistence across reruns
-        if map_data:
-            try:
-                if 'center' in map_data:
-                    center = map_data.get('center')
-                    zoom = map_data.get('zoom', 3)
-                    st.session_state.last_map_view = {
-                        'center': (center.get('lat', 0), center.get('lng', 0)),
-                        'zoom': zoom
-                    }
-            except Exception as view_error:
-                print(f"[Debug] Could not capture map view: {view_error}")
-        
-        return map_data
+        # Display map with container to ensure it stays visible
+        try:
+            # Display map and capture data
+            map_data = st_folium(display_map, width="stretch", height=600, key="main_interactive_map")
+            
+            # Store current map view state for persistence across reruns
+            if map_data:
+                try:
+                    if 'center' in map_data:
+                        center = map_data.get('center')
+                        zoom = map_data.get('zoom', 3)
+                        st.session_state.last_map_view = {
+                            'center': (center.get('lat', 0), center.get('lng', 0)),
+                            'zoom': zoom
+                        }
+                except Exception as view_error:
+                    print(f"[Debug] Could not capture map view: {view_error}")
+            
+            return map_data
+        except Exception as st_folium_error:
+            print(f"[Error] st_folium rendering failed: {st_folium_error}")
+            st.error(f"Map rendering failed: {str(st_folium_error)[:200]}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     except Exception as e:
         st.warning(t("map_display_error", error=str(e)[:200]))
-        print(f"Error displaying map: {e}")
+        print(f"Error building map: {e}")
         import traceback
         traceback.print_exc()
         return None
