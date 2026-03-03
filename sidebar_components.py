@@ -204,14 +204,100 @@ def render_territory_analysis():
                     if not territory_names or not name_prop:
                         st.error(t("territory_names_error"))
                     else:
-                        # Territory selection with stable key
-                        selected_territory = st.selectbox(
-                            t("select_a_territory"),
-                            territory_names,
-                            index=territory_names.index(st.session_state.territory_selected) if st.session_state.territory_selected in territory_names else 0,
-                            key=f"territory_select_{suffix}"
-                        )
-                        st.session_state.territory_selected = selected_territory
+                        # Get territory names from Earth Engine
+                        territory_names, name_prop = get_territory_names(territories_fc)
+                        
+                        if not territory_names or not name_prop:
+                            st.error(t("territory_names_error"))
+                        else:
+                            # Initialize territory_selected to empty string if not set
+                            if "territory_selected" not in st.session_state:
+                                st.session_state.territory_selected = ""
+                            
+                            # Quick search feature for territories clicked on map
+                            st.caption("🔍 **Search/Filter Territory:**")
+                            
+                            # Check if a territory was clicked on the map
+                            territory_from_map = st.session_state.get("clicked_territory", "")
+                            print(f"[SIDEBAR DEBUG] territory_from_map: '{territory_from_map}' (len={len(territory_from_map)})")
+                            print(f"[SIDEBAR DEBUG] territory_names[:3]: {territory_names[:3]}")
+                            
+                            # Push map-clicked value into the widget's own session state key
+                            # (Streamlit ignores `value=` when the key already exists in session_state)
+                            if territory_from_map:
+                                st.session_state[f"territory_search_{suffix}"] = territory_from_map
+                                # Clear so it doesn't override manual searches on subsequent reruns
+                                st.session_state["clicked_territory"] = ""
+
+                            # Simple text input for filtering (pre-filled from map click if available)
+                            search_input = st.text_input(
+                                "Type territory name (from popup)",
+                                value=territory_from_map,
+                                placeholder="E.g., Trincheira, Kayapó...",
+                                key=f"territory_search_{suffix}",
+                                label_visibility="collapsed"
+                            )
+                            print(f"[SIDEBAR DEBUG] search_input: '{search_input}' (len={len(search_input)})")
+                            print(f"[SIDEBAR DEBUG] search_input.strip(): '{search_input.strip()}'")
+                            
+                            # Initialize filtered_territories to avoid reference errors
+                            filtered_territories = []
+                            display_names = territory_names
+                            
+                            # Check if search_input exactly matches a territory in the list
+                            if search_input.strip():
+                                # Check for exact match first
+                                exact_match = search_input.strip() in territory_names
+                                print(f"[SIDEBAR DEBUG] Exact match found: {exact_match} (checking if '{search_input.strip()}' in territory_names)")
+                                
+                                if not exact_match:
+                                    # Try case-insensitive and partial match
+                                    filtered_territories = [t for t in territory_names if search_input.lower() in t.lower()]
+                                else:
+                                    filtered_territories = [search_input.strip()]
+                                
+                                print(f"[SIDEBAR DEBUG] filtered_territories count: {len(filtered_territories)}")
+                                if filtered_territories:
+                                    print(f"[SIDEBAR DEBUG] filtered_territories[:3]: {filtered_territories[:3]}")
+                                
+                                if not filtered_territories:
+                                    st.warning(f"No territories found matching '{search_input}'")
+                                    display_names = territory_names
+                                elif len(filtered_territories) == 1:
+                                    # Auto-select if only one match
+                                    print(f"[SIDEBAR DEBUG] Auto-selecting single match: {filtered_territories[0]}")
+                                    st.session_state.territory_selected = filtered_territories[0]
+                                    display_names = filtered_territories
+                                else:
+                                    display_names = filtered_territories
+                            
+                            st.divider()
+                            
+                            # Determine selectbox index
+                            # If territory is selected and in display_names, use its index
+                            # Otherwise default to 0 but don't change session state
+                            if st.session_state.territory_selected and st.session_state.territory_selected in display_names:
+                                select_index = display_names.index(st.session_state.territory_selected)
+                            else:
+                                select_index = 0
+                            
+                            # Territory selection with stable key
+                            selected_territory = st.selectbox(
+                                t("select_a_territory"),
+                                display_names,
+                                index=select_index,
+                                key=f"territory_select_{suffix}"
+                            )
+                            
+                            # Only update session state if user actually selected something different
+                            # or if a territory was auto-selected from filtered search
+                            if len(filtered_territories) == 1 and search_input.strip():
+                                # Auto-selected from filtered list - already set above
+                                print(f"[SIDEBAR DEBUG] Using auto-selected territory from search")
+                            elif selected_territory and selected_territory != st.session_state.territory_selected:
+                                # User manually selected a different territory
+                                print(f"[SIDEBAR DEBUG] User selected territory: {selected_territory}")
+                                st.session_state.territory_selected = selected_territory
                         
                         # Data source selection - use index for radio
                         source_options = ["MapBiomas", "Hansen/GLAD"]

@@ -247,6 +247,20 @@ TRANSLATIONS = {
         "hansen_analysis_failed": "❌ Hansen analysis failed: {error}",
         "territory_error": "❌ Territory analysis error: {error}",
         
+        # Quick Territory Analysis (from map)
+        "quick_territory_analysis": "Quick Territory Selection",
+        "click_territory_hint": "👆 Click on territories on the map to see their names, then select below",
+        "select_territory_quick": "Select Territory from Map",
+        "quick_year_1": "Year",
+        "quick_year_2": "Year",
+        "quick_compare": "Compare Years",
+        "compare_mode": "Compare Years",
+        "add_buffer_option": "Add Buffer Zone (Optional)",
+        "buffer_analysis_hint_quick": "Create a buffer zone around the territory before analysis",
+        "use_buffer": "Use Buffer",
+        "btn_quick_analyze": "📊 Analyze",
+        "analysis_complete": "✅ Analysis complete for {territory}!",
+        
         # Buffer Zone
         "buffer_zone_title": "⭕ Territory External Buffer Zone Analysis",
         "buffer_zone_desc": "Create External Buffer Zone",
@@ -857,6 +871,20 @@ TRANSLATIONS = {
         "analysis_failed": "❌ Análise falhou: {error}",
         "hansen_analysis_failed": "❌ Análise Hansen falhou: {error}",
         "territory_error": "❌ Erro na análise de território: {error}",
+        
+        # Quick Territory Analysis (from map)
+        "quick_territory_analysis": "Seleção Rápida de Território",
+        "click_territory_hint": "👆 Clique nos territórios no mapa para ver seus nomes, depois selecione abaixo",
+        "select_territory_quick": "Selecionar Território do Mapa",
+        "quick_year_1": "Ano",
+        "quick_year_2": "Ano",
+        "quick_compare": "Comparar Anos",
+        "compare_mode": "Comparar Anos",
+        "add_buffer_option": "Adicionar Zona de Buffer (Opcional)",
+        "buffer_analysis_hint_quick": "Crie uma zona de buffer ao redor do território antes da análise",
+        "use_buffer": "Usar Buffer",
+        "btn_quick_analyze": "📊 Analisar",
+        "analysis_complete": "✅ Análise concluída para {territory}!",
         
         # Buffer Zone
         "buffer_zone_title": "⭕ Análise de Zona de Buffer Externa do Território",

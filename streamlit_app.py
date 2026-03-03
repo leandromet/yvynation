@@ -519,6 +519,50 @@ if st.session_state.data_loaded:
 # Build and display the interactive map
 map_data = build_and_display_map()
 
+# Try to get clicked feature from st_folium
+territory_name_from_click = None
+
+if map_data:
+    print(f"[DEBUG] Checking for clicked territory...")
+    
+    import re as _re
+
+    def _strip_html(raw):
+        """Strip HTML tags and decode simple entities from popup/tooltip content."""
+        if not raw or not isinstance(raw, str):
+            return ""
+        text = _re.sub(r'<[^>]+>', ' ', raw)
+        text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ')
+        # Remove the alias label 'Territory:' if present
+        text = _re.sub(r'Territory\s*:', '', text, flags=_re.IGNORECASE)
+        return ' '.join(text.split())  # normalise whitespace
+
+    # Check for popup text first (most reliable for single-layer GeoJson clicks)
+    if map_data.get('last_object_clicked_popup'):
+        popup_val = map_data['last_object_clicked_popup']
+        print(f"[DEBUG] last_object_clicked_popup: {repr(popup_val)}")
+        name_candidate = _strip_html(popup_val)
+        if name_candidate:
+            territory_name_from_click = name_candidate
+            print(f"[SUCCESS] Got territory from popup: {territory_name_from_click}")
+
+    # Check tooltip as fallback
+    if not territory_name_from_click and map_data.get('last_object_clicked_tooltip'):
+        tooltip_val = map_data['last_object_clicked_tooltip']
+        print(f"[DEBUG] Trying tooltip: {repr(tooltip_val)}")
+        name_candidate = _strip_html(tooltip_val)
+        if name_candidate:
+            territory_name_from_click = name_candidate
+            print(f"[SUCCESS] Got territory from tooltip: {territory_name_from_click}")
+
+# Store in session state if we found a NEW territory (avoids infinite rerun loop)
+if territory_name_from_click:
+    prev = st.session_state.get('clicked_territory', '')
+    if territory_name_from_click != prev:
+        st.session_state.clicked_territory = territory_name_from_click
+        print(f"[SUCCESS] Territory stored in session state: '{territory_name_from_click}'")
+        st.rerun()  # re-render so sidebar reads the new value at the top of the script
+
 # Process drawn features from the map
 process_drawn_features(map_data)
 

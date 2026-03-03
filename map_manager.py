@@ -90,7 +90,7 @@ def create_base_map(country="Brazil", center_lat=None, center_lon=None, zoom=Non
 
 def add_territories_layer(m, territories, name='Indigenous Territories', opacity=0.7):
     """
-    Add indigenous territories layer to map.
+    Add interactive indigenous territories layer to map with hover labels and click capability.
     
     Args:
         m (folium.Map): Map object to add layer to
@@ -106,22 +106,71 @@ def add_territories_layer(m, territories, name='Indigenous Territories', opacity
     
     try:
         print(f"Adding {name} layer...")
-        territories_image = ee.Image().paint(territories, 1, 2)
-        vis_params = {'min': 0, 'max': 1, 'palette': ['00000000', '4B0082']}
+        # Get territories as GeoJSON
+        territories_geojson = territories.getInfo()
         
-        map_id = territories_image.getMapId(vis_params)
-        folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
-            attr='Map data: Indigenous Territories',
+        # Validate and filter territories to ensure they have valid geometry
+        valid_features = []
+        if territories_geojson.get('type') == 'FeatureCollection':
+            features = territories_geojson.get('features', [])
+            for feature in features:
+                try:
+                    geometry = feature.get('geometry', {})
+                    if geometry and geometry.get('type') and geometry.get('coordinates'):
+                        valid_features.append(feature)
+                except Exception as e:
+                    print(f"[Warning] Skipping invalid feature: {e}")
+                    continue
+            print(f"[Info] Filtered to {len(valid_features)} valid territories from {len(features)} total")
+        
+        # Build a single clean FeatureCollection with only the NAME property
+        # This is what streamlit_folium will pass back on click via last_object_clicked
+        clean_features = []
+        for f in valid_features:
+            name_val = f.get('properties', {}).get('NAME', 'Unknown')
+            clean_features.append({
+                'type': 'Feature',
+                'geometry': f['geometry'],
+                'properties': {'NAME': name_val}
+            })
+        
+        clean_geojson = {'type': 'FeatureCollection', 'features': clean_features}
+        
+        # Add as a SINGLE GeoJson layer - this is key for streamlit_folium click detection
+        folium.GeoJson(
+            data=clean_geojson,
             name=name,
-            overlay=True,
-            control=True,
-            opacity=opacity
+            style_function=lambda x: {
+                'fillColor': '#4B0082',
+                'color': '#4B0082',
+                'weight': 2,
+                'opacity': 0.7,
+                'fillOpacity': 0.3
+            },
+            highlight_function=lambda x: {
+                'fillColor': '#8B00FF',
+                'color': '#FF1493',
+                'weight': 3,
+                'opacity': 1.0,
+                'fillOpacity': 0.5
+            },
+            tooltip=folium.features.GeoJsonTooltip(
+                fields=['NAME'],
+                aliases=['Territory:'],
+                sticky=True,
+                labels=True
+            ),
+            popup=folium.features.GeoJsonPopup(
+                fields=['NAME'],
+                aliases=['Territory:'],
+                labels=True
+            )
         ).add_to(m)
-        print(f"✓ {name} added")
+        
+        print(f"✓ {name} added with hover labels and popups")
         return m
     except Exception as e:
-        print(f"❌ Error adding territories layer: {e}")
+        print(f"❌ Error adding interactive territories layer: {e}")
         import traceback
         traceback.print_exc()
         return m
