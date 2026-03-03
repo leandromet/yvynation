@@ -105,36 +105,42 @@ def add_territories_layer(m, territories, name='Indigenous Territories', opacity
         return m
     
     try:
-        print(f"Adding {name} layer...")
-        # Get territories as GeoJSON
-        territories_geojson = territories.getInfo()
-        
-        # Validate and filter territories to ensure they have valid geometry
-        valid_features = []
-        if territories_geojson.get('type') == 'FeatureCollection':
-            features = territories_geojson.get('features', [])
-            for feature in features:
-                try:
-                    geometry = feature.get('geometry', {})
-                    if geometry and geometry.get('type') and geometry.get('coordinates'):
-                        valid_features.append(feature)
-                except Exception as e:
-                    print(f"[Warning] Skipping invalid feature: {e}")
-                    continue
-            print(f"[Info] Filtered to {len(valid_features)} valid territories from {len(features)} total")
-        
-        # Build a single clean FeatureCollection with only the NAME property
-        # This is what streamlit_folium will pass back on click via last_object_clicked
-        clean_features = []
-        for f in valid_features:
-            name_val = f.get('properties', {}).get('NAME', 'Unknown')
-            clean_features.append({
-                'type': 'Feature',
-                'geometry': f['geometry'],
-                'properties': {'NAME': name_val}
-            })
-        
-        clean_geojson = {'type': 'FeatureCollection', 'features': clean_features}
+        import streamlit as st
+
+        # Use cached GeoJSON to avoid repeated EE API calls on every rerun
+        if 'territories_clean_geojson' not in st.session_state or st.session_state.territories_clean_geojson is None:
+            print(f"Adding {name} layer (fetching from EE)...")
+            territories_geojson = territories.getInfo()
+
+            valid_features = []
+            if territories_geojson.get('type') == 'FeatureCollection':
+                features = territories_geojson.get('features', [])
+                for feature in features:
+                    try:
+                        geometry = feature.get('geometry', {})
+                        if geometry and geometry.get('type') and geometry.get('coordinates'):
+                            valid_features.append(feature)
+                    except Exception as e:
+                        print(f"[Warning] Skipping invalid feature: {e}")
+                        continue
+                print(f"[Info] Filtered to {len(valid_features)} valid territories from {len(features)} total")
+
+            clean_features = []
+            for f in valid_features:
+                name_val = f.get('properties', {}).get('NAME', 'Unknown')
+                clean_features.append({
+                    'type': 'Feature',
+                    'geometry': f['geometry'],
+                    'properties': {'NAME': name_val}
+                })
+
+            st.session_state.territories_clean_geojson = {'type': 'FeatureCollection', 'features': clean_features}
+            # Also store the raw geojson for export use
+            st.session_state.territories_geojson = territories_geojson
+        else:
+            print(f"Adding {name} layer (from cache)...")
+
+        clean_geojson = st.session_state.territories_clean_geojson
         
         # Add as a SINGLE GeoJson layer - this is key for streamlit_folium click detection
         folium.GeoJson(

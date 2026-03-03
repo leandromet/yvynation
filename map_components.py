@@ -440,7 +440,9 @@ def build_and_display_map():
         # Store map object and territories for export functionality
         st.session_state.map_object = display_map
         if st.session_state.data_loaded and st.session_state.app:
-            st.session_state.territories_geojson = st.session_state.app.territories.getInfo()
+            # territories_geojson is already cached by add_territories_layer(); only fetch if missing
+            if 'territories_geojson' not in st.session_state or st.session_state.territories_geojson is None:
+                st.session_state.territories_geojson = st.session_state.app.territories.getInfo()
             st.session_state.territory_style = lambda x: {
                 'fillColor': '#4B0082',
                 'color': '#4B0082',
