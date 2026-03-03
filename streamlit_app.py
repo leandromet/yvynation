@@ -516,61 +516,70 @@ if st.session_state.data_loaded:
 # MAP DISPLAY
 # ============================================================================
 
-# Build and display the interactive map
-map_data = build_and_display_map()
+import re as _re
 
-# Try to get clicked feature from st_folium
-territory_name_from_click = None
+def _strip_html(raw):
+    """Strip HTML tags and decode simple entities from popup/tooltip content."""
+    if not raw or not isinstance(raw, str):
+        return ""
+    text = _re.sub(r'<[^>]+>', ' ', raw)
+    text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ')
+    text = _re.sub(r'Territory\s*:', '', text, flags=_re.IGNORECASE)
+    return ' '.join(text.split())
 
-if map_data:
-    print(f"[DEBUG] Checking for clicked territory...")
-    
-    import re as _re
+@st.fragment
+def _map_display_fragment():
+    """
+    Fragment wrapper for the map display.
+    Keeps pan/zoom reruns from st_folium contained to this fragment only
+    (no full-page white-screen flash). Shows a confirmation button below the
+    map when a territory is clicked; only escalates to a full app rerun when
+    the user explicitly confirms.
+    """
+    map_data = build_and_display_map()
 
-    def _strip_html(raw):
-        """Strip HTML tags and decode simple entities from popup/tooltip content."""
-        if not raw or not isinstance(raw, str):
-            return ""
-        text = _re.sub(r'<[^>]+>', ' ', raw)
-        text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ')
-        # Remove the alias label 'Territory:' if present
-        text = _re.sub(r'Territory\s*:', '', text, flags=_re.IGNORECASE)
-        return ' '.join(text.split())  # normalise whitespace
+    if map_data:
+        territory_name_from_click = None
 
-    # Check for popup text first (most reliable for single-layer GeoJson clicks)
-    if map_data.get('last_object_clicked_popup'):
-        popup_val = map_data['last_object_clicked_popup']
-        print(f"[DEBUG] last_object_clicked_popup: {repr(popup_val)}")
-        name_candidate = _strip_html(popup_val)
-        if name_candidate:
-            territory_name_from_click = name_candidate
-            print(f"[SUCCESS] Got territory from popup: {territory_name_from_click}")
+        # Popup is most reliable for a single GeoJson FeatureCollection layer
+        if map_data.get('last_object_clicked_popup'):
+            name_candidate = _strip_html(map_data['last_object_clicked_popup'])
+            if name_candidate:
+                territory_name_from_click = name_candidate
 
-    # Check tooltip as fallback
-    if not territory_name_from_click and map_data.get('last_object_clicked_tooltip'):
-        tooltip_val = map_data['last_object_clicked_tooltip']
-        print(f"[DEBUG] Trying tooltip: {repr(tooltip_val)}")
-        name_candidate = _strip_html(tooltip_val)
-        if name_candidate:
-            territory_name_from_click = name_candidate
-            print(f"[SUCCESS] Got territory from tooltip: {territory_name_from_click}")
+        # Tooltip as fallback
+        if not territory_name_from_click and map_data.get('last_object_clicked_tooltip'):
+            name_candidate = _strip_html(map_data['last_object_clicked_tooltip'])
+            if name_candidate:
+                territory_name_from_click = name_candidate
 
-# Store in session state if we found a NEW territory (avoids infinite rerun loop)
-if territory_name_from_click:
-    prev = st.session_state.get('clicked_territory', '')
-    if territory_name_from_click != prev:
-        st.session_state.clicked_territory = territory_name_from_click
-        print(f"[SUCCESS] Territory stored in session state: '{territory_name_from_click}'")
-        st.rerun()  # re-render so sidebar reads the new value at the top of the script
+        # Store as "pending" so the confirm button can read it across fragment reruns
+        if territory_name_from_click:
+            st.session_state['_pending_territory'] = territory_name_from_click
 
-# Process drawn features from the map
-process_drawn_features(map_data)
+        process_drawn_features(map_data)
 
-# Polygon selector
-render_polygon_selector()
+    # Show confirmation banner whenever there is a pending territory
+    pending = st.session_state.get('_pending_territory', '')
+    if pending:
+        col_info, col_btn, col_clear = st.columns([6, 3, 1])
+        with col_info:
+            st.info(f"📍 **{pending}** — click to select for analysis")
+        with col_btn:
+            if st.button("✅ Select this territory", type="primary", use_container_width=True):
+                st.session_state.clicked_territory = pending
+                st.session_state['_pending_territory'] = ''
+                print(f"[SUCCESS] Territory confirmed: '{pending}'")
+                st.rerun(scope="app")  # full rerun → sidebar auto-selects
+        with col_clear:
+            if st.button("✖", help="Dismiss", use_container_width=True):
+                st.session_state['_pending_territory'] = ''
+                st.rerun()  # fragment-only rerun to hide the banner
 
-# Layer reference guide
-render_layer_reference_guide()
+    render_polygon_selector()
+    render_layer_reference_guide()
+
+_map_display_fragment()
     
     
 
