@@ -156,22 +156,45 @@ def build_and_display_map():
                         name=t("territory_layer", territory_name=territory_name),
                         show=True
                     )
+                    # Ensure the geojson is a Feature/FeatureCollection with a NAME property
+                    # so GeoJsonTooltip can render it.  ee.Geometry.getInfo() returns a bare
+                    # geometry dict (type=Polygon/MultiPolygon) with no 'properties' key.
+                    _tname = territory_name  # capture for closure
+                    _geo_type = territory_geojson.get('type', '')
+                    if _geo_type == 'Feature':
+                        territory_geojson.setdefault('properties', {})['NAME'] = _tname
+                    elif _geo_type == 'FeatureCollection':
+                        for _f in territory_geojson.get('features', []):
+                            _f.setdefault('properties', {})['NAME'] = _tname
+                    else:
+                        # Bare geometry — wrap it in a Feature so folium can attach properties
+                        territory_geojson = {
+                            'type': 'Feature',
+                            'geometry': territory_geojson,
+                            'properties': {'NAME': _tname}
+                        }
                     folium.GeoJson(
                         data=territory_geojson,
                         style_function=lambda x: {
-                            'fillColor': '#FF0000',
-                            'color': '#FF0000',
+                            'fillColor': '#FF4500',
+                            'color': '#FF4500',
                             'weight': 3,
                             'opacity': 0.9,
-                            'fillOpacity': 0.2
+                            'fillOpacity': 0.25
                         },
                         highlight_function=lambda x: {
                             'fillColor': '#FF6B6B',
                             'color': '#FF6B6B',
                             'weight': 4,
                             'opacity': 1.0,
-                            'fillOpacity': 0.3
-                        }
+                            'fillOpacity': 0.4
+                        },
+                        tooltip=folium.features.GeoJsonTooltip(
+                            fields=['NAME'],
+                            aliases=['Selected:'],
+                            sticky=True,
+                            labels=True
+                        )
                     ).add_to(territory_group)
                     territory_group.add_to(display_map)
                     print(f"[Map] Territory layer added: {territory_name}")
@@ -330,9 +353,6 @@ def build_and_display_map():
                 import traceback
                 traceback.print_exc()
 
-    # Layer control is automatically created by Folium when FeatureGroups are present
-    # No explicit LayerControl needed to avoid duplicate div errors
-
     # Re-add previously drawn features as FeatureGroups
     if st.session_state.all_drawn_features:
         for idx, feature in enumerate(st.session_state.all_drawn_features):
@@ -403,6 +423,9 @@ def build_and_display_map():
                     display_map.fit_bounds([sw, ne])
         except Exception as e:
             print(f"[Warning] Could not fit bounds to drawn features: {e}")
+
+    # Add layer control - must be added AFTER all overlay layers and BEFORE Draw
+    folium.LayerControl(collapsed=False, position='topright').add_to(display_map)
 
     # Add drawing tools
     draw = Draw(
