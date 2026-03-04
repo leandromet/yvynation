@@ -1026,87 +1026,67 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
 if st.session_state.data_loaded and st.session_state.app:
     st.divider()
     st.subheader(t("polygon_analysis_header"))
-    
-    # Check if a feature was drawn
-    if st.session_state.last_drawn_feature:
+
+    if not st.session_state.last_drawn_feature:
+        st.info(t("draw_polygon_instruction"))
+    else:
         try:
             feature_data = st.session_state.last_drawn_feature
             geometry = None
-            is_buffer = False
-            buffer_name = None
-            
-            # Check if this is a buffer feature
-            if isinstance(feature_data, dict) and 'properties' in feature_data:
-                props = feature_data.get('properties', {})
-                if props.get('type') == 'external_buffer':
-                    is_buffer = True
-                    buffer_name = props.get('name', 'External Buffer')
-                    st.info(t("analyzing_polygon", name=buffer_name))
-            
+
             # Extract geometry from drawn feature GeoJSON
             if isinstance(feature_data, dict):
                 if 'geometry' in feature_data:
-                    # Feature format: {"geometry": {...}, "properties": {...}}
                     geometry = ee.Geometry(feature_data['geometry'])
                 elif 'type' in feature_data and feature_data['type'] == 'Polygon':
-                    # Direct Polygon GeoJSON
                     geometry = ee.Geometry.Polygon(feature_data['coordinates'])
                 elif 'type' in feature_data and feature_data['type'] == 'LineString':
-                    # LineString (from drawing)
                     geometry = ee.Geometry.LineString(feature_data['coordinates'])
-            
+
             if not geometry:
                 st.warning("⚠️ Could not extract geometry from drawn feature")
             else:
-                # Check if buffer compare mode is active and buffer exists
-                compare_with_buffer = (
-                    st.session_state.buffer_compare_mode and 
-                    st.session_state.current_buffer_for_analysis and
-                    st.session_state.current_buffer_for_analysis in st.session_state.buffer_geometries
+                # Resolve active buffer (if any) — no checkbox needed
+                active_buffer_key = st.session_state.get('current_buffer_for_analysis', '')
+                buffer_geom = None
+                buffer_meta = None
+                if active_buffer_key and active_buffer_key in st.session_state.get('buffer_geometries', {}):
+                    buffer_geom = st.session_state.buffer_geometries[active_buffer_key]
+                    buffer_meta = st.session_state.buffer_metadata.get(active_buffer_key, {})
+
+                buffer_label = (
+                    f"🔵 Buffer Zone ({buffer_meta['buffer_size_km']}km)"
+                    if buffer_meta else "🔵 Buffer Zone"
                 )
-                
-                if compare_with_buffer:
-                    # Get buffer geometry
-                    buffer_geom = st.session_state.buffer_geometries[st.session_state.current_buffer_for_analysis]
-                    buffer_meta = st.session_state.buffer_metadata[st.session_state.current_buffer_for_analysis]
-                    
-                    st.info(t("polygon_compare_mode_info", buffer_km=buffer_meta['buffer_size_km']))
-                    
-                    # Create outer tabs for Original vs Buffer
-                    main_tab1, main_tab2 = st.tabs(["📍 Original Area", f"🔵 Buffer Zone ({buffer_meta['buffer_size_km']}km)"])
-                    
-                    # ===== ORIGINAL AREA TAB =====
-                    with main_tab1:
-                        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-                            ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
-                        )
-                        
-                        # Use existing analysis code for original geometry
-                        render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_prefix="original")
-                    
-                    # ===== BUFFER ZONE TAB =====
-                    with main_tab2:
-                        buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5, buffer_tab6 = st.tabs(
-                            ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
-                        )
-                        
-                        # Use same analysis code for buffer geometry
-                        render_analysis_tabs(buffer_geom, buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5, buffer_tab6,
-                                           area_prefix="buffer", buffer_name=st.session_state.current_buffer_for_analysis,
-                                           buffer_size=buffer_meta['buffer_size_km'])
-                else:
-                    # Standard tabs without buffer comparison
+
+                # Always show both outer tabs — buffer tab shows placeholder when no buffer yet
+                main_tab1, main_tab2 = st.tabs(["📍 Original Area", buffer_label])
+
+                # ===== ORIGINAL AREA TAB =====
+                with main_tab1:
                     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-                        ["📍 MapBiomas Analysis", "� Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
+                        ["📍 MapBiomas Analysis", "🌿 Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
                     )
-                    
-                    # Render standard analysis
                     render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_prefix="original")
+
+                # ===== BUFFER ZONE TAB =====
+                with main_tab2:
+                    if buffer_geom is not None:
+                        buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5, buffer_tab6 = st.tabs(
+                            ["📍 MapBiomas Analysis", "🌿 Hansen/GLAD Analysis", "🌲 Hansen GFC Analysis", "🚜 AAFC Analysis", "📈 Comparison", "ℹ️ About"]
+                        )
+                        render_analysis_tabs(
+                            buffer_geom,
+                            buffer_tab1, buffer_tab2, buffer_tab3, buffer_tab4, buffer_tab5, buffer_tab6,
+                            area_prefix="buffer",
+                            buffer_name=active_buffer_key,
+                            buffer_size=buffer_meta.get('buffer_size_km')
+                        )
+                    else:
+                        st.info("ℹ️ No buffer created yet. Use the **Create External Buffer Zone** panel below the map to add a ring-shaped buffer around your polygon, then analyse it here.")
         except Exception as e:
             st.error(f"Error processing drawn feature: {e}")
             print(f"Analysis error: {e}")
-    else:
-        st.info(t("draw_polygon_instruction"))
 
 
 print("\n✓ Yvynation App Loaded Successfully")

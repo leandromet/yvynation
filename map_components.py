@@ -511,6 +511,8 @@ def build_and_display_map():
 def process_drawn_features(map_data):
     """
     Process drawn features from map and update session state.
+    When new drawings arrive, escalates to a full app rerun so the
+    Polygon Analysis section (outside the map fragment) updates immediately.
     
     Parameters:
     -----------
@@ -518,19 +520,25 @@ def process_drawn_features(map_data):
         Data from st_folium
     """
     if map_data:
+        new_feature_detected = False
+
         # Capture drawn features from the map
         if "all_drawings" in map_data and map_data["all_drawings"]:
-            # Store all captured drawings
+            prev_count = len(st.session_state.all_drawn_features)
             st.session_state.all_drawn_features = map_data["all_drawings"]
             st.session_state.last_drawn_feature = map_data["all_drawings"][-1]
-            
-            # Show success message with count
-            st.success(t("captured_polygons", count=len(map_data['all_drawings'])))
+            if len(map_data["all_drawings"]) != prev_count:
+                new_feature_detected = True
         elif "last_active_drawing" in map_data and map_data["last_active_drawing"]:
             if map_data["last_active_drawing"] not in st.session_state.all_drawn_features:
                 st.session_state.all_drawn_features.append(map_data["last_active_drawing"])
+                new_feature_detected = True
             st.session_state.last_drawn_feature = map_data["last_active_drawing"]
-            st.success(t("polygon_captured"))
+
+        if new_feature_detected:
+            # Escalate to full app rerun so the Polygon Analysis section
+            # outside this fragment renders with the new geometry
+            st.rerun(scope="app")
 
 
 def render_polygon_selector():
@@ -640,15 +648,15 @@ def render_polygon_selector():
                         # Add to polygon list
                         add_buffer_to_polygon_list(buffer_name)
                         
-                        # If compare mode, set this buffer for comparison
-                        if st.session_state.buffer_compare_mode:
-                            st.session_state.current_buffer_for_analysis = buffer_name
-                            st.success(t("buffer_created_compare", distance=buffer_distance))
-                            st.info(t("analysis_compare_info"))
-                        else:
-                            st.success(t("buffer_created", distance=buffer_distance, name=polygon_name))
-                            st.info(t("buffer_added_info"))
-                        st.rerun()
+                        # Always activate compare mode so the Buffer Zone tab appears in the
+                        # Polygon Analysis section — the whole point of creating a buffer is to analyse it
+                        st.session_state.current_buffer_for_analysis = buffer_name
+                        st.session_state.buffer_compare_mode = True
+                        st.success(t("buffer_created_compare", distance=buffer_distance))
+                        st.info(t("analysis_compare_info"))
+                        # scope="app" is required because the Polygon Analysis section is
+                        # rendered OUTSIDE this fragment and won't update on a fragment-only rerun
+                        st.rerun(scope="app")
                         
                     except Exception as e:
                         st.error(t("buffer_creation_error", error=str(e)))
