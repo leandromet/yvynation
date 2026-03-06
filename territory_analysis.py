@@ -146,53 +146,32 @@ def analyze_territory_hansen(ee_module, territory_geom, year, use_consolidated=F
 
 def initialize_territory_session_state():
     """Initialize all territory-related session state variables."""
-    if "territory_result" not in st.session_state:
-        st.session_state.territory_result = None
-    if "territory_result_year2" not in st.session_state:
-        st.session_state.territory_result_year2 = None
-    if "territory_name" not in st.session_state:
-        st.session_state.territory_name = None
-    if "territory_year" not in st.session_state:
-        st.session_state.territory_year = None
-    if "territory_year2" not in st.session_state:
-        st.session_state.territory_year2 = None
-    if "territory_geom" not in st.session_state:
-        st.session_state.territory_geom = None
-    if "territory_source" not in st.session_state:
-        st.session_state.territory_source = "MapBiomas"
-    if "add_territory_layer_to_map" not in st.session_state:
-        st.session_state.add_territory_layer_to_map = False
-    if "territory_layer_name" not in st.session_state:
-        st.session_state.territory_layer_name = None    
-    if "add_buffer_layer_to_map" not in st.session_state:
-        st.session_state.add_buffer_layer_to_map = False
-    if "buffer_geom_for_display" not in st.session_state:
-        st.session_state.buffer_geom_for_display = None
-    if "buffer_layer_name" not in st.session_state:
-        st.session_state.buffer_layer_name = None
-    if "territory_analysis_image" not in st.session_state:
-        st.session_state.territory_analysis_image = None
-    if "territory_analysis_source" not in st.session_state:
-        st.session_state.territory_analysis_source = None
-    if "territory_analysis_image_year2" not in st.session_state:
-        st.session_state.territory_analysis_image_year2 = None
-    if "territory_analysis_source_year2" not in st.session_state:
-        st.session_state.territory_analysis_source_year2 = None
-    if "add_analysis_layer_to_map" not in st.session_state:
-        st.session_state.add_analysis_layer_to_map = False
-    
-    # UI State variables for preserving selections across re-renders
-    if "territory_selected" not in st.session_state:
-        st.session_state.territory_selected = None
-    if "territory_year_selected" not in st.session_state:
-        st.session_state.territory_year_selected = 1985  # Reference year (baseline/older)
-    if "territory_year2_selected" not in st.session_state:
-        st.session_state.territory_year2_selected = 2023  # Comparison year (newer)
-    if "territory_compare_mode_selected" not in st.session_state:
-        st.session_state.territory_compare_mode_selected = False
-    if "territory_source_selected" not in st.session_state:
-        st.session_state.territory_source_selected = "MapBiomas"
-    if "buffer_compare_mode" not in st.session_state:
-        st.session_state.buffer_compare_mode = False
-    if "buffer_distance_selected" not in st.session_state:
-        st.session_state.buffer_distance_selected = 5
+    _territory_defaults = {
+        "territory_result": None,
+        "territory_result_year2": None,
+        "territory_name": None,
+        "territory_year": None,
+        "territory_year2": None,
+        "territory_geom": None,
+        "territory_source": "MapBiomas",
+        "add_territory_layer_to_map": False,
+        "territory_layer_name": None,
+        "add_buffer_layer_to_map": False,
+        "buffer_geom_for_display": None,
+        "buffer_layer_name": None,
+        "territory_analysis_image": None,
+        "territory_analysis_source": None,
+        "territory_analysis_image_year2": None,
+        "territory_analysis_source_year2": None,
+        "add_analysis_layer_to_map": False,
+        "territory_selected": None,
+        "territory_year_selected": 1985,
+        "territory_year2_selected": 2023,
+        "territory_compare_mode_selected": False,
+        "territory_source_selected": "MapBiomas",
+        "buffer_compare_mode": False,
+        "buffer_distance_selected": 10,
+    }
+    for _key, _default in _territory_defaults.items():
+        if _key not in st.session_state:
+            st.session_state[_key] = _default

@@ -171,7 +171,7 @@ def create_export_zip(
                         csv_str = df.to_csv(index=False)
                         zf.writestr(f'{territory_folder}/{name}.csv', csv_str)
             
-            # Write territory figures as PNG
+            # Write territory figures as PNG (or HTML for Plotly)
             if territory_figures:
                 for fig_name, fig in territory_figures.items():
                     if isinstance(fig, Figure):
@@ -180,6 +180,13 @@ def create_export_zip(
                         img_buffer.seek(0)
                         zf.writestr(f'{territory_folder}/{fig_name}.png', img_buffer.getvalue())
                         plt.close(fig)
+                    elif hasattr(fig, 'to_html'):
+                        # Plotly figure (e.g., Sankey diagrams) — save as interactive HTML
+                        try:
+                            html_str = fig.to_html(include_plotlyjs='cdn')
+                            zf.writestr(f'{territory_folder}/{fig_name}.html', html_str)
+                        except Exception as e:
+                            print(f"Warning: Could not export Plotly figure {fig_name}: {e}")
         
         # 5. Write remaining figures at root level (both matplotlib and plotly figures)
         if all_figures:
@@ -386,6 +393,13 @@ def capture_current_analysis_exports(session_state):
         polygon_figure_keys = [k for k in figures.keys() if not k.startswith('territory_') and not k.startswith('buffer_')]
         for key in polygon_figure_keys:
             all_figures[key] = figures[key]
+        
+        # Also capture polygon-level Sankey figures (original_mapbiomas_sankey, original_hansen_sankey, etc.)
+        polygon_sankey_keys = [k for k in figures.keys() 
+                               if '_sankey' in k and not k.startswith('territory_') and not k.startswith('buffer_')]
+        for key in polygon_sankey_keys:
+            if key not in all_figures:
+                all_figures[key] = figures[key]
     
     metadata['num_drawn_polygons'] = len(session_state.get('all_drawn_features', []))
     metadata['num_polygon_analyses'] = len(polygon_analyses)
@@ -420,6 +434,121 @@ def generate_export_button(session_state):
     if not has_data:
         st.info(t("no_export_data"))
         return
+    
+    # Always-visible: show what the export will contain
+    with st.expander("📋 What's included in this export", expanded=False):
+        # Build live counts from session state (no export needed)
+        _figures = session_state.get('analysis_figures', {})
+        _n_polygons = len(session_state.get('all_drawn_features', []))
+        _has_territory = session_state.get('territory_geom') is not None
+        _terr_name = session_state.get('territory_name', 'N/A') or 'N/A'
+        _data_source = session_state.get('territory_source', 'N/A') or 'N/A'
+        _year1 = session_state.get('territory_year', 'N/A') or 'N/A'
+        _year2 = session_state.get('territory_year2', '')
+        _years_str = f"{_year1} → {_year2}" if _year2 else str(_year1)
+        _has_buffer = session_state.get('buffer_compare_mode', False) and session_state.get('current_buffer_for_analysis')
+        _buffer_meta = session_state.get('buffer_metadata', {}).get(session_state.get('current_buffer_for_analysis', ''), {})
+        _buffer_km = _buffer_meta.get('buffer_size_km', '') if _has_buffer else ''
+        _n_maps = len(session_state.get('prepared_map_exports', {}))
+        _n_territory_figs = sum(1 for k in _figures if k.startswith('territory_'))
+        _n_buffer_figs = sum(1 for k in _figures if k.startswith('buffer_'))
+        _n_polygon_figs = sum(1 for k in _figures if not k.startswith('territory_') and not k.startswith('buffer_'))
+        _n_sankey = sum(1 for k in _figures if 'sankey' in k)
+        _has_mb_comparison = session_state.get('mapbiomas_comparison_result') is not None
+        _has_hansen_comparison = session_state.get('hansen_comparison_result') is not None
+        _has_territory_result = session_state.get('territory_result') is not None
+        _has_territory_transitions = session_state.get('territory_transitions') is not None
+        
+        st.markdown(f"""
+### 📁 ZIP Structure
+
+**📄 Root Level**
+| File | Description |
+|---|---|
+| `metadata.json` | Analysis parameters, timestamps, data sources |
+| `geometries.geojson` | GeoJSON FeatureCollection with all drawn polygons and territory boundary |
+
+---
+
+**📍 Polygon Results** — `polygons/polygon_N/` *(one folder per drawn polygon)*
+| File | Description |
+|---|---|
+| `mapbiomas_data.csv` | MapBiomas land cover areas by class |
+| `hansen_data.csv` | Hansen/GLAD land cover areas by class |
+| `mapbiomas_comparison.csv` | Year-to-year change table (MapBiomas) |
+| `hansen_comparison.csv` | Year-to-year change table (Hansen) |
+| `mapbiomas_transitions.json` | Pixel-level class-to-class transition matrix (MapBiomas) |
+| `hansen_transitions.json` | Pixel-level class-to-class transition matrix (Hansen) |
+| `mapbiomas_*.png` | Distribution & comparison charts |
+| `hansen_*.png` | Distribution & comparison charts |
+
+---
+
+**🏛️ Territory Results** — `territory/<territory_name>/` *(indigenous territory analysis)*
+| File | Description |
+|---|---|
+| `*_analysis_*.csv` | Land cover area tables for each analyzed year |
+| `*_comparison_*.csv` | Year-to-year comparison data |
+| `transitions.json` | Pixel-level transition matrix for the territory |
+| `territory_comparison.png` | Side-by-side area bar chart (Year 1 vs Year 2) |
+| `territory_gains_losses.png` | Horizontal bar chart of gains and losses by class |
+| `territory_change_percentage.png` | Percentage change chart by class |
+| `territory_distribution.png` | Single-year land cover distribution |
+| `territory_sankey.html` | **Interactive Sankey diagram** — land cover transitions (Plotly) |
+
+---
+
+**🔵 Buffer Zone Results** *(if buffer comparison was enabled)*
+| File | Description |
+|---|---|
+| `buffer_buffer_comparison.png` | Buffer zone side-by-side comparison |
+| `buffer_buffer_gains_losses.png` | Buffer zone gains & losses |
+| `buffer_buffer_change_percentage.png` | Buffer zone % change |
+| `buffer_buffer_sankey.html` | **Interactive Sankey diagram** — buffer zone transitions |
+
+---
+
+**📊 Figures** — `figures/` *(polygon-level visualizations)*
+| File | Description |
+|---|---|
+| `original_mapbiomas_sankey.html` | **Interactive Sankey** — polygon MapBiomas transitions |
+| `original_hansen_sankey.html` | **Interactive Sankey** — polygon Hansen transitions |
+| `*.png` | Other polygon-level charts (matplotlib) |
+| `*.html` | Other interactive charts (Plotly) |
+
+---
+
+**🗺️ Map Exports** — `maps/` *(high-quality PDF maps with overlays)*
+| File | Description |
+|---|---|
+| `MapBiomas_*.pdf` | MapBiomas layers with labeled polygons |
+| `Hansen_*.pdf` | Hansen layers with labeled polygons |
+| `Satellite_Basemap.pdf` | Satellite imagery reference map |
+| `GoogleMaps_Basemap.pdf` | Google Maps reference map |
+
+All maps include scale bars, coordinate grid, and labeled polygon boundaries.
+
+---
+
+### 📊 Current Session — What Will Be Exported
+
+| Item | Status |
+|---|---|
+| **Drawn polygons** | {_n_polygons} |
+| **Territory** | {"✅ " + str(_terr_name) if _has_territory else "—  *(select a territory)*"} |
+| **Territory analysis** | {"✅ data ready" if _has_territory_result else "—  *(run analysis first)*"} |
+| **Territory transitions** | {"✅ Sankey ready" if _has_territory_transitions else "—"} |
+| **Buffer zone** | {"✅ " + str(_buffer_km) + " km" if _has_buffer else "—  *(enable in sidebar)*"} |
+| **MapBiomas comparison** | {"✅" if _has_mb_comparison else "—"} |
+| **Hansen comparison** | {"✅" if _has_hansen_comparison else "—"} |
+| **Data source** | {_data_source} |
+| **Years** | {_years_str} |
+| **Territory figures** | {_n_territory_figs} |
+| **Buffer figures** | {_n_buffer_figs} |
+| **Polygon figures** | {_n_polygon_figs} |
+| **Sankey diagrams** | {_n_sankey} interactive |
+| **PDF maps** | {_n_maps} |
+        """)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -474,47 +603,6 @@ def generate_export_button(session_state):
                     )
                     
                     st.success(f"✅ Export ready! Click above to download {filename}")
-                    
-                    # Show what's included
-                    with st.expander("📋 What's included in this export", expanded=False):
-                        st.markdown(f"""
-                        ### 📁 ZIP Structure:
-                        
-                        **Root Level:**
-                        - `metadata.json` - Analysis parameters and timestamps
-                        - `geometries.geojson` - All drawn polygons + territory boundary
-                        
-                        **Polygon Results:** (if available)
-                        - `polygons/polygon_1/` - Analysis results for polygon 1
-                          - `mapbiomas_data.csv` - MapBiomas analysis
-                          - `hansen_data.csv` - Hansen analysis
-                          - `mapbiomas_*.png` - MapBiomas visualizations
-                          - `hansen_*.png` - Hansen visualizations
-                        - `polygons/polygon_2/` - (same structure for each polygon)
-                        
-                        **Territory Results:** (if available)
-                        - `territory/{territory_name}/` - All territory analysis results
-                          - `*_analysis_*.csv` - Analysis data tables
-                          - `*_comparison_*.csv` - Comparison data
-                          - `*.png` - All territory visualizations
-                        
-                        **Map Exports:** (if available)
-                        - `maps/` - High-quality PDF maps with polygon overlays
-                          - `MapBiomas_*.pdf` - MapBiomas layers with your polygons
-                          - `Hansen_*.pdf` - Hansen layers with your polygons
-                          - `Satellite_Basemap.pdf` - Satellite reference map
-                          - `GoogleMaps_Basemap.pdf` - Maps reference map
-                        
-                        All maps include scale bars, grid, and labeled polygons.
-                        
-                        ### 📊 Summary:
-                        - **Polygons:** {metadata.get('drawn_polygons_count', 0)} drawn
-                        - **Territory:** {"Yes ✓" if metadata.get('has_territory') else "No"}
-                        - **Territory Name:** {metadata.get('territory_analyzed', 'N/A')}
-                        - **Data Source:** {metadata.get('data_source', 'N/A')}
-                        - **Years:** {metadata.get('analysis_year', 'N/A')} {f"to {metadata.get('comparison_year', '')}" if metadata.get('comparison_year') else ""}
-                        - **Maps:** {metadata.get('num_exported_maps', 0)} interactive maps
-                        """)
                 
                 except Exception as e:
                     st.error(f"❌ Export failed: {str(e)}")

@@ -13,8 +13,10 @@ from config import MAPBIOMAS_LABELS, HANSEN_DATASETS, HANSEN_OCEAN_MASK
 
 
 def hansen_histogram_to_dataframe(stats, year):
-    """Convert Hansen histogram stats to DataFrame"""
-    from config import HANSEN_CONSOLIDATED_MAPPING
+    """Convert Hansen histogram stats to DataFrame.
+    NOTE: This is a local copy for the analysis tabs. For the canonical version,
+    see hansen_analysis.py."""
+    from config import HANSEN_CONSOLIDATED_MAPPING as _CONSOLIDATED_MAPPING
     
     # Try different band names for Hansen data
     histogram_data = {}
@@ -64,7 +66,7 @@ def hansen_histogram_to_dataframe(stats, year):
 
 def aggregate_to_consolidated(df):
     """Consolidate Hansen 256 classes to 12 main classes"""
-    from config import HANSEN_CONSOLIDATED_MAPPING
+    from config import HANSEN_CONSOLIDATED_MAPPING as _CONSOLIDATED_MAPPING
     
     df_copy = df.copy()
     df_copy['Consolidated_Class'] = df_copy['Class_ID'].apply(
@@ -81,8 +83,8 @@ def aggregate_to_consolidated(df):
 
 def get_consolidated_class(class_id):
     """Get consolidated class name for a given Hansen class ID"""
-    from config import HANSEN_CONSOLIDATED_MAPPING
-    return HANSEN_CONSOLIDATED_MAPPING.get(class_id, f"Class {class_id}")
+    from config import HANSEN_CONSOLIDATED_MAPPING as _CONSOLIDATED_MAPPING
+    return _CONSOLIDATED_MAPPING.get(class_id, f"Class {class_id}")
 
 
 def summarize_consolidated_stats(df, year=None):
@@ -198,10 +200,6 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                         try:
                             band = f'classification_{year}'
                             image = st.session_state.app.mapbiomas_v9.select(band)
-                            
-                            # Get bounds of the geometry for validation
-                            geom_bounds = geometry.bounds().getInfo()
-                            st.caption(f"Bounds: {geom_bounds.get('coordinates', 'unknown')}")
                             
                             with st.spinner(f"Analyzing {year}..."):
                                 stats = image.reduceRegion(
@@ -698,8 +696,8 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                                     if source_class not in transitions:
                                                         transitions[source_class] = {}
                                                     transitions[source_class][target_class] = area_ha
-                                except:
-                                    pass
+                                except Exception as e:
+                                    print(f"Warning: MapBiomas transition calculation failed: {e}")
                                 
                                 st.session_state.mapbiomas_comparison_result = {
                                     'year1': year1,
@@ -814,8 +812,8 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                                                             if source_class not in transitions:
                                                                 transitions[source_class] = {}
                                                             transitions[source_class][target_class] = area_ha
-                                    except:
-                                        pass
+                                    except Exception as e:
+                                        print(f"Warning: Hansen transition calculation failed: {e}")
                                     
                                     st.session_state.hansen_comparison_result = {
                                         'year1': h_year1,
@@ -890,6 +888,10 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             if sankey_fig:
                                 st.plotly_chart(sankey_fig, width="stretch")
                                 st.session_state.mapbiomas_transitions = result.get('transitions')
+                                # Store Sankey figure for export
+                                if 'analysis_figures' not in st.session_state:
+                                    st.session_state.analysis_figures = {}
+                                st.session_state.analysis_figures[f'{area_prefix}_mapbiomas_sankey'] = sankey_fig
                         except Exception as e:
                             st.warning(f"Could not display Sankey: {str(e)[:50]}")
                     else:
@@ -963,6 +965,10 @@ def render_analysis_tabs(geometry, tab1, tab2, tab3, tab4, tab5, tab6, area_pref
                             if sankey_fig:
                                 st.plotly_chart(sankey_fig, width="stretch")
                                 st.session_state.hansen_transitions = result.get('transitions')
+                                # Store Sankey figure for export
+                                if 'analysis_figures' not in st.session_state:
+                                    st.session_state.analysis_figures = {}
+                                st.session_state.analysis_figures[f'{area_prefix}_hansen_sankey'] = sankey_fig
                         except Exception as e:
                             st.warning(f"Could not display Sankey: {str(e)[:50]}")
                     else:

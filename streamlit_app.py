@@ -194,7 +194,6 @@ def analyze_mapbiomas_geometry(geometry, year, area_name="Area"):
             ).getInfo()
         
         if stats:
-            from config import MAPBIOMAS_LABELS
             band_key = f'classification_{year}' if f'classification_{year}' in stats else list(stats.keys())[0]
             histogram_data = stats.get(band_key, {})
             
@@ -226,7 +225,6 @@ def analyze_hansen_geometry(geometry, year, area_name="Area"):
         pd.DataFrame: Analysis results or None if error
     """
     try:
-        from config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
         landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
         hansen_image = ee.Image(HANSEN_DATASETS[str(year)]).updateMask(landmask)
         
@@ -343,58 +341,37 @@ if "app" not in st.session_state:
         st.session_state.data_loaded = True
 
 # Initialize session state
-if "selected_country" not in st.session_state:
-    st.session_state.selected_country = "Brazil"
-if "data_loaded" not in st.session_state:
-    st.session_state.data_loaded = False
-if "current_mapbiomas_year" not in st.session_state:
-    st.session_state.current_mapbiomas_year = 2023
-if "current_hansen_year" not in st.session_state:
-    st.session_state.current_hansen_year = "2020"
-if "current_aafc_year" not in st.session_state:
-    st.session_state.current_aafc_year = 2023
-if "mapbiomas_layers" not in st.session_state:
-    st.session_state.mapbiomas_layers = {}  # {year: True/False}
-if "hansen_layers" not in st.session_state:
-    st.session_state.hansen_layers = {}  # {year: True/False}
-if "aafc_layers" not in st.session_state:
-    st.session_state.aafc_layers = {}  # {year: True/False}
-if "hansen_gfc_tree_cover" not in st.session_state:
-    st.session_state.hansen_gfc_tree_cover = False
-if "hansen_gfc_tree_loss" not in st.session_state:
-    st.session_state.hansen_gfc_tree_loss = False
-if "hansen_gfc_tree_gain" not in st.session_state:
-    st.session_state.hansen_gfc_tree_gain = False
-if "last_drawn_feature" not in st.session_state:
-    st.session_state.last_drawn_feature = None
-if "all_drawn_features" not in st.session_state:
-    st.session_state.all_drawn_features = []  # List of all captured polygons
-if "selected_feature_index" not in st.session_state:
-    st.session_state.selected_feature_index = None
-if "last_map_view" not in st.session_state:
-    st.session_state.last_map_view = {'center': (0, 0), 'zoom': 3}  # Preserve map view (center, zoom)
-if "analysis_results" not in st.session_state:
-    st.session_state.analysis_results = None
-if "mapbiomas_comparison_result" not in st.session_state:
-    st.session_state.mapbiomas_comparison_result = None
-if "hansen_comparison_result" not in st.session_state:
-    st.session_state.hansen_comparison_result = None
-if "use_consolidated_classes" not in st.session_state:
-    st.session_state.use_consolidated_classes = True
-if "analysis_figures" not in st.session_state:
-    st.session_state.analysis_figures = {}  # Store matplotlib figures for export
-
-# Initialize buffer storage
-if "buffer_geometries" not in st.session_state:
-    st.session_state.buffer_geometries = {}  # {buffer_name: ee.Geometry}
-if "buffer_metadata" not in st.session_state:
-    st.session_state.buffer_metadata = {}  # {buffer_name: metadata_dict}
-if "buffer_compare_mode" not in st.session_state:
-    st.session_state.buffer_compare_mode = False  # Whether to compare original vs buffer
-if "buffer_analysis_results" not in st.session_state:
-    st.session_state.buffer_analysis_results = {}  # {buffer_name: {year: dataframe}}
-if "current_buffer_for_analysis" not in st.session_state:
-    st.session_state.current_buffer_for_analysis = None  # Active buffer for comparison
+# Batch-initialize session state defaults (avoids repeated if/not-in checks per rerun)
+_session_defaults = {
+    "selected_country": "Brazil",
+    "data_loaded": False,
+    "current_mapbiomas_year": 2023,
+    "current_hansen_year": "2020",
+    "current_aafc_year": 2023,
+    "mapbiomas_layers": {},
+    "hansen_layers": {},
+    "aafc_layers": {},
+    "hansen_gfc_tree_cover": False,
+    "hansen_gfc_tree_loss": False,
+    "hansen_gfc_tree_gain": False,
+    "last_drawn_feature": None,
+    "all_drawn_features": [],
+    "selected_feature_index": None,
+    "last_map_view": {'center': (0, 0), 'zoom': 3},
+    "analysis_results": None,
+    "mapbiomas_comparison_result": None,
+    "hansen_comparison_result": None,
+    "use_consolidated_classes": True,
+    "analysis_figures": {},
+    "buffer_geometries": {},
+    "buffer_metadata": {},
+    "buffer_compare_mode": False,
+    "buffer_analysis_results": {},
+    "current_buffer_for_analysis": None,
+}
+for _key, _default in _session_defaults.items():
+    if _key not in st.session_state:
+        st.session_state[_key] = _default
 
 # Initialize territory analysis session state
 initialize_territory_session_state()
