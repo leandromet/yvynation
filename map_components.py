@@ -23,6 +23,29 @@ import ee
 import traceback
 
 
+def _cached_geojson(cache_key, ee_geometry):
+    """Cache ee.Geometry.getInfo() results in session state to avoid repeated API calls."""
+    if '_geojson_cache' not in st.session_state:
+        st.session_state._geojson_cache = {}
+    cache = st.session_state._geojson_cache
+    if cache_key not in cache:
+        cache[cache_key] = ee_geometry.getInfo()
+    return cache[cache_key]
+
+
+def invalidate_geojson_cache(prefix=None):
+    """Invalidate cached GeoJSON. If prefix given, only invalidate matching keys."""
+    if '_geojson_cache' not in st.session_state:
+        return
+    if prefix is None:
+        st.session_state._geojson_cache = {}
+    else:
+        st.session_state._geojson_cache = {
+            k: v for k, v in st.session_state._geojson_cache.items()
+            if not k.startswith(prefix)
+        }
+
+
 def build_and_display_map():
     """
     Build the interactive map with all current layers and return map data.

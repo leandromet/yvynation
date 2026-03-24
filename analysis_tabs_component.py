@@ -70,7 +70,7 @@ def aggregate_to_consolidated(df):
     
     df_copy = df.copy()
     df_copy['Consolidated_Class'] = df_copy['Class_ID'].apply(
-        lambda x: HANSEN_CONSOLIDATED_MAPPING.get(x, f"Class {x}")
+        lambda x: _CONSOLIDATED_MAPPING.get(x, f"Class {x}")
     )
     
     df_consolidated = df_copy.groupby('Consolidated_Class').agg({

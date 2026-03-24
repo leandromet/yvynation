@@ -13,6 +13,7 @@ from territory_analysis import (
     analyze_territory_hansen
 )
 from buffer_utils import add_buffer_to_session_state, add_buffer_to_polygon_list
+from year_selector_component import render_year_selector_grid, render_year_range_selector
 from translations import t
 
 
@@ -103,42 +104,37 @@ def render_layer_selection():
         # MapBiomas section - Only show for Brazil
         if st.session_state.selected_country == "Brazil":
             with st.sidebar.expander(t("mapbiomas_layer"), expanded=False):
-                st.write(t("year") + ":")
-                mapbiomas_year = st.select_slider(
-                    t("year"),
-                    options=list(range(1985, 2024)),
-                    value=st.session_state.current_mapbiomas_year,
-                    key=f"mb_year_slider_{render_id}"
+                mapbiomas_decades = list(range(1985, 2024))
+                mapbiomas_year = render_year_selector_grid(
+                    title=t("year"),
+                    available_years=mapbiomas_decades,
+                    selected_year_key="current_mapbiomas_year",
+                    cols_per_row=7,
+                    key_suffix=f"mapbiomas_{suffix}",
+                    help_text="Click a year to select for layer"
                 )
                 if st.button(t("add_layer"), width="stretch", key=f"add_mapbiomas_{suffix}"):
                     st.session_state.mapbiomas_layers[mapbiomas_year] = True
-                    st.session_state.current_mapbiomas_year = mapbiomas_year
                     st.success(f"✓ {t('mapbiomas_layer')} {mapbiomas_year}")
         else:
             st.info(f"🚜 {t('aafc_layer')} " + t("territory_info").split("Select")[0].strip() + " " + t("canada"), icon="ℹ️")
         
-         # AAFC Annual Crop Inventory section - Only show for Canada
+        # AAFC Annual Crop Inventory section - Only show for Canada
         if st.session_state.selected_country == "Canada":
             with st.sidebar.expander(t("aafc_layer"), expanded=False):
-                st.write(t("analyze_territory") + ":")
                 st.caption(t("aafc_subtitle"))
                 
-                aafc_years = list(range(2009, 2025))
-                
-                def update_aafc_year():
-                    """Update session state when slider changes"""
-                    st.session_state.current_aafc_year = st.session_state[f"aafc_year_slider_{suffix}"]
-                
-                aafc_year = st.select_slider(
-                    t("year"),
-                    options=aafc_years,
-                    value=st.session_state.get('current_aafc_year', 2023),
-                    key=f"aafc_year_slider_{suffix}",
-                    on_change=update_aafc_year
+                aafc_decades = list(range(2009, 2025))
+                aafc_year = render_year_selector_grid(
+                    title=t("year"),
+                    available_years=aafc_decades,
+                    selected_year_key="current_aafc_year",
+                    cols_per_row=5,
+                    key_suffix=f"aafc_{suffix}",
+                    help_text="Click a year to select for layer"
                 )
                 if st.button(t("add_layer"), width="stretch", key=f"add_aafc_{suffix}"):
                     st.session_state.aafc_layers[aafc_year] = True
-                    st.session_state.current_aafc_year = aafc_year
                     st.success(f"✓ {t('aafc_layer')} {aafc_year}")
                 
                 st.info(t("aafc_info"), icon="ℹ️")
@@ -148,17 +144,17 @@ def render_layer_selection():
 
         # Hansen section
         with st.sidebar.expander(t("hansen_layer"), expanded=False):
-            st.write("Select a year:")
-            hansen_years = ["2000", "2005", "2010", "2015", "2020"]
-            hansen_year = st.selectbox(
-                t("year"),
-                options=hansen_years,
-                index=hansen_years.index(st.session_state.current_hansen_year),
-                key=f"hansen_year_select_{render_id}"
+            hansen_decades = ["2000", "2005", "2010", "2015", "2020"]
+            hansen_year = render_year_selector_grid(
+                title=t("year"),
+                available_years=hansen_decades,
+                selected_year_key="current_hansen_year",
+                cols_per_row=3,
+                key_suffix=f"hansen_{suffix}",
+                help_text="Click a year to select for layer"
             )
             if st.button(t("add_layer"), width="stretch", key=f"add_hansen_{suffix}"):
                 st.session_state.hansen_layers[hansen_year] = True
-                st.session_state.current_hansen_year = hansen_year
                 st.success(f"✓ {t('hansen_layer')} {hansen_year}")
         
         # Hansen Global Forest Change section
@@ -319,81 +315,67 @@ def render_territory_analysis():
                             st.session_state.territory_source_selected = data_source
                         st.session_state.territory_source = data_source
                         
-                        # Year selection with stable keys and state preservation
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if data_source == "MapBiomas":
-                                year_list = list(range(1985, 2024))
-                                try:
-                                    current_idx = year_list.index(st.session_state.territory_year_selected) if st.session_state.territory_year_selected in year_list else 0
-                                except:
-                                    current_idx = 0
-                                
-                                territory_year = st.selectbox(
-                                    t("year_1"),
-                                    year_list,
-                                    index=current_idx,
-                                    key=f"year_territory_1_{suffix}"
-                                )
-                                if territory_year != st.session_state.territory_year_selected:
-                                    st.session_state.territory_year_selected = territory_year
-                            else:
-                                hansen_years = ["2000", "2005", "2010", "2015", "2020"]
-                                try:
-                                    current_idx = hansen_years.index(str(st.session_state.territory_year_selected)) if str(st.session_state.territory_year_selected) in hansen_years else 0
-                                except:
-                                    current_idx = 0
-                                
-                                territory_year = st.selectbox(
-                                    t("year_1"),
-                                    hansen_years,
-                                    index=current_idx,
-                                    key=f"year_territory_h1_{suffix}"
-                                )
-                                if territory_year != st.session_state.territory_year_selected:
-                                    st.session_state.territory_year_selected = territory_year
+                        # Year selection with visual grid selector
+                        st.markdown("#### 🌱 MapBiomas Land Cover Year")
                         
-                        with col2:
-                            compare_mode = st.checkbox(
-                                t("compare_years_label"),
-                                value=st.session_state.territory_compare_mode_selected,
-                                key=f"territory_compare_{suffix}"
-                            )
-                            if compare_mode != st.session_state.territory_compare_mode_selected:
-                                st.session_state.territory_compare_mode_selected = compare_mode
+                        compare_mode = st.checkbox(
+                            t("compare_years_label"),
+                            value=st.session_state.territory_compare_mode_selected,
+                            key=f"territory_compare_{suffix}"
+                        )
+                        if compare_mode != st.session_state.territory_compare_mode_selected:
+                            st.session_state.territory_compare_mode_selected = compare_mode
+                        
+                        if data_source == "MapBiomas":
+                            year_list = list(range(1985, 2024))
                             
                             if compare_mode:
-                                if data_source == "MapBiomas":
-                                    year_list = list(range(1985, 2024))
-                                    try:
-                                        current_idx = year_list.index(st.session_state.territory_year2_selected) if st.session_state.territory_year2_selected in year_list else 38
-                                    except:
-                                        current_idx = 38
-                                    
-                                    territory_year2 = st.selectbox(
-                                        t("year_2"),
-                                        year_list,
-                                        index=current_idx,
-                                        key=f"year_territory_2_{suffix}"
-                                    )
-                                    if territory_year2 != st.session_state.territory_year2_selected:
-                                        st.session_state.territory_year2_selected = territory_year2
-                                else:
-                                    hansen_years = ["2000", "2005", "2010", "2015", "2020"]
-                                    try:
-                                        current_idx = hansen_years.index(str(st.session_state.territory_year2_selected)) if str(st.session_state.territory_year2_selected) in hansen_years else 4
-                                    except:
-                                        current_idx = 4
-                                    
-                                    territory_year2 = st.selectbox(
-                                        t("year_2"),
-                                        hansen_years,
-                                        index=current_idx,
-                                        key=f"year_territory_h2_{suffix}"
-                                    )
-                                    if territory_year2 != st.session_state.territory_year2_selected:
-                                        st.session_state.territory_year2_selected = territory_year2
+                                # Year range selector for comparison
+                                territory_year, territory_year2 = render_year_range_selector(
+                                    start_year_key="territory_year_selected",
+                                    end_year_key="territory_year2_selected",
+                                    available_years=year_list,
+                                    key_suffix=suffix
+                                )
                             else:
+                                # Single year selector
+                                st.write("**Select Year:**")
+                                territory_year = render_year_selector_grid(
+                                    title="",
+                                    available_years=year_list,
+                                    selected_year_key="territory_year_selected",
+                                    cols_per_row=7,
+                                    key_suffix=suffix,
+                                    help_text="Click a year to select it for analysis"
+                                )
+                                territory_year2 = None
+                        
+                        else:  # Hansen years
+                            hansen_years = ["2000", "2005", "2010", "2015", "2020"]
+                            
+                            if compare_mode:
+                                # Year range selector for comparison
+                                territory_year, territory_year2 = render_year_range_selector(
+                                    start_year_key="territory_year_selected",
+                                    end_year_key="territory_year2_selected",
+                                    available_years=[int(y) for y in hansen_years],
+                                    key_suffix=suffix
+                                )
+                                # Convert back to string for Hansen
+                                territory_year = str(territory_year) if territory_year else None
+                                territory_year2 = str(territory_year2) if territory_year2 else None
+                            else:
+                                # Single year selector
+                                st.write("**Select Year:**")
+                                territory_year = render_year_selector_grid(
+                                    title="",
+                                    available_years=[int(y) for y in hansen_years],
+                                    selected_year_key="territory_year_selected",
+                                    cols_per_row=3,
+                                    key_suffix=suffix,
+                                    help_text="Click a year to select it for analysis"
+                                )
+                                territory_year = str(territory_year) if territory_year else None
                                 territory_year2 = None
                         
                         col_btn1, col_btn2 = st.columns(2)

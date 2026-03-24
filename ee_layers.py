@@ -1,10 +1,13 @@
 """
 Earth Engine layer utilities for Yvynation.
 Handles adding MapBiomas, Hansen/GLAD, and other EE layers to maps.
+Tile URLs from getMapId() are cached in st.session_state._tile_cache
+to avoid redundant EE API calls on every Streamlit rerun.
 """
 
 import folium
 import ee
+import streamlit as st
 from config import (
     MAPBIOMAS_PALETTE, HANSEN_DATASETS, HANSEN_OCEAN_MASK, HANSEN_PALETTE,
     HANSEN_GFC_DATASET, HANSEN_GFC_TREE_COVER_VIS, HANSEN_GFC_TREE_LOSS_VIS,
@@ -13,6 +16,28 @@ from config import (
 from hansen_reference_mapping import (
     HANSEN_CLASS_TO_STRATUM, HANSEN_STRATUM_COLORS, HANSEN_STRATUM_NAMES
 )
+
+
+def _get_tile_cache():
+    """Return (and lazily initialise) the session-state tile URL cache."""
+    if '_tile_cache' not in st.session_state:
+        st.session_state._tile_cache = {}
+    return st.session_state._tile_cache
+
+
+def _cached_get_map_id(cache_key, image_fn, vis_params):
+    """
+    Return a cached tile URL string for the given cache_key.
+    If not cached yet, call image_fn() to get the ee.Image, then getMapId().
+    """
+    cache = _get_tile_cache()
+    if cache_key in cache:
+        return cache[cache_key]
+    image = image_fn() if callable(image_fn) else image_fn
+    map_id = image.getMapId(vis_params)
+    tile_url = map_id['tile_fetcher'].url_format
+    cache[cache_key] = tile_url
+    return tile_url
 
 
 def add_mapbiomas_layer(m, mapbiomas, year, opacity=1.0, shown=True):
@@ -32,13 +57,16 @@ def add_mapbiomas_layer(m, mapbiomas, year, opacity=1.0, shown=True):
     try:
         print(f"Adding MapBiomas {year} layer...")
         band = f'classification_{year}'
-        image = mapbiomas.select(band)
         
         vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
-        map_id = image.getMapId(vis_params)
+        tile_url = _cached_get_map_id(
+            f'mapbiomas_{year}',
+            lambda: mapbiomas.select(band),
+            vis_params
+        )
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: MapBiomas',
             name=f"MapBiomas {year}",
             overlay=True,
@@ -83,12 +111,8 @@ def add_hansen_layer(m, year, opacity=1.0, shown=True, use_consolidated=False):
             from_vals = list(HANSEN_CLASS_TO_STRATUM.keys())
             to_vals = list(HANSEN_CLASS_TO_STRATUM.values())
             
-            # Create the remap expression
-            hansen_strata = hansen_image.remap(from_vals, to_vals, 0)  # Default to 0 for unmapped
-            
-            # Create strata color palette (11 colors + 1 for unmapped)
             strata_palette = [
-                "#CCCCCC",  # 0: unmapped/no data
+                "#CCCCCC",
                 HANSEN_STRATUM_COLORS.get(1, "#D4D4A8").lstrip('#'),
                 HANSEN_STRATUM_COLORS.get(2, "#F4D584").lstrip('#'),
                 HANSEN_STRATUM_COLORS.get(3, "#A8D4A8").lstrip('#'),
@@ -103,16 +127,23 @@ def add_hansen_layer(m, year, opacity=1.0, shown=True, use_consolidated=False):
             ]
             
             vis_params = {'min': 0, 'max': 11, 'palette': strata_palette}
-            map_id = hansen_strata.getMapId(vis_params)
+            tile_url = _cached_get_map_id(
+                f'hansen_{year_key}_strata',
+                lambda: hansen_image.remap(from_vals, to_vals, 0),
+                vis_params
+            )
             layer_name = f"Hansen {year_key} (Strata)"
         else:
-            # Use original 256-class palette
             vis_params = {'min': 0, 'max': 255, 'palette': HANSEN_PALETTE}
-            map_id = hansen_image.getMapId(vis_params)
+            tile_url = _cached_get_map_id(
+                f'hansen_{year_key}_raw',
+                lambda: hansen_image,
+                vis_params
+            )
             layer_name = f"Hansen {year_key}"
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: Hansen/GLAD',
             name=layer_name,
             overlay=True,
@@ -169,14 +200,15 @@ def add_hansen_gfc_tree_cover(m, opacity=1.0, shown=True):
     try:
         print(f"Adding Hansen GFC Tree Cover 2000 layer...")
         
-        dataset = ee.Image(HANSEN_GFC_DATASET)
-        tree_cover = dataset.select(['treecover2000'])
-        
         vis_params = HANSEN_GFC_TREE_COVER_VIS
-        map_id = tree_cover.getMapId(vis_params)
+        tile_url = _cached_get_map_id(
+            'hansen_gfc_treecover2000',
+            lambda: ee.Image(HANSEN_GFC_DATASET).select(['treecover2000']),
+            vis_params
+        )
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: Hansen/UMD Global Forest Change',
             name=f"Hansen GFC - Tree Cover 2000",
             overlay=True,
@@ -210,14 +242,15 @@ def add_hansen_gfc_tree_loss(m, opacity=1.0, shown=True):
     try:
         print(f"Adding Hansen GFC Tree Loss Year layer...")
         
-        dataset = ee.Image(HANSEN_GFC_DATASET)
-        tree_loss = dataset.select(['lossyear'])
-        
         vis_params = HANSEN_GFC_TREE_LOSS_VIS
-        map_id = tree_loss.getMapId(vis_params)
+        tile_url = _cached_get_map_id(
+            'hansen_gfc_lossyear',
+            lambda: ee.Image(HANSEN_GFC_DATASET).select(['lossyear']),
+            vis_params
+        )
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: Hansen/UMD Global Forest Change',
             name=f"Hansen GFC - Tree Loss Year (2001-2024)",
             overlay=True,
@@ -251,26 +284,19 @@ def add_hansen_gfc_tree_gain(m, opacity=1.0, shown=True):
     try:
         print(f"Adding Hansen GFC Tree Gain layer...")
         
-        dataset = ee.Image(HANSEN_GFC_DATASET)
-        tree_gain = dataset.select(['gain'])
-        
-        # Create binary mask for gain pixels only
-        gain_binary = tree_gain.eq(1)
-        
-        # Mask to show only gain pixels (value = 1)
-        gain_masked = gain_binary.selfMask()
-        
-        # Use simple visualization with only one color for gain pixels
         vis_params = {
             'min': 0,
             'max': 1,
-            'palette': ['#00FF00']  # Only green for gain
+            'palette': ['#00FF00']
         }
-        
-        map_id = gain_masked.getMapId(vis_params)
+        tile_url = _cached_get_map_id(
+            'hansen_gfc_gain',
+            lambda: ee.Image(HANSEN_GFC_DATASET).select(['gain']).eq(1).selfMask(),
+            vis_params
+        )
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: Hansen/UMD Global Forest Change',
             name=f"Hansen GFC - Tree Gain (2000-2012)",
             overlay=True,
@@ -318,18 +344,20 @@ def add_aafc_layer(m, year, opacity=1.0, shown=True):
         # Get the landcover band
         landcover = aafc_image.select(['landcover'])
         
-        # Use 256-element palette with discrete AAFC values (10, 20, 30, 34, 35... 230)
-        # Unmapped pixel values default to grey
         vis_params = {
             'min': 0,
             'max': 255,
             'palette': AAFC_PALETTE
         }
         
-        map_id = landcover.getMapId(vis_params)
+        tile_url = _cached_get_map_id(
+            f'aafc_{year}',
+            lambda: landcover,
+            vis_params
+        )
         
         folium.TileLayer(
-            tiles=map_id['tile_fetcher'].url_format,
+            tiles=tile_url,
             attr='Map data: AAFC Annual Crop Inventory',
             name=f"AAFC Crop Inventory {year}",
             overlay=True,
