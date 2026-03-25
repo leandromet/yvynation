@@ -582,6 +582,23 @@ def render_polygon_selector():
                     polygon_labels.append(f"🔵 {buffer_name}")
                     continue
                 
+                # Check if this is an uploaded feature
+                is_uploaded = props.get('source') == 'uploaded'
+                if is_uploaded:
+                    # Get uploaded feature name and file name from metadata
+                    metadata = st.session_state.uploaded_features_metadata.get(idx, {})
+                    feature_name = metadata.get('name', props.get('name', f'Feature {idx+1}'))
+                    file_name = metadata.get('file_name', '')
+                    
+                    # Display with 📤 icon and file name if available
+                    if file_name:
+                        file_display = file_name.rsplit('.', 1)[0]  # Remove extension
+                        label = f"📤 {feature_name} ({file_display})"
+                    else:
+                        label = f"📤 {feature_name}"
+                    polygon_labels.append(label)
+                    continue
+                
                 # Regular polygon - create label from geometry
                 geom = feature.get('geometry', {})
                 geom_type = geom.get('type', 'Unknown')
@@ -620,12 +637,16 @@ def render_polygon_selector():
                 buffer_name = selected_feature.get('properties', {}).get('name', '')
                 st.info(t("selected_buffer", buffer_name=buffer_name))
             elif is_uploaded:
-                # Show information about uploaded feature
+                # Show information about uploaded feature with file name
                 uploaded_meta = st.session_state.get('uploaded_features_metadata', {}).get(selected_idx, {})
                 feature_name = uploaded_meta.get('name', f'Uploaded Feature {selected_idx + 1}')
                 feature_desc = uploaded_meta.get('description', '')
+                file_name = uploaded_meta.get('file_name', '')
                 
                 info_text = f"📤 **{feature_name}**"
+                if file_name:
+                    file_display = file_name.rsplit('.', 1)[0]  # Remove extension
+                    info_text += f" (from **{file_display}**)"
                 if feature_desc:
                     info_text += f"\n\n{feature_desc}"
                 st.info(info_text)

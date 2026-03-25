@@ -9,12 +9,13 @@ from typing import Optional, List, Dict, Any
 import xml.etree.ElementTree as ET
 
 
-def parse_geojson(file_content: str) -> Optional[Dict]:
+def parse_geojson(file_content: str, file_name: str = "") -> Optional[Dict]:
     """
     Parse a GeoJSON file.
     
     Args:
         file_content: String content of the GeoJSON file
+        file_name: Optional file name for default feature naming
         
     Returns:
         Parsed GeoJSON object or None if parsing fails
@@ -30,11 +31,12 @@ def parse_geojson(file_content: str) -> Optional[Dict]:
                 return {"type": "FeatureCollection", "features": [data]}
             elif data['type'] in ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'MultiLineString', 'MultiPoint']:
                 # Raw geometry
+                feature_name = file_name.rsplit('.', 1)[0] if file_name else "Uploaded Geometry"
                 return {
                     "type": "FeatureCollection",
                     "features": [{
                         "type": "Feature",
-                        "properties": {},
+                        "properties": {"name": feature_name},
                         "geometry": data
                     }]
                 }
@@ -49,12 +51,13 @@ def parse_geojson(file_content: str) -> Optional[Dict]:
         return None
 
 
-def parse_kml(file_content: str) -> Optional[Dict]:
+def parse_kml(file_content: str, file_name: str = "") -> Optional[Dict]:
     """
     Parse a KML file and convert to GeoJSON.
     
     Args:
         file_content: String content of the KML file
+        file_name: Optional file name for default feature naming
         
     Returns:
         GeoJSON FeatureCollection or None if parsing fails
@@ -67,9 +70,11 @@ def parse_kml(file_content: str) -> Optional[Dict]:
         
         features = []
         
+        base_name = file_name.rsplit('.', 1)[0] if file_name else "KML Feature"
+        
         # Extract Placemarks (features)
-        for placemark in root.findall('.//kml:Placemark', ns):
-            feature = _placemark_to_geojson(placemark, ns)
+        for idx, placemark in enumerate(root.findall('.//kml:Placemark', ns)):
+            feature = _placemark_to_geojson(placemark, ns, base_name, idx)
             if feature:
                 features.append(feature)
         
@@ -90,17 +95,26 @@ def parse_kml(file_content: str) -> Optional[Dict]:
         return None
 
 
-def _placemark_to_geojson(placemark, ns) -> Optional[Dict]:
+def _placemark_to_geojson(placemark, ns, base_name: str = "Feature", feature_idx: int = 0) -> Optional[Dict]:
     """
     Convert a KML Placemark to GeoJSON Feature.
+    
+    Args:
+        placemark: XML Placemark element
+        ns: Namespace dictionary
+        base_name: Base name for features (e.g., "territories")
+        feature_idx: Index of this feature (used for numbering)
     """
     try:
         # Extract name and description
         name_elem = placemark.find('kml:name', ns)
         desc_elem = placemark.find('kml:description', ns)
         
+        # Use file name based name if no name in KML, otherwise use KML name
+        default_name = name_elem.text if name_elem is not None and name_elem.text else f"{base_name} (Feature {feature_idx + 1})"
+        
         properties = {
-            'name': name_elem.text if name_elem is not None else 'Unnamed',
+            'name': default_name,
             'description': desc_elem.text if desc_elem is not None else ''
         }
         
@@ -232,13 +246,20 @@ def render_geometry_uploader():
     return (all_features, file_names) if all_features else (None, None)
 
 
-def add_uploaded_features_to_session(features: List[Dict]):
+def add_uploaded_features_to_session(features: List[Dict], file_names: List[str] = None):
     """
     Add uploaded features to session state.
     Combines with drawn features and marks them as uploaded.
+    
+    Args:
+        features: List of GeoJSON Feature objects
+        file_names: List of file names corresponding to features (for naming)
     """
     if not features:
         return
+    
+    if not file_names:
+        file_names = [f"Feature"] * len(features)
     
     # Initialize if needed
     if 'all_drawn_features' not in st.session_state:
@@ -248,17 +269,24 @@ def add_uploaded_features_to_session(features: List[Dict]):
         st.session_state.uploaded_features_metadata = {}
     
     # Add each feature
-    for feature in features:
+    for i, feature in enumerate(features):
         # Mark as uploaded
         feature['properties'] = feature.get('properties', {})
         feature['properties']['source'] = 'uploaded'
         
+        # Get file name without extension
+        file_display_name = file_names[i].rsplit('.', 1)[0] if i < len(file_names) else f"Feature {i + 1}"
+        
+        # Use existing name if present, otherwise use file name
+        feature_name = feature['properties'].get('name', file_display_name)
+        
         # Store metadata
         feature_idx = len(st.session_state.all_drawn_features)
         st.session_state.uploaded_features_metadata[feature_idx] = {
-            'name': feature['properties'].get('name', f'Uploaded Feature {feature_idx + 1}'),
+            'name': feature_name,
             'description': feature['properties'].get('description', ''),
-            'source': 'file'
+            'source': 'file',
+            'file_name': file_names[i] if i < len(file_names) else 'unknown'
         }
         
         # Add to session

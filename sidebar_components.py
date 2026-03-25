@@ -690,46 +690,46 @@ def render_view_options():
 def render_about_section():
     """Render the about/info section."""
     with st.sidebar.expander(t("about_title"), expanded=False):
-        st.sidebar.markdown(f"""
-        ### {t("about_overview")}
+        st.markdown(f"""
+### {t("about_overview")}
 
-        {t("about_desc")}
+{t("about_desc")}
 
-        **{t("about_author")}** - {t("about_role")} - {t("about_university")}
-        {t("about_supervisor")}
+**{t("about_author")}** - {t("about_role")} - {t("about_university")}
+{t("about_supervisor")}
 
-        **{t("about_app_name")}** {t("about_app_note")}
+**{t("about_app_name")}** {t("about_app_note")}
 
-        {t("yvynation_meaning")}
+{t("yvynation_meaning")}
 
-        {t("nation_meaning")}
+{t("nation_meaning")}
 
-        ### {t("data_sources_title")}
-        - **{t("mapbiomas_title")}**
-          - {t("mapbiomas_resolution")}
-          - {t("mapbiomas_period")}
-          - {t("mapbiomas_classes")}
-          - {t("mapbiomas_license")}
+### {t("data_sources_title")}
+- **{t("mapbiomas_title")}**
+  - {t("mapbiomas_resolution")}
+  - {t("mapbiomas_period")}
+  - {t("mapbiomas_classes")}
+  - {t("mapbiomas_license")}
 
-        - **{t("territories_title")}**
-          - {t("territories_desc")}
+- **{t("territories_title")}**
+  - {t("territories_desc")}
 
-        ### {t("features_title")}
+### {t("features_title")}
 
-        ✅ {t("feature_mapping")}  
-        ✅ {t("feature_calculation")}  
-        ✅ {t("feature_filtering")}  
-        ✅ {t("feature_visualization")}  
-        ✅ {t("feature_export")}
+✅ {t("feature_mapping")}  
+✅ {t("feature_calculation")}  
+✅ {t("feature_filtering")}  
+✅ {t("feature_visualization")}  
+✅ {t("feature_export")}
 
-        ### {t("tech_title")}
+### {t("tech_title")}
 
-        - {t("tech_python")}
-        - {t("tech_gee")}
-        - {t("tech_geemap")}
-        - {t("tech_streamlit")}
-        - {t("tech_science")}
-        """)
+- {t("tech_python")}
+- {t("tech_gee")}
+- {t("tech_geemap")}
+- {t("tech_streamlit")}
+- {t("tech_science")}
+""")
 
 
 def render_complete_sidebar():

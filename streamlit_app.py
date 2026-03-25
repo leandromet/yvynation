@@ -1011,10 +1011,10 @@ if st.session_state.data_loaded and st.session_state.app:
     
     # Create expandable section for geometry uploads
     with st.expander("📤 Upload Geometries (KML, GeoJSON)", expanded=False):
-        uploaded_features = render_geometry_uploader()
+        uploaded_features, file_names = render_geometry_uploader()
         if uploaded_features:
             if st.button("✅ Add Uploaded Geometries to Map", key="add_uploaded_geom", width="stretch"):
-                add_uploaded_features_to_session(uploaded_features)
+                add_uploaded_features_to_session(uploaded_features, file_names)
     
     st.caption("💡 **Draw on the map** OR **upload KML/GeoJSON files** above, then select a geometry to analyze.")
 
