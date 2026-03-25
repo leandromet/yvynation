@@ -109,7 +109,7 @@ def render_layer_selection():
                     title=t("year"),
                     available_years=mapbiomas_decades,
                     selected_year_key="current_mapbiomas_year",
-                    cols_per_row=7,
+                    cols_per_row=4,
                     key_suffix=f"mapbiomas_{suffix}",
                     help_text="Click a year to select for layer"
                 )
@@ -344,7 +344,7 @@ def render_territory_analysis():
                                     title="",
                                     available_years=year_list,
                                     selected_year_key="territory_year_selected",
-                                    cols_per_row=7,
+                                    cols_per_row=4,
                                     key_suffix=suffix,
                                     help_text="Click a year to select it for analysis"
                                 )

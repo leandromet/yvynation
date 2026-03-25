@@ -8,7 +8,7 @@ def render_year_selector_grid(
     title: str,
     available_years: list,
     selected_year_key: str,
-    cols_per_row: int = 7,
+    cols_per_row: int = 5,
     key_suffix: str = "",
     help_text: str = None,
     show_count: bool = True

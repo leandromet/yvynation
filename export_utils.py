@@ -131,15 +131,29 @@ def create_export_zip(
                             zf.writestr(f'{polygon_folder}/{clean_type}.csv', csv_str)
                         continue
                     
-                    # Write CSV data
-                    if results.get('data') is not None:
+                    # Handle nested GFC analysis data (tree_cover, tree_loss, tree_gain)
+                    if analysis_type in ['gfc', 'gfc_buffer']:
+                        if isinstance(results, dict):
+                            for gfc_component, gfc_data in results.items():
+                                # gfc_component: 'tree_cover', 'tree_loss', 'tree_gain'
+                                # gfc_data: {'data': DataFrame, ...}
+                                if isinstance(gfc_data, dict) and gfc_data.get('data') is not None:
+                                    df = gfc_data['data']
+                                    if isinstance(df, pd.DataFrame):
+                                        csv_str = df.to_csv(index=False)
+                                        prefix = 'gfc_buffer' if analysis_type == 'gfc_buffer' else 'gfc'
+                                        zf.writestr(f'{polygon_folder}/{prefix}_{gfc_component}.csv', csv_str)
+                        continue
+                    
+                    # Write CSV data for standard analyses
+                    if isinstance(results, dict) and results.get('data') is not None:
                         df = results['data']
                         if isinstance(df, pd.DataFrame):
                             csv_str = df.to_csv(index=False)
                             zf.writestr(f'{polygon_folder}/{analysis_type}_data.csv', csv_str)
                     
                     # Write figures for this polygon
-                    if results.get('figures'):
+                    if isinstance(results, dict) and results.get('figures'):
                         for fig_name, fig in results['figures'].items():
                             if isinstance(fig, Figure):
                                 img_buffer = io.BytesIO()
@@ -333,17 +347,21 @@ def capture_current_analysis_exports(session_state):
             polygon_analyses[polygon_idx] = {}
         
         result = session_state.hansen_comparison_result
-        # Extract the DataFrame from the result dict
-        if isinstance(result, dict) and 'df' in result:
+        # Extract the comparison DataFrame (df_comp, not df)
+        if isinstance(result, dict) and 'df_comp' in result:
+            polygon_analyses[polygon_idx]['hansen'] = {
+                'data': result['df_comp'],
+                'year1': result.get('year1'),
+                'year2': result.get('year2'),
+                'df1_disp': result.get('df1_disp'),  # Year 1 display data
+                'df2_disp': result.get('df2_disp'),  # Year 2 display data
+            }
+        elif isinstance(result, dict) and 'df' in result:
+            # Fallback to 'df' if it exists
             polygon_analyses[polygon_idx]['hansen'] = {
                 'data': result['df'],
                 'year1': result.get('year1'),
                 'year2': result.get('year2')
-            }
-        else:
-            # Fallback if it's just a DataFrame
-            polygon_analyses[polygon_idx]['hansen'] = {
-                'data': result
             }
         metadata['has_hansen_polygon_comparison'] = True
     
@@ -366,6 +384,45 @@ def capture_current_analysis_exports(session_state):
         if polygon_idx not in polygon_analyses:
             polygon_analyses[polygon_idx] = {}
         polygon_analyses[polygon_idx]['hansen_transitions'] = session_state.hansen_transitions
+    
+    # Capture Hansen GFC (Global Forest Change) analysis results
+    # GFC analysis is stored per area prefix (original, buffer) when analyzed
+    for area_prefix in ['original', 'buffer']:
+        gfc_session_key = f'hansen_gfc_results_{area_prefix}'
+        gfc_results = session_state.get(gfc_session_key)
+        
+        if gfc_results and isinstance(gfc_results, dict):
+            if polygon_idx not in polygon_analyses:
+                polygon_analyses[polygon_idx] = {}
+            
+            gfc_storage = {}
+            
+            # Capture tree cover data
+            if 'tree_cover' in gfc_results:
+                df_cover = gfc_results['tree_cover']
+                if isinstance(df_cover, pd.DataFrame) and not df_cover.empty:
+                    gfc_storage['tree_cover'] = {'data': df_cover}
+            
+            # Capture tree loss data
+            if 'tree_loss' in gfc_results:
+                df_loss = gfc_results['tree_loss']
+                if isinstance(df_loss, pd.DataFrame) and not df_loss.empty:
+                    gfc_storage['tree_loss'] = {'data': df_loss}
+            
+            # Capture tree gain data
+            if 'tree_gain' in gfc_results:
+                df_gain = gfc_results['tree_gain']
+                if isinstance(df_gain, pd.DataFrame) and not df_gain.empty:
+                    gfc_storage['tree_gain'] = {'data': df_gain}
+            
+            # Store GFC data under appropriate prefix
+            if gfc_storage:
+                if area_prefix == 'original':
+                    polygon_analyses[polygon_idx]['gfc'] = gfc_storage
+                    metadata['has_gfc_polygon_analysis'] = True
+                elif area_prefix == 'buffer':
+                    polygon_analyses[polygon_idx]['gfc_buffer'] = gfc_storage
+                    metadata['has_gfc_buffer_analysis'] = True
     
     # Capture territory transitions data if available
     if session_state.get('territory_transitions') is not None:
@@ -456,6 +513,8 @@ def generate_export_button(session_state):
         _n_sankey = sum(1 for k in _figures if 'sankey' in k)
         _has_mb_comparison = session_state.get('mapbiomas_comparison_result') is not None
         _has_hansen_comparison = session_state.get('hansen_comparison_result') is not None
+        _has_gfc_original = session_state.get('hansen_gfc_results_original') is not None
+        _has_gfc_buffer = session_state.get('hansen_gfc_results_buffer') is not None
         _has_territory_result = session_state.get('territory_result') is not None
         _has_territory_transitions = session_state.get('territory_transitions') is not None
         
@@ -475,6 +534,12 @@ def generate_export_button(session_state):
 |---|---|
 | `mapbiomas_data.csv` | MapBiomas land cover areas by class |
 | `hansen_data.csv` | Hansen/GLAD land cover areas by class |
+| `gfc_tree_cover.csv` | **NEW:** Hansen GFC tree cover distribution (% canopy, 0-100) |
+| `gfc_tree_loss.csv` | **NEW:** Hansen GFC tree loss by year (2001-2024) |
+| `gfc_tree_gain.csv` | **NEW:** Hansen GFC tree gain (2000-2012) |
+| `gfc_buffer_tree_cover.csv` | **NEW:** GFC tree cover for buffer zone (if analyzed) |
+| `gfc_buffer_tree_loss.csv` | **NEW:** GFC tree loss for buffer zone (if analyzed) |
+| `gfc_buffer_tree_gain.csv` | **NEW:** GFC tree gain for buffer zone (if analyzed) |
 | `mapbiomas_comparison.csv` | Year-to-year change table (MapBiomas) |
 | `hansen_comparison.csv` | Year-to-year change table (Hansen) |
 | `mapbiomas_transitions.json` | Pixel-level class-to-class transition matrix (MapBiomas) |
@@ -540,7 +605,9 @@ All maps include scale bars, coordinate grid, and labeled polygon boundaries.
 | **Territory transitions** | {"✅ Sankey ready" if _has_territory_transitions else "—"} |
 | **Buffer zone** | {"✅ " + str(_buffer_km) + " km" if _has_buffer else "—  *(enable in sidebar)*"} |
 | **MapBiomas comparison** | {"✅" if _has_mb_comparison else "—"} |
-| **Hansen comparison** | {"✅" if _has_hansen_comparison else "—"} |
+| **Hansen/GLAD comparison** | {"✅" if _has_hansen_comparison else "—"} |
+| **Hansen GFC (Polygon)** | {"✅ tree cover, loss, gain" if _has_gfc_original else "—"} |
+| **Hansen GFC (Buffer)** | {"✅ tree cover, loss, gain" if _has_gfc_buffer else "—"} |
 | **Data source** | {_data_source} |
 | **Years** | {_years_str} |
 | **Territory figures** | {_n_territory_figs} |
