@@ -614,14 +614,26 @@ def render_polygon_selector():
             # Check if selected is a buffer
             selected_feature = st.session_state.all_drawn_features[selected_idx]
             is_buffer = selected_feature.get('properties', {}).get('type') == 'external_buffer'
+            is_uploaded = selected_feature.get('properties', {}).get('source') == 'uploaded'
             
             if is_buffer:
                 buffer_name = selected_feature.get('properties', {}).get('name', '')
                 st.info(t("selected_buffer", buffer_name=buffer_name))
+            elif is_uploaded:
+                # Show information about uploaded feature
+                uploaded_meta = st.session_state.get('uploaded_features_metadata', {}).get(selected_idx, {})
+                feature_name = uploaded_meta.get('name', f'Uploaded Feature {selected_idx + 1}')
+                feature_desc = uploaded_meta.get('description', '')
+                
+                info_text = f"📤 **{feature_name}**"
+                if feature_desc:
+                    info_text += f"\n\n{feature_desc}"
+                st.info(info_text)
             else:
                 st.info(t("selected_polygon", number=selected_idx + 1))
-                
-                # Add buffer creation UI for non-buffer polygons
+            
+            # Add buffer creation UI for non-buffer geometries (both drawn and uploaded)
+            if not is_buffer:
                 st.divider()
                 st.markdown("**" + t("buffer_zone_desc") + "**")
                 st.caption(t("buffer_ring_help"))

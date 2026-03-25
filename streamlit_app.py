@@ -356,6 +356,7 @@ _session_defaults = {
     "hansen_gfc_tree_gain": False,
     "last_drawn_feature": None,
     "all_drawn_features": [],
+    "uploaded_features_metadata": {},
     "selected_feature_index": None,
     "last_map_view": {'center': (0, 0), 'zoom': 3},
     "analysis_results": None,
@@ -1003,6 +1004,19 @@ if st.session_state.data_loaded and st.session_state.territory_result is not Non
 if st.session_state.data_loaded and st.session_state.app:
     st.divider()
     st.subheader(t("polygon_analysis_header"))
+    
+    # ===== GEOMETRY INPUT SECTION =====
+    # Allow users to either draw geometries on the map or upload files
+    from geometry_upload import render_geometry_uploader, add_uploaded_features_to_session
+    
+    # Create expandable section for geometry uploads
+    with st.expander("📤 Upload Geometries (KML, GeoJSON)", expanded=False):
+        uploaded_features = render_geometry_uploader()
+        if uploaded_features:
+            if st.button("✅ Add Uploaded Geometries to Map", key="add_uploaded_geom", width="stretch"):
+                add_uploaded_features_to_session(uploaded_features)
+    
+    st.caption("💡 **Draw on the map** OR **upload KML/GeoJSON files** above, then select a geometry to analyze.")
 
     if not st.session_state.last_drawn_feature:
         st.info(t("draw_polygon_instruction"))
@@ -1011,7 +1025,7 @@ if st.session_state.data_loaded and st.session_state.app:
             feature_data = st.session_state.last_drawn_feature
             geometry = None
 
-            # Extract geometry from drawn feature GeoJSON
+            # Extract geometry from drawn feature GeoJSON or uploaded file
             if isinstance(feature_data, dict):
                 if 'geometry' in feature_data:
                     geometry = ee.Geometry(feature_data['geometry'])
