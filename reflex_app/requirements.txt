@@ -1,0 +1,43 @@
+#Requirements for Yvynation Reflex Application.
+#Optimized for Cloud Run deployment.
+
+
+# Core
+reflex==0.8.27
+python-dotenv==1.0.0
+
+# Google Cloud & Earth Engine
+google-cloud-storage==2.14.0
+google-auth==2.27.0
+google-auth-oauthlib==1.2.1
+earthengine-api==1.7.4
+
+# Data Processing
+pandas>=2.2.0
+numpy>=2.0.0
+
+# Visualization
+plotly>=5.18.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Geospatial
+geopandas>=0.14.0
+shapely>=2.0.2
+pyproj>=3.6.0
+
+# Utilities
+pillow>=10.1.0
+requests>=2.31.0
+pydantic>=2.5.0
+
+# Development & Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Production Server (instead of Streamlit's default)
+gunicorn==21.2.0
+uvicorn==0.25.0
