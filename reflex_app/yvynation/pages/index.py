@@ -17,16 +17,54 @@ def navbar() -> rx.Component:
     return rx.hstack(
         # Left side - toggle & branding
         rx.hstack(
-            rx.button(
+            rx.vstack(
+                rx.button(
+                    rx.cond(
+                        AppState.sidebar_open,
+                        "☰ Hide",
+                        "☰ Show",
+                    ),
+                    on_click=AppState.toggle_sidebar,
+                    size="1",
+                    variant="ghost",
+                    color_scheme="green",
+                ),
+                # Sidebar resize preset buttons
                 rx.cond(
                     AppState.sidebar_open,
-                    "☰ Hide",
-                    "☰ Show",
+                    rx.hstack(
+                        rx.button(
+                            "◀",
+                            on_click=lambda: AppState.update_sidebar_width(200),
+                            size="1",
+                            variant="ghost",
+                            padding="0.25rem 0.5rem",
+                            title="Narrow",
+                        ),
+                        rx.button(
+                            "resize",
+                            on_click=lambda: AppState.update_sidebar_width(300),
+                            size="1",
+                            variant="ghost",
+                            padding="0.25rem 0.5rem",
+                            title="Normal",
+                        ),
+                        rx.button(
+                            "▶",
+                            on_click=lambda: AppState.update_sidebar_width(600),
+                            size="1",
+                            variant="ghost",
+                            padding="0.25rem 0.5rem",
+                            title="Wide",
+                        ),
+                        spacing="1",
+                        font_size="xs",
+                    ),
+                    rx.box(),
                 ),
-                on_click=AppState.toggle_sidebar,
-                size="1",
-                variant="ghost",
-                color_scheme="green",
+                spacing="1",
+                padding="0",
+                margin="0",
             ),
             rx.vstack(
                 rx.heading("🏞️ Yvynation", size="3"),
@@ -40,7 +78,7 @@ def navbar() -> rx.Component:
             ),
             width="auto",
             align_items="center",
-            spacing="3",
+            spacing="2",
         ),
         # Center - empty spacer
         rx.spacer(),
@@ -195,40 +233,6 @@ def index() -> rx.Component:
                         border_right="2px solid #d0d0d0",
                         bg="white",
                         position="relative",
-                    ),
-                    rx.box(),
-                ),
-                # Resize preset buttons
-                rx.cond(
-                    AppState.sidebar_open,
-                    rx.vstack(
-                        rx.hstack(
-                            rx.button(
-                                "◀",
-                                on_click=lambda: AppState.update_sidebar_width(250),
-                                size="1",
-                                variant="ghost",
-                                title="Narrow",
-                            ),
-                            rx.button(
-                                "—",
-                                on_click=lambda: AppState.update_sidebar_width(300),
-                                size="1",
-                                variant="ghost",
-                                title="Normal",
-                            ),
-                            rx.button(
-                                "▶",
-                                on_click=lambda: AppState.update_sidebar_width(400),
-                                size="1",
-                                variant="ghost",
-                                title="Wide",
-                            ),
-                            spacing="1",
-                            padding="0.5rem",
-                        ),
-                        width="auto",
-                        spacing="0",
                     ),
                     rx.box(),
                 ),

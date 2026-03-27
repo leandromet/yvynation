@@ -146,8 +146,13 @@ def about_section() -> rx.Component:
     return rx.vstack(
         rx.text("🏞️ Yvynation Platform", font_weight="bold", font_size="sm"),
         rx.text(
-            "Global Forest Monitoring & Indigenous Territory Analysis",
+            "Global Forest Monitoring & ",
             font_size="xs",
+            color="gray",
+        ),
+        rx.text(
+            "Indigenous Territory Analysis Tool",
+            font_size="xs", 
             color="gray",
         ),
         rx.divider(),
@@ -673,7 +678,7 @@ def sidebar() -> rx.Component:
             height="100vh",
             width="100%",
         ),
-        width="340px",
+        width="450px",
         height="100vh",
         bg="white",
         border_right="2px solid #e0e0e0",
