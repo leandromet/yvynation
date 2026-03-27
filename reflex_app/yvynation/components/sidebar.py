@@ -205,41 +205,35 @@ def mapbiomas_layer_controls() -> rx.Component:
                 font_size="xs",
                 color="gray",
             ),
-            # Grid of year buttons
-            rx.vstack(
+            # Wrap of year buttons
+            rx.flex(
                 rx.foreach(
-                    # Create year rows
-                    [MAPBIOMAS_YEARS[i:i+5] for i in range(0, len(MAPBIOMAS_YEARS), 5)],
-                    lambda row: rx.hstack(
-                        rx.foreach(
-                            row,
-                            lambda year: rx.button(
-                                rx.cond(
-                                    AppState.mapbiomas_current_year == year,
-                                    rx.text(f"✓ {year}", font_weight="bold"),
-                                    rx.text(f"{year}"),
-                                ),
-                                on_click=lambda *args, y=year: AppState.set_mapbiomas_year(y),
-                                width="100%",
-                                size="1",
-                                is_outline=rx.cond(
-                                    AppState.mapbiomas_current_year == year,
-                                    False,
-                                    True,
-                                ),
-                                color_scheme=rx.cond(
-                                    AppState.mapbiomas_current_year == year,
-                                    "green",
-                                    "gray",
-                                ),
-                            ),
+                    MAPBIOMAS_YEARS,
+                    lambda year: rx.button(
+                        rx.cond(
+                            AppState.mapbiomas_current_year == year,
+                            rx.text(f"✓{year}", font_weight="bold"),
+                            rx.text(f"{year}"),
                         ),
-                        width="100%",
-                        spacing="1",
+                        on_click=lambda *args, y=year: AppState.set_mapbiomas_year(y),
+                        size="1",
+                        padding="6px 10px",
+                        font_size="11px",
+                        is_outline=rx.cond(
+                            AppState.mapbiomas_current_year == year,
+                            False,
+                            True,
+                        ),
+                        color_scheme=rx.cond(
+                            AppState.mapbiomas_current_year == year,
+                            "green",
+                            "gray",
+                        ),
                     ),
                 ),
-                width="100%",
                 spacing="1",
+                width="100%",
+                flex_wrap="wrap",
             ),
             width="100%",
             spacing="2",
@@ -308,18 +302,19 @@ def hansen_layer_controls() -> rx.Component:
         rx.box(
             rx.vstack(
                 rx.text("📅 Select Year", font_weight="bold", font_size="sm"),
-                rx.hstack(
+                rx.flex(
                     rx.foreach(
                         HANSEN_YEARS,
                         lambda year: rx.button(
                             rx.cond(
                                 AppState.hansen_current_year == year,
-                                rx.text(f"✓ {year}", font_weight="bold"),
-                                rx.text(year),
+                                rx.text(f"✓{year}", font_weight="bold"),
+                                rx.text(f"{year}"),
                             ),
                             on_click=lambda *args, y=year: AppState.set_hansen_year(y),
-                            width="100%",
-                            size="2",
+                            size="1",
+                            padding="6px 10px",
+                            font_size="11px",
                             is_outline=rx.cond(
                                 AppState.hansen_current_year == year,
                                 False,
@@ -332,15 +327,16 @@ def hansen_layer_controls() -> rx.Component:
                             ),
                         ),
                     ),
-                    width="100%",
                     spacing="1",
+                    width="100%",
+                    flex_wrap="wrap",
                 ),
                 rx.button(
                     "➕ Add Selected Year",
                     on_click=AppState.add_hansen_selected_year,
                     width="100%",
-                    color_scheme="green",
-                    size="2",
+                    color_scheme="blue",
+                    size="1",
                 ),
                 width="100%",
                 spacing="2",
@@ -469,6 +465,19 @@ def hansen_layer_controls() -> rx.Component:
 def territory_selection_controls() -> rx.Component:
     """Territory and analysis controls with searchable selection."""
     return rx.vstack(
+        # Load territories button (if not loaded yet)
+        rx.cond(
+            AppState.available_territories.length() == 0,
+            rx.button(
+                "📍 Load Territories from EE",
+                on_click=AppState.initialize_app,
+                width="100%",
+                color_scheme="green",
+                size="2",
+            ),
+            rx.box(),
+        ),
+        
         # Search input
         rx.input(
             placeholder="🔍 Search territories...",
@@ -486,16 +495,6 @@ def territory_selection_controls() -> rx.Component:
             placeholder="Select a territory",
             size="2",
             width="100%",
-        ),
-        
-        # Loading state indicator
-        rx.cond(
-            AppState.territories_loading,
-            rx.hstack(
-                rx.spinner(size="2"),
-                rx.text("Loading territories...", font_size="xs", color="gray"),
-                spacing="1",
-            ),
         ),
         
         # Territory info and analysis buttons

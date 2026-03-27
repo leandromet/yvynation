@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 _TILE_CACHE: Dict[str, str] = {}
 
 
-def _cached_get_map_id(cache_key: str, image_fn: Callable, vis_params: Dict) -> Optional[str]:
+def _cached_get_map_id(cache_key: str, image_fn: Callable, vis_params: Dict, map_id_params: Dict = None) -> Optional[str]:
     """
     Return a cached tile URL string for the given cache_key.
     If not cached yet, call image_fn() to get the ee.Image, then getMapId().
@@ -30,6 +30,7 @@ def _cached_get_map_id(cache_key: str, image_fn: Callable, vis_params: Dict) -> 
         cache_key: Unique identifier for cache entry
         image_fn: Callable that returns ee.Image
         vis_params: Visualization parameters for getMapId()
+        map_id_params: Additional parameters to pass to getMapId() (e.g., format, etc.)
     
     Returns:
         Tile URL string or None if error
@@ -42,7 +43,11 @@ def _cached_get_map_id(cache_key: str, image_fn: Callable, vis_params: Dict) -> 
     
     try:
         image = image_fn() if callable(image_fn) else image_fn
-        map_id = image.getMapId(vis_params)
+        # Merge vis_params with any additional map_id_params
+        params = dict(vis_params)
+        if map_id_params:
+            params.update(map_id_params)
+        map_id = image.getMapId(params)
         tile_url = map_id['tile_fetcher'].url_format
         _TILE_CACHE[cache_key] = tile_url
         logger.info(f"Generated and cached tile: {cache_key}")
@@ -215,7 +220,7 @@ def add_hansen_gfc_tree_cover(m, opacity=1.0, shown=True):
         vis_params = HANSEN_GFC_TREE_COVER_VIS
         tile_url = _cached_get_map_id(
             'hansen_gfc_treecover2000',
-            lambda: ee.Image(HANSEN_GFC_DATASET).select(['treecover2000']),
+            lambda: ee.Image(HANSEN_GFC_DATASET).select(['treecover2000']).selfMask(),
             vis_params
         )
         
@@ -257,7 +262,7 @@ def add_hansen_gfc_tree_loss(m, opacity=1.0, shown=True):
         vis_params = HANSEN_GFC_TREE_LOSS_VIS
         tile_url = _cached_get_map_id(
             'hansen_gfc_lossyear',
-            lambda: ee.Image(HANSEN_GFC_DATASET).select(['lossyear']),
+            lambda: ee.Image(HANSEN_GFC_DATASET).select(['lossyear']).updateMask(ee.Image(HANSEN_GFC_DATASET).select(['lossyear']).gt(0)),
             vis_params
         )
         

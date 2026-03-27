@@ -61,19 +61,21 @@ class AppState(rx.State):
     selected_territory: Optional[str] = None
     selected_country: str = "Brazil"
     territory_filter_state: Optional[str] = None  # For state-level filtering
-    available_territories: List[str] = [
-        "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
-        "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
-        "Kaiapó", "Yanomami", "Munduruku", "Tukano", "Guarani",
-        "Waiãpi", "Makuxi", "Satere-Mawé", "Kokama", "Tikuna",
-    ]
+    available_territories: List[str] = []  # Loaded from EE on init
+    territory_search_query: str = ""  # For filtering territories
     
     # Drawn Features & Buffers
     drawn_features: List[Dict[str, Any]] = []
     all_drawn_features: List[Dict[str, Any]] = []
+    selected_geometry_idx: Optional[int] = None  # Index of selected drawn geometry
+    selected_geometry_is_territory: bool = False  # Whether selected geometry is from a territory
     buffer_geometries: Dict[str, BufferGeometry] = {}
     current_buffer_for_analysis: Optional[str] = None
     buffer_compare_mode: bool = False
+    
+    # Geometry Info Popup
+    show_geometry_popup: bool = False  # Show/hide geometry info popup
+    geometry_popup_info: Dict[str, Any] = {}  # Info to display in popup
     
     # Analysis Results
     analysis_results: Dict[str, Any] = {}  # Empty dict when no analysis is active
@@ -88,6 +90,8 @@ class AppState(rx.State):
     # UI State
     active_tab: str = "map"  # "map", "analysis", "tutorial", "about"
     sidebar_open: bool = True
+    sidebar_width: int = 300  # Sidebar width in pixels
+    is_resizing_sidebar: bool = False  # Whether currently resizing
     show_tutorial: bool = True
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""  # Buffer distance input field
@@ -103,7 +107,6 @@ class AppState(rx.State):
     
     # Territory Search & Filtering
     territory_search_query: str = ""
-    territories_loading: bool = False
     
     # ========================================================================
     # Computed Properties (Reflex Reactive)
@@ -120,15 +123,11 @@ class AppState(rx.State):
             t for t in self.available_territories 
             if query_lower in t.lower()
         ]
-    
-    @rx.var(cache=False)
+    @rx.var(auto_deps=False, deps=["mapbiomas_displayed_years", "hansen_displayed_layers"])
     def map_html(self) -> str:
         """
         Generate map HTML based on current layer selections.
-        This is a computed property that rebuilds the map whenever
-        mapbiomas_displayed_years or hansen_displayed_layers change.
-        
-        Cache=False ensures map is rebuilt every time state changes.
+        Only rebuilds when mapbiomas_displayed_years or hansen_displayed_layers actually change.
         """
         try:
             from .utils.map_builder import build_map
@@ -150,9 +149,130 @@ class AppState(rx.State):
             folium.LayerControl().add_to(m)
             return m._repr_html_()
     
+    @rx.var
+    def selected_geometry_type(self) -> str:
+        """Get the type of the selected geometry."""
+        if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+            return ""
+        
+        feature = self.drawn_features[self.selected_geometry_idx]
+        return feature.get('type', 'Unknown')
+    
+    @rx.var
+    def selected_geometry_coords_preview(self) -> str:
+        """Get a preview of the selected geometry's coordinates."""
+        if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+            return ""
+        
+        feature = self.drawn_features[self.selected_geometry_idx]
+        coords = feature.get('coordinates', [])
+        
+        # Return abbreviated preview
+        if not coords:
+            return "[No coordinates]"
+        
+        if isinstance(coords[0], (int, float)):
+            # Single coordinate pair
+            return f"[{coords[0]:.4f}, {coords[1]:.4f}]"
+        else:
+            # Multiple coordinate pairs
+            return f"[{coords[0][0] if coords else 0:.4f}, ...] ({len(coords)} points)"
+    
     # ========================================================================
     # Event Handlers for State Updates (no reruns, direct updates)
     # ========================================================================
+    
+    def set_selected_geometry(self, idx: int):
+        """Set the selected geometry by index."""
+        if 0 <= idx < len(self.drawn_features):
+            self.selected_geometry_idx = idx
+            logger.info(f"Selected geometry {idx}: {self.drawn_features[idx].get('type', 'Unknown')}")
+    
+    def add_drawn_feature(self, feature: Dict[str, Any]):
+        """Add a drawn feature to the list."""
+        self.drawn_features.append(feature)
+        logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')}")
+    
+    def remove_geometry(self, idx: int):
+        """Remove a geometry by index."""
+        if 0 <= idx < len(self.drawn_features):
+            removed = self.drawn_features.pop(idx)
+            logger.info(f"Removed geometry {idx}: {removed.get('type', 'Unknown')}")
+            
+            # Adjust selected index if necessary
+            if self.selected_geometry_idx is not None:
+                if self.selected_geometry_idx == idx:
+                    # Selection was on removed item
+                    self.selected_geometry_idx = None
+                elif self.selected_geometry_idx > idx:
+                    # Shift index down for items after removed
+                    self.selected_geometry_idx -= 1
+    
+    def clear_geometries(self):
+        """Clear all drawn geometries."""
+        self.drawn_features = []
+        self.selected_geometry_idx = None
+        logger.info("Cleared all geometries")
+    
+    def add_geojson_feature(self):
+        """Add a feature from GeoJSON input (placeholder - needs form integration)."""
+        # TODO: Get GeoJSON from form input
+        # For now, this is a placeholder
+        logger.info("GeoJSON feature add requested (form integration needed)")
+    
+    def add_territory_geometry(self, territory_name: str):
+        """Add a territory as a geometry (drawable feature for analysis)."""
+        try:
+            from .utils.ee_service_extended import get_ee_service
+            ee_service = get_ee_service()
+            
+            # Get territory geometry
+            territory_geom = ee_service.get_territory_geometry(territory_name)
+            if territory_geom is None:
+                logger.warning(f"Could not load geometry for territory: {territory_name}")
+                self.error_message = f"Failed to load geometry for {territory_name}"
+                return
+            
+            # Convert to dict for storage
+            territory_feature = {
+                "type": "Territory",
+                "name": territory_name,
+                "territory_name": territory_name,
+                "coordinates": [],  # Will be fetched from EE on demand
+                "_ee_geometry": territory_geom  # Store EE geometry object
+            }
+            
+            self.drawn_features.append(territory_feature)
+            logger.info(f"Added territory geometry: {territory_name}")
+        except Exception as e:
+            logger.error(f"Error adding territory geometry: {e}")
+            self.error_message = f"Error loading territory: {str(e)}"
+    
+    def get_selected_geometry_ee(self) -> Optional[Any]:
+        """Get Earth Engine geometry object for selected geometry."""
+        if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+            return None
+        
+        feature = self.drawn_features[self.selected_geometry_idx]
+        
+        # Check if it's a territory with cached EE geometry
+        if feature.get("_ee_geometry"):
+            return feature["_ee_geometry"]
+        
+        # Otherwise, try to convert coordinates to EE geometry
+        if feature.get("coordinates"):
+            try:
+                coords = feature["coordinates"]
+                if feature.get("type") == "Polygon":
+                    return ee.Geometry.Polygon(coords)
+                elif feature.get("type") == "LineString":
+                    return ee.Geometry.LineString(coords)
+                elif feature.get("type") == "Point":
+                    return ee.Geometry.Point(coords)
+            except Exception as e:
+                logger.error(f"Error converting coordinates to EE geometry: {e}")
+        
+        return None
     
     def initialize_app(self):
         """Initialize application state on first load."""
@@ -164,13 +284,11 @@ class AppState(rx.State):
             success, territories = ee_service.load_territories()
             if success and territories:
                 self.available_territories = list(territories)
-                self.loading_message = f"✓ Loaded {len(self.available_territories)} territories"
             else:
                 self.available_territories = [
                     "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
                     "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná"
                 ]
-                self.loading_message = "Using demo territory data"
             
             self.data_loaded = True
             self.ee_initialized = True
@@ -286,6 +404,20 @@ class AppState(rx.State):
             self.sidebar_territory_expanded = not self.sidebar_territory_expanded
         elif section == "geometry":
             self.sidebar_geometry_expanded = not self.sidebar_geometry_expanded
+    
+    def start_resize(self):
+        """Start resizing the sidebar."""
+        self.is_resizing_sidebar = True
+    
+    def end_resize(self):
+        """Stop resizing the sidebar."""
+        self.is_resizing_sidebar = False
+    
+    def update_sidebar_width(self, width: int):
+        """Update sidebar width (called during resize)."""
+        # Constrain width between 200px and 500px
+        constrained_width = max(200, min(500, width))
+        self.sidebar_width = constrained_width
         
     def set_active_tab(self, tab: str):
         """Switch to different tab."""
@@ -345,6 +477,48 @@ class AppState(rx.State):
     def clear_drawn_features(self):
         """Clear all drawn features."""
         self.drawn_features = []
+    
+    def show_geometry_info(self, geometry_idx: int):
+        """Show geometry info popup for a specific geometry."""
+        if 0 <= geometry_idx < len(self.drawn_features):
+            feature = self.drawn_features[geometry_idx]
+            self.geometry_popup_info = {
+                "index": geometry_idx,
+                "type": feature.get("type", "Unknown"),
+                "area_km2": feature.get("area_km2", 0),
+                "coordinates_count": self._count_coordinates(feature.get("geometry", {})),
+                "created_at": feature.get("created_at", "Unknown"),
+                "name": feature.get("name", f"Geometry {geometry_idx}"),
+            }
+            self.show_geometry_popup = True
+    
+    def hide_geometry_info(self):
+        """Hide geometry info popup."""
+        self.show_geometry_popup = False
+        self.geometry_popup_info = {}
+    
+    def _count_coordinates(self, geometry: Dict[str, Any]) -> int:
+        """Count total coordinates in a geometry."""
+        if not geometry:
+            return 0
+        
+        coords = geometry.get("coordinates", [])
+        
+        def count_coords(coords_obj):
+            if isinstance(coords_obj, list):
+                if len(coords_obj) > 0:
+                    if isinstance(coords_obj[0], (int, float)):
+                        # Single coordinate pair
+                        return 1
+                    else:
+                        # Nested list of coordinates
+                        total = 0
+                        for item in coords_obj:
+                            total += count_coords(item)
+                        return total
+            return 0
+        
+        return count_coords(coords)
         
     def add_buffer_geometry(self, name: str, geometry: Dict[str, Any], metadata: Dict[str, Any] = None):
         """Add a new buffer geometry for analysis."""
@@ -411,8 +585,6 @@ class AppState(rx.State):
             self.mapbiomas_displayed_years.append(year)
             self.mapbiomas_displayed_years.sort()
             logger.info(f"Added MapBiomas {year} to display")
-            # Clear any loading messages
-            self.loading_message = ""
     
     def remove_mapbiomas_layer(self, year: int):
         """Remove MapBiomas year from map display."""
@@ -425,8 +597,6 @@ class AppState(rx.State):
         if layer_type not in self.hansen_displayed_layers:
             self.hansen_displayed_layers.append(layer_type)
             logger.info(f"Added Hansen {layer_type} to display")
-            # Clear any loading messages
-            self.loading_message = ""
     
     def add_hansen_selected_year(self):
         """Add currently selected Hansen year to map display."""
@@ -441,14 +611,11 @@ class AppState(rx.State):
     def refresh_map(self):
         """Trigger map refresh (called when button is clicked)."""
         logger.info("Map refresh triggered")
-        # Simply trigger a state change to cause component re-render
-        self.loading_message = ""
     
     def clear_all_layers(self):
         """Clear all MapBiomas and Hansen layers from display."""
         self.mapbiomas_displayed_years = []
         self.hansen_displayed_layers = []
-        self.loading_message = ""
         logger.info("All layers cleared")
     
     def toggle_consolidated_classes(self):
@@ -697,37 +864,24 @@ class AppState(rx.State):
     
     async def run_mapbiomas_analysis_on_geometry(self):
         """
-        Run MapBiomas analysis on the selected/uploaded geometry.
-        Uses the current drawn or uploaded feature for analysis.
+        Run MapBiomas analysis on the selected drawn geometry.
         """
         try:
             from .utils.mapbiomas_analysis import get_mapbiomas_analyzer
-            from .utils.buffer_utils import convert_geojson_to_ee_geometry
             
-            if not self.selected_territory:
-                self.error_message = "Please select or upload a geometry first"
+            # Check if a geometry is selected
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
                 return
             
-            # Find the geometry in drawn features
-            geom_feature = None
-            for feat in self.all_drawn_features:
-                if feat.get('properties', {}).get('name') == self.selected_territory:
-                    geom_feature = feat
-                    break
-            
-            if not geom_feature:
-                self.error_message = f"Geometry not found: {self.selected_territory}"
+            # Get the EE geometry for the selected feature
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
                 return
             
             self.mapbiomas_analysis_pending = True
             self.loading_message = f"Analyzing MapBiomas {self.mapbiomas_current_year}..."
-            
-            # Convert geometry to EE
-            ee_geom = convert_geojson_to_ee_geometry(geom_feature)
-            if not ee_geom:
-                self.error_message = "Failed to process geometry for analysis"
-                self.mapbiomas_analysis_pending = False
-                return
             
             # Run analysis
             analyzer = get_mapbiomas_analyzer()
@@ -747,9 +901,10 @@ class AppState(rx.State):
                 self.error_message = "No MapBiomas data found for this area"
             else:
                 # Store results
+                geom_name = self.drawn_features[self.selected_geometry_idx].get('name', 'Selected Geometry')
                 self.analysis_results = {
                     "type": "mapbiomas",
-                    "geometry": self.selected_territory,
+                    "geometry": geom_name,
                     "year": self.mapbiomas_current_year,
                     "data": result_df.to_dict('records'),
                     "summary": {
@@ -758,6 +913,7 @@ class AppState(rx.State):
                         "top_class": result_df.iloc[0]['Class_Name'] if len(result_df) > 0 else 'Unknown',
                     }
                 }
+                self.set_active_tab("analysis")
                 self.loading_message = ""
             
             self.mapbiomas_analysis_pending = False
@@ -769,37 +925,24 @@ class AppState(rx.State):
     
     async def run_hansen_analysis_on_geometry(self):
         """
-        Run Hansen forest change analysis on uploaded/drawn geometry.
-        Analyzes tree cover, loss, and gain within the geometry bounds.
+        Run Hansen forest change analysis on selected drawn geometry.
         """
         try:
             from .utils.hansen_analysis import get_hansen_analyzer
-            from .utils.buffer_utils import convert_geojson_to_ee_geometry
             
-            if not self.selected_territory:
-                self.error_message = "Please select or upload a geometry first"
+            # Check if a geometry is selected
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
                 return
             
-            # Find the geometry in drawn features
-            geom_feature = None
-            for feat in self.all_drawn_features:
-                if feat.get('properties', {}).get('name') == self.selected_territory:
-                    geom_feature = feat
-                    break
-            
-            if not geom_feature:
-                self.error_message = f"Geometry not found: {self.selected_territory}"
+            # Get the EE geometry for the selected feature
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
                 return
             
             self.hansen_analysis_pending = True
             self.loading_message = "Analyzing forest change with Hansen..."
-            
-            # Convert geometry to EE
-            ee_geom = convert_geojson_to_ee_geometry(geom_feature)
-            if not ee_geom:
-                self.error_message = "Failed to process geometry for analysis"
-                self.hansen_analysis_pending = False
-                return
             
             # Run analysis
             analyzer = get_hansen_analyzer()
@@ -815,9 +958,10 @@ class AppState(rx.State):
                 self.error_message = "No Hansen data found for this area"
             else:
                 # Store results
+                geom_name = self.drawn_features[self.selected_geometry_idx].get('name', 'Selected Geometry')
                 self.analysis_results = {
                     "type": "hansen",
-                    "geometry": self.selected_territory,
+                    "geometry": geom_name,
                     "data": result_df.to_dict('records'),
                     "summary": {
                         "total_tree_cover_2000_ha": result_df['Tree_Cover_2000_ha'].iloc[0] if len(result_df) > 0 else 0,
@@ -825,6 +969,7 @@ class AppState(rx.State):
                         "total_gain_ha": result_df['Gain_ha'].sum(),
                     }
                 }
+                self.set_active_tab("analysis")
                 self.loading_message = ""
             
             self.hansen_analysis_pending = False
@@ -917,9 +1062,9 @@ class AppState(rx.State):
             
             # Get territory geometry from EE
             ee_service = get_ee_service()
-            success, ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
             
-            if not success or not ee_geom:
+            if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.mapbiomas_analysis_pending = False
                 return
@@ -980,9 +1125,9 @@ class AppState(rx.State):
             
             # Get territory geometry from EE
             ee_service = get_ee_service()
-            success, ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
             
-            if not success or not ee_geom:
+            if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.hansen_analysis_pending = False
                 return

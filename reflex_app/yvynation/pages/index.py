@@ -8,6 +8,7 @@ from ..components.sidebar import sidebar
 from ..components.map import leaflet_map, map_metrics
 from ..components.analysis_results import analysis_results
 from ..components.results_panel import results_panel
+from ..components.geometry_popup import geometry_info_popup
 from ..utils.translations import t
 
 
@@ -177,10 +178,58 @@ def index() -> rx.Component:
         rx.cond(
             AppState.data_loaded,
             rx.hstack(
-                # Sidebar (collapsible)
+                # Sidebar (collapsible and resizable)
                 rx.cond(
                     AppState.sidebar_open,
-                    sidebar(),
+                    rx.box(
+                        sidebar(),
+                        width=rx.cond(
+                            AppState.sidebar_width != 0,
+                            f"{AppState.sidebar_width}px",
+                            "300px",
+                        ),
+                        max_width="500px",
+                        min_width="200px",
+                        overflow_y="auto",
+                        overflow_x="hidden",
+                        border_right="2px solid #d0d0d0",
+                        bg="white",
+                        position="relative",
+                    ),
+                    rx.box(),
+                ),
+                # Resize preset buttons
+                rx.cond(
+                    AppState.sidebar_open,
+                    rx.vstack(
+                        rx.hstack(
+                            rx.button(
+                                "◀",
+                                on_click=lambda: AppState.update_sidebar_width(250),
+                                size="1",
+                                variant="ghost",
+                                title="Narrow",
+                            ),
+                            rx.button(
+                                "—",
+                                on_click=lambda: AppState.update_sidebar_width(300),
+                                size="1",
+                                variant="ghost",
+                                title="Normal",
+                            ),
+                            rx.button(
+                                "▶",
+                                on_click=lambda: AppState.update_sidebar_width(400),
+                                size="1",
+                                variant="ghost",
+                                title="Wide",
+                            ),
+                            spacing="1",
+                            padding="0.5rem",
+                        ),
+                        width="auto",
+                        spacing="0",
+                    ),
                     rx.box(),
                 ),
                 # Main content area
@@ -193,23 +242,25 @@ def index() -> rx.Component:
                         border_bottom="1px solid #e0e0e0",
                     ),
                     
-                    # Map and Results area (split)
+                    # Map and Results area (stacked vertically)
                     rx.cond(
                         (AppState.analysis_results != {}) & (AppState.analysis_results != None),
-                        # Split view: map and results
-                        rx.hstack(
-                            # Map (left)
+                        # Vertical layout: map on top, results below
+                        rx.vstack(
+                            # Map
                             rx.box(
                                 leaflet_map(),
-                                width="50%",
+                                width="100%",
+                                height="600px",
                                 overflow_y="auto",
                                 overflow_x="hidden",
-                                border_right="1px solid #e0e0e0",
+                                border_bottom="1px solid #e0e0e0",
                             ),
-                            # Results panel (right)
+                            # Results panel
                             rx.box(
                                 results_panel(),
-                                width="50%",
+                                width="100%",
+                                flex="1",
                                 overflow_y="auto",
                                 overflow_x="hidden",
                             ),
@@ -249,6 +300,7 @@ def index() -> rx.Component:
         ),
         error_toast(AppState),
         loading_overlay(AppState),
+        geometry_info_popup(),
         width="100%",
         height="100vh",
         spacing="0",
