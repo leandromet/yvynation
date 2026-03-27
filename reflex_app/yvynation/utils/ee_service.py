@@ -1,14 +1,118 @@
 """
-Earth Engine service wrapper for async/background processing.
-Handles initialization and data analysis operations.
+Earth Engine service wrapper for Reflex app.
+Handles initialization, authentication, and data operations.
 """
 
+import os
 import ee
 import pandas as pd
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
+from google.oauth2 import service_account
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Global initialization flag
+_EE_INITIALIZED = False
+
+
+def initialize_earth_engine() -> bool:
+    """
+    Initialize Earth Engine with multiple authentication methods.
+    
+    Priority:
+    1. Cloud Run: EE_PRIVATE_KEY + EE_SERVICE_ACCOUNT_EMAIL
+    2. Google Cloud: Application Default Credentials
+    3. Local: Service account JSON file
+    
+    Returns:
+        bool: True if successful
+    """
+    global _EE_INITIALIZED
+    
+    if _EE_INITIALIZED:
+        logger.debug("EE already initialized")
+        return True
+    
+    project_id = os.environ.get('GCP_PROJECT_ID', 'ee-leandromet')
+    
+    # Method 1: Environment variables (Cloud Run)
+    private_key = os.environ.get('EE_PRIVATE_KEY')
+    service_account_email = os.environ.get('EE_SERVICE_ACCOUNT_EMAIL')
+    
+    if private_key and service_account_email:
+        try:
+            logger.info("Initializing EE with environment variables")
+            credentials_dict = {
+                'type': 'service_account',
+                'project_id': project_id,
+                'private_key_id': os.environ.get('EE_PRIVATE_KEY_ID', ''),
+                'private_key': private_key,
+                'client_email': service_account_email,
+                'client_id': os.environ.get('EE_CLIENT_ID', ''),
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri': 'https://oauth2.googleapis.com/token',
+                'auth_provider_x509_cert_url': 'https://www.googleapis.com/oauth2/v1/certs',
+            }
+            
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict,
+                scopes=[
+                    'https://www.googleapis.com/auth/earthengine',
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ]
+            )
+            ee.Initialize(credentials, project=project_id)
+            _EE_INITIALIZED = True
+            logger.info("✓ Earth Engine initialized with env credentials")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed with env vars: {e}")
+    
+    # Method 2: Application Default Credentials
+    try:
+        logger.info("Attempting EE initialization with ADC")
+        ee.Initialize(project=project_id)
+        _EE_INITIALIZED = True
+        logger.info("✓ Earth Engine initialized with ADC")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed with ADC: {e}")
+    
+    # Method 3: JSON service account file
+    sa_json = os.environ.get('EE_SERVICE_ACCOUNT_JSON')
+    if sa_json and os.path.exists(sa_json):
+        try:
+            logger.info(f"Attempting EE init with JSON: {sa_json}")
+            credentials = service_account.Credentials.from_service_account_file(
+                sa_json,
+                scopes=[
+                    'https://www.googleapis.com/auth/earthengine',
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ]
+            )
+            ee.Initialize(credentials, project=project_id)
+            _EE_INITIALIZED = True
+            logger.info("✓ Earth Engine initialized with JSON file")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed with JSON: {e}")
+    
+    error = "Failed to initialize EE. Check environment variables."
+    logger.error(error)
+    raise RuntimeError(error)
+
+
+def is_ee_initialized() -> bool:
+    """Check if EE is initialized."""
+    return _EE_INITIALIZED
+
+
+def get_ee() -> ee.Image.__class__:
+    """Get EE module (ensures initialization)."""
+    if not _EE_INITIALIZED:
+        initialize_earth_engine()
+    return ee
 
 
 class EarthEngineService:

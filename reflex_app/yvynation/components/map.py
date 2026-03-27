@@ -1,82 +1,144 @@
 """
-Map component with Leaflet integration for Yvynation Reflex app.
-Provides interactive mapping with layer controls and drawing capabilities.
+Map component for Yvynation Reflex app.
+Renders Folium map with Earth Engine layers using reactive state.
 """
 
 import reflex as rx
 from ..state import AppState
-import json
+import folium
+from folium.plugins import Draw
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def create_base_map():
+    """
+    Create a base Folium map (fallback, not used in normal flow).
+    The actual map is generated via AppState.map_html computed property.
+    """
+    try:
+        m = folium.Map(
+            location=[-5, -60],
+            zoom_start=4,
+            tiles="OpenStreetMap"
+        )
+        
+        # Add layer control
+        folium.LayerControl(position='topright').add_to(m)
+        
+        return m._repr_html_()
+    except Exception as e:
+        logger.error(f"Error creating base map: {e}")
+        m = folium.Map(location=[-5, -60], zoom_start=4, tiles="OpenStreetMap")
+        folium.LayerControl().add_to(m)
+        return m._repr_html_()
 
 
 def leaflet_map() -> rx.Component:
     """
-    Leaflet map component with support for multiple layers.
-    
-    Note: Reflex has built-in Leaflet support through rx.script.
-    For advanced features, we can use the plotly map or custom HTML/JS.
+    Interactive map with Earth Engine layers.
+    Uses AppState.map_html computed property which auto-updates when layers change.
     """
-    # Using a simplified setup for initial implementation
-    # Full Leaflet integration would use custom JS component
-    
-    return rx.box(
-        rx.cond(
-            AppState.data_loaded,
+    return rx.vstack(
+        rx.box(
+            # Display the reactive map HTML from AppState.map_html
+            rx.html(AppState.map_html, width="100%", height="100%"),
+            width="100%",
+            height="800px",
+            overflow_y="auto",
+        ),
+        
+        # Layer status badge - shows count of selected layers
+        rx.box(
             rx.vstack(
-                rx.heading("Interactive Map", size="3"),
-                rx.text(
-                    "Map region: ({:.2f}, {:.2f}) | Zoom: {}".format(
-                        AppState.map_center[0],
-                        AppState.map_center[1],
-                        AppState.map_zoom,
-                    ),
-                    font_size="1",
-                    color="gray",
-                ),
-                # Placeholder for actual Leaflet map
-                rx.box(
-                    rx.text("Leaflet Map will render here"),
-                    height="600px",
-                    bg="#e0e0e0",
-                    border="1px solid #999",
-                    border_radius="md",
-                    display="flex",
-                    align_items="center",
-                    justify_content="center",
-                ),
+                rx.text("📊 Selected Layers:", font_weight="bold", font_size="sm"),
                 rx.hstack(
-                    rx.button(
-                        "📍 Clear Drawing",
-                        on_click=AppState.clear_drawn_features,
-                        color_scheme="red",
-                        size="1",
+                    rx.cond(
+                        AppState.mapbiomas_displayed_years.length() > 0,
+                        rx.badge(
+                            rx.text(
+                                f"🗺️ MapBiomas: ",
+                                AppState.mapbiomas_displayed_years.length(),
+                            ),
+                            color_scheme="green",
+                        ),
+                        rx.box(),
                     ),
-                    rx.button(
-                        "📥 Upload GeoJSON",
-                        color_scheme="blue",
-                        size="1",
+                    rx.cond(
+                        AppState.hansen_displayed_layers.length() > 0,
+                        rx.badge(
+                            rx.text(
+                                f"🌲 Hansen: ",
+                                AppState.hansen_displayed_layers.length(),
+                            ),
+                            color_scheme="blue",
+                        ),
+                        rx.box(),
                     ),
-                    width="100%",
+                    spacing="2",
                 ),
-                width="100%",
-                height="100%",
+                spacing="1",
             ),
-            rx.vstack(
-                rx.spinner(color="green"),
-                rx.text("Loading map data..."),
-                align_items="center",
-                justify_content="center",
-                height="600px",
+            padding="1rem",
+            bg="blue.50",
+            border_left="4px solid #3b82f6",
+            width="100%",
+            display=rx.cond(
+                AppState.mapbiomas_displayed_years.length() > 0,
+                "block",
+                rx.cond(
+                    AppState.hansen_displayed_layers.length() > 0,
+                    "block",
+                    "none",
+                ),
             ),
         ),
+        
+        rx.hstack(
+            rx.button(
+                "🗑️ Clear All",
+                on_click=AppState.clear_all_layers,
+                color_scheme="red",
+                size="2"
+            ),
+            width="100%",
+            padding="1rem",
+            bg="white",
+            border_top="1px solid #e0e0e0",
+        ),
+        
         width="100%",
-        padding="1rem",
+        spacing="0",
     )
 
 
 def map_metrics() -> rx.Component:
-    """Display active layer metrics and statistics."""
-    return rx.box(
-        rx.text("Layer metrics placeholder"),
-        padding="1rem",
+    """Display map metrics."""
+    return rx.hstack(
+        rx.badge(
+            rx.cond(
+                AppState.mapbiomas_displayed_years.length() > 0,
+                rx.text(
+                    f"🗺️ MapBiomas (",
+                    AppState.mapbiomas_displayed_years.length(),
+                    ")",
+                ),
+                "MapBiomas",
+            ),
+            color_scheme="green",
+        ),
+        rx.badge(
+            rx.cond(
+                AppState.hansen_displayed_layers.length() > 0,
+                rx.text(
+                    f"🌲 Hansen (",
+                    AppState.hansen_displayed_layers.length(),
+                    ")",
+                ),
+                "Hansen",
+            ),
+            color_scheme="blue",
+        ),
+        spacing="2",
     )
-

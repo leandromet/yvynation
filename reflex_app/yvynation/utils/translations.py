@@ -81,6 +81,65 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ee_init_error": "Failed to initialize Earth Engine: {error}",
         "error": "Error",
         "success": "Success",
+        
+        # Analysis results
+        "class": "Class",
+        "area_hectares": "Area (ha)",
+        "area_km2": "Area (km²)",
+        "percentage": "Percentage (%)",
+        "year": "Year",
+        "change": "Change",
+        "from_class": "From Class",
+        "to_class": "To Class",
+        "area_changed": "Area Changed",
+        
+        # File upload
+        "upload_file": "Upload File",
+        "file_uploaded": "File uploaded successfully",
+        "file_upload_error": "Error uploading file",
+        "select_file": "Select file (GeoJSON, KML, Shapefile)",
+        
+        # Buffer operations
+        "buffer_distance": "Buffer Distance (meters)",
+        "create_buffer": "Create Buffer",
+        "buffer_created": "Buffer created successfully",
+        
+        # Geometry
+        "draw_area": "Draw Area of Interest",
+        "upload_geometry": "Upload Geometry",
+        "geometry_loaded": "Geometry loaded",
+        
+        # Export
+        "export_as_csv": "Export as CSV",
+        "export_as_pdf": "Export as PDF",
+        "export_as_zip": "Export as ZIP",
+        "exporting": "Exporting...",
+        "export_complete": "Export complete",
+        
+        # MapBiomas specific
+        "mapbiomas_no_data": "No data available for selected area",
+        "mapbiomas_process_error": "Error processing class {class_id}: {error}",
+        "mapbiomas_analysis_title": "MapBiomas Land Cover Analysis",
+        "mapbiomas_year_range": "Year range: {start} - {end}",
+        
+        # Hansen specific
+        "hansen_tree_cover": "Tree Cover",
+        "hansen_tree_loss": "Tree Loss",
+        "hansen_tree_gain": "Tree Gain",
+        "hansen_no_data": "No Hansen data for selected area",
+        
+        # Settings
+        "language": "Language",
+        "theme": "Theme",
+        "dark_mode": "Dark Mode",
+        "light_mode": "Light Mode",
+        
+        # Help & Info
+        "help": "Help",
+        "documentation": "Documentation",
+        "about": "About Yvynation",
+        "version": "Version",
+        "powered_by": "Powered by",
     },
     "pt": {
         # Page
@@ -156,6 +215,65 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ee_init_error": "Falha ao inicializar Earth Engine: {error}",
         "error": "Erro",
         "success": "Sucesso",
+        
+        # Analysis results
+        "class": "Classe",
+        "area_hectares": "Área (ha)",
+        "area_km2": "Área (km²)",
+        "percentage": "Percentual (%)",
+        "year": "Ano",
+        "change": "Mudança",
+        "from_class": "De Classe",
+        "to_class": "Para Classe",
+        "area_changed": "Área Mudada",
+        
+        # File upload
+        "upload_file": "Enviar Arquivo",
+        "file_uploaded": "Arquivo enviado com sucesso",
+        "file_upload_error": "Erro ao enviar arquivo",
+        "select_file": "Selecione arquivo (GeoJSON, KML, Shapefile)",
+        
+        # Buffer operations
+        "buffer_distance": "Distância do Buffer (metros)",
+        "create_buffer": "Criar Buffer",
+        "buffer_created": "Buffer criado com sucesso",
+        
+        # Geometry
+        "draw_area": "Desenhar Área de Interesse",
+        "upload_geometry": "Enviar Geometria",
+        "geometry_loaded": "Geometria carregada",
+        
+        # Export
+        "export_as_csv": "Exportar como CSV",
+        "export_as_pdf": "Exportar como PDF",
+        "export_as_zip": "Exportar como ZIP",
+        "exporting": "Exportando...",
+        "export_complete": "Exportação concluída",
+        
+        # MapBiomas specific
+        "mapbiomas_no_data": "Nenhum dado disponível para a área selecionada",
+        "mapbiomas_process_error": "Erro ao processar classe {class_id}: {error}",
+        "mapbiomas_analysis_title": "Análise de Cobertura Terrestre MapBiomas",
+        "mapbiomas_year_range": "Intervalo de anos: {start} - {end}",
+        
+        # Hansen specific
+        "hansen_tree_cover": "Cobertura Arbórea",
+        "hansen_tree_loss": "Perda Florestal",
+        "hansen_tree_gain": "Ganho Florestal",
+        "hansen_no_data": "Nenhum dado Hansen para a área selecionada",
+        
+        # Settings
+        "language": "Idioma",
+        "theme": "Tema",
+        "dark_mode": "Modo Escuro",
+        "light_mode": "Modo Claro",
+        
+        # Help & Info
+        "help": "Ajuda",
+        "documentation": "Documentação",
+        "about": "Sobre Yvynation",
+        "version": "Versão",
+        "powered_by": "Desenvolvido por",
     },
     "es": {
         # Page
@@ -231,6 +349,65 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ee_init_error": "Error al inicializar Earth Engine: {error}",
         "error": "Error",
         "success": "Éxito",
+        
+        # Analysis results
+        "class": "Clase",
+        "area_hectares": "Área (ha)",
+        "area_km2": "Área (km²)",
+        "percentage": "Porcentaje (%)",
+        "year": "Año",
+        "change": "Cambio",
+        "from_class": "De Clase",
+        "to_class": "Para Clase",
+        "area_changed": "Área Cambiada",
+        
+        # File upload
+        "upload_file": "Cargar Archivo",
+        "file_uploaded": "Archivo cargado exitosamente",
+        "file_upload_error": "Error al cargar archivo",
+        "select_file": "Seleccione archivo (GeoJSON, KML, Shapefile)",
+        
+        # Buffer operations
+        "buffer_distance": "Distancia del Buffer (metros)",
+        "create_buffer": "Crear Buffer",
+        "buffer_created": "Buffer creado exitosamente",
+        
+        # Geometry
+        "draw_area": "Dibujar Área de Interés",
+        "upload_geometry": "Cargar Geometría",
+        "geometry_loaded": "Geometría cargada",
+        
+        # Export
+        "export_as_csv": "Exportar como CSV",
+        "export_as_pdf": "Exportar como PDF",
+        "export_as_zip": "Exportar como ZIP",
+        "exporting": "Exportando...",
+        "export_complete": "Exportación completada",
+        
+        # MapBiomas specific
+        "mapbiomas_no_data": "No hay datos disponibles para el área seleccionada",
+        "mapbiomas_process_error": "Error al procesar clase {class_id}: {error}",
+        "mapbiomas_analysis_title": "Análisis de Cobertura Terrestre MapBiomas",
+        "mapbiomas_year_range": "Rango de años: {start} - {end}",
+        
+        # Hansen specific
+        "hansen_tree_cover": "Cobertura Forestal",
+        "hansen_tree_loss": "Pérdida Forestal",
+        "hansen_tree_gain": "Ganancia Forestal",
+        "hansen_no_data": "Sin datos Hansen para el área seleccionada",
+        
+        # Settings
+        "language": "Idioma",
+        "theme": "Tema",
+        "dark_mode": "Modo Oscuro",
+        "light_mode": "Modo Claro",
+        
+        # Help & Info
+        "help": "Ayuda",
+        "documentation": "Documentación",
+        "about": "Acerca de Yvynation",
+        "version": "Versión",
+        "powered_by": "Desarrollado por",
     }
 }
 

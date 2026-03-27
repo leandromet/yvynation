@@ -6,47 +6,63 @@ import reflex as rx
 from ..state import AppState
 from ..components.sidebar import sidebar
 from ..components.map import leaflet_map, map_metrics
-from ..components.analysis import analysis_content
+from ..components.analysis_results import analysis_results
+from ..components.results_panel import results_panel
 from ..utils.translations import t
 
 
 def navbar() -> rx.Component:
-    """Top navigation bar."""
+    """Modern top navigation bar."""
     return rx.hstack(
-        rx.hstack(
-            rx.image(
-                src="/logo.png",
-                height="2.5rem",
-            ),
-            rx.vstack(
-                rx.heading("🏞️ Yvynation", size="3"),
-                rx.text(
-                    "Indigenous Land Monitoring Platform",
-                    font_size="xs",
-                    color="gray",
-                ),
-            ),
-            width="auto",
-        ),
-        rx.spacer(),
+        # Left side - toggle & branding
         rx.hstack(
             rx.button(
                 rx.cond(
                     AppState.sidebar_open,
-                    "◀ Hide Sidebar",
-                    "▶ Show Sidebar",
+                    "☰ Hide",
+                    "☰ Show",
                 ),
                 on_click=AppState.toggle_sidebar,
                 size="1",
-                variant="outline",
+                variant="ghost",
+                color_scheme="green",
             ),
-            padding="0.5rem",
+            rx.vstack(
+                rx.heading("🏞️ Yvynation", size="3"),
+                rx.text(
+                    "Indigenous Land Monitoring",
+                    font_size="xs",
+                    color="gray",
+                ),
+                spacing="0",
+                margin="0",
+            ),
+            width="auto",
+            align_items="center",
+            spacing="3",
         ),
-        padding="1rem 2rem",
-        bg="white",
-        border_bottom="1px solid #e0e0e0",
+        # Center - empty spacer
+        rx.spacer(),
+        # Right side - info
+        rx.hstack(
+            rx.text(
+                "🌍 Global Forest Monitoring Platform",
+                font_size="sm",
+                color="gray",
+                display=rx.cond(AppState.sidebar_open, "block", "none"),
+            ),
+            align_items="center",
+            spacing="3",
+        ),
+        padding="0.75rem 1.5rem",
+        bg="linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%)",
+        border_bottom="2px solid #e8f0e8",
         align_items="center",
         width="100%",
+        height="70px",
+        position="sticky",
+        top="0",
+        z_index="100",
     )
 
 
@@ -155,47 +171,89 @@ def loading_overlay(state: AppState) -> rx.Component:
 
 
 def index() -> rx.Component:
-    """Main application layout."""
+    """Main application layout with modern design."""
     return rx.vstack(
         navbar(),
         rx.cond(
             AppState.data_loaded,
             rx.hstack(
-                # Sidebar
+                # Sidebar (collapsible)
                 rx.cond(
                     AppState.sidebar_open,
-                    rx.box(
-                        sidebar(),
-                        width="25%",
-                        height="calc(100vh - 70px)",
-                        overflow_y="auto",
-                    ),
+                    sidebar(),
                     rx.box(),
                 ),
-                # Main content
+                # Main content area
                 rx.vstack(
-                    map_metrics(),
-                    leaflet_map(),
+                    # Stats/Metrics
+                    rx.box(
+                        map_metrics(),
+                        padding="1rem",
+                        width="100%",
+                        border_bottom="1px solid #e0e0e0",
+                    ),
+                    
+                    # Map and Results area (split)
+                    rx.cond(
+                        (AppState.analysis_results != {}) & (AppState.analysis_results != None),
+                        # Split view: map and results
+                        rx.hstack(
+                            # Map (left)
+                            rx.box(
+                                leaflet_map(),
+                                width="50%",
+                                overflow_y="auto",
+                                overflow_x="hidden",
+                                border_right="1px solid #e0e0e0",
+                            ),
+                            # Results panel (right)
+                            rx.box(
+                                results_panel(),
+                                width="50%",
+                                overflow_y="auto",
+                                overflow_x="hidden",
+                            ),
+                            width="100%",
+                            flex="1",
+                            spacing="0",
+                        ),
+                        # Map only
+                        rx.box(
+                            leaflet_map(),
+                            width="100%",
+                            flex="1",
+                            overflow_y="auto",
+                            overflow_x="hidden",
+                        ),
+                    ),
+                    
                     width="100%",
-                    height="calc(100vh - 70px)",
-                    overflow_y="auto",
-                    padding="1rem",
+                    height="100%",
+                    spacing="0",
+                    overflow="hidden",
                 ),
+                
                 width="100%",
-                height="100%",
+                height="calc(100vh - 70px)",
                 spacing="0",
             ),
+            # Loading state
             rx.vstack(
                 rx.spinner(color="green", size="3"),
-                rx.text("Loading Yvynation Platform..."),
+                rx.text("Initializing Yvynation Platform..."),
                 align_items="center",
                 justify_content="center",
-                height="100vh",
+                height="calc(100vh - 70px)",
+                spacing="4",
             ),
         ),
-        error_toast(AppState),  # type: ignore
-        loading_overlay(AppState),  # type: ignore
+        error_toast(AppState),
+        loading_overlay(AppState),
         width="100%",
         height="100vh",
         spacing="0",
     )
+
+
+      
+
