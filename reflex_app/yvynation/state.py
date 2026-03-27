@@ -190,23 +190,22 @@ class AppState(rx.State):
     
     def add_drawn_feature(self, feature: Dict[str, Any]):
         """Add a drawn feature to the list."""
+        feature["_idx"] = len(self.drawn_features)
+        feature["_display_idx"] = len(self.drawn_features) + 1
         self.drawn_features.append(feature)
         logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')}")
     
     def remove_geometry(self, idx: int):
-        """Remove a geometry by index."""
-        if 0 <= idx < len(self.drawn_features):
-            removed = self.drawn_features.pop(idx)
-            logger.info(f"Removed geometry {idx}: {removed.get('type', 'Unknown')}")
-            
-            # Adjust selected index if necessary
-            if self.selected_geometry_idx is not None:
-                if self.selected_geometry_idx == idx:
-                    # Selection was on removed item
-                    self.selected_geometry_idx = None
-                elif self.selected_geometry_idx > idx:
-                    # Shift index down for items after removed
-                    self.selected_geometry_idx -= 1
+        """Remove a geometry by index (_idx field)."""
+        # Filter out the feature with matching _idx
+        self.drawn_features = [
+            f for f in self.drawn_features 
+            if f.get("_idx") != idx
+        ]
+        # Reset selected if it was the deleted one
+        if self.selected_geometry_idx == idx:
+            self.selected_geometry_idx = None
+        logger.info(f"Removed geometry with _idx={idx}")
     
     def clear_geometries(self):
         """Clear all drawn geometries."""
@@ -471,12 +470,116 @@ class AppState(rx.State):
         
     def add_drawn_feature(self, feature: Dict[str, Any]):
         """Add a drawn feature to the list."""
+        # Add index for tracking in the UI
+        feature["_idx"] = len(self.drawn_features)
         self.drawn_features.append(feature)
         self.all_drawn_features.append(feature)
         
     def clear_drawn_features(self):
         """Clear all drawn features."""
         self.drawn_features = []
+    
+    def capture_drawn_features(self):
+        """
+        Capture drawn features from the Folium map.
+        This method should be called after drawing on the map.
+        Works by extracting GeoJSON from the Leaflet Draw layer via JavaScript.
+        """
+        # This method triggers JavaScript to extract drawn features
+        # The JavaScript call happens via rx.call_script() in the component
+        # and sends the GeoJSON back to this handler via load_geojson_from_browser()
+        pass
+    
+    def load_geojson_from_browser(self, geojson_data: str):
+        """
+        Receive GeoJSON data captured from browser's Leaflet Draw layer.
+        Called by JavaScript after extracting drawn features.
+        
+        Args:
+            geojson_data: JSON string containing GeoJSON features
+        """
+        try:
+            import json
+            data = json.loads(geojson_data) if isinstance(geojson_data, str) else geojson_data
+            
+            # Extract features from GeoJSON FeatureCollection
+            features = data.get("features", [])
+            
+            # Clear existing and load new features
+            self.drawn_features = []
+            
+            for idx, feature in enumerate(features):
+                try:
+                    geom = feature.get("geometry", {})
+                    geom_type = geom.get("type", "Unknown")
+                    
+                    # Create a displayable feature object
+                    feature_obj = {
+                        "_idx": idx,
+                        "_display_idx": idx + 1,
+                        "type": geom_type,
+                        "name": f"Geometry {idx + 1}",
+                        "geometry": geom,
+                        "properties": feature.get("properties", {}),
+                        "coordinates": geom.get("coordinates", []),
+                    }
+                    
+                    self.drawn_features.append(feature_obj)
+                    self.all_drawn_features.append(feature_obj)
+                except Exception as feature_err:
+                    logger.warning(f"Error processing feature {idx}: {feature_err}")
+            
+            # Notify user
+            if self.drawn_features:
+                self.error_message = f"✓ Loaded {len(self.drawn_features)} geometry/ies"
+            else:
+                self.error_message = "No geometries found in the map"
+                
+        except json.JSONDecodeError as e:
+            self.error_message = f"Error parsing GeoJSON: {str(e)}"
+        except Exception as e:
+            self.error_message = f"Error loading geometries: {str(e)}"
+            logger.error(f"Error in load_geojson_from_browser: {e}")
+    
+    def add_test_geometry(self):
+        """
+        Add a test geometry to demonstrate the geometry selector UI.
+        Useful for testing the interface without drawing on the map.
+        In production, geometries would come from Leaflet Draw.
+        """
+        # Create a test polygon geometry (sample indigenous territory)
+        idx = len(self.drawn_features)
+        test_feature = {
+            "_idx": idx,
+            "_display_idx": idx + 1,
+            "type": "Polygon",
+            "name": "Test Territory",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [-60.5, -3.0],
+                    [-60.0, -3.0],
+                    [-60.0, -2.5],
+                    [-60.5, -2.5],
+                    [-60.5, -3.0]
+                ]]
+            },
+            "properties": {
+                "name": "Test Territory",
+                "description": "Sample geometry for testing the selector UI"
+            },
+            "coordinates": [[
+                [-60.5, -3.0],
+                [-60.0, -3.0],
+                [-60.0, -2.5],
+                [-60.5, -2.5],
+                [-60.5, -3.0]
+            ]],
+        }
+        
+        self.drawn_features.append(test_feature)
+        self.all_drawn_features.append(test_feature)
+        self.error_message = "✓ Test geometry loaded. You can now test the analysis features."
     
     def show_geometry_info(self, geometry_idx: int):
         """Show geometry info popup for a specific geometry."""

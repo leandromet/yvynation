@@ -10,6 +10,7 @@ from ..config import MAPBIOMAS_YEARS, HANSEN_YEARS
 from .geometry_upload import geometry_file_upload
 from .analysis_controls import analysis_controls
 from .year_selector import year_selector_grid
+from .geometry_selector import geometry_selector, drawing_instructions
 
 
 def collapsible_section(
@@ -643,6 +644,17 @@ def sidebar() -> rx.Component:
                         territory_selection_controls(),
                         AppState.sidebar_geometry_expanded,
                         lambda: AppState.toggle_sidebar_section("geometry"),
+                    ),
+                    
+                    # Geometry Selector - always visible when geometries exist
+                    rx.box(
+                        rx.vstack(
+                            drawing_instructions(),
+                            geometry_selector(),
+                            spacing="2",
+                        ),
+                        padding="0.75rem",
+                        width="100%",
                     ),
                     
                     # Collapsible Geometry Upload section (Phase 2)
