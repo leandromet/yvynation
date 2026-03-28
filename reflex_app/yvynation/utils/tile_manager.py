@@ -25,31 +25,37 @@ class EETileManager:
         """
         try:
             cache_key = f"mapbiomas_{year}"
-            
+
             if cache_key in self._tile_cache:
                 return self._tile_cache[cache_key]
-            
-            # Load MapBiomas dataset
-            dataset = ee.ImageCollection("users/mapbiomas/aqueousv3/mapbiomas_v802_2023")
-            
-            # Filter to year
-            image = dataset.filterDate(f"{year}-01-01", f"{year+1}-01-01").first()
-            
-            if image is None:
+
+            # Load MapBiomas v9 (it's an Image, not ImageCollection)
+            from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_PALETTE
+
+            mapbiomas_asset = MAPBIOMAS_COLLECTIONS.get('v9',
+                'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+
+            image = ee.Image(mapbiomas_asset)
+
+            # Select the year band
+            band = f'classification_{year}'
+            year_image = image.select(band)
+
+            if year_image is None:
                 logger.warning(f"No MapBiomas data for year {year}")
                 return None
-            
+
             # Get map ID (tile URL)
-            map_id = image.getMapId({'min': 0, 'max': 49, 'palette': self._get_mapbiomas_palette()})
-            
+            map_id = year_image.getMapId({'min': 0, 'max': 49, 'palette': MAPBIOMAS_PALETTE[:50]})
+
             tile_url = map_id['tile_fetcher'].url_format
             attribution = f"MapBiomas {year}"
-            
+
             self._tile_cache[cache_key] = (tile_url, attribution)
             logger.info(f"Generated MapBiomas {year} tile URL")
-            
+
             return (tile_url, attribution)
-            
+
         except Exception as e:
             logger.error(f"Failed to get MapBiomas tile for {year}: {e}")
             return None

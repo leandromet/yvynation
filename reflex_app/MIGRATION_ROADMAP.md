@@ -3,7 +3,7 @@
 ## Overview
 The old Streamlit app has **7 architectural layers**. We're porting them in order of dependency.
 
-**Current Status: Phase 3 (Analysis) - FOUNDATION COMPLETE** ✅
+**Current Status: Phase 7 (Testing) - IN PROGRESS** ⏳
 
 ---
 
@@ -130,135 +130,163 @@ The old Streamlit app has **7 architectural layers**. We're porting them in orde
 
 ---
 
-## Phase 4: Visualization (Next) ⏸️
+## Phase 4: Visualization (In Progress) ⏳
 ### Layer D: Charts & Map Overlays
 
 | Module | Purpose | Reflex Approach | Status |
 |--------|---------|-----------------|--------|
-| `plots.py` | Matplotlib bar/line charts | → `rx.plotly()` (more interactive) | ⏳ Todo |
-| `ee_layers.py` | EE tile visualization | → Folium GeoJSON layers | ⏳ Todo |
-| `map_manager.py` | Map setup | → Folium base + functions | ✅ 50% |
+| `visualization.py` | Plotly charts (bar, pie, comparison, gains/losses, Sankey) | `rx.plotly()` reactive charts | ✅ Done |
+| `analysis_tabs.py` | 6-tab analysis UI (MapBiomas, Hansen, GFC, AAFC, Comparison, About) | Reflex tabs + Plotly | ✅ Done |
+| `results_panel.py` | Results display with charts, data tables, CSV download | Integrated with analysis_tabs | ✅ Done |
+| `ee_layers.py` | EE tile visualization | Folium GeoJSON layers + tile cache | ✅ Done (Phase 3) |
+| `map_manager.py` | Map setup | Folium base + functions | ✅ Done (Phase 3) |
 
-**Implementation Details:**
+**Phase 4A: Plotly Visualization** (Complete)
+- `MapBiomasVisualizer.create_area_bar_chart()` - Horizontal bar chart with MapBiomas class colors
+- `MapBiomasVisualizer.create_pie_chart()` - Land cover composition pie chart
+- `MapBiomasVisualizer.create_comparison_chart()` - Side-by-side year comparison bars
+- `HansenVisualizer.create_loss_timeline_chart()` - Annual loss line chart
+- `HansenVisualizer.create_forest_balance_chart()` - Cover/Loss/Gain summary bars
+- `HansenVisualizer.create_area_distribution_chart()` - Hansen class distribution
+- `calculate_gains_losses()` - Compute area changes between years (replaces Streamlit plotting_utils)
+- `create_gains_losses_chart()` - Diverging bar chart: green gains, red losses
+- `create_change_percentage_chart()` - Percentage change bars
+- `create_sankey_transitions()` - Plotly Sankey diagram for class transitions
 
-#### Plotly Integration (Better than Matplotlib)
-```python
-# Instead of Streamlit's st.pyplot(fig):
-# Create Plotly figures directly, embed in Reflex
+**Phase 4B: Analysis Tabs Component** (Complete)
+- 6 tabs matching Streamlit: MapBiomas | Hansen/GLAD | Hansen GFC | AAFC | Comparison | About
+- Each tab has: summary metrics, Plotly charts, data tables, CSV download
+- Comparison tab shows: side-by-side, gains/losses, % change, net summary
+- About tab shows: territory info, available datasets
 
-# Example: Land cover bar chart
-def plot_mapbiomas_results(df):
-    fig = go.Figure(data=[
-        go.Bar(x=df['Class_Name'], y=df['Area_ha'], name='Area (ha)')
-    ])
-    return fig
+**Phase 4C: State Integration** (Complete)
+- Computed `@rx.var` properties for chart data (auto-regenerate on analysis_results change)
+- `mapbiomas_bar_chart`, `mapbiomas_pie_chart`, `hansen_balance_chart` — Plotly JSON
+- `comparison_chart`, `gains_losses_chart`, `change_pct_chart` — comparison charts
+- `analysis_table_data`, `analysis_table_columns` — for `rx.data_table()`
+- Summary formatters: `analysis_summary_total_area`, `hansen_summary_cover/loss/gain`
+- Territory comparison: `run_territory_comparison()` with year1/year2 selection
+- CSV export: `download_analysis_csv()`, `download_comparison_csv()`
+- Year comparison controls in sidebar and navbar
 
-# In Reflex:
-rx.plotly(data=result_plot)
-```
+**Phase 4D: Remaining** (Todo)
+- [ ] AAFC analysis handler for Canadian territories
+- [ ] Sankey diagram display in comparison tab (EE transitions query)
+- [ ] Export chart images (Plotly to PNG)
+- [ ] PDF map export (port from map_pdf_export.py)
 
-**Tasks:**
-- [ ] Port all matplotlib → plotly conversions
-- [ ] Create visualization functions for each analysis type
-- [ ] Add export-to-image for charts
-- [ ] Create dashboard-style layouts
+**Tests Performed:**
+- ✅ All files pass Python syntax check
+- ✅ visualization.py imports and functions validated
+- ✅ All component files compile without errors
 
-**Effort:** 8-10 hours
-
-#### EE Tile Layer Caching
-```python
-# Critical for performance:
-# Cache getMapId() results in AppState._tile_cache
-# Avoid 1-2 sec delay on each layer toggle
-
-def add_ee_layer_with_cache(map_obj, ee_image, name, year):
-    cache_key = f"{name}_{year}"
-    if cache_key not in AppState._tile_cache:
-        tile_id = ee_image.getMapId()  # 1-2 sec EE call
-        AppState._tile_cache[cache_key] = tile_id
-    return AppState._tile_cache[cache_key]
-```
-
-**Tasks:**
-- [ ] Implement tile caching in AppState
-- [ ] Add EE tile layers to Folium map
-- [ ] Create layer toggle buttons in sidebar
-- [ ] Test with multiple layers
-
-**Effort:** 6-8 hours
+**Phase 4 Effort:** ~14 hours (visualization, tabs, state integration, comparison)
+**Completion:** March 27, 2026 (core), remaining items in Phase 5
 
 ---
 
-## Phase 5: Export & Reporting (Week 6)
+## Phase 5: Export & Reporting ✅
 ### Layer E: Output Generation
 
-| Module | Purpose | Reflex Approach | Status |
+| Module | Purpose | Reflex Location | Status |
 |--------|---------|-----------------|--------|
-| `export_utils.py` | ZIP bundles (data+figures) | → Backend task queue | ⏳ Todo |
-| `png_export.py` | Static map pngs | → Selenium headless or API | ⏳ Todo |
-| `map_pdf_export.py` | PDF reports with maps | → ReportLab or WeasyPrint | ⏳ Todo |
+| `export_service.py` | ZIP bundles (data+figures+metadata) | `/reflex_app/utils/export_service.py` | ✅ Done |
+| `map_export_service.py` | PDF maps with EE layers & overlays | `/reflex_app/utils/map_export_service.py` | ✅ Done |
+| `export_panel.py` | Export UI with tabs (ZIP/PDF) | `/reflex_app/components/export_panel.py` | ✅ Done |
+| `AppState` handlers | Export triggers & download | `/reflex_app/state.py` | ✅ Done |
 
-**Implementation Strategy:**
+**Phase 5A: ZIP Export Service** (Complete)
+- `create_export_zip()` - Generates organized ZIP with:
+  - `metadata.json` - Export timestamp, territory, source info
+  - `geometries.geojson` - All drawn features as FeatureCollection
+  - `territory/{name}/boundary.geojson` - Territory boundary from EE
+  - `territory/{name}/{source}_{year}_data.csv` - Analysis CSVs per year
+  - `territory/{name}/comparison_{y1}_vs_{y2}.csv` - Comparison data
+  - `analysis/transitions.json` - Transition matrix data
+  - `figures/{name}.html` - Interactive Plotly charts
+  - `figures/{name}.png` - Static chart images (requires kaleido)
+  - `README.txt` - Summary text
+- `collect_export_data_from_state()` - Collects all exportable data from AppState
 
-#### ZIP Export
-```python
-# AppState.export_analysis_results()
-#   → Collects all CSVs, images, metadata
-#   → Creates ZIP file
-#   → Returns download link
+**Phase 5B: PDF Map Export** (Complete)
+- `get_basemap_image()` - Downloads & stitches Google/ArcGIS tiles
+- `get_ee_layer_image()` - Downloads EE raster layers (MapBiomas, Hansen)
+- `create_pdf_map()` - Publication-quality PDF with:
+  - Basemap or EE raster overlay
+  - Territory boundary (purple), buffer zone (blue dashed)
+  - Drawn polygons with numbered labels
+  - Scale bar, grid, legend, title, timestamp
+- `create_map_set()` - Generates PDF set for all active layers + satellite basemap
+- `add_scale_bar()` - Cartographic scale bar (5/10/25/50 km)
+- `get_geometry_bounds()` - Bounding box from features with padding
 
-# Reflex approach: Backend task queue + file download
-```
+**Phase 5C: Export UI** (Complete)
+- `export_panel()` - Tabbed export interface (Data & Figures | PDF Maps)
+- Export manifest showing what will be included
+- Status indicators (check marks for available data)
+- Map count for PDF generation
+- Integrated below analysis results in main layout
 
-**Tasks:**
-- [ ] Create `ExportManager` utility class
-- [ ] Port ZIP creation logic
-- [ ] Implement result file staging
-- [ ] Add download button to results panel
+**Phase 5D: State Handlers** (Complete)
+- `export_analysis_zip()` - Generate ZIP + trigger `rx.download()`
+- `export_pdf_maps()` - Generate PDF set (single PDF or ZIP of multiple)
+- `export_pending`, `map_export_pending` flags for loading UI
 
-**Effort:** 6-8 hours
+**Tests Performed:**
+- ✅ All files pass Python syntax check
+- ✅ export_service.py imports validated
+- ✅ map_export_service.py imports validated
 
-#### PDF Reports (Optional - Phase 2)
-```python
-# Advanced: Create formatted PDF with:
-# - Territory name & metadata
-# - Results table
-# - Chart images
-# - Map snapshot
-```
-
-**Effort:** 8-12 hours (optional)
+**Phase 5 Effort:** ~10 hours
+**Completion:** March 27, 2026
 
 ---
 
-## Phase 6: UI Polish (Week 7)
+## Phase 6: UI Polish (Next) ⏳
 ### Layer F: Sidebar & Interactions
 
 | Component | Purpose | Status |
 |-----------|---------|--------|
-| Territory selector | Dropdown with 28 Brazilian territories | ⏳ In Progress |
-| Year range slider | MapBiomas 1985-2023 selection | ⏳ Todo |
-| Layer toggles | Show/hide MapBiomas, Hansen, GFC | ⏳ Todo |
-| Analysis tabs | MapBiomas, Hansen, GFC, Territory compare | ⏳ Todo |
-| Results panel | Show analysis DataFrame + charts | ⏳ Todo |
+| Territory selector | Dropdown with search filtering | ✅ Done |
+| Year selector grid | MapBiomas 1985-2023 bingo-card style | ✅ Done |
+| Year comparison | Side-by-side year selectors + compare button | ✅ Done (Phase 4) |
+| Layer toggles | Show/hide MapBiomas, Hansen, GFC | ✅ Done |
+| Analysis tabs | 6 tabs: MapBiomas, Hansen, GFC, AAFC, Comparison, About | ✅ Done (Phase 4) |
+| Results panel | Plotly charts + data tables + CSV download | ✅ Done (Phase 4) |
+| Export panel | ZIP + PDF export with manifest | ✅ Done (Phase 5) |
+| AAFC analysis | Canadian crop inventory handler | ⏳ Todo |
+| Sankey display | Pixel transitions via EE query | ⏳ Todo |
+| Responsive layout | Mobile-friendly sidebar + map | ⏳ Todo |
 
-**Tasks:**
-- [ ] Organize sidebar with collapsible sections (already has structure)
-- [ ] Add MapBiomas year selector
-- [ ] Add Hansen year range
-- [ ] Create analysis result tabs
-- [ ] Add loading progress indicators
-- [ ] Add error/success messages
+**Remaining Tasks:**
+- [ ] AAFC analysis handler for Canadian territories
+- [ ] Sankey transitions computation (EE frequencyHistogram)
+- [ ] Mobile responsive design
+- [ ] Buffer zone analysis in export
+- [ ] Keyboard shortcuts
 
-**Effort:** 8-10 hours
+**Effort:** 6-8 hours
 
 ---
 
-## Phase 7: Testing & Optimization (Week 8)
-- [ ] Unit tests for analysis functions
-- [ ] Integration tests for AppState
+## Phase 7: Testing & Optimization ⏳
+
+### Drawing Capture Fix (Complete) ✅
+- [x] JavaScript bridge injected into Folium map HTML (map_builder.py)
+- [x] Leaflet Draw events (draw:created, draw:edited, draw:deleted) captured to `window._yvyDrawnFeatures`
+- [x] "Save Drawing" button uses `rx.call_script()` to extract features from iframe
+- [x] `load_geojson_from_browser()` receives and processes GeoJSON from browser
+- [x] Error handling for bridge initialization failures and empty drawings
+
+### Unit Tests (Complete) ✅
+- [x] `test_geometry_handler.py` - 32 tests: GeoJSON/KML parsing, validation, bbox
+- [x] `test_visualization.py` - 27 tests: MapBiomas/Hansen charts, gains/losses, Sankey
+- [x] `test_export_service.py` - 14 tests: ZIP generation, GeoJSON export, metadata
+- [x] `test_analysis.py` - 9 tests: compare_areas() pure logic
+- [x] `test_state.py` - 9 tests: load_geojson_from_browser() all paths
+
+### Remaining
 - [ ] Performance testing (EE quota usage, tile caching)
-- [ ] Error handling for edge cases
 - [ ] Documentation
 
 **Effort:** 8-12 hours

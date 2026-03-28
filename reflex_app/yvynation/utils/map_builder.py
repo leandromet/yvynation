@@ -187,12 +187,154 @@ def build_map(mapbiomas_years: List[int] = None, hansen_layers: List[str] = None
                 'marker': True,
             }
         ).add_to(display_map)
-        
+
         # Add layer control - IMPORTANT: this must be added AFTER all layers
         layer_control = folium.LayerControl(position='topright', collapsed=False)
         display_map.add_child(layer_control)
         logger.info(f"Layer control added")
-        
+
+        # Inject JavaScript bridge: captures Leaflet Draw events and stores
+        # features in window._yvyDrawnFeatures so Reflex can read them via
+        # rx.call_script(). This bridges the Folium iframe → Reflex gap.
+        draw_bridge_js = """
+        <script>
+        (function() {
+            // Wait for the map to be ready
+            function initDrawBridge() {
+                // Find the Leaflet map instance
+                var mapEl = document.querySelector('.folium-map');
+                if (!mapEl || !mapEl._leaflet_id) {
+                    setTimeout(initDrawBridge, 200);
+                    return;
+                }
+
+                // Get the map object from Leaflet's internal registry
+                var map = null;
+                for (var key in L.Map._instances || {}) {
+                    map = L.Map._instances[key];
+                    break;
+                }
+
+                // Fallback: iterate window properties to find the map
+                if (!map) {
+                    var maps = document.querySelectorAll('.folium-map');
+                    for (var i = 0; i < maps.length; i++) {
+                        var el = maps[i];
+                        if (el._leaflet_id) {
+                            // Access via Leaflet internal
+                            for (var k in window) {
+                                try {
+                                    if (window[k] instanceof L.Map) {
+                                        map = window[k];
+                                        break;
+                                    }
+                                } catch(e) {}
+                            }
+                        }
+                    }
+                }
+
+                if (!map) {
+                    // Last resort: find map variable by searching Folium's generated names
+                    var scripts = document.querySelectorAll('script');
+                    for (var s = 0; s < scripts.length; s++) {
+                        var txt = scripts[s].textContent;
+                        var match = txt.match(/var\\s+(map_[a-f0-9]+)\\s*=\\s*L\\.map/);
+                        if (match && window[match[1]]) {
+                            map = window[match[1]];
+                            break;
+                        }
+                    }
+                }
+
+                if (!map) {
+                    console.warn('[YvyBridge] Could not find Leaflet map instance');
+                    return;
+                }
+
+                console.log('[YvyBridge] Map found, setting up draw event listeners');
+
+                // Find the FeatureGroup used by Leaflet Draw
+                var drawnItems = null;
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.FeatureGroup && !(layer instanceof L.TileLayer)) {
+                        drawnItems = layer;
+                    }
+                });
+
+                if (!drawnItems) {
+                    drawnItems = new L.FeatureGroup();
+                    map.addLayer(drawnItems);
+                }
+
+                // Store reference globally
+                window._yvyDrawnItems = drawnItems;
+                window._yvyDrawnFeatures = {"type": "FeatureCollection", "features": []};
+                window._yvyMap = map;
+
+                // Helper: export all drawn features to GeoJSON
+                function exportFeatures() {
+                    var fc = {"type": "FeatureCollection", "features": []};
+                    drawnItems.eachLayer(function(layer) {
+                        if (layer.toGeoJSON) {
+                            fc.features.push(layer.toGeoJSON());
+                        }
+                    });
+                    // Also check for any draw layers on the map directly
+                    map.eachLayer(function(layer) {
+                        if (layer instanceof L.Path && layer.toGeoJSON && !drawnItems.hasLayer(layer)) {
+                            // Check if it's a user-drawn layer (not a tile or base layer)
+                            if (layer._leaflet_id && layer.editing) {
+                                fc.features.push(layer.toGeoJSON());
+                            }
+                        }
+                    });
+                    window._yvyDrawnFeatures = fc;
+                    console.log('[YvyBridge] Features exported:', fc.features.length);
+                    return fc;
+                }
+
+                window._yvyExportFeatures = exportFeatures;
+
+                // Listen for draw events
+                map.on('draw:created', function(e) {
+                    var layer = e.layer;
+                    drawnItems.addLayer(layer);
+                    exportFeatures();
+                    console.log('[YvyBridge] draw:created -', e.layerType);
+                });
+
+                map.on('draw:edited', function(e) {
+                    exportFeatures();
+                    console.log('[YvyBridge] draw:edited');
+                });
+
+                map.on('draw:deleted', function(e) {
+                    exportFeatures();
+                    console.log('[YvyBridge] draw:deleted');
+                });
+
+                console.log('[YvyBridge] Draw bridge initialized successfully');
+            }
+
+            // Start initialization after a short delay to let Folium render
+            if (document.readyState === 'complete') {
+                setTimeout(initDrawBridge, 500);
+            } else {
+                window.addEventListener('load', function() {
+                    setTimeout(initDrawBridge, 500);
+                });
+            }
+        })();
+        </script>
+        """
+
+        # Inject the bridge script into the map HTML
+        from branca.element import Element
+        bridge_element = Element(draw_bridge_js)
+        display_map.get_root().html.add_child(bridge_element)
+        logger.info("Draw bridge JavaScript injected")
+
         # Get the map HTML
         map_html = display_map._repr_html_()
         logger.info(f"Map HTML generated - length: {len(map_html)}")

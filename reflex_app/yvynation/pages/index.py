@@ -1,15 +1,15 @@
 """
 Main application layout and routing for Yvynation Reflex app.
+Phase 4-5: Analysis tabs, Plotly visualizations, export functionality.
 """
 
 import reflex as rx
 from ..state import AppState
 from ..components.sidebar import sidebar
 from ..components.map import leaflet_map, map_metrics
-from ..components.analysis_results import analysis_results
 from ..components.results_panel import results_panel
+from ..components.export_panel import export_panel
 from ..components.geometry_popup import geometry_info_popup
-from ..utils.translations import t
 
 
 def navbar() -> rx.Component:
@@ -67,7 +67,7 @@ def navbar() -> rx.Component:
                 margin="0",
             ),
             rx.vstack(
-                rx.heading("🏞️ Yvynation", size="3"),
+                rx.heading("Yvynation", size="3"),
                 rx.text(
                     "Indigenous Land Monitoring",
                     font_size="xs",
@@ -80,15 +80,24 @@ def navbar() -> rx.Component:
             align_items="center",
             spacing="2",
         ),
-        # Center - empty spacer
+        # Center spacer
         rx.spacer(),
-        # Right side - info
+        # Right side - active analysis indicator
         rx.hstack(
-            rx.text(
-                "🌍 Global Forest Monitoring Platform",
-                font_size="sm",
-                color="gray",
-                display=rx.cond(AppState.sidebar_open, "block", "none"),
+            rx.cond(
+                (AppState.analysis_results != {}) & (AppState.analysis_results != None),
+                rx.badge(
+                    "Analysis Active",
+                    color_scheme="green",
+                    variant="solid",
+                    size="1",
+                ),
+                rx.text(
+                    "Global Forest Monitoring Platform",
+                    font_size="sm",
+                    color="gray",
+                    display=rx.cond(AppState.sidebar_open, "block", "none"),
+                ),
             ),
             align_items="center",
             spacing="3",
@@ -105,50 +114,58 @@ def navbar() -> rx.Component:
     )
 
 
-def tutorial_view() -> rx.Component:
-    """Tutorial/Getting started view."""
-    return rx.vstack(
-        rx.heading("🚀 Getting Started", size="2"),
-        rx.divider(),
-        rx.vstack(
-            rx.heading("How to use Yvynation", size="3"),
-            rx.ordered_list(
-                rx.list_item("Select a language in the sidebar"),
-                rx.list_item("Choose layers (MapBiomas, Hansen, etc.)"),
-                rx.list_item("Click on a territory on the map or draw your own area"),
-                rx.list_item("Run analysis to see land cover changes"),
-                rx.list_item("Export results as PDF or data files"),
-            ),
-            rx.divider(),
-            rx.heading("Available Datasets", size="4"),
-            rx.unordered_list(
-                rx.list_item(
-                    rx.vstack(
-                        rx.text("🌿 MapBiomas (1985-2023)"),
-                        rx.text(
-                            "Land cover classification for all of South America",
-                            font_size="1",
-                            color="gray",
-                        ),
-                    )
+def active_layers_summary() -> rx.Component:
+    """Show active layer counts and current configuration."""
+    return rx.hstack(
+        map_metrics(),
+        # Comparison controls (visible when analysis results exist)
+        rx.cond(
+            AppState.selected_territory != None,
+            rx.hstack(
+                rx.text("|", color="gray", font_size="sm"),
+                rx.text("Compare:", font_size="xs", color="gray"),
+                rx.select(
+                    [str(y) for y in range(1985, 2024)],
+                    value=AppState.comparison_year1.to(str),
+                    on_change=AppState.set_comparison_year1,
+                    size="1",
+                    width="80px",
                 ),
-                rx.list_item(
-                    rx.vstack(
-                        rx.text("🌲 Hansen Global Forest Change (2000-2023)"),
-                        rx.text(
-                            "Global forest cover loss and gain",
-                            font_size="1",
-                            color="gray",
-                        ),
-                    )
+                rx.text("vs", font_size="xs", color="gray"),
+                rx.select(
+                    [str(y) for y in range(1985, 2024)],
+                    value=AppState.comparison_year2.to(str),
+                    on_change=AppState.set_comparison_year2,
+                    size="1",
+                    width="80px",
                 ),
+                rx.cond(
+                    AppState.mapbiomas_analysis_pending,
+                    rx.button(
+                        rx.spinner(size="1"),
+                        is_disabled=True,
+                        size="1",
+                        color_scheme="blue",
+                    ),
+                    rx.button(
+                        "Compare",
+                        on_click=AppState.run_territory_comparison,
+                        size="1",
+                        color_scheme="green",
+                        variant="solid",
+                    ),
+                ),
+                spacing="2",
+                align_items="center",
             ),
+            rx.box(),
         ),
         width="100%",
-        max_width="800px",
-        padding="2rem",
-        margin="auto",
-        spacing="6",
+        padding="0.5rem 1rem",
+        border_bottom="1px solid #e0e0e0",
+        align_items="center",
+        flex_wrap="wrap",
+        gap="2",
     )
 
 
@@ -209,6 +226,133 @@ def loading_overlay(state: AppState) -> rx.Component:
     )
 
 
+def comparison_results_section() -> rx.Component:
+    """Year comparison results: charts + summary cards."""
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Year Comparison Results", size="3"),
+                rx.spacer(),
+                rx.button(
+                    "Download Comparison CSV",
+                    on_click=AppState.download_comparison_csv,
+                    size="1",
+                    color_scheme="blue",
+                    variant="outline",
+                ),
+                width="100%",
+                align_items="center",
+            ),
+            rx.divider(),
+            rx.plotly(data=AppState.gains_losses_chart, use_resize_handler=True),
+            rx.divider(),
+            rx.plotly(data=AppState.change_pct_chart, use_resize_handler=True),
+            rx.divider(),
+            # Summary cards
+            rx.hstack(
+                rx.box(
+                    rx.vstack(
+                        rx.text("Total Gains", font_size="xs", color="gray"),
+                        rx.text(AppState.comparison_total_gains,
+                                font_weight="bold", color="green"),
+                        spacing="0", align="center",
+                    ),
+                    padding="0.75rem", bg="green.50", border_radius="md",
+                    flex="1", text_align="center",
+                ),
+                rx.box(
+                    rx.vstack(
+                        rx.text("Total Losses", font_size="xs", color="gray"),
+                        rx.text(AppState.comparison_total_losses,
+                                font_weight="bold", color="red"),
+                        spacing="0", align="center",
+                    ),
+                    padding="0.75rem", bg="red.50", border_radius="md",
+                    flex="1", text_align="center",
+                ),
+                rx.box(
+                    rx.vstack(
+                        rx.text("Net Change", font_size="xs", color="gray"),
+                        rx.text(AppState.comparison_net_change,
+                                font_weight="bold"),
+                        spacing="0", align="center",
+                    ),
+                    padding="0.75rem", bg="blue.50", border_radius="md",
+                    flex="1", text_align="center",
+                ),
+                width="100%",
+                spacing="2",
+            ),
+            spacing="3",
+            width="100%",
+            padding="1rem",
+        ),
+        width="100%",
+        border="1px solid #e0e0e0",
+        border_radius="md",
+        bg="white",
+    )
+
+
+def main_content_area() -> rx.Component:
+    """
+    Main content area using CSS grid so the map gets a fixed-size row
+    and the results section scrolls independently below it.
+    """
+    has_analysis = (AppState.analysis_results != {}) & (AppState.analysis_results != None)
+
+    return rx.box(
+        # Row 1: layer summary bar (auto height)
+        active_layers_summary(),
+
+        # Row 2: map (fixed height via grid row)
+        leaflet_map(),
+
+        # Row 3: results area (scrollable, takes remaining space)
+        rx.cond(
+            has_analysis,
+            rx.box(
+                rx.vstack(
+                    # Analysis results tabs
+                    results_panel(),
+
+                    # Comparison results
+                    rx.cond(
+                        AppState.comparison_available,
+                        comparison_results_section(),
+                        rx.box(),
+                    ),
+
+                    # Export panel
+                    export_panel(),
+
+                    width="100%",
+                    spacing="3",
+                    padding="0.5rem",
+                ),
+                width="100%",
+                overflow_y="auto",
+                overflow_x="hidden",
+            ),
+            rx.box(),
+        ),
+
+        # CSS Grid layout: 3 rows
+        # - auto: layer bar takes its natural height
+        # - map row: big when no analysis, smaller when analysis shown
+        # - 1fr: results take remaining space (or 0 if hidden)
+        display="grid",
+        grid_template_rows=rx.cond(
+            has_analysis,
+            "auto minmax(250px, 45vh) 1fr",
+            "auto 1fr 0px",
+        ),
+        width="100%",
+        height="100%",
+        overflow="hidden",
+    )
+
+
 def index() -> rx.Component:
     """Main application layout with modern design."""
     return rx.vstack(
@@ -237,57 +381,7 @@ def index() -> rx.Component:
                     rx.box(),
                 ),
                 # Main content area
-                rx.vstack(
-                    # Stats/Metrics
-                    rx.box(
-                        map_metrics(),
-                        padding="1rem",
-                        width="100%",
-                        border_bottom="1px solid #e0e0e0",
-                    ),
-                    
-                    # Map and Results area (stacked vertically)
-                    rx.cond(
-                        (AppState.analysis_results != {}) & (AppState.analysis_results != None),
-                        # Vertical layout: map on top, results below
-                        rx.vstack(
-                            # Map
-                            rx.box(
-                                leaflet_map(),
-                                width="100%",
-                                height="600px",
-                                overflow_y="auto",
-                                overflow_x="hidden",
-                                border_bottom="1px solid #e0e0e0",
-                            ),
-                            # Results panel
-                            rx.box(
-                                results_panel(),
-                                width="100%",
-                                flex="1",
-                                overflow_y="auto",
-                                overflow_x="hidden",
-                            ),
-                            width="100%",
-                            flex="1",
-                            spacing="0",
-                        ),
-                        # Map only
-                        rx.box(
-                            leaflet_map(),
-                            width="100%",
-                            flex="1",
-                            overflow_y="auto",
-                            overflow_x="hidden",
-                        ),
-                    ),
-                    
-                    width="100%",
-                    height="100%",
-                    spacing="0",
-                    overflow="hidden",
-                ),
-                
+                main_content_area(),
                 width="100%",
                 height="calc(100vh - 70px)",
                 spacing="0",
@@ -309,7 +403,3 @@ def index() -> rx.Component:
         height="100vh",
         spacing="0",
     )
-
-
-      
-

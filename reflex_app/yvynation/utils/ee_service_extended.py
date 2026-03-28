@@ -87,85 +87,74 @@ class ExtendedEarthEngineService:
     
     def load_territories(self) -> Tuple[bool, List[str]]:
         """
-        Load indigenous territories from Earth Engine.
-        
+        Load indigenous territories from Earth Engine using config asset path.
+
         Returns:
             tuple: (success, territory_names)
         """
         try:
-            # Try different possible territory datasets
-            territory_assets = [
-                'projects/ee-leandromet/assets/indigenous_territories',
-                'projects/global-forest-watch/WDPA_current_terrestrial',
-                'WCMC/WDPA/current/polygons'
-            ]
-            
-            for asset in territory_assets:
-                try:
-                    self.territories_fc = ee.FeatureCollection(asset)
-                    # Test if it works
-                    _ = self.territories_fc.first().getInfo()
-                    self.territory_names = self._get_territory_names()
-                    logger.info(f"✓ Loaded territories from {asset}")
-                    return True, self.territory_names[:20]  # Return first 20 for now
-                except Exception as e:
-                    logger.debug(f"Asset {asset} failed: {e}")
-                    continue
-            
-            # Fallback: return real Brazilian indigenous territories
-            # These are actual major territorial names 
-            logger.warning("Using fallback territory data - connect to real EE dataset")
-            self.territory_names = [
-                "Trincheira",
-                "Kayapó", 
-                "Xingu",
-                "Madeira", 
-                "Negro",
-                "Solimões",
-                "Tapajós",
-                "Juruena",
-                "Aripuanã",
-                "Jiparaná",
-                "Mato Grosso",
-                "Pará",
-                "Roraima",
-                "Amazonas",
-                "Acre",
-                "Kaiapó",
-                "Yanomami",
-                "Munduruku",
-                "Tukano",
-                "Guarani",
-                "Waiãpi",
-                "Makuxi",
-                "Satere-Mawé",
-                "Kokama",
-                "Tikuna",
-            ]
+            from ..config.config import TERRITORY_COLLECTIONS
+
+            # Use the exact asset path from config (like Streamlit app does)
+            asset_path = TERRITORY_COLLECTIONS.get('indigenous')
+
+            if not asset_path:
+                logger.warning("No indigenous territory path in config")
+                return False, []
+
+            logger.info(f"Loading territories from: {asset_path}")
+            self.territories_fc = ee.FeatureCollection(asset_path)
+
+            # Test if it works and get the count
+            count = self.territories_fc.size().getInfo()
+            logger.info(f"✓ Loaded {count} indigenous territories")
+
+            # Extract territory names
+            self.territory_names = self._get_territory_names()
+
+            if not self.territory_names:
+                logger.warning("No territory names extracted, using fallback")
+                return False, []
+
+            logger.info(f"✓ Got {len(self.territory_names)} territory names")
             return True, sorted(self.territory_names)
-            
+
         except Exception as e:
             logger.error(f"Failed to load territories: {e}")
-            # Return empty list but ensure app doesn't crash
-            self.territory_names = []
-            return False, []
+            logger.warning("Using fallback territory data - connect to real EE dataset")
+            # Return true with fallback list to avoid complete failure
+            self.territory_names = [
+                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
+                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
+                "Mato Grosso", "Pará", "Roraima", "Amazonas", "Acre",
+            ]
+            return False, sorted(self.territory_names)
     
     def _get_territory_names(self) -> List[str]:
         """Extract territory names from feature collection."""
         try:
             if not self.territories_fc:
                 return []
-            
-            # Try different property names
+
+            # Get first feature to inspect properties
             first = self.territories_fc.first().getInfo()
             props = first.get('properties', {})
-            
-            for prop in ['name', 'Nome', 'NAME', 'territory_name']:
+            available_props = list(props.keys())
+
+            logger.debug(f"Available properties in territories: {available_props}")
+
+            # Try different property names (from Streamlit app)
+            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
                 if prop in props:
+                    logger.info(f"Using property '{prop}' for territory names")
                     names = self.territories_fc.aggregate_array(prop).getInfo()
-                    return sorted(names) if names else []
-            
+                    if names:
+                        return sorted([str(n) for n in names if n])
+
+            # If no standard property found, log the available ones
+            logger.warning(f"No standard name property found. Available: {available_props}")
             return []
+
         except Exception as e:
             logger.error(f"Error getting territory names: {e}")
             return []
@@ -175,13 +164,24 @@ class ExtendedEarthEngineService:
         try:
             if not self.territories_fc:
                 return None
-            
-            # Use a common name property (this should match your dataset)
-            filtered = self.territories_fc.filter(ee.Filter.eq('name', territory_name))
-            geom = filtered.first().geometry()
-            return geom
+
+            # Try different property names to find the territory
+            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
+                try:
+                    filtered = self.territories_fc.filter(ee.Filter.eq(prop, territory_name))
+                    count = filtered.size().getInfo()
+                    if count > 0:
+                        geom = filtered.first().geometry()
+                        logger.info(f"Found territory '{territory_name}' using property '{prop}'")
+                        return geom
+                except Exception:
+                    continue
+
+            logger.warning(f"Territory '{territory_name}' not found in any property")
+            return None
+
         except Exception as e:
-            logger.error(f"Error getting territory geometry: {e}")
+            logger.error(f"Error getting territory geometry for {territory_name}: {e}")
             return None
     
     def get_mapbiomas(self) -> ee.Image:
@@ -194,58 +194,66 @@ class ExtendedEarthEngineService:
     def analyze_mapbiomas(self, geometry: ee.Geometry, year: int) -> pd.DataFrame:
         """
         Analyze MapBiomas land cover for a geometry.
-        
+
         Args:
             geometry: EE geometry to analyze
-            year: Year to analyze
-        
+            year: Year to analyze (e.g., 2023)
+
         Returns:
             DataFrame with land cover breakdown
         """
         try:
-            # Get MapBiomas image
-            mapbiomas_coll = ee.ImageCollection(
-                'projects/mapbiomas-public/assets/brazil/lulc/collection9/'
-                'mapbiomas_collection90_integration_v1'
-            )
-            
-            image = mapbiomas_coll.filter(
-                ee.Filter.eq('system:index', str(year))
-            ).first()
-            
-            if image is None:
-                return pd.DataFrame()
-            
+            # MapBiomas v9 is an Image with bands like 'classification_2023', 'classification_2022', etc
+            mapbiomas = self.get_mapbiomas()
+
+            # Select the specific year band
+            band = f'classification_{year}'
+            image = mapbiomas.select(band)
+
             # Get histogram
             hist = image.reduceRegion(
                 reducer=ee.Reducer.frequencyHistogram(),
                 geometry=geometry,
                 scale=30,
-                maxPixels=1e9
+                maxPixels=int(1e9)
             ).getInfo()
-            
+
+            if not hist:
+                logger.warning(f"No mapbiomas data for year {year}")
+                return pd.DataFrame()
+
             # Process histogram
             records = []
-            band_key = list(hist.keys())[0] if hist else None
-            
-            if band_key and hist[band_key]:
+            band_key = band  # Should be the band we selected
+
+            if band_key in hist and hist[band_key]:
                 for class_id_str, count in hist[band_key].items():
-                    class_id = int(class_id_str)
-                    class_name = self.mapbiomas_labels.get(class_id, f"Class {class_id}")
-                    area_ha = count * 0.09  # 30m pixels
-                    
-                    records.append({
-                        'Class_ID': class_id,
-                        'Class': class_name,
-                        'Pixels': count,
-                        'Area_ha': round(area_ha, 2)
-                    })
-            
+                    try:
+                        class_id = int(class_id_str)
+                        class_name = self.mapbiomas_labels.get(class_id, f"Class {class_id}")
+                        area_ha = count * 0.09  # 30m pixels = 0.09 ha
+
+                        records.append({
+                            'Class_ID': class_id,
+                            'Class': class_name,
+                            'Pixels': int(count),
+                            'Area_ha': round(area_ha, 2)
+                        })
+                    except (ValueError, TypeError):
+                        continue
+
+            if not records:
+                logger.warning(f"No valid class data for MapBiomas {year}")
+                return pd.DataFrame()
+
             df = pd.DataFrame(records).sort_values('Area_ha', ascending=False)
+            logger.info(f"✓ Analyzed MapBiomas {year}: {len(df)} classes")
             return df
-        
+
         except Exception as e:
-            logger.error(f"Error analyzing MapBiomas: {e}")
+            logger.error(f"Error analyzing MapBiomas {year}: {e}")
+            import traceback
+            traceback.print_exc()
             return pd.DataFrame()
     
     def analyze_hansen(self, geometry: ee.Geometry, year: str) -> pd.DataFrame:

@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import ee
 import logging
+from plotly.graph_objs import Figure
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +83,25 @@ class AppState(rx.State):
     mapbiomas_comparison_result: Optional[Dict[str, Any]] = None
     hansen_comparison_result: Optional[Dict[str, Any]] = None
     analysis_figures: Dict[str, Any] = {}
-    
-    # Analysis pending/computed flags  
+
+    # Comparison year selection
+    comparison_year1: int = 2018
+    comparison_year2: int = 2023
+
+    # Territory analysis storage (mirrors Streamlit's territory_result etc.)
+    territory_result: Optional[Dict[str, Any]] = None
+    territory_result_year2: Optional[Dict[str, Any]] = None
+    territory_name: str = ""
+    territory_year: int = 2023
+    territory_year2: Optional[int] = None
+    territory_source: str = "MapBiomas"
+    territory_transitions: Optional[Dict[str, Any]] = None
+
+    # Analysis pending/computed flags
     mapbiomas_analysis_pending: bool = False
     hansen_analysis_pending: bool = False
+    export_pending: bool = False
+    map_export_pending: bool = False
     
     # UI State
     active_tab: str = "map"  # "map", "analysis", "tutorial", "about"
@@ -179,9 +195,269 @@ class AppState(rx.State):
             return f"[{coords[0][0] if coords else 0:.4f}, ...] ({len(coords)} points)"
     
     # ========================================================================
+    # Phase 4: Analysis Computed Properties (Charts & Summary)
+    # ========================================================================
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def analysis_summary_total_area(self) -> str:
+        """Formatted total area from analysis results."""
+        try:
+            summary = self.analysis_results.get("summary", {})
+            val = summary.get("total_area_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def analysis_summary_classes(self) -> str:
+        """Number of classes found."""
+        try:
+            return str(self.analysis_results.get("summary", {}).get("num_classes", 0))
+        except Exception:
+            return "0"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def analysis_summary_top_class(self) -> str:
+        """Top class by area."""
+        try:
+            return self.analysis_results.get("summary", {}).get("top_class", "N/A")
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def hansen_summary_cover(self) -> str:
+        """Hansen tree cover 2000 formatted."""
+        try:
+            val = self.analysis_results.get("summary", {}).get("total_tree_cover_2000_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def hansen_summary_loss(self) -> str:
+        """Hansen total loss formatted."""
+        try:
+            val = self.analysis_results.get("summary", {}).get("total_loss_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def hansen_summary_gain(self) -> str:
+        """Hansen total gain formatted."""
+        try:
+            val = self.analysis_results.get("summary", {}).get("total_gain_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def analysis_table_data(self) -> List[Dict[str, Any]]:
+        """Analysis results as list of dicts for rx.data_table."""
+        try:
+            data = self.analysis_results.get("data", [])
+            if not data:
+                return []
+            # Keep only display-friendly columns
+            import pandas as pd
+            df = pd.DataFrame(data)
+            display_cols = [c for c in ['Class_Name', 'Class', 'Class_ID', 'Area_ha', 'Pixels', 'Percentage'] if c in df.columns]
+            if not display_cols:
+                display_cols = list(df.columns)[:6]
+            return df[display_cols].to_dict('records')
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def analysis_table_columns(self) -> List[str]:
+        """Column names for analysis data table."""
+        try:
+            data = self.analysis_results.get("data", [])
+            if not data:
+                return []
+            import pandas as pd
+            df = pd.DataFrame(data)
+            display_cols = [c for c in ['Class_Name', 'Class', 'Class_ID', 'Area_ha', 'Pixels', 'Percentage'] if c in df.columns]
+            if not display_cols:
+                display_cols = list(df.columns)[:6]
+            return display_cols
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def mapbiomas_bar_chart(self) -> Optional[Figure]:
+        """Plotly bar chart figure for MapBiomas results."""
+        try:
+            from .utils.visualization import get_chart_for_analysis
+            fig = get_chart_for_analysis(self.analysis_results, chart_type='bar')
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Error generating MapBiomas bar chart: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def mapbiomas_pie_chart(self) -> Optional[Figure]:
+        """Plotly pie chart figure for MapBiomas results."""
+        try:
+            from .utils.visualization import get_chart_for_analysis
+            fig = get_chart_for_analysis(self.analysis_results, chart_type='pie')
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Error generating MapBiomas pie chart: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["analysis_results"])
+    def hansen_balance_chart(self) -> Optional[Figure]:
+        """Plotly balance chart for Hansen results."""
+        try:
+            from .utils.visualization import get_chart_for_analysis
+            fig = get_chart_for_analysis(self.analysis_results, chart_type='balance')
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Error generating Hansen balance chart: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def comparison_available(self) -> bool:
+        """Whether comparison data is available."""
+        return self.mapbiomas_comparison_result is not None and bool(self.mapbiomas_comparison_result)
+
+    @rx.var(auto_deps=False, deps=["comparison_year1"])
+    def comparison_year1_str(self) -> str:
+        """Comparison year 1 as string for UI binding."""
+        return str(self.comparison_year1)
+
+    @rx.var(auto_deps=False, deps=["comparison_year2"])
+    def comparison_year2_str(self) -> str:
+        """Comparison year 2 as string for UI binding."""
+        return str(self.comparison_year2)
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def comparison_chart(self) -> Optional[Figure]:
+        """Plotly comparison chart."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return None
+            from .utils.visualization import MapBiomasVisualizer
+            import pandas as pd
+            data = self.mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return None
+            df = pd.DataFrame(data)
+            year1 = self.mapbiomas_comparison_result.get("year_start", 0)
+            year2 = self.mapbiomas_comparison_result.get("year_end", 0)
+            if 'Area_Year1' in df.columns and 'Area_Year2' in df.columns:
+                name_col = next((c for c in ['Class_Name', 'Class'] if c in df.columns), 'Class_ID')
+                import plotly.graph_objects as go
+                fig = go.Figure(data=[
+                    go.Bar(name=str(year1), x=df[name_col], y=df['Area_Year1']),
+                    go.Bar(name=str(year2), x=df[name_col], y=df['Area_Year2']),
+                ])
+                fig.update_layout(
+                    title=f'Comparison: {year1} vs {year2}',
+                    barmode='group', template='plotly_white', height=400,
+                )
+                return fig
+            return None
+        except Exception as e:
+            logger.error(f"Comparison chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def gains_losses_chart(self) -> Optional[Figure]:
+        """Plotly gains/losses chart from comparison."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return None
+            from .utils.visualization import create_gains_losses_chart
+            import pandas as pd
+            data = self.mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return None
+            df = pd.DataFrame(data)
+            year1 = self.mapbiomas_comparison_result.get("year_start", 0)
+            year2 = self.mapbiomas_comparison_result.get("year_end", 0)
+            if 'Change_km2' not in df.columns and 'Change_ha' in df.columns:
+                df['Change_km2'] = df['Change_ha'] / 100
+            if 'Abs_Change' not in df.columns:
+                df['Abs_Change'] = df.get('Change_ha', df.get('Change_km2', 0)).abs()
+            fig = create_gains_losses_chart(df, year1, year2)
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Gains/losses chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def change_pct_chart(self) -> Optional[Figure]:
+        """Plotly percentage change chart."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return None
+            from .utils.visualization import create_change_percentage_chart
+            import pandas as pd
+            data = self.mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return None
+            df = pd.DataFrame(data)
+            year1 = self.mapbiomas_comparison_result.get("year_start", 0)
+            year2 = self.mapbiomas_comparison_result.get("year_end", 0)
+            if 'Abs_Change' not in df.columns:
+                df['Abs_Change'] = df.get('Change_ha', df.get('Change_km2', 0)).abs()
+            fig = create_change_percentage_chart(df, year1, year2)
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Change pct chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def comparison_total_gains(self) -> str:
+        """Total gains from comparison."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.mapbiomas_comparison_result.get("data", []))
+            if 'Change_km2' in df.columns:
+                val = df[df['Change_km2'] > 0]['Change_km2'].sum()
+                return f"{val:,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def comparison_total_losses(self) -> str:
+        """Total losses from comparison."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.mapbiomas_comparison_result.get("data", []))
+            if 'Change_km2' in df.columns:
+                val = abs(df[df['Change_km2'] < 0]['Change_km2'].sum())
+                return f"{val:,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
+    def comparison_net_change(self) -> str:
+        """Net change from comparison."""
+        try:
+            if not self.mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.mapbiomas_comparison_result.get("data", []))
+            if 'Change_km2' in df.columns:
+                val = df['Change_km2'].sum()
+                return f"{val:+,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    # ========================================================================
     # Event Handlers for State Updates (no reruns, direct updates)
     # ========================================================================
-    
+
     def set_selected_geometry(self, idx: int):
         """Set the selected geometry by index."""
         if 0 <= idx < len(self.drawn_features):
@@ -301,43 +577,57 @@ class AppState(rx.State):
         """Run MapBiomas analysis for selected territory and year."""
         try:
             from .utils.ee_service_extended import get_ee_service
-            
+
             if not self.selected_territory:
                 self.error_message = "Please select a territory first"
                 return
-            
+
             self.mapbiomas_analysis_pending = True
             self.loading_message = f"Analyzing {self.selected_territory} for MapBiomas {self.mapbiomas_current_year}..."
-            
+            self.error_message = ""
+
             ee_service = get_ee_service()
-            
-            # Get territory geometry and run analysis
+
+            # Get territory geometry
+            logger.info(f"Getting geometry for territory: {self.selected_territory}")
             territory_geom = ee_service.get_territory_geometry(self.selected_territory)
             if territory_geom is None:
                 self.error_message = f"Could not find territory: {self.selected_territory}"
+                logger.error(self.error_message)
                 self.mapbiomas_analysis_pending = False
+                self.loading_message = ""
                 return
-            
+
+            logger.info(f"Running MapBiomas analysis for {self.selected_territory}, year {self.mapbiomas_current_year}")
+
             # Run analysis
             analysis_df = ee_service.analyze_mapbiomas(territory_geom, self.mapbiomas_current_year)
-            
+
             if analysis_df.empty:
-                self.error_message = f"No data found for this territory"
+                self.error_message = f"No MapBiomas data found for {self.selected_territory} in {self.mapbiomas_current_year}"
+                logger.warning(self.error_message)
             else:
                 # Store results
                 self.analysis_results = {
                     "type": "mapbiomas",
+                    "summary": {
+                        "total_area_ha": analysis_df['Area_ha'].sum(),
+                        "classes": len(analysis_df)
+                    },
                     "territory": self.selected_territory,
                     "year": self.mapbiomas_current_year,
-                    "data": analysis_df.to_dict(),
+                    "data": analysis_df.to_dict('records'),
                 }
-                self.loading_message = ""
-            
+                self.loading_message = f"✓ Analysis complete: {len(analysis_df)} classes found"
+                logger.info(f"✓ MapBiomas analysis success: {len(analysis_df)} classes")
+
             self.mapbiomas_analysis_pending = False
-        
+
         except Exception as e:
+            logger.error(f"MapBiomas analysis error: {e}", exc_info=True)
             self.error_message = f"Analysis failed: {str(e)}"
             self.mapbiomas_analysis_pending = False
+            self.loading_message = ""
     
     def run_hansen_analysis(self):
         """Run Hansen analysis for selected territory and year."""
@@ -447,8 +737,14 @@ class AppState(rx.State):
             
     def set_selected_territory(self, territory: str):
         """Select a territory for analysis."""
+        if not territory:
+            return
+
         self.selected_territory = territory
         self.pending_territory = None
+        self.territory_name = territory
+
+        logger.info(f"✓ Selected territory: {territory}")
         
     def set_pending_territory(self, territory: Optional[str]):
         """Set pending territory (waiting for confirmation)."""
@@ -493,48 +789,61 @@ class AppState(rx.State):
     def load_geojson_from_browser(self, geojson_data: str):
         """
         Receive GeoJSON data captured from browser's Leaflet Draw layer.
-        Called by JavaScript after extracting drawn features.
-        
+        Called by rx.call_script() callback after extracting drawn features
+        from the Folium iframe via the JS bridge injected in map_builder.py.
+
         Args:
-            geojson_data: JSON string containing GeoJSON features
+            geojson_data: JSON string containing GeoJSON FeatureCollection or error
         """
         try:
             import json
             data = json.loads(geojson_data) if isinstance(geojson_data, str) else geojson_data
-            
+
+            # Check for JS bridge errors
+            if "error" in data and "features" not in data:
+                self.error_message = str(data["error"])
+                logger.warning(f"JS bridge error: {data['error']}")
+                return
+
             # Extract features from GeoJSON FeatureCollection
             features = data.get("features", [])
-            
-            # Clear existing and load new features
-            self.drawn_features = []
-            
-            for idx, feature in enumerate(features):
+
+            if not features:
+                self.error_message = "No drawn geometries found on the map. Draw a polygon or rectangle first."
+                return
+
+            # Append new features (don't clear existing ones from uploads etc.)
+            new_count = 0
+            for feature in features:
                 try:
                     geom = feature.get("geometry", {})
                     geom_type = geom.get("type", "Unknown")
-                    
-                    # Create a displayable feature object
+
+                    if not geom or not geom.get("coordinates"):
+                        continue
+
+                    idx = len(self.drawn_features)
                     feature_obj = {
                         "_idx": idx,
                         "_display_idx": idx + 1,
                         "type": geom_type,
-                        "name": f"Geometry {idx + 1}",
+                        "name": f"Drawing {idx + 1}",
                         "geometry": geom,
                         "properties": feature.get("properties", {}),
                         "coordinates": geom.get("coordinates", []),
                     }
-                    
+
                     self.drawn_features.append(feature_obj)
                     self.all_drawn_features.append(feature_obj)
+                    new_count += 1
                 except Exception as feature_err:
-                    logger.warning(f"Error processing feature {idx}: {feature_err}")
-            
-            # Notify user
-            if self.drawn_features:
-                self.error_message = f"✓ Loaded {len(self.drawn_features)} geometry/ies"
+                    logger.warning(f"Error processing feature: {feature_err}")
+
+            if new_count:
+                self.error_message = f"Captured {new_count} drawing(s) from map ({len(self.drawn_features)} total)"
             else:
-                self.error_message = "No geometries found in the map"
-                
+                self.error_message = "No valid geometries could be extracted"
+
         except json.JSONDecodeError as e:
             self.error_message = f"Error parsing GeoJSON: {str(e)}"
         except Exception as e:
@@ -755,9 +1064,156 @@ class AppState(rx.State):
         self.ee_initialized = True
     
     # ========================================================================
+    # Phase 4: CSV Download & Export
+    # ========================================================================
+
+    def download_analysis_csv(self):
+        """Generate and trigger CSV download of current analysis results."""
+        try:
+            import pandas as pd
+            data = self.analysis_results.get("data", [])
+            if not data:
+                self.error_message = "No analysis data to export"
+                return
+
+            df = pd.DataFrame(data)
+            csv_content = df.to_csv(index=False)
+
+            a_type = self.analysis_results.get("type", "analysis")
+            territory = self.analysis_results.get("geometry", "unknown")
+            year = self.analysis_results.get("year", "")
+            filename = f"{territory}_{a_type}_{year}.csv".replace(" ", "_")
+
+            return rx.download(data=csv_content, filename=filename)
+        except Exception as e:
+            self.error_message = f"Export error: {str(e)}"
+
+    def download_comparison_csv(self):
+        """Generate CSV download of comparison results."""
+        try:
+            import pandas as pd
+            if not self.mapbiomas_comparison_result:
+                self.error_message = "No comparison data to export"
+                return
+
+            data = self.mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return
+
+            df = pd.DataFrame(data)
+            csv_content = df.to_csv(index=False)
+            year1 = self.mapbiomas_comparison_result.get("year_start", "")
+            year2 = self.mapbiomas_comparison_result.get("year_end", "")
+            filename = f"comparison_{year1}_vs_{year2}.csv"
+
+            return rx.download(data=csv_content, filename=filename)
+        except Exception as e:
+            self.error_message = f"Export error: {str(e)}"
+
+    # ========================================================================
+    # Phase 5: Export Handlers
+    # ========================================================================
+
+    def export_analysis_zip(self):
+        """Generate and download ZIP with all analysis data and figures."""
+        try:
+            from .utils.export_service import create_export_zip, collect_export_data_from_state
+
+            self.export_pending = True
+            self.loading_message = "Preparing export..."
+
+            export_data = collect_export_data_from_state(self)
+            zip_bytes = create_export_zip(**export_data)
+
+            territory = self.territory_name or self.selected_territory or "analysis"
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"yvynation_{territory}_{ts}.zip".replace(" ", "_")
+
+            self.export_pending = False
+            self.loading_message = ""
+
+            return rx.download(data=zip_bytes, filename=filename)
+
+        except Exception as e:
+            self.error_message = f"Export failed: {str(e)}"
+            self.export_pending = False
+            self.loading_message = ""
+            logger.error(f"Export ZIP error: {e}")
+
+    def export_pdf_maps(self):
+        """Generate and download PDF maps for all active layers."""
+        try:
+            from .utils.map_export_service import create_map_set
+            from .utils.export_service import _geojson_from_features
+            import zipfile as zf_module
+
+            self.map_export_pending = True
+            self.loading_message = "Generating PDF maps..."
+
+            # Get territory geometry if available
+            territory_geojson = None
+            ee_geometry = None
+            if self.selected_territory:
+                try:
+                    from .utils.ee_service_extended import get_ee_service
+                    ee_service = get_ee_service()
+                    ee_geometry = ee_service.get_territory_geometry(self.selected_territory)
+                    if ee_geometry:
+                        territory_geojson = ee_geometry.getInfo()
+                except Exception:
+                    pass
+
+            maps = create_map_set(
+                drawn_features=self.drawn_features,
+                territory_name=self.territory_name or self.selected_territory,
+                active_mapbiomas_years=self.mapbiomas_displayed_years,
+                active_hansen_layers=self.hansen_displayed_layers,
+                ee_geometry=ee_geometry,
+                territory_geojson=territory_geojson,
+            )
+
+            if not maps:
+                self.error_message = "No maps generated. Add layers first."
+                self.map_export_pending = False
+                self.loading_message = ""
+                return
+
+            # If single map, download PDF directly
+            if len(maps) == 1:
+                name, pdf_bytes = next(iter(maps.items()))
+                self.map_export_pending = False
+                self.loading_message = ""
+                return rx.download(data=pdf_bytes, filename=f"{name}.pdf")
+
+            # Multiple maps -> ZIP
+            import io
+            buf = io.BytesIO()
+            with zf_module.ZipFile(buf, 'w', zf_module.ZIP_DEFLATED) as zipf:
+                for name, pdf_bytes in maps.items():
+                    zipf.writestr(f"maps/{name}.pdf", pdf_bytes)
+            buf.seek(0)
+
+            territory = self.territory_name or self.selected_territory or "maps"
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"yvynation_maps_{territory}_{ts}.zip".replace(" ", "_")
+
+            self.map_export_pending = False
+            self.loading_message = ""
+
+            return rx.download(data=buf.read(), filename=filename)
+
+        except Exception as e:
+            self.error_message = f"Map export failed: {str(e)}"
+            self.map_export_pending = False
+            self.loading_message = ""
+            logger.error(f"PDF map export error: {e}")
+
+    # ========================================================================
     # Geometry Upload & Buffer Methods (Phase 2)
     # ========================================================================
-    
+
     def upload_geometry_from_geojson(self, geojson_data: Dict[str, Any], file_name: str = "Uploaded Geometry"):
         """
         Process an uploaded GeoJSON geometry.
@@ -1243,27 +1699,136 @@ class AppState(rx.State):
                 return
             
             result_df = analyzer.analyze_forest_dynamics(ee_geom, scale=30)
-            
-            if result_df.empty:
+
+            # Handle dict result from analyze_forest_dynamics
+            if not result_df or not isinstance(result_df, dict):
                 self.error_message = f"No Hansen data found for {self.selected_territory}"
             else:
-                # Store results
+                # Store results - result_df is a dict summary
                 self.analysis_results = {
                     "type": "hansen",
                     "geometry": self.selected_territory,
-                    "data": result_df.to_dict('records'),
-                    "summary": {
-                        "total_tree_cover_2000_ha": result_df.iloc[0]['Tree_Cover_2000_ha'] if len(result_df) > 0 else 0,
-                        "total_loss_ha": result_df['Loss_ha'].sum(),
-                        "total_gain_ha": result_df['Gain_ha'].sum(),
-                    }
+                    "data": [result_df],  # Wrap dict in list for consistency
+                    "summary": result_df,  # Use the summary dict directly
                 }
                 self.set_active_tab("analysis")
                 self.loading_message = ""
-            
+
             self.hansen_analysis_pending = False
         
         except Exception as e:
             self.error_message = f"Hansen analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
             logger.error(f"Hansen territory analysis error: {e}")
+
+    # ========================================================================
+    # Phase 4: Comparison & Territory Comparison Handlers
+    # ========================================================================
+
+    def set_comparison_year1(self, year: str):
+        """Set first comparison year."""
+        try:
+            self.comparison_year1 = int(year)
+        except (ValueError, TypeError):
+            pass
+
+    def set_comparison_year2(self, year: str):
+        """Set second comparison year."""
+        try:
+            self.comparison_year2 = int(year)
+        except (ValueError, TypeError):
+            pass
+
+    async def run_territory_comparison(self):
+        """
+        Run MapBiomas comparison between two years for selected territory.
+        Stores results in mapbiomas_comparison_result with gains/losses data.
+        """
+        try:
+            from .utils.mapbiomas_analysis import get_mapbiomas_analyzer
+            from .utils.ee_service_extended import get_ee_service
+            from .utils.visualization import calculate_gains_losses
+
+            if not self.selected_territory:
+                self.error_message = "Please select a territory first"
+                return
+
+            self.mapbiomas_analysis_pending = True
+            y1, y2 = self.comparison_year1, self.comparison_year2
+            self.loading_message = f"Comparing {self.selected_territory}: {y1} vs {y2}..."
+
+            ee_service = get_ee_service()
+            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            if not ee_geom:
+                self.error_message = f"Territory geometry not found: {self.selected_territory}"
+                self.mapbiomas_analysis_pending = False
+                return
+
+            analyzer = get_mapbiomas_analyzer()
+            if not analyzer.is_available():
+                self.error_message = "MapBiomas dataset not available"
+                self.mapbiomas_analysis_pending = False
+                return
+
+            df1 = analyzer.analyze_single_year(ee_geom, y1, scale=30)
+            df2 = analyzer.analyze_single_year(ee_geom, y2, scale=30)
+
+            if df1.empty or df2.empty:
+                self.error_message = "Could not get data for one or both years"
+                self.mapbiomas_analysis_pending = False
+                return
+
+            # Calculate gains/losses
+            comparison_df = calculate_gains_losses(df1, df2)
+
+            # Store territory results as proper dict format (not list)
+            self.territory_result = {
+                "data": df1.to_dict('records'),
+                "summary": {
+                    "year": y1,
+                    "num_classes": len(df1),
+                    "total_area_ha": df1['Area_ha'].sum() if 'Area_ha' in df1.columns else 0,
+                }
+            }
+            self.territory_result_year2 = {
+                "data": df2.to_dict('records'),
+                "summary": {
+                    "year": y2,
+                    "num_classes": len(df2),
+                    "total_area_ha": df2['Area_ha'].sum() if 'Area_ha' in df2.columns else 0,
+                }
+            }
+            self.territory_name = self.selected_territory
+            self.territory_year = y1
+            self.territory_year2 = y2
+            self.territory_source = "MapBiomas"
+
+            # Store comparison for charts
+            self.mapbiomas_comparison_result = {
+                "year_start": y1,
+                "year_end": y2,
+                "territory": self.selected_territory,
+                "data": comparison_df.to_dict('records'),
+            }
+
+            # Also update main analysis results with year2 data
+            name_col = 'Class_Name' if 'Class_Name' in df2.columns else 'Class'
+            self.analysis_results = {
+                "type": "mapbiomas",
+                "geometry": self.selected_territory,
+                "year": y2,
+                "data": df2.to_dict('records'),
+                "summary": {
+                    "total_area_ha": df2['Area_ha'].sum(),
+                    "num_classes": len(df2),
+                    "top_class": df2.iloc[0][name_col] if len(df2) > 0 else 'Unknown',
+                }
+            }
+
+            self.loading_message = ""
+            self.mapbiomas_analysis_pending = False
+
+        except Exception as e:
+            self.error_message = f"Comparison failed: {str(e)}"
+            self.mapbiomas_analysis_pending = False
+            logger.error(f"Territory comparison error: {e}")

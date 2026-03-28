@@ -15,7 +15,7 @@ from .analysis import (
     calculate_class_specific_change,
     compare_areas,
 )
-from ..config import MAPBIOMAS_LABELS, MAPBIOMAS_YEARS
+from ..config.config import MAPBIOMAS_LABELS, MAPBIOMAS_YEARS, MAPBIOMAS_COLLECTIONS
 from ..utils.ee_service import get_ee
 
 logger = logging.getLogger(__name__)
@@ -26,21 +26,24 @@ class MapBiomasAnalyzer:
     Analyzer for MapBiomas Brazil land cover data.
     Handles multi-year analysis and comparisons.
     """
-    
-    # MapBiomas dataset collection ID (Brazil dataset)
-    MAPBIOMAS_COLLECTION_ID = "users/mapbiomas/aqueousv3/mapbiomas_v802_2023"
-    
+
+    # MapBiomas dataset - use correct path from config
+    # v9 is the latest collection (Collection 9)
+    MAPBIOMAS_COLLECTION_ID = MAPBIOMAS_COLLECTIONS.get('v9',
+        'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+
     def __init__(self):
         """Initialize analyzer."""
         self.ee = get_ee()
         self.mapbiomas_dataset = None
         self._load_dataset()
-    
+
     def _load_dataset(self):
         """Load MapBiomas dataset from Earth Engine."""
         try:
+            logger.info(f"Loading MapBiomas from: {self.MAPBIOMAS_COLLECTION_ID}")
             self.mapbiomas_dataset = ee.Image(self.MAPBIOMAS_COLLECTION_ID)
-            logger.info("Loaded MapBiomas dataset")
+            logger.info("✓ Loaded MapBiomas dataset")
         except Exception as e:
             logger.error(f"Error loading MapBiomas dataset: {e}")
             self.mapbiomas_dataset = None

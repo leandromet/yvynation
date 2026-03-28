@@ -13,7 +13,7 @@ from .analysis import (
     calculate_class_specific_change,
     get_geometry_bounds,
 )
-from ..config import HANSEN_CONSOLIDATED_MAPPING
+from ..config.config import HANSEN_CONSOLIDATED_MAPPING, HANSEN_GFC_DATASET
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +23,21 @@ class HansenAnalyzer:
     Analyzer for Hansen Global Forest Change data.
     Tracks global forest loss and gain detection.
     """
-    
-    # Hansen Global Forest Change dataset
-    HANSEN_DATASET = 'UMD/hansen/global_forest_change_2023_v1_10'
-    
+
+    # Hansen Global Forest Change dataset - use latest from config
+    HANSEN_DATASET = HANSEN_GFC_DATASET
+
     def __init__(self):
         """Initialize analyzer."""
         self.hansen_dataset = None
         self._load_dataset()
-    
+
     def _load_dataset(self):
         """Load Hansen dataset from Earth Engine."""
         try:
+            logger.info(f"Loading Hansen GFC from: {self.HANSEN_DATASET}")
             self.hansen_dataset = ee.Image(self.HANSEN_DATASET)
-            logger.info("Loaded Hansen Global Forest Change dataset")
+            logger.info("✓ Loaded Hansen Global Forest Change dataset")
         except Exception as e:
             logger.error(f"Error loading Hansen dataset: {e}")
             self.hansen_dataset = None

@@ -21,6 +21,9 @@ plotly>=5.18.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
 
+# Mapping
+folium>=0.15.0
+
 # Geospatial
 geopandas>=0.14.0
 shapely>=2.0.2

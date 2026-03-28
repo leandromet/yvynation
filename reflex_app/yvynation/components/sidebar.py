@@ -540,7 +540,7 @@ def territory_selection_controls() -> rx.Component:
                             color_scheme="green",
                         ),
                     ),
-                    # Hansen analysis  
+                    # Hansen analysis
                     rx.cond(
                         AppState.hansen_analysis_pending,
                         rx.button(
@@ -562,6 +562,43 @@ def territory_selection_controls() -> rx.Component:
                             color_scheme="green",
                         ),
                     ),
+                    rx.divider(),
+                    # Year comparison controls
+                    rx.text("Compare Years", font_size="xs", font_weight="bold"),
+                    rx.hstack(
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year1_str,
+                            on_change=AppState.set_comparison_year1,
+                            size="1",
+                            width="100%",
+                        ),
+                        rx.text("vs", font_size="xs", color="gray"),
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year2_str,
+                            on_change=AppState.set_comparison_year2,
+                            size="1",
+                            width="100%",
+                        ),
+                        width="100%",
+                        spacing="1",
+                        align_items="center",
+                    ),
+                    rx.cond(
+                        AppState.mapbiomas_analysis_pending,
+                        rx.button(
+                            rx.hstack(rx.spinner(size="1"), rx.text("Comparing..."), spacing="1"),
+                            is_disabled=True, size="2", width="100%", color_scheme="blue",
+                        ),
+                        rx.button(
+                            "📈 Compare MapBiomas Years",
+                            on_click=AppState.run_territory_comparison,
+                            size="2",
+                            width="100%",
+                            color_scheme="purple",
+                        ),
+                    ),
                     width="100%",
                     spacing="1",
                 ),
@@ -569,7 +606,7 @@ def territory_selection_controls() -> rx.Component:
                 width="100%",
             ),
             rx.text(
-                "👇 Select a territory",
+                "Select a territory",
                 font_size="xs",
                 color="gray",
             ),

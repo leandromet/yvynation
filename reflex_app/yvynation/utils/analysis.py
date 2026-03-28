@@ -110,12 +110,12 @@ def calculate_area_by_class(
         
         records = []
         for group in groups:
-            class_id = int(group['group'])
+            class_id = int(group['class'])  # Key is 'class' from groupName='class'
             area_km2 = group.get('sum', 0)
             area_ha = area_km2 * 100  # Convert km² to hectares
-            
+
             class_name = class_labels.get(class_id, f'Class {class_id}') if class_labels else f'Class {class_id}'
-            
+
             records.append({
                 'Year': year if year else 'All',
                 'Class_ID': class_id,
