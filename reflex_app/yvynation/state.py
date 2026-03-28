@@ -93,9 +93,18 @@ class AppState(rx.State):
     hansen_comparison_result: Optional[Dict[str, Any]] = None
     analysis_figures: Dict[str, Any] = {}
 
+    # Multi-result storage: key -> full analysis bundle
+    # Key format: "territory::Xingu" or "geometry::0"
+    all_analysis_results: Dict[str, Dict[str, Any]] = {}
+    active_result_key: str = ""
+    result_keys_list: List[str] = []
+
     # Territory display info
     territory_analysis_year: int = 2023  # Year used for current analysis
     territory_geometry_displayed: bool = False  # Whether territory boundary is on map
+
+    # Territory GeoJSON for map overlay
+    territory_geojson_features: List[Dict[str, Any]] = []
 
     # Comparison year selection
     comparison_year1: int = 2018
@@ -109,6 +118,14 @@ class AppState(rx.State):
     territory_year2: Optional[int] = None
     territory_source: str = "MapBiomas"
     territory_transitions: Optional[Dict[str, Any]] = None
+
+    # Map overlay state
+    show_geometries_on_map: bool = True  # Whether to overlay drawn features on map
+    show_change_mask: bool = False  # Whether to show MapBiomas change mask
+    change_mask_year1: int = 2018
+    change_mask_year2: int = 2023
+    # Incremented to force map rebuild when geometries change
+    geometry_version: int = 0
 
     # Analysis pending/computed flags
     mapbiomas_analysis_pending: bool = False
@@ -152,29 +169,56 @@ class AppState(rx.State):
             t for t in self.available_territories 
             if query_lower in t.lower()
         ]
-    @rx.var(auto_deps=False, deps=["mapbiomas_displayed_years", "hansen_displayed_layers"])
+    @rx.var(auto_deps=False, deps=[
+        "mapbiomas_displayed_years", "hansen_displayed_layers",
+        "geometry_version", "show_geometries_on_map",
+        "show_change_mask", "change_mask_year1", "change_mask_year2",
+        "territory_geojson_features",
+    ])
     def map_html(self) -> str:
         """
-        Generate map HTML based on current layer selections.
-        Only rebuilds when mapbiomas_displayed_years or hansen_displayed_layers actually change.
+        Generate map HTML based on current layer selections, geometry overlays,
+        territory overlays, and optional change mask.
         """
         try:
             from .utils.map_builder import build_map
-            
-            # Call the map builder with current selections
+
+            # Combine drawn features + territory features for overlay
+            all_overlay = []
+            if self.show_geometries_on_map and self.drawn_features:
+                all_overlay.extend(self.drawn_features)
+            if self.territory_geojson_features:
+                all_overlay.extend(self.territory_geojson_features)
+
+            geom_features = all_overlay if all_overlay else None
+
+            # Change mask params - use territory or drawn geometry as clip
+            change_years = None
+            change_geom = None
+            if self.show_change_mask:
+                change_years = (self.change_mask_year1, self.change_mask_year2)
+                # Prefer territory geometry, fallback to drawn geometry
+                if self.territory_geojson_features:
+                    change_geom = self.territory_geojson_features[0].get("geometry")
+                elif self.drawn_features:
+                    change_geom = self.drawn_features[0].get("geometry")
+
             html = build_map(
                 mapbiomas_years=self.mapbiomas_displayed_years or [],
-                hansen_layers=self.hansen_displayed_layers or []
+                hansen_layers=self.hansen_displayed_layers or [],
+                geometry_features=geom_features,
+                change_mask_years=change_years,
+                change_mask_geometry=change_geom,
             )
             return html
         except Exception as e:
             logger.error(f"Error generating map HTML: {e}")
             import traceback
             traceback.print_exc()
-            
+
             # Return basic map on error
             import folium
-            m = folium.Map(location=[-5, -60], zoom_start=4, tiles="OpenStreetMap")
+            m = folium.Map(location=[-10, -52], zoom_start=5, tiles="OpenStreetMap")
             folium.LayerControl().add_to(m)
             return m._repr_html_()
     
@@ -354,6 +398,21 @@ class AppState(rx.State):
         """Whether comparison data is available."""
         return self.mapbiomas_comparison_result is not None and bool(self.mapbiomas_comparison_result)
 
+    @rx.var(auto_deps=False, deps=["result_keys_list"])
+    def result_tab_labels(self) -> List[str]:
+        """Display labels for each analysis result tab."""
+        labels = []
+        for key in self.result_keys_list:
+            if "::" in key:
+                prefix, name = key.split("::", 1)
+                if prefix == "territory":
+                    labels.append(name)
+                else:
+                    labels.append(f"Geom {name}")
+            else:
+                labels.append(key)
+        return labels
+
     @rx.var(auto_deps=False, deps=["comparison_year1"])
     def comparison_year1_str(self) -> str:
         """Comparison year 1 as string for UI binding."""
@@ -499,6 +558,176 @@ class AppState(rx.State):
         except Exception:
             return "N/A"
 
+    @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
+    def sankey_chart(self) -> Optional[Figure]:
+        """Plotly Sankey diagram for land cover transitions."""
+        try:
+            transitions = self.territory_transitions
+            if not transitions:
+                # Try to derive from comparison result
+                if not self.mapbiomas_comparison_result:
+                    return None
+                transitions = self.mapbiomas_comparison_result.get("transitions")
+            if not transitions:
+                return None
+            year1 = self.comparison_year1
+            year2 = self.comparison_year2
+            if self.mapbiomas_comparison_result:
+                year1 = self.mapbiomas_comparison_result.get("year_start", year1)
+                year2 = self.mapbiomas_comparison_result.get("year_end", year2)
+            from .utils.visualization import create_sankey_transitions
+            fig = create_sankey_transitions(transitions, year1, year2)
+            return fig if fig else None
+        except Exception as e:
+            logger.error(f"Sankey chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
+    def transition_matrix_chart(self) -> Optional[Figure]:
+        """Plotly heatmap showing transition matrix between two years."""
+        try:
+            transitions = self.territory_transitions
+            if not transitions:
+                if not self.mapbiomas_comparison_result:
+                    return None
+                transitions = self.mapbiomas_comparison_result.get("transitions")
+            if not transitions:
+                return None
+
+            import plotly.graph_objects as pgo
+            # Build matrix from transitions dict
+            all_classes = set()
+            for src, tgt_dict in transitions.items():
+                if isinstance(tgt_dict, dict):
+                    all_classes.add(str(src))
+                    for tgt in tgt_dict:
+                        all_classes.add(str(tgt))
+            classes = sorted(all_classes)
+            if not classes:
+                return None
+
+            # Try to get readable names
+            try:
+                from .utils.visualization import _get_mapbiomas_labels
+                labels = _get_mapbiomas_labels()
+            except Exception:
+                labels = {}
+
+            display_names = []
+            for c in classes:
+                try:
+                    display_names.append(labels.get(int(c), c))
+                except (ValueError, TypeError):
+                    display_names.append(labels.get(c, c))
+
+            matrix = []
+            for src in classes:
+                row = []
+                for tgt in classes:
+                    src_dict = transitions.get(src, transitions.get(int(src) if src.isdigit() else src, {}))
+                    if isinstance(src_dict, dict):
+                        val = src_dict.get(tgt, src_dict.get(int(tgt) if tgt.isdigit() else tgt, 0))
+                    else:
+                        val = 0
+                    row.append(float(val) if isinstance(val, (int, float)) else 0)
+                matrix.append(row)
+
+            year1 = self.comparison_year1
+            year2 = self.comparison_year2
+            if self.mapbiomas_comparison_result:
+                year1 = self.mapbiomas_comparison_result.get("year_start", year1)
+                year2 = self.mapbiomas_comparison_result.get("year_end", year2)
+
+            fig = pgo.Figure(data=pgo.Heatmap(
+                z=matrix,
+                x=display_names,
+                y=display_names,
+                colorscale="YlOrRd",
+                text=[[f"{v:,.0f}" for v in row] for row in matrix],
+                texttemplate="%{text}",
+                hovertemplate="From: %{y}<br>To: %{x}<br>Area: %{z:,.0f} ha<extra></extra>",
+            ))
+            fig.update_layout(
+                title=f"Transition Matrix ({year1} to {year2}) - Area (ha)",
+                xaxis_title=f"Class ({year2})",
+                yaxis_title=f"Class ({year1})",
+                height=600,
+                template="plotly_white",
+            )
+            return fig
+        except Exception as e:
+            logger.error(f"Transition matrix error: {e}")
+            return None
+
+    # ========================================================================
+    # Multi-result management
+    # ========================================================================
+
+    def _store_result(self, key: str, result: Dict[str, Any],
+                      comparison: Dict[str, Any] = None,
+                      geojson_feature: Dict[str, Any] = None):
+        """Store an analysis result bundle under a key."""
+        bundle = {
+            "result": result,
+            "comparison": comparison,
+            "geojson": geojson_feature,
+        }
+        self.all_analysis_results[key] = bundle
+        if key not in self.result_keys_list:
+            self.result_keys_list = self.result_keys_list + [key]
+        # Activate it
+        self.active_result_key = key
+        self.analysis_results = result
+        if comparison:
+            self.mapbiomas_comparison_result = comparison
+
+    def switch_result(self, key: str):
+        """Switch to a previously stored result by key."""
+        if key not in self.all_analysis_results:
+            return
+        bundle = self.all_analysis_results[key]
+        self.active_result_key = key
+        self.analysis_results = bundle.get("result", {})
+        self.mapbiomas_comparison_result = bundle.get("comparison")
+
+        # Zoom to that result's geometry
+        geojson = bundle.get("geojson")
+        if geojson:
+            geom = geojson.get("geometry", geojson)
+            coords = geom.get("coordinates", [])
+            if coords:
+                all_pts = []
+                def _flatten(c):
+                    if isinstance(c, list) and len(c) > 0:
+                        if isinstance(c[0], (int, float)):
+                            all_pts.append(c[:2])
+                        else:
+                            for sub in c:
+                                _flatten(sub)
+                _flatten(coords)
+                if all_pts:
+                    lons = [p[0] for p in all_pts]
+                    lats = [p[1] for p in all_pts]
+                    self.map_zoom_bounds = {
+                        "min_lat": min(lats), "max_lat": max(lats),
+                        "min_lon": min(lons), "max_lon": max(lons),
+                        "center_lat": (min(lats) + max(lats)) / 2,
+                        "center_lon": (min(lons) + max(lons)) / 2,
+                    }
+
+    def remove_result(self, key: str):
+        """Remove a stored result."""
+        if key in self.all_analysis_results:
+            del self.all_analysis_results[key]
+        self.result_keys_list = [k for k in self.result_keys_list if k != key]
+        if self.active_result_key == key:
+            if self.result_keys_list:
+                self.switch_result(self.result_keys_list[-1])
+            else:
+                self.active_result_key = ""
+                self.analysis_results = {}
+                self.mapbiomas_comparison_result = None
+
     # ========================================================================
     # Event Handlers for State Updates (no reruns, direct updates)
     # ========================================================================
@@ -514,26 +743,51 @@ class AppState(rx.State):
         feature["_idx"] = len(self.drawn_features)
         feature["_display_idx"] = len(self.drawn_features) + 1
         self.drawn_features.append(feature)
+        self.geometry_version += 1
         logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')}")
     
     def remove_geometry(self, idx: int):
         """Remove a geometry by index (_idx field)."""
         # Filter out the feature with matching _idx
         self.drawn_features = [
-            f for f in self.drawn_features 
+            f for f in self.drawn_features
             if f.get("_idx") != idx
         ]
         # Reset selected if it was the deleted one
         if self.selected_geometry_idx == idx:
             self.selected_geometry_idx = None
+        self.geometry_version += 1
         logger.info(f"Removed geometry with _idx={idx}")
     
     def clear_geometries(self):
         """Clear all drawn geometries."""
         self.drawn_features = []
         self.selected_geometry_idx = None
+        self.geometry_version += 1
         logger.info("Cleared all geometries")
     
+    def toggle_geometries_on_map(self):
+        """Toggle geometry overlay visibility on the map."""
+        self.show_geometries_on_map = not self.show_geometries_on_map
+        self.geometry_version += 1
+
+    def toggle_change_mask(self):
+        """Toggle the change mask layer on the map."""
+        self.show_change_mask = not self.show_change_mask
+        self.geometry_version += 1
+
+    def set_change_mask_year1(self, year: str):
+        """Set change mask start year."""
+        self.change_mask_year1 = int(year)
+        if self.show_change_mask:
+            self.geometry_version += 1
+
+    def set_change_mask_year2(self, year: str):
+        """Set change mask end year."""
+        self.change_mask_year2 = int(year)
+        if self.show_change_mask:
+            self.geometry_version += 1
+
     def add_geojson_feature(self):
         """Add a feature from GeoJSON input (placeholder - needs form integration)."""
         # TODO: Get GeoJSON from form input
@@ -563,6 +817,7 @@ class AppState(rx.State):
             }
             
             self.drawn_features.append(territory_feature)
+            self.geometry_version += 1
             logger.info(f"Added territory geometry: {territory_name}")
         except Exception as e:
             logger.error(f"Error adding territory geometry: {e}")
@@ -595,11 +850,13 @@ class AppState(rx.State):
         return None
     
     def initialize_app(self):
-        """Initialize application state on first load."""
+        """Initialize application state on first load - auto-loads territories."""
+        if self.ee_initialized:
+            return  # Already initialized
         try:
             from .utils.ee_service_extended import get_ee_service
             ee_service = get_ee_service()
-            
+
             # Load territories from Earth Engine
             success, territories = ee_service.load_territories()
             if success and territories:
@@ -609,9 +866,10 @@ class AppState(rx.State):
                     "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
                     "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná"
                 ]
-            
+
             self.data_loaded = True
             self.ee_initialized = True
+            logger.info(f"App initialized with {len(self.available_territories)} territories")
         except Exception as e:
             self.error_message = f"Failed to initialize: {str(e)}"
             self.available_territories = []
@@ -784,7 +1042,7 @@ class AppState(rx.State):
             self.show_hansen_gfc_tree_gain = not self.show_hansen_gfc_tree_gain
             
     def set_selected_territory(self, territory: str):
-        """Select a territory for analysis."""
+        """Select a territory for analysis and overlay its geometry on the map."""
         if not territory:
             return
 
@@ -792,25 +1050,35 @@ class AppState(rx.State):
         self.pending_territory = None
         self.territory_name = territory
 
-        # Load territory geometry and zoom to it
+        # Load territory geometry, cache GeoJSON, and zoom to it
         try:
             from .utils.ee_service_extended import get_ee_service
             ee_service = get_ee_service()
 
-            # Get geometry to verify it exists and calculate bounds for zooming
             geom = ee_service.get_territory_geometry(territory)
             if geom:
-                # Get bounds for zoom (Earth Engine returns [min_lon, min_lat, max_lon, max_lat])
+                # Get GeoJSON for map overlay
+                geojson = geom.getInfo()
+                territory_feature = {
+                    "type": "Feature",
+                    "geometry": geojson,
+                    "properties": {"name": territory},
+                    "name": territory,
+                    "_source": "territory",
+                }
+                # Replace any existing territory features (keep only current)
+                self.territory_geojson_features = [territory_feature]
+                self.geometry_version += 1
+
+                # Get bounds for zoom
                 bounds = geom.bounds().getInfo()
                 if bounds and "coordinates" in bounds:
                     coords = bounds["coordinates"][0]
-                    # Store zoom bounds: [[min_lat, min_lon], [max_lat, max_lon]]
                     min_lat = min(c[1] for c in coords)
                     max_lat = max(c[1] for c in coords)
                     min_lon = min(c[0] for c in coords)
                     max_lon = max(c[0] for c in coords)
 
-                    # Set map zoom info
                     self.map_zoom_bounds = {
                         "min_lat": min_lat,
                         "max_lat": max_lat,
@@ -820,11 +1088,11 @@ class AppState(rx.State):
                         "center_lon": (min_lon + max_lon) / 2,
                     }
                     self.territory_geometry_displayed = True
-                    logger.info(f"✓ Territory geometry loaded and bounds set: {territory}")
+                    logger.info(f"Territory geometry loaded and cached: {territory}")
         except Exception as e:
-            logger.warning(f"Could not load territory bounds for zooming: {e}")
+            logger.warning(f"Could not load territory geometry: {e}")
 
-        logger.info(f"✓ Selected territory: {territory}")
+        logger.info(f"Selected territory: {territory}")
         
     def set_pending_territory(self, territory: Optional[str]):
         """Set pending territory (waiting for confirmation)."""
@@ -854,6 +1122,7 @@ class AppState(rx.State):
     def clear_drawn_features(self):
         """Clear all drawn features."""
         self.drawn_features = []
+        self.geometry_version += 1
     
     def capture_drawn_features(self):
         """
@@ -921,6 +1190,7 @@ class AppState(rx.State):
 
             if new_count:
                 self.error_message = f"Captured {new_count} drawing(s) from map ({len(self.drawn_features)} total)"
+                self.geometry_version += 1
             else:
                 self.error_message = "No valid geometries could be extracted"
 
@@ -968,6 +1238,7 @@ class AppState(rx.State):
         
         self.drawn_features.append(test_feature)
         self.all_drawn_features.append(test_feature)
+        self.geometry_version += 1
         self.error_message = "✓ Test geometry loaded. You can now test the analysis features."
     
     def show_geometry_info(self, geometry_idx: int):
@@ -1539,9 +1810,8 @@ class AppState(rx.State):
             if result_df.empty:
                 self.error_message = "No MapBiomas data found for this area"
             else:
-                # Store results
                 geom_name = self.drawn_features[self.selected_geometry_idx].get('name', 'Selected Geometry')
-                self.analysis_results = {
+                result_dict = {
                     "type": "mapbiomas",
                     "geometry": geom_name,
                     "year": self.mapbiomas_current_year,
@@ -1552,16 +1822,19 @@ class AppState(rx.State):
                         "top_class": result_df.iloc[0]['Class_Name'] if len(result_df) > 0 else 'Unknown',
                     }
                 }
+                key = f"geometry::{self.selected_geometry_idx}"
+                feat = self.drawn_features[self.selected_geometry_idx]
+                self._store_result(key, result_dict, geojson_feature=feat)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
-            
+
             self.mapbiomas_analysis_pending = False
-        
+
         except Exception as e:
             self.error_message = f"Analysis failed: {str(e)}"
             self.mapbiomas_analysis_pending = False
             logger.error(f"MapBiomas analysis error: {e}")
-    
+
     async def run_hansen_analysis_on_geometry(self):
         """
         Run Hansen area distribution analysis on selected drawn geometry.
@@ -1596,9 +1869,8 @@ class AppState(rx.State):
             if result_df is None or result_df.empty:
                 self.error_message = "No Hansen data found for this area"
             else:
-                # Store results
                 geom_name = self.drawn_features[self.selected_geometry_idx].get('name', 'Selected Geometry')
-                self.analysis_results = {
+                result_dict = {
                     "type": "hansen",
                     "geometry": geom_name,
                     "data": result_df.to_dict('records'),
@@ -1608,6 +1880,9 @@ class AppState(rx.State):
                         "total_area_ha": float(result_df['Area_ha'].sum()),
                     }
                 }
+                key = f"geometry::{self.selected_geometry_idx}"
+                feat = self.drawn_features[self.selected_geometry_idx]
+                self._store_result(key, result_dict, geojson_feature=feat)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
                 logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
@@ -1618,6 +1893,85 @@ class AppState(rx.State):
             self.error_message = f"Hansen analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
             logger.error(f"Hansen analysis error: {e}")
+
+    async def run_full_analysis_on_geometry(self):
+        """Run MapBiomas + comparison on selected drawn geometry (full pipeline like territory)."""
+        try:
+            from .utils.mapbiomas_analysis import get_mapbiomas_analyzer
+            from .utils.visualization import calculate_gains_losses
+
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
+                return
+
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
+                return
+
+            self.mapbiomas_analysis_pending = True
+            geom_name = self.drawn_features[self.selected_geometry_idx].get('name', f'Geometry {self.selected_geometry_idx + 1}')
+            self.loading_message = f"Full analysis on {geom_name}..."
+
+            analyzer = get_mapbiomas_analyzer()
+            if not analyzer.is_available():
+                self.error_message = "MapBiomas dataset not available"
+                self.mapbiomas_analysis_pending = False
+                return
+
+            y1, y2 = self.comparison_year1, self.comparison_year2
+
+            # Run both years
+            df1 = analyzer.analyze_single_year(ee_geom, y1, scale=30)
+            df2 = analyzer.analyze_single_year(ee_geom, y2, scale=30)
+
+            if df2.empty:
+                self.error_message = f"No MapBiomas data for year {y2}"
+                self.mapbiomas_analysis_pending = False
+                return
+
+            name_col = 'Class_Name' if 'Class_Name' in df2.columns else 'Class'
+            result_dict = {
+                "type": "mapbiomas",
+                "geometry": geom_name,
+                "year": y2,
+                "data": df2.to_dict('records'),
+                "summary": {
+                    "total_area_ha": df2['Area_ha'].sum(),
+                    "num_classes": len(df2),
+                    "top_class": df2.iloc[0][name_col] if len(df2) > 0 else 'Unknown',
+                }
+            }
+
+            # Comparison if both years have data
+            comparison_dict = None
+            if not df1.empty and not df2.empty:
+                comparison_df = calculate_gains_losses(df1, df2)
+                comparison_dict = {
+                    "year_start": y1,
+                    "year_end": y2,
+                    "territory": geom_name,
+                    "data": comparison_df.to_dict('records'),
+                }
+
+            key = f"geometry::{self.selected_geometry_idx}"
+            feat = self.drawn_features[self.selected_geometry_idx]
+            self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=feat)
+
+            # Enable change mask for this geometry
+            self.show_change_mask = True
+            self.change_mask_year1 = y1
+            self.change_mask_year2 = y2
+            self.geometry_version += 1
+
+            self.set_active_tab("analysis")
+            self.loading_message = ""
+            self.mapbiomas_analysis_pending = False
+
+        except Exception as e:
+            self.error_message = f"Full analysis failed: {str(e)}"
+            self.mapbiomas_analysis_pending = False
+            logger.error(f"Full geometry analysis error: {e}")
 
     def set_geometry_analysis_type(self, analysis_type: str):
         """Set analysis type for drawn geometries (mapbiomas or hansen)."""
@@ -1887,7 +2241,7 @@ class AppState(rx.State):
                 self.error_message = f"No MapBiomas data found for {self.selected_territory}"
             else:
                 # Store results
-                self.analysis_results = {
+                result_dict = {
                     "type": "mapbiomas",
                     "geometry": self.selected_territory,
                     "year": self.mapbiomas_current_year,
@@ -1898,16 +2252,20 @@ class AppState(rx.State):
                         "top_class": result_df.iloc[0]['Class_Name'] if len(result_df) > 0 else 'Unknown',
                     }
                 }
+                # Store in multi-result system
+                key = f"territory::{self.selected_territory}"
+                geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
+                self._store_result(key, result_dict, geojson_feature=geojson_feat)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
-            
+
             self.mapbiomas_analysis_pending = False
-        
+
         except Exception as e:
             self.error_message = f"Territory analysis failed: {str(e)}"
             self.mapbiomas_analysis_pending = False
             logger.error(f"MapBiomas territory analysis error: {e}")
-    
+
     async def run_hansen_analysis_on_territory(self):
         """
         Run Hansen area distribution analysis on selected territory.
@@ -1958,15 +2316,18 @@ class AppState(rx.State):
                         "total_area_ha": float(result_df['Area_ha'].sum()),
                     }
                 }
-                self.analysis_results = result_dict  # Set as active result for display
-                self.hansen_analysis_result = result_dict  # Persist Hansen result
-                self.territory_analysis_year = int(self.hansen_current_year)  # Track year used
+                # Store in multi-result system
+                key = f"territory::{self.selected_territory}"
+                geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
+                self._store_result(key, result_dict, geojson_feature=geojson_feat)
+                self.hansen_analysis_result = result_dict
+                self.territory_analysis_year = int(self.hansen_current_year)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
                 logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
 
             self.hansen_analysis_pending = False
-        
+
         except Exception as e:
             self.error_message = f"Hansen analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
@@ -2055,16 +2416,17 @@ class AppState(rx.State):
             self.territory_source = "MapBiomas"
 
             # Store comparison for charts
-            self.mapbiomas_comparison_result = {
+            comparison_dict = {
                 "year_start": y1,
                 "year_end": y2,
                 "territory": self.selected_territory,
                 "data": comparison_df.to_dict('records'),
             }
+            self.mapbiomas_comparison_result = comparison_dict
 
             # Also update main analysis results with year2 data
             name_col = 'Class_Name' if 'Class_Name' in df2.columns else 'Class'
-            self.analysis_results = {
+            result_dict = {
                 "type": "mapbiomas",
                 "geometry": self.selected_territory,
                 "year": y2,
@@ -2075,6 +2437,11 @@ class AppState(rx.State):
                     "top_class": df2.iloc[0][name_col] if len(df2) > 0 else 'Unknown',
                 }
             }
+
+            # Store in multi-result system with comparison
+            key = f"territory::{self.selected_territory}"
+            geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
+            self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=geojson_feat)
 
             self.loading_message = ""
             self.mapbiomas_analysis_pending = False

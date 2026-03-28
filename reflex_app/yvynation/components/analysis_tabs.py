@@ -363,7 +363,7 @@ def aafc_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def comparison_tab() -> rx.Component:
-    """Year-to-year comparison tab with gains/losses charts."""
+    """Year-to-year comparison tab with gains/losses, Sankey, and transition matrix."""
     return rx.vstack(
         rx.heading("Year Comparison", size="3"),
         rx.cond(
@@ -430,6 +430,34 @@ def comparison_tab() -> rx.Component:
                     ),
                     width="100%",
                     spacing="2",
+                ),
+                rx.divider(),
+                # Sankey Diagram
+                rx.box(
+                    rx.text("Land Cover Transitions (Sankey)", font_weight="bold", font_size="sm"),
+                    rx.cond(
+                        AppState.sankey_chart != None,
+                        rx.plotly(data=AppState.sankey_chart, use_resize_handler=True),
+                        rx.text(
+                            "No transition data available. Run comparison with transition tracking enabled.",
+                            font_size="xs", color="gray", padding="1rem",
+                        ),
+                    ),
+                    width="100%",
+                ),
+                rx.divider(),
+                # Transition Matrix
+                rx.box(
+                    rx.text("Transition Matrix (Heatmap)", font_weight="bold", font_size="sm"),
+                    rx.cond(
+                        AppState.transition_matrix_chart != None,
+                        rx.plotly(data=AppState.transition_matrix_chart, use_resize_handler=True),
+                        rx.text(
+                            "No transition data available.",
+                            font_size="xs", color="gray", padding="1rem",
+                        ),
+                    ),
+                    width="100%",
                 ),
                 spacing="3",
                 width="100%",

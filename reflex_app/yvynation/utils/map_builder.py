@@ -30,15 +30,24 @@ def _ensure_ee_initialized():
             return False
 
 
-def build_map(mapbiomas_years: List[int] = None, hansen_layers: List[str] = None) -> str:
+def build_map(
+    mapbiomas_years: List[int] = None,
+    hansen_layers: List[str] = None,
+    geometry_features: List[dict] = None,
+    change_mask_years: Optional[tuple] = None,
+    change_mask_geometry: Optional[dict] = None,
+) -> str:
     """
-    Build a complete Folium map with Earth Engine layers.
-    This replicates the Streamlit approach: iterate through selections and add layers.
-    
+    Build a complete Folium map with Earth Engine layers, geometry overlays,
+    and optional change mask.
+
     Args:
         mapbiomas_years: List of years to display (e.g., [1985, 2023])
         hansen_layers: List of Hansen layer identifiers (e.g., ["2020"])
-    
+        geometry_features: List of GeoJSON feature dicts to overlay on the map
+        change_mask_years: Tuple (year1, year2) for MapBiomas change mask layer
+        change_mask_geometry: GeoJSON geometry dict to clip the change mask to
+
     Returns:
         HTML string of the complete map
     """
@@ -47,10 +56,10 @@ def build_map(mapbiomas_years: List[int] = None, hansen_layers: List[str] = None
         if not _ensure_ee_initialized():
             logger.warning("Earth Engine not initialized - layers may not work")
         
-        # Create base map
+        # Create base map centered on Brazil
         display_map = folium.Map(
-            location=[-5, -60],
-            zoom_start=4,
+            location=[-10, -52],
+            zoom_start=5,
             tiles="OpenStreetMap"
         )
         
@@ -173,7 +182,144 @@ def build_map(mapbiomas_years: List[int] = None, hansen_layers: List[str] = None
                 traceback.print_exc()
         
         logger.info(f"Layers added: {layers_added}")
-        
+
+        # ADD GEOMETRY OVERLAYS - drawn/uploaded features shown on the map
+        bounds_to_fit = None
+        if geometry_features:
+            try:
+                import json
+                fg = folium.FeatureGroup(name="Drawn Geometries", show=True)
+                all_coords = []
+
+                for idx, feat in enumerate(geometry_features):
+                    geom = feat.get("geometry") or feat
+                    geom_type = geom.get("type", "")
+                    coords = geom.get("coordinates", [])
+
+                    if not geom_type or not coords:
+                        continue
+
+                    name = feat.get("name", f"Geometry {idx + 1}")
+
+                    # Collect coordinates for bounds calculation
+                    def _flatten_coords(c, acc):
+                        if isinstance(c[0], (int, float)):
+                            acc.append(c[:2])
+                        else:
+                            for sub in c:
+                                _flatten_coords(sub, acc)
+                    _flatten_coords(coords, all_coords)
+
+                    # Style: green dashed for territories, purple for drawn
+                    if feat.get("_source") == "territory":
+                        style = {
+                            "fillColor": "#228B22",
+                            "color": "#006400",
+                            "weight": 3,
+                            "fillOpacity": 0.1,
+                            "dashArray": "5,5",
+                        }
+                    else:
+                        style = {
+                            "fillColor": "#8B5CF6",
+                            "color": "#6D28D9",
+                            "weight": 2.5,
+                            "fillOpacity": 0.15,
+                        }
+
+                    geojson_feature = {
+                        "type": "Feature",
+                        "geometry": geom,
+                        "properties": {"name": name, "index": idx},
+                    }
+                    folium.GeoJson(
+                        geojson_feature,
+                        name=name,
+                        style_function=lambda x, s=style: s,
+                        tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["Geometry:"]),
+                    ).add_to(fg)
+
+                fg.add_to(display_map)
+                layers_added += 1
+                logger.info(f"Added {len(geometry_features)} geometry overlay(s)")
+
+                # Calculate bounds for zoom
+                if all_coords:
+                    lons = [c[0] for c in all_coords]
+                    lats = [c[1] for c in all_coords]
+                    bounds_to_fit = [[min(lats), min(lons)], [max(lats), max(lons)]]
+
+            except Exception as e:
+                logger.error(f"Error adding geometry overlays: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # ADD CHANGE MASK LAYER - difference between two MapBiomas years
+        if change_mask_years and len(change_mask_years) == 2:
+            try:
+                year1, year2 = int(change_mask_years[0]), int(change_mask_years[1])
+                from .ee_service_extended import ExtendedEarthEngineService
+                ee_svc = ExtendedEarthEngineService()
+                mapbiomas = ee_svc.get_mapbiomas()
+
+                if mapbiomas:
+                    img1 = mapbiomas.select(f"classification_{year1}")
+                    img2 = mapbiomas.select(f"classification_{year2}")
+                    # Change mask: 1 where class changed, 0 where same
+                    change = img1.neq(img2).selfMask()
+
+                    clip_geom = None
+                    if change_mask_geometry:
+                        clip_geom = ee.Geometry(change_mask_geometry)
+                        change = change.clip(clip_geom)
+
+                    vis = {"min": 0, "max": 1, "palette": ["#FF4444"]}
+                    map_id = change.getMapId(vis)
+                    tile_url = map_id["tile_fetcher"].url_format
+
+                    folium.TileLayer(
+                        tiles=tile_url,
+                        attr=f"MapBiomas Change {year1}-{year2}",
+                        name=f"Change Mask {year1} vs {year2}",
+                        overlay=True,
+                        control=True,
+                        opacity=0.6,
+                    ).add_to(display_map)
+                    layers_added += 1
+                    logger.info(f"Added change mask layer: {year1} vs {year2}")
+
+                    # Add reference MapBiomas layers (deactivated) for the two years
+                    try:
+                        from ..config import MAPBIOMAS_PALETTE
+                        ref_vis = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+                        for ref_year, ref_img in [(year1, img1), (year2, img2)]:
+                            if clip_geom:
+                                ref_img = ref_img.clip(clip_geom)
+                            ref_map_id = ref_img.getMapId(ref_vis)
+                            ref_tile_url = ref_map_id["tile_fetcher"].url_format
+                            folium.TileLayer(
+                                tiles=ref_tile_url,
+                                attr=f"MapBiomas {ref_year}",
+                                name=f"MapBiomas {ref_year} (ref)",
+                                overlay=True,
+                                control=True,
+                                show=False,
+                                opacity=0.8,
+                            ).add_to(display_map)
+                        logger.info(f"Added reference layers: {year1}, {year2} (deactivated)")
+                    except Exception as ref_e:
+                        logger.warning(f"Could not add reference layers: {ref_e}")
+
+            except Exception as e:
+                logger.error(f"Error adding change mask: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Zoom to geometry bounds if available
+        if bounds_to_fit:
+            display_map.fit_bounds(bounds_to_fit, padding=(20, 20))
+            logger.info(f"Map zoomed to geometry bounds: {bounds_to_fit}")
+
         # Add Leaflet Draw tool
         Draw(
             export=True,
@@ -347,6 +493,6 @@ def build_map(mapbiomas_years: List[int] = None, hansen_layers: List[str] = None
         traceback.print_exc()
         
         # Return basic map on error
-        m = folium.Map(location=[-5, -60], zoom_start=4, tiles="OpenStreetMap")
+        m = folium.Map(location=[-10, -52], zoom_start=5, tiles="OpenStreetMap")
         folium.LayerControl().add_to(m)
         return m._repr_html_()

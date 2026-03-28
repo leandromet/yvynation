@@ -8,97 +8,64 @@ from ..state import AppState
 
 def analysis_controls() -> rx.Component:
     """Analysis controls for drawn/selected geometry."""
+    has_geometry = AppState.selected_geometry_idx != None
+
     return rx.vstack(
         rx.cond(
-            AppState.selected_territory != "",
+            has_geometry,
             rx.vstack(
-                rx.text(
-                    f"Selected: {AppState.selected_territory}",
-                    font_weight="bold",
-                    font_size="sm",
+                # Full analysis button (MapBiomas comparison + change mask)
+                rx.cond(
+                    AppState.mapbiomas_analysis_pending,
+                    rx.button(
+                        rx.hstack(rx.spinner(size="1"), rx.text("Analyzing..."), spacing="2"),
+                        is_disabled=True,
+                        width="100%",
+                        color_scheme="purple",
+                        size="1",
+                    ),
+                    rx.button(
+                        "Analyze Custom Geometry",
+                        on_click=AppState.run_full_analysis_on_geometry,
+                        width="100%",
+                        color_scheme="purple",
+                        size="1",
+                    ),
                 ),
-                
+                rx.text(
+                    "Runs MapBiomas comparison + change mask",
+                    font_size="10px", color="gray",
+                ),
                 rx.divider(),
-                
-                rx.text(
-                    "Analyze against active layers:",
-                    font_size="xs",
-                    color="gray",
+                # Individual analysis buttons
+                rx.text("Individual layers:", font_size="xs", color="gray"),
+                rx.hstack(
+                    rx.button(
+                        "MapBiomas",
+                        on_click=AppState.run_mapbiomas_analysis_on_geometry,
+                        size="1",
+                        color_scheme="green",
+                        flex="1",
+                    ),
+                    rx.button(
+                        "Hansen",
+                        on_click=AppState.run_hansen_analysis_on_geometry,
+                        size="1",
+                        color_scheme="blue",
+                        flex="1",
+                    ),
+                    width="100%",
+                    spacing="1",
                 ),
-                
-                # MapBiomas analysis
-                rx.cond(
-                    AppState.mapbiomas_displayed_years.length() > 0,
-                    rx.cond(
-                        AppState.mapbiomas_analysis_pending,
-                        rx.button(
-                            rx.hstack(
-                                rx.spinner(size="1"),
-                                rx.text("Analyzing MapBiomas..."),
-                                spacing="2",
-                            ),
-                            is_disabled=True,
-                            width="100%",
-                            color_scheme="blue",
-                            size="1",
-                        ),
-                        rx.button(
-                            "📊 Analyze MapBiomas",
-                            on_click=AppState.run_mapbiomas_analysis_on_geometry,
-                            width="100%",
-                            color_scheme="green",
-                            size="1",
-                        ),
-                    ),
-                    rx.text(
-                        "Add a MapBiomas layer first",
-                        font_size="xs",
-                        color="gray",
-                        font_style="italic",
-                    ),
-                ),
-                
-                # Hansen analysis
-                rx.cond(
-                    AppState.hansen_displayed_layers.length() > 0,
-                    rx.cond(
-                        AppState.hansen_analysis_pending,
-                        rx.button(
-                            rx.hstack(
-                                rx.spinner(size="1"),
-                                rx.text("Analyzing Hansen..."),
-                                spacing="2",
-                            ),
-                            is_disabled=True,
-                            width="100%",
-                            color_scheme="blue",
-                            size="1",
-                        ),
-                        rx.button(
-                            "🌲 Analyze Hansen",
-                            on_click=AppState.run_hansen_analysis_on_geometry,
-                            width="100%",
-                            color_scheme="green",
-                            size="1",
-                        ),
-                    ),
-                    rx.text(
-                        "Add a Hansen layer first",
-                        font_size="xs",
-                        color="gray",
-                        font_style="italic",
-                    ),
-                ),
-                
                 spacing="2",
                 width="100%",
             ),
             rx.text(
-                "👇 Draw or select a geometry to analyze",
+                "Select a geometry above to analyze",
                 font_size="xs",
                 color="gray",
                 text_align="center",
-                padding="1rem",
+                padding="0.5rem",
             ),
         ),
         spacing="2",

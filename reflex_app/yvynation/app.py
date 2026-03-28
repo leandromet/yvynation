@@ -20,4 +20,5 @@ app.add_page(
     index,
     route="/",
     title="Yvynation - Indigenous Land Monitoring",
+    on_load=AppState.initialize_app,
 )
