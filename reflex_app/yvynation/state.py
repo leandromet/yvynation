@@ -226,28 +226,32 @@ class AppState(rx.State):
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_summary_cover(self) -> str:
-        """Hansen tree cover 2000 formatted."""
+        """Hansen total area analyzed."""
         try:
-            val = self.analysis_results.get("summary", {}).get("total_tree_cover_2000_ha", 0)
+            summary = self.analysis_results.get("summary", {})
+            # New format: total_area_ha
+            val = summary.get("total_area_ha", 0)
             return f"{val:,.0f} ha" if val else "N/A"
         except Exception:
             return "N/A"
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_summary_loss(self) -> str:
-        """Hansen total loss formatted."""
+        """Hansen number of classes found."""
         try:
-            val = self.analysis_results.get("summary", {}).get("total_loss_ha", 0)
-            return f"{val:,.0f} ha" if val else "N/A"
+            summary = self.analysis_results.get("summary", {})
+            num = summary.get("num_classes", 0)
+            return f"{num} classes" if num else "N/A"
         except Exception:
             return "N/A"
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_summary_gain(self) -> str:
-        """Hansen total gain formatted."""
+        """Hansen analysis year."""
         try:
-            val = self.analysis_results.get("summary", {}).get("total_gain_ha", 0)
-            return f"{val:,.0f} ha" if val else "N/A"
+            summary = self.analysis_results.get("summary", {})
+            year = summary.get("year", "")
+            return f"Year {year}" if year else "N/A"
         except Exception:
             return "N/A"
 
@@ -308,13 +312,14 @@ class AppState(rx.State):
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_balance_chart(self) -> Optional[Figure]:
-        """Plotly balance chart for Hansen results."""
+        """Plotly area distribution chart for Hansen results."""
         try:
             from .utils.visualization import get_chart_for_analysis
-            fig = get_chart_for_analysis(self.analysis_results, chart_type='balance')
+            # Use 'bar' chart type for area distribution (not 'balance')
+            fig = get_chart_for_analysis(self.analysis_results, chart_type='bar')
             return fig if fig else None
         except Exception as e:
-            logger.error(f"Error generating Hansen balance chart: {e}")
+            logger.error(f"Error generating Hansen chart: {e}")
             return None
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
@@ -331,6 +336,11 @@ class AppState(rx.State):
     def comparison_year2_str(self) -> str:
         """Comparison year 2 as string for UI binding."""
         return str(self.comparison_year2)
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_current_year"])
+    def mapbiomas_current_year_str(self) -> str:
+        """MapBiomas current year as string for UI binding."""
+        return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else "2023"
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
     def comparison_chart(self) -> Optional[Figure]:
@@ -1484,36 +1494,36 @@ class AppState(rx.State):
     
     async def run_hansen_analysis_on_geometry(self):
         """
-        Run Hansen forest change analysis on selected drawn geometry.
+        Run Hansen area distribution analysis on selected drawn geometry.
         """
         try:
             from .utils.hansen_analysis import get_hansen_analyzer
-            
+
             # Check if a geometry is selected
             if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
                 self.error_message = "Please select a geometry first"
                 return
-            
+
             # Get the EE geometry for the selected feature
             ee_geom = self.get_selected_geometry_ee()
             if not ee_geom:
                 self.error_message = "Selected geometry is not valid for analysis"
                 return
-            
+
             self.hansen_analysis_pending = True
-            self.loading_message = "Analyzing forest change with Hansen..."
-            
+            self.loading_message = f"Analyzing Hansen {self.hansen_current_year}..."
+
             # Run analysis
             analyzer = get_hansen_analyzer()
             if not analyzer.is_available():
                 self.error_message = "Hansen dataset not available"
                 self.hansen_analysis_pending = False
                 return
-            
-            # Analyze forest dynamics
-            result_df = analyzer.analyze_forest_dynamics(ee_geom, scale=30)
-            
-            if result_df.empty:
+
+            # Get area distribution for selected year
+            result_df = analyzer.get_area_distribution(ee_geom, year=self.hansen_current_year, scale=30)
+
+            if result_df is None or result_df.empty:
                 self.error_message = "No Hansen data found for this area"
             else:
                 # Store results
@@ -1523,14 +1533,15 @@ class AppState(rx.State):
                     "geometry": geom_name,
                     "data": result_df.to_dict('records'),
                     "summary": {
-                        "total_tree_cover_2000_ha": result_df['Tree_Cover_2000_ha'].iloc[0] if len(result_df) > 0 else 0,
-                        "total_loss_ha": result_df['Loss_ha'].sum(),
-                        "total_gain_ha": result_df['Gain_ha'].sum(),
+                        "year": self.hansen_current_year,
+                        "num_classes": len(result_df),
+                        "total_area_ha": float(result_df['Area_ha'].sum()),
                     }
                 }
                 self.set_active_tab("analysis")
                 self.loading_message = ""
-            
+                logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
+
             self.hansen_analysis_pending = False
         
         except Exception as e:
@@ -1668,51 +1679,57 @@ class AppState(rx.State):
     
     async def run_hansen_analysis_on_territory(self):
         """
-        Run Hansen forest change analysis on selected territory.
+        Run Hansen area distribution analysis on selected territory.
         Uses territory geometry from Earth Engine.
         """
         try:
             from .utils.hansen_analysis import get_hansen_analyzer
             from .utils.ee_service_extended import get_ee_service
-            
+
             if not self.selected_territory:
                 self.error_message = "Please select a territory first"
                 return
-            
+
             self.hansen_analysis_pending = True
-            self.loading_message = f"Analyzing forest change in {self.selected_territory}..."
-            
+            self.loading_message = f"Analyzing Hansen {self.hansen_current_year} in {self.selected_territory}..."
+
             # Get territory geometry from EE
             ee_service = get_ee_service()
             ee_geom = ee_service.get_territory_geometry(self.selected_territory)
-            
+
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.hansen_analysis_pending = False
                 return
-            
+
             # Run analysis
             analyzer = get_hansen_analyzer()
             if not analyzer.is_available():
                 self.error_message = "Hansen dataset not available"
                 self.hansen_analysis_pending = False
                 return
-            
-            result_df = analyzer.analyze_forest_dynamics(ee_geom, scale=30)
 
-            # Handle dict result from analyze_forest_dynamics
-            if not result_df or not isinstance(result_df, dict):
-                self.error_message = f"No Hansen data found for {self.selected_territory}"
+            # Get area distribution for selected year
+            result_df = analyzer.get_area_distribution(ee_geom, year=self.hansen_current_year, scale=30)
+
+            # Handle DataFrame result
+            if result_df is None or result_df.empty:
+                self.error_message = f"No Hansen data found for {self.selected_territory} in {self.hansen_current_year}"
             else:
-                # Store results - result_df is a dict summary
+                # Store results as DataFrame
                 self.analysis_results = {
                     "type": "hansen",
                     "geometry": self.selected_territory,
-                    "data": [result_df],  # Wrap dict in list for consistency
-                    "summary": result_df,  # Use the summary dict directly
+                    "data": result_df.to_dict('records'),
+                    "summary": {
+                        "year": self.hansen_current_year,
+                        "num_classes": len(result_df),
+                        "total_area_ha": float(result_df['Area_ha'].sum()),
+                    }
                 }
                 self.set_active_tab("analysis")
                 self.loading_message = ""
+                logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
 
             self.hansen_analysis_pending = False
         

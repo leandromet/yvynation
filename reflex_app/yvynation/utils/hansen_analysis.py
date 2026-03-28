@@ -249,59 +249,90 @@ class HansenAnalyzer:
             logger.error(f"Error creating loss timeline: {e}")
             return pd.DataFrame()
     
-    def analyze_forest_dynamics(
+    def get_area_distribution(
         self,
         geometry: ee.Geometry,
-        start_year: int = 2000,
-        end_year: int = 2023,
+        year: str = '2020',
         scale: int = 30
-    ) -> Dict[str, Any]:
+    ) -> Optional[pd.DataFrame]:
         """
-        Comprehensive forest dynamics analysis.
-        
+        Get area distribution by Hansen class for a given geometry.
+
         Args:
             geometry: Area of interest
-            start_year: Analysis start year
-            end_year: Analysis end year
+            year: Year as string (e.g., '2020')
             scale: Analysis scale
-        
+
         Returns:
-            Dictionary with complete forest statistics
+            DataFrame with Class_ID, Class, Pixels, Area_ha columns
         """
         try:
             if not self.is_available():
                 logger.error("Hansen dataset not available")
-                return {}
-            
-            # Get baselines
-            cover_2000 = self.get_tree_cover_2000(geometry, scale)
-            
-            # Get loss
-            loss_dict = self.get_forest_loss(geometry, start_year, end_year, scale)
-            total_loss_ha = sum(d['loss_area_ha'] for d in loss_dict.values())
-            
-            # Get gain
-            gain = self.get_forest_gain(geometry)
-            
-            # Calculate net change
-            net_change_ha = gain.get('gain_area_ha', 0) - total_loss_ha
-            
-            logger.info(f"Forest dynamics: Loss={total_loss_ha:.0f} ha, Gain={gain.get('gain_area_ha', 0):.0f} ha, Net={net_change_ha:.0f} ha")
-            
-            return {
-                'tree_cover_2000_ha': cover_2000.get('tree_cover_area_ha', 0),
-                'tree_cover_2000_percent': cover_2000.get('tree_cover_percent', 0),
-                'forest_loss_total_ha': total_loss_ha,
-                'forest_loss_annual_avg_ha': total_loss_ha / (end_year - start_year + 1) if (end_year - start_year + 1) > 0 else 0,
-                'forest_gain_ha': gain.get('gain_area_ha', 0),
-                'net_forest_change_ha': net_change_ha,
-                'net_forest_change_percent': (net_change_ha / (cover_2000.get('tree_cover_area_ha', 1))) * 100 if cover_2000.get('tree_cover_area_ha', 0) > 0 else 0,
-                'analysis_period': f'{start_year}-{end_year}',
-            }
-        
+                return None
+
+            # Get the Hansen image (using GLAD LCLUC - unified landcover data)
+            try:
+                from ..config.config import HANSEN_DATASETS, HANSEN_LABELS
+            except ImportError:
+                logger.error("Cannot import HANSEN_DATASETS or HANSEN_LABELS from config")
+                return None
+
+            # Load GLAD LCLUC data if available, otherwise use Hansen GFC
+            if str(year) in HANSEN_DATASETS:
+                hansen_image = ee.Image(HANSEN_DATASETS[str(year)])
+            else:
+                # Fallback to Hansen GFC
+                hansen_image = self.hansen_dataset
+
+            # Calculate frequency histogram
+            histogram = hansen_image.reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=geometry,
+                scale=scale,
+                maxPixels=int(1e13)
+            ).getInfo()
+
+            if not histogram or 'b1' not in histogram:
+                logger.warning(f"No Hansen histogram data for year {year}")
+                return None
+
+            # Convert histogram to DataFrame
+            data = histogram.get('b1', {})
+            if not data:
+                return None
+
+            records = []
+            for class_id_str, count in data.items():
+                try:
+                    class_id = int(class_id_str)
+                    class_name = HANSEN_LABELS.get(class_id, f"Class {class_id}")
+                    area_ha = count * 0.9  # 30m pixel ≈ 0.9 ha
+
+                    records.append({
+                        'Class_ID': class_id,
+                        'Class': class_name,
+                        'Pixels': int(count),
+                        'Area_ha': round(area_ha, 2),
+                        'Area_km2': round(area_ha / 100, 2),
+                    })
+                except (ValueError, TypeError):
+                    continue
+
+            if not records:
+                return None
+
+            df = pd.DataFrame(records).sort_values('Area_ha', ascending=False)
+            df['Year'] = str(year)
+
+            logger.info(f"Hansen {year} area distribution: {len(df)} classes found")
+            return df
+
         except Exception as e:
-            logger.error(f"Error in forest dynamics analysis: {e}")
-            return {}
+            logger.error(f"Error getting Hansen area distribution for {year}: {e}")
+            return None
+
+
 
 
 # Singleton instance

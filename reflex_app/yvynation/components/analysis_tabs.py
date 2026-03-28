@@ -82,45 +82,45 @@ def _hansen_summary_metrics() -> rx.Component:
         rx.hstack(
             rx.box(
                 rx.vstack(
-                    rx.text("Tree Cover 2000", font_size="xs", color="gray"),
+                    rx.text("Total Area", font_size="xs", color="gray"),
                     rx.text(
                         AppState.hansen_summary_cover,
-                        font_weight="bold", font_size="lg", color="green",
+                        font_weight="bold", font_size="lg", color="blue",
                     ),
                     spacing="0", align="center",
                 ),
                 padding="0.75rem",
-                bg="green.50",
+                bg="blue.50",
                 border_radius="md",
                 flex="1",
                 text_align="center",
             ),
             rx.box(
                 rx.vstack(
-                    rx.text("Total Loss", font_size="xs", color="gray"),
+                    rx.text("Classes Found", font_size="xs", color="gray"),
                     rx.text(
                         AppState.hansen_summary_loss,
-                        font_weight="bold", font_size="lg", color="red",
+                        font_weight="bold", font_size="lg", color="orange",
                     ),
                     spacing="0", align="center",
                 ),
                 padding="0.75rem",
-                bg="red.50",
+                bg="orange.50",
                 border_radius="md",
                 flex="1",
                 text_align="center",
             ),
             rx.box(
                 rx.vstack(
-                    rx.text("Total Gain", font_size="xs", color="gray"),
+                    rx.text("Analysis Year", font_size="xs", color="gray"),
                     rx.text(
                         AppState.hansen_summary_gain,
-                        font_weight="bold", font_size="lg", color="green",
+                        font_weight="bold", font_size="lg", color="purple",
                     ),
                     spacing="0", align="center",
                 ),
                 padding="0.75rem",
-                bg="green.50",
+                bg="purple.50",
                 border_radius="md",
                 flex="1",
                 text_align="center",

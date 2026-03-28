@@ -518,6 +518,15 @@ def territory_selection_controls() -> rx.Component:
                     color="gray",
                 ),
                 rx.vstack(
+                    # MapBiomas year selector
+                    rx.text("MapBiomas Year", font_size="xs", font_weight="bold"),
+                    rx.select(
+                        [str(y) for y in range(1985, 2024)],
+                        value=AppState.mapbiomas_current_year_str,
+                        on_change=AppState.set_mapbiomas_year,
+                        size="2",
+                        width="100%",
+                    ),
                     # MapBiomas analysis
                     rx.cond(
                         AppState.mapbiomas_analysis_pending,
@@ -539,6 +548,16 @@ def territory_selection_controls() -> rx.Component:
                             width="100%",
                             color_scheme="green",
                         ),
+                    ),
+                    rx.divider(),
+                    # Hansen year selector
+                    rx.text("Hansen/GLAD Year", font_size="xs", font_weight="bold"),
+                    rx.select(
+                        ["2000", "2005", "2010", "2015", "2020"],
+                        value=AppState.hansen_current_year,
+                        on_change=AppState.set_hansen_year,
+                        size="2",
+                        width="100%",
                     ),
                     # Hansen analysis
                     rx.cond(

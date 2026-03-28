@@ -173,6 +173,55 @@ HANSEN_CONSOLIDATED_COLORS = {
     "Ocean": "#0D47A1", "No Data": "#CCCCCC",
 }
 
+# Hansen GLCLUC class labels (for histogram analysis)
+HANSEN_LABELS = {
+    0: "Terra Firma - 3% short vegetation cover",
+    1: "7% short vegetation cover", 2: "11% short vegetation cover", 3: "15% short vegetation cover",
+    4: "19% short vegetation cover", 5: "23% short vegetation cover", 6: "27% short vegetation cover",
+    7: "31% short vegetation cover", 8: "35% short vegetation cover", 9: "39% short vegetation cover",
+    10: "43% short vegetation cover", 11: "47% short vegetation cover", 12: "51% short vegetation cover",
+    13: "55% short vegetation cover", 14: "59% short vegetation cover", 15: "63% short vegetation cover",
+    16: "67% short vegetation cover", 17: "71% short vegetation cover", 18: "75% short vegetation cover",
+    19: "79% short vegetation cover", 20: "83% short vegetation cover", 21: "87% short vegetation cover",
+    22: "91% short vegetation cover", 23: "95% short vegetation cover", 24: "100% short vegetation cover",
+    25: "3m trees", 26: "4m trees", 27: "5m trees", 28: "6m trees", 29: "7m trees",
+    30: "8m trees", 31: "9m trees", 32: "10m trees", 33: "11m trees", 34: "12m trees",
+    35: "13m trees", 36: "14m trees", 37: "15m trees", 38: "16m trees", 39: "17m trees",
+    40: "18m trees", 41: "19m trees", 42: "20m trees", 43: "21m trees", 44: "22m trees",
+    45: "23m trees", 46: "24m trees", 47: "25m trees", 48: ">25m trees",
+    49: "Tree cover with previous disturbance",
+    50: "Tree cover disturbance", 51: "Tree cover disturbance", 52: "Tree cover disturbance",
+    53: "Tree cover disturbance", 54: "Tree cover disturbance", 55: "Tree cover disturbance",
+    56: "Tree cover disturbance", 57: "Tree cover disturbance", 58: "Tree cover disturbance",
+    59: "Tree cover disturbance",
+    60: "Wetland", 61: "Wetland", 62: "Water - seasonal", 63: "Water - permanent",
+    64: "Shrubland", 65: "Herbaceous vegetation", 66: "Sparse vegetation", 67: "Cropland",
+    68: "Built-up land", 69: "Barren land", 70: "Short vegetation", 71: "Built-up with vegetation",
+    72: "Mangrove", 73: "Sparse tree cover", 74: "Developed area", 75: "Water - seasonal",
+    76: "Irrigated - rice", 77: "Irrigated cropland", 78: "Rainfed cropland", 79: "Dense vegetation",
+    80: "Sparse vegetation", 81: "Urban/built-up", 82: "Bare rock", 83: "Seasonally flooded",
+    84: "Plantation forest", 85: "Ice/snow", 86: "Exposed rock", 87: "Clouds/shadow",
+    88: "Sparse vegetation", 89: "Moderate vegetation", 90: "Herbaceous - sparse", 91: "Herbaceous - dense",
+    92: "Urban area", 93: "Low-density trees", 94: "Glaciers/permanent ice", 95: "Water/clouds",
+    96: "Surface water", 97: "Not used", 98: "Bare ground", 99: "Developed - scattered",
+    100: "Wetland - 3% short vegetation cover",
+    # ... (more classes 101-199)
+    200: "Open surface water - 20-29% of year", 201: "30-39% of year", 202: "40-49% of year",
+    203: "50-59% of year", 204: "60-69% of year", 205: "70-79% of year", 206: "80-89% of year",
+    207: "90-100% of year", 208: "Not used", 209: "Herbaceous",
+    210: "Sparse trees", 211: "Moderate trees", 212: "Herbaceous", 213: "Corn/maize",
+    214: "Wheat", 215: "Rice", 216: "Sugar", 217: "Herbaceous", 218: "Young crop",
+    219: "Mature crop", 220: "Cotton", 221: "Soybeans", 222: "Vineyards/orchards",
+    223: "Horticulture", 224: "Oil palm young", 225: "Oil palm mature", 226: "Ephemeral",
+    227: "Coconut", 228: "Herbaceous", 229: "Coffee", 230: "Tea", 231: "Barren temporary",
+    232: "Rocky herbaceous", 233: "Pulpwood", 234: "Water - turbid", 235: "Water - clear",
+    236: "Shrub", 237: "Dense shrub", 238: "Ephemeral - dense", 239: "Dense tall shrub",
+    240: "Urban commercial", 241: "Urban residential", 242: "Moderate shrub", 243: "Open shrub",
+    244: "Sparse shrub", 245: "Mixed urban", 246: "Vegetated urban", 247: "Suburban sprawl",
+    248: "Industrial zone", 249: "Transport corridor", 250: "Permanent snow/ice", 251: "Not used",
+    252: "Subsistence crops", 253: "Not used", 254: "Ocean", 255: "No data"
+}
+
 # ==============================================================================
 # AAFC ANNUAL CROP INVENTORY (CANADA)
 # ==============================================================================
