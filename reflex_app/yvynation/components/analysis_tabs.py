@@ -140,6 +140,18 @@ def mapbiomas_tab() -> rx.Component:
     """MapBiomas land cover analysis tab."""
     return rx.vstack(
         rx.heading("MapBiomas Land Cover Analysis", size="3"),
+        # Analysis info
+        rx.cond(
+            AppState.analysis_info_text != "",
+            rx.box(
+                rx.text(AppState.analysis_info_text, font_size="sm", color="gray"),
+                padding="1rem",
+                bg="gray.50",
+                border_radius="md",
+                border_left="4px solid #3182ce",
+            ),
+            rx.box(),
+        ),
         rx.cond(
             AppState.analysis_results.get("type") == "mapbiomas",
             rx.vstack(
@@ -180,6 +192,22 @@ def mapbiomas_tab() -> rx.Component:
                     size="2",
                     variant="outline",
                 ),
+                # Quick link to Hansen if available
+                rx.cond(
+                    AppState.hansen_analysis_result != None,
+                    rx.box(
+                        rx.text("Hansen results available", font_size="xs", color="orange"),
+                        rx.button(
+                            "View Hansen Analysis",
+                            on_click=lambda: AppState.set_active_tab("hansen"),
+                            size="1",
+                            color_scheme="orange",
+                            variant="outline",
+                        ),
+                        spacing="2",
+                    ),
+                    rx.box(),
+                ),
                 spacing="3",
                 width="100%",
             ),
@@ -199,6 +227,18 @@ def hansen_tab() -> rx.Component:
     """Hansen/GLAD forest change analysis tab."""
     return rx.vstack(
         rx.heading("Hansen/GLAD Forest Change", size="3"),
+        # Analysis info
+        rx.cond(
+            AppState.analysis_info_text != "",
+            rx.box(
+                rx.text(AppState.analysis_info_text, font_size="sm", color="gray"),
+                padding="1rem",
+                bg="gray.50",
+                border_radius="md",
+                border_left="4px solid #ed8936",
+            ),
+            rx.box(),
+        ),
         rx.cond(
             AppState.analysis_results.get("type") == "hansen",
             rx.vstack(
@@ -230,6 +270,22 @@ def hansen_tab() -> rx.Component:
                     color_scheme="blue",
                     size="2",
                     variant="outline",
+                ),
+                # Quick link to MapBiomas if available
+                rx.cond(
+                    AppState.mapbiomas_analysis_result != None,
+                    rx.box(
+                        rx.text("MapBiomas results available", font_size="xs", color="green"),
+                        rx.button(
+                            "View MapBiomas Analysis",
+                            on_click=lambda: AppState.set_active_tab("mapbiomas"),
+                            size="1",
+                            color_scheme="green",
+                            variant="outline",
+                        ),
+                        spacing="2",
+                    ),
+                    rx.box(),
                 ),
                 spacing="3",
                 width="100%",

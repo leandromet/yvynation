@@ -39,6 +39,7 @@ class AppState(rx.State):
     map_center: tuple = (0.0, 0.0)
     map_zoom: int = 3
     map_bounds: Optional[List] = None
+    map_zoom_bounds: Dict[str, float] = {}  # Bounds for territory zoom {'min_lat', 'max_lat', 'min_lon', 'max_lon', 'center_lat', 'center_lon'}
     selected_base_layer: str = "openstreetmap"
     
     # Layer Configuration
@@ -80,9 +81,15 @@ class AppState(rx.State):
     
     # Analysis Results
     analysis_results: Dict[str, Any] = {}  # Empty dict when no analysis is active
+    mapbiomas_analysis_result: Optional[Dict[str, Any]] = None  # Persists MapBiomas results
+    hansen_analysis_result: Optional[Dict[str, Any]] = None  # Persists Hansen results
     mapbiomas_comparison_result: Optional[Dict[str, Any]] = None
     hansen_comparison_result: Optional[Dict[str, Any]] = None
     analysis_figures: Dict[str, Any] = {}
+
+    # Territory display info
+    territory_analysis_year: int = 2023  # Year used for current analysis
+    territory_geometry_displayed: bool = False  # Whether territory boundary is on map
 
     # Comparison year selection
     comparison_year1: int = 2018
@@ -321,6 +328,20 @@ class AppState(rx.State):
         except Exception as e:
             logger.error(f"Error generating Hansen chart: {e}")
             return None
+
+    @rx.var(auto_deps=False, deps=["analysis_results", "selected_territory", "territory_analysis_year"])
+    def analysis_info_text(self) -> str:
+        """Display info about current analysis: territory name and year."""
+        if not self.analysis_results:
+            return ""
+        analysis_type = self.analysis_results.get("type", "Unknown")
+        year = self.analysis_results.get("year") or self.analysis_results.get("summary", {}).get("year")
+        territory = self.selected_territory
+        if territory and year:
+            return f"📍 {territory} • {analysis_type.upper()} {year}"
+        elif territory:
+            return f"📍 {territory}"
+        return ""
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
     def comparison_available(self) -> bool:
@@ -617,8 +638,8 @@ class AppState(rx.State):
                 self.error_message = f"No MapBiomas data found for {self.selected_territory} in {self.mapbiomas_current_year}"
                 logger.warning(self.error_message)
             else:
-                # Store results
-                self.analysis_results = {
+                # Store results in both places
+                result_dict = {
                     "type": "mapbiomas",
                     "summary": {
                         "total_area_ha": analysis_df['Area_ha'].sum(),
@@ -628,6 +649,9 @@ class AppState(rx.State):
                     "year": self.mapbiomas_current_year,
                     "data": analysis_df.to_dict('records'),
                 }
+                self.analysis_results = result_dict  # Set as active result for display
+                self.mapbiomas_analysis_result = result_dict  # Persist MapBiomas result
+                self.territory_analysis_year = self.mapbiomas_current_year  # Track year used
                 self.loading_message = f"✓ Analysis complete: {len(analysis_df)} classes found"
                 logger.info(f"✓ MapBiomas analysis success: {len(analysis_df)} classes")
 
@@ -753,6 +777,38 @@ class AppState(rx.State):
         self.selected_territory = territory
         self.pending_territory = None
         self.territory_name = territory
+
+        # Load territory geometry and zoom to it
+        try:
+            from .utils.ee_service_extended import get_ee_service
+            ee_service = get_ee_service()
+
+            # Get geometry to verify it exists and calculate bounds for zooming
+            geom = ee_service.get_territory_geometry(territory)
+            if geom:
+                # Get bounds for zoom (Earth Engine returns [min_lon, min_lat, max_lon, max_lat])
+                bounds = geom.bounds().getInfo()
+                if bounds and "coordinates" in bounds:
+                    coords = bounds["coordinates"][0]
+                    # Store zoom bounds: [[min_lat, min_lon], [max_lat, max_lon]]
+                    min_lat = min(c[1] for c in coords)
+                    max_lat = max(c[1] for c in coords)
+                    min_lon = min(c[0] for c in coords)
+                    max_lon = max(c[0] for c in coords)
+
+                    # Set map zoom info
+                    self.map_zoom_bounds = {
+                        "min_lat": min_lat,
+                        "max_lat": max_lat,
+                        "min_lon": min_lon,
+                        "max_lon": max_lon,
+                        "center_lat": (min_lat + max_lat) / 2,
+                        "center_lon": (min_lon + max_lon) / 2,
+                    }
+                    self.territory_geometry_displayed = True
+                    logger.info(f"✓ Territory geometry loaded and bounds set: {territory}")
+        except Exception as e:
+            logger.warning(f"Could not load territory bounds for zooming: {e}")
 
         logger.info(f"✓ Selected territory: {territory}")
         
@@ -1716,8 +1772,8 @@ class AppState(rx.State):
             if result_df is None or result_df.empty:
                 self.error_message = f"No Hansen data found for {self.selected_territory} in {self.hansen_current_year}"
             else:
-                # Store results as DataFrame
-                self.analysis_results = {
+                # Store results in both places
+                result_dict = {
                     "type": "hansen",
                     "geometry": self.selected_territory,
                     "data": result_df.to_dict('records'),
@@ -1727,6 +1783,9 @@ class AppState(rx.State):
                         "total_area_ha": float(result_df['Area_ha'].sum()),
                     }
                 }
+                self.analysis_results = result_dict  # Set as active result for display
+                self.hansen_analysis_result = result_dict  # Persist Hansen result
+                self.territory_analysis_year = int(self.hansen_current_year)  # Track year used
                 self.set_active_tab("analysis")
                 self.loading_message = ""
                 logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
