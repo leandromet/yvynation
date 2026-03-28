@@ -107,60 +107,176 @@ def build_map(
             ).add_to(display_map)
             logger.info("Added indigenous lands tile layer")
 
-            # Add clickable markers at territory centroids for interactivity
+            # Add interactive GeoJSON layer for territory boundaries with hover/click
             if territory_names:
                 try:
                     from .ee_service_extended import get_ee_service
                     ee_svc = get_ee_service()
+                    
+                    # Ensure territories are loaded
+                    if not ee_svc.territories_fc:
+                        logger.info("Territories not yet loaded, loading now...")
+                        success, names = ee_svc.load_territories()
+                        logger.info(f"Territory loading result: success={success}, count={len(names)}")
+                    
                     if ee_svc.territories_fc:
                         name_prop = ee_svc.get_name_property()
-                        # Get centroids for all territories (server-side computation)
-                        centroids_fc = ee_svc.territories_fc.map(
-                            lambda f: ee.Feature(
-                                f.centroid(100),
-                                {name_prop: f.get(name_prop)}
-                            )
-                        )
-                        centroids_geojson = centroids_fc.getInfo()
-
-                        marker_cluster = folium.FeatureGroup(
-                            name="Territory Labels (click to select)",
+                        logger.info(f"Creating interactive GeoJSON layer with name property: {name_prop}")
+                        
+                        # Get all territory boundaries as GeoJSON
+                        try:
+                            territories_geojson = ee_svc.territories_fc.getInfo()
+                            territory_count = len(territories_geojson.get("features", []))
+                            logger.info(f"Retrieved {territory_count} territories from Earth Engine")
+                        except Exception as gj_err:
+                            logger.error(f"Failed to get GeoJSON from territories_fc: {gj_err}")
+                            territories_geojson = {"features": []}
+                        
+                        if not territories_geojson.get("features"):
+                            logger.warning("No territory features found in GeoJSON")
+                        
+                        # Create a FeatureGroup for the interactive layers
+                        interactive_fg = folium.FeatureGroup(
+                            name="Territory Boundaries (Interactive)",
                             show=True,
                         )
-                        for feat in centroids_geojson.get("features", []):
-                            props = feat.get("properties", {})
-                            tname = props.get(name_prop, "Unknown")
-                            coords = feat.get("geometry", {}).get("coordinates", [])
-                            if not coords or len(coords) < 2:
+                        
+                        # Build a list to track feature properties for JavaScript callbacks
+                        features_added = 0
+                        for feat_idx, feat in enumerate(territories_geojson.get("features", [])):
+                            try:
+                                props = feat.get("properties", {})
+                                tname = props.get(name_prop, "Unknown")
+                                geom = feat.get("geometry", {})
+                                
+                                if not geom or geom.get("type") not in ["Polygon", "MultiPolygon"]:
+                                    logger.debug(f"Skipping feature {feat_idx}: invalid geometry type {geom.get('type')}")
+                                    continue
+                                
+                                # Create GeoJSON feature with name property for tooltip/popup
+                                geojson_feature = {
+                                    "type": "Feature",
+                                    "geometry": geom,
+                                    "properties": {
+                                        "name": tname,
+                                        "territory_name": tname,
+                                        "name_property": name_prop,
+                                    },
+                                }
+                                
+                                # Create popover HTML with click handler
+                                popup_html = f"""
+                                <div style="font-family:Arial;width:220px;">
+                                    <b style="font-size:14px;color:#4B0082">{tname}</b><br>
+                                    <a href="#" onclick="
+                                        window._yvySelectTerritory('{tname.replace("'", "\\'")}');
+                                        return false;
+                                    " style="color:#4B0082;font-weight:bold;text-decoration:none;display:inline-block;margin-top:5px;">
+                                        &#9654; Load for Analysis
+                                    </a>
+                                </div>
+                                """
+                                
+                                # Add GeoJSON with styling and interactivity
+                                geojson_layer = folium.GeoJson(
+                                    geojson_feature,
+                                    style_function=lambda x: {
+                                        'fillColor': '#4B0082',
+                                        'color': '#8B5CF6',
+                                        'weight': 1.5,
+                                        'opacity': 0.4,
+                                        'fillOpacity': 0.05,
+                                    },
+                                    highlight_function=lambda x: {
+                                        'fillColor': '#6D28D9',
+                                        'color': '#A78BFA',
+                                        'weight': 2.5,
+                                        'opacity': 0.8,
+                                        'fillOpacity': 0.2,
+                                    },
+                                    popup=folium.Popup(popup_html, max_width=250, sticky=True),
+                                    tooltip=folium.Tooltip(tname, sticky=True),
+                                )
+                                geojson_layer.add_to(interactive_fg)
+                                features_added += 1
+                            except Exception as feat_err:
+                                logger.warning(f"Error processing feature {feat_idx}: {feat_err}")
                                 continue
-                            lon, lat = coords[0], coords[1]
+                        
+                        if features_added > 0:
+                            interactive_fg.add_to(display_map)
+                            logger.info(f"Added {features_added} interactive territory boundaries to map")
+                        else:
+                            logger.warning("No interactive territory features were successfully added")
+                        
+                        # Also add centroid markers for better visibility
+                        try:
+                            logger.info("Creating centroid markers for territories...")
+                            centroids_fc = ee_svc.territories_fc.map(
+                                lambda f: ee.Feature(
+                                    f.geometry().centroid(100),
+                                    {name_prop: f.get(name_prop)}
+                                )
+                            )
+                            logger.info("Centroid FeatureCollection created, retrieving GeoJSON...")
+                            centroids_geojson = centroids_fc.getInfo()
+                            centroid_count = len(centroids_geojson.get("features", []))
+                            logger.info(f"Retrieved {centroid_count} centroids from Earth Engine")
 
-                            popup_html = f"""
-                            <div style="min-width:160px">
-                                <b>{tname}</b><br>
-                                <a href="#" onclick="
-                                    window._yvySelectTerritory('{tname.replace("'", "\\'")}');
-                                    return false;
-                                " style="color:#4B0082;font-weight:bold">
-                                    &#9654; Use for Analysis
-                                </a>
-                            </div>
-                            """
-                            folium.CircleMarker(
-                                location=[lat, lon],
-                                radius=4,
-                                color='#4B0082',
-                                fill=True,
-                                fill_color='#4B0082',
-                                fill_opacity=0.6,
-                                weight=1,
-                                popup=folium.Popup(popup_html, max_width=250),
-                                tooltip=tname,
-                            ).add_to(marker_cluster)
-                        marker_cluster.add_to(display_map)
-                        logger.info(f"Added {len(centroids_geojson.get('features', []))} territory centroid markers")
-                except Exception as centroid_err:
-                    logger.warning(f"Could not add territory centroids: {centroid_err}")
+                            marker_fg = folium.FeatureGroup(
+                                name="Territory Labels (Centroids)",
+                                show=True,
+                            )
+                            markers_added = 0
+                            for feat in centroids_geojson.get("features", []):
+                                try:
+                                    props = feat.get("properties", {})
+                                    tname = props.get(name_prop, "Unknown")
+                                    coords = feat.get("geometry", {}).get("coordinates", [])
+                                    if not coords or len(coords) < 2:
+                                        logger.debug(f"Skipping centroid marker for {tname}: invalid coordinates")
+                                        continue
+                                    lon, lat = coords[0], coords[1]
+
+                                    marker_popup_html = f"""
+                                    <div style="font-family:Arial;min-width:180px;">
+                                        <b style="color:#4B0082">{tname}</b><br>
+                                        <small>Centroid Marker</small>
+                                    </div>
+                                    """
+                                    
+                                    folium.CircleMarker(
+                                        location=[lat, lon],
+                                        radius=5,
+                                        color='#4B0082',
+                                        fill=True,
+                                        fill_color='#8B5CF6',
+                                        fill_opacity=0.7,
+                                        weight=2,
+                                        popup=folium.Popup(marker_popup_html, max_width=220),
+                                        tooltip=f"📍 {tname}",
+                                    ).add_to(marker_fg)
+                                    markers_added += 1
+                                except Exception as marker_err:
+                                    logger.warning(f"Error adding centroid marker: {marker_err}")
+                                    continue
+                            
+                            if markers_added > 0:
+                                marker_fg.add_to(display_map)
+                                logger.info(f"Added {markers_added} territory centroid markers")
+                            else:
+                                logger.warning("No centroid markers were successfully added")
+                        except Exception as centroid_err:
+                            logger.warning(f"Could not add territory centroids: {centroid_err}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        logger.warning("Territories FeatureCollection is still None - territory layers will not be added")
+                        
+                except Exception as interactive_err:
+                    logger.warning(f"Could not add interactive territory layer: {interactive_err}")
+                    import traceback
+                    traceback.print_exc()
 
         # ADD MAPBIOMAS LAYERS - following Streamlit pattern
         layers_added = 0
@@ -571,6 +687,80 @@ def build_map(
                     window._yvySelectedTerritory = name;
                     console.log('[YvyBridge] Territory selected from map:', name);
                 };
+
+                // Attach click handlers to territory GeoJSON features for direct selection
+                // This runs after all layers are added to the map
+                function attachTerritoryClickHandlers(attempt) {
+                    attempt = attempt || 0;
+                    
+                    try {
+                        var handlersAttached = 0;
+                        map.eachLayer(function(layer) {
+                            if (layer instanceof L.GeoJSON) {
+                                // Iterate through features in this GeoJSON layer
+                                layer.eachLayer(function(featureLayer) {
+                                    if (featureLayer.feature && featureLayer.feature.properties) {
+                                        var props = featureLayer.feature.properties;
+                                        // Check if this is a territory feature
+                                        if (props.territory_name) {
+                                            var territoryName = props.territory_name;
+                                            
+                                            // Remove any existing click listeners
+                                            featureLayer.off('click');
+                                            
+                                            // Add new click handler
+                                            featureLayer.on('click', function(e) {
+                                                window._yvySelectTerritory(territoryName);
+                                                console.log('[YvyBridge] Territory feature clicked:', territoryName);
+                                                
+                                                // Flash effect on the clicked territory
+                                                var originalStyle = {
+                                                    fillColor: props.fillColor || '#4B0082',
+                                                    color: props.color || '#8B5CF6',
+                                                    weight: props.weight || 1.5,
+                                                    opacity: props.opacity || 0.4,
+                                                    fillOpacity: props.fillOpacity || 0.05,
+                                                };
+                                                
+                                                featureLayer.setStyle({
+                                                    fillColor: '#FFD700',
+                                                    color: '#FFA500',
+                                                    weight: 3,
+                                                    opacity: 1,
+                                                    fillOpacity: 0.3,
+                                                });
+                                                
+                                                // Reset style after animation
+                                                setTimeout(function() {
+                                                    featureLayer.setStyle(originalStyle);
+                                                }, 800);
+                                            });
+                                            
+                                            handlersAttached++;
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                        
+                        if (handlersAttached > 0) {
+                            console.log('[YvyBridge] Attached click handlers to', handlersAttached, 'territory features');
+                        } else if (attempt < 5) {
+                            // Retry in case GeoJSON layers haven't been added yet
+                            console.log('[YvyBridge] Retrying territory click handler attachment (attempt', attempt + 1, ')');
+                            setTimeout(function() {
+                                attachTerritoryClickHandlers(attempt + 1);
+                            }, 300);
+                        }
+                    } catch(e) {
+                        console.warn('[YvyBridge] Error attaching territory click handlers:', e);
+                    }
+                }
+                
+                // Attach handlers after map initialization
+                setTimeout(function() {
+                    attachTerritoryClickHandlers();
+                }, 1000);
 
                 console.log('[YvyBridge] Draw bridge initialized successfully');
             }

@@ -25,6 +25,10 @@ class BufferGeometry:
 class AppState(rx.State):
     """Global application state with reactive updates (no full-page reruns)."""
     
+    # Track state update calls for debugging
+    _selection_call_count: int = 0
+    _selection_timestamp: float = 0.0
+    
     # Initialization & Data Loading
     data_loaded: bool = True
     ee_initialized: bool = False
@@ -783,19 +787,62 @@ class AppState(rx.State):
 
     def select_territory_from_map(self, territory_name: str):
         """Handle territory selection from map click (JS bridge callback)."""
-        if not territory_name or territory_name == "null":
-            return
-        # Clean up the name (may have extra whitespace from JS)
-        territory_name = territory_name.strip()
-        if territory_name in self.available_territories:
-            self.set_selected_territory(territory_name)
-        else:
-            # Try partial match
-            for t in self.available_territories:
-                if territory_name in t or t in territory_name:
-                    self.set_selected_territory(t)
-                    return
-            self.error_message = f"Territory '{territory_name}' not found in list"
+        try:
+            import time
+            current_time = time.time()
+            self._selection_call_count += 1
+            call_num = self._selection_call_count
+            time_since_last = current_time - self._selection_timestamp if self._selection_timestamp else 0
+            self._selection_timestamp = current_time
+            
+            logger.info(f"[MAP_SELECTION #{call_num}] Call #{call_num}, {time_since_last:.3f}s since last call: {territory_name}")
+            
+            # Guard against empty/invalid names
+            if not territory_name or territory_name == "null" or not isinstance(territory_name, str):
+                logger.warning(f"[MAP_SELECTION #{call_num}] Invalid territory name: {territory_name}")
+                return
+            
+            # Clean up the name (may have extra whitespace from JS)
+            territory_name = territory_name.strip()
+            if not territory_name:
+                logger.warning(f"[MAP_SELECTION #{call_num}] Territory name is empty after strip()")
+                return
+            
+            # Prevent immediate re-selection of the same territory (guards against double-fire)
+            if self.selected_territory == territory_name:
+                logger.info(f"[MAP_SELECTION #{call_num}] Territory already selected: {territory_name} - skipping duplicate")
+                return
+            
+            # Guard against rapid successive calls (might indicate a polling issue)
+            if time_since_last < 0.2 and call_num > 1:
+                logger.warning(f"[MAP_SELECTION #{call_num}] Calls too rapid ({time_since_last:.3f}s apart), might be a loop")
+                return
+            
+            # Find exact match or partial match
+            matched_territory = None
+            if territory_name in self.available_territories:
+                matched_territory = territory_name
+                logger.info(f"[MAP_SELECTION #{call_num}] Found exact match: {matched_territory}")
+            else:
+                # Try partial match
+                for t in self.available_territories:
+                    if territory_name in t or t in territory_name:
+                        matched_territory = t
+                        logger.info(f"[MAP_SELECTION #{call_num}] Found partial match: {t}")
+                        break
+            
+            if matched_territory:
+                logger.info(f"[MAP_SELECTION #{call_num}] Calling set_selected_territory with: {matched_territory}")
+                self.set_selected_territory(matched_territory)
+                logger.info(f"[MAP_SELECTION #{call_num}] Territory selection completed: {matched_territory}")
+            else:
+                self.error_message = f"Territory '{territory_name}' not found in available list"
+                logger.warning(f"[MAP_SELECTION #{call_num}] Territory not found: {territory_name}")
+        except Exception as e:
+            logger.error(f"[MAP_SELECTION] Error in select_territory_from_map: {e}")
+            import traceback
+            traceback.print_exc()
+            self.error_message = f"Error selecting territory from map: {e}"
 
     def toggle_geometries_on_map(self):
         """Toggle geometry overlay visibility on the map."""
@@ -1085,66 +1132,138 @@ class AppState(rx.State):
             
     def set_selected_territory(self, territory: str):
         """Select a territory for analysis and overlay its geometry on the map."""
-        if not territory:
-            return
-
-        self.selected_territory = territory
-        self.pending_territory = None
-        self.territory_name = territory
-
-        # Load territory geometry, cache GeoJSON, and zoom to it
         try:
-            from .utils.ee_service_extended import get_ee_service
-            ee_service = get_ee_service()
+            logger.info(f"[TERRITORY_SET] Starting set_selected_territory: {territory}")
+            
+            if not territory:
+                logger.warning("[TERRITORY_SET] Territory is empty, returning")
+                return
 
-            geom = ee_service.get_territory_geometry(territory)
-            if geom:
-                # Get GeoJSON for map overlay
-                # ee.Geometry.getInfo() returns bare geometry dict, possibly
-                # with EE-specific keys like 'geodesic', 'evenOdd'.
-                raw_geojson = geom.getInfo()
+            logger.info(f"[TERRITORY_SET] Updating selected_territory state")
+            self.selected_territory = territory
+            self.pending_territory = None
+            self.territory_name = territory
+            logger.info(f"[TERRITORY_SET] State variables updated")
 
-                # Strip EE-specific keys, keep only standard GeoJSON fields
-                clean_geom = {
-                    "type": raw_geojson.get("type", "Polygon"),
-                    "coordinates": raw_geojson.get("coordinates", []),
-                }
+            # Load territory geometry, cache GeoJSON, and zoom to it
+            # Wrap everything in try-except to prevent React rendering issues
+            try:
+                from .utils.ee_service_extended import get_ee_service
+                ee_service = get_ee_service()
+                logger.info(f"[TERRITORY_SET] Got EE service")
 
-                territory_feature = {
-                    "type": "Feature",
-                    "geometry": clean_geom,
-                    "properties": {"name": territory, "NAME": territory},
-                    "name": territory,
-                    "_source": "territory",
-                }
-                # Replace any existing territory features (keep only current)
-                self.territory_geojson_features = [territory_feature]
-                self.geometry_version += 1
-                logger.info(f"Territory GeoJSON cached: {clean_geom['type']} with {len(clean_geom['coordinates'])} coord groups")
+                # Handle territory names that might include IDs like "Balaio (5301)"
+                # Extract base name and try to match against available territories
+                territory_for_geometry = territory
+                if "(" in territory and ")" in territory:
+                    # Try to extract base name (everything before the ID)
+                    base_name = territory.split("(")[0].strip()
+                    logger.info(f"[TERRITORY_SET] Found ID in territory name, base name: {base_name}")
+                    
+                    # Try to find exact match in available territories
+                    if base_name in self.available_territories:
+                        territory_for_geometry = base_name
+                        logger.info(f"[TERRITORY_SET] Using base name for geometry lookup: {base_name}")
+                    else:
+                        # Try to find partial match
+                        for available_t in self.available_territories:
+                            if base_name in available_t or available_t in base_name:
+                                territory_for_geometry = available_t
+                                logger.info(f"[TERRITORY_SET] Found partial match for geometry: {available_t}")
+                                break
 
-                # Get bounds for zoom
-                bounds = geom.bounds().getInfo()
-                if bounds and "coordinates" in bounds:
-                    coords = bounds["coordinates"][0]
-                    min_lat = min(c[1] for c in coords)
-                    max_lat = max(c[1] for c in coords)
-                    min_lon = min(c[0] for c in coords)
-                    max_lon = max(c[0] for c in coords)
+                logger.info(f"[TERRITORY_SET] Loading geometry for territory: {territory_for_geometry}")
+                geom = ee_service.get_territory_geometry(territory_for_geometry)
+                logger.info(f"[TERRITORY_SET] Geometry loaded")
+                
+                if not geom:
+                    logger.warning(f"[TERRITORY_SET] No geometry found for territory: {territory_for_geometry}")
+                    # Try with original territory name as fallback
+                    if territory_for_geometry != territory:
+                        logger.info(f"[TERRITORY_SET] Trying with original name: {territory}")
+                        geom = ee_service.get_territory_geometry(territory)
+                    
+                    if not geom:
+                        self.error_message = f"Could not load geometry for territory: {territory}"
+                        return
 
-                    self.map_zoom_bounds = {
-                        "min_lat": min_lat,
-                        "max_lat": max_lat,
-                        "min_lon": min_lon,
-                        "max_lon": max_lon,
-                        "center_lat": (min_lat + max_lat) / 2,
-                        "center_lon": (min_lon + max_lon) / 2,
+                try:
+                    logger.info(f"[TERRITORY_SET] Converting geometry to GeoJSON")
+                    # Get GeoJSON for map overlay
+                    # ee.Geometry.getInfo() returns bare geometry dict, possibly
+                    # with EE-specific keys like 'geodesic', 'evenOdd'.
+                    raw_geojson = geom.getInfo()
+                    logger.info(f"[TERRITORY_SET] GeoJSON received from EE")
+                    
+                    # Strip EE-specific keys, keep only standard GeoJSON fields
+                    clean_geom = {
+                        "type": raw_geojson.get("type", "Polygon"),
+                        "coordinates": raw_geojson.get("coordinates", []),
                     }
-                    self.territory_geometry_displayed = True
-                    logger.info(f"Territory geometry loaded and cached: {territory}")
-        except Exception as e:
-            logger.warning(f"Could not load territory geometry: {e}")
 
-        logger.info(f"Selected territory: {territory}")
+                    territory_feature = {
+                        "type": "Feature",
+                        "geometry": clean_geom,
+                        "properties": {"name": territory, "NAME": territory},
+                        "name": territory,
+                        "_source": "territory",
+                    }
+                    
+                    logger.info(f"[TERRITORY_SET] Updating territory_geojson_features")
+                    # Replace any existing territory features (keep only current)
+                    self.territory_geojson_features = [territory_feature]
+                    logger.info(f"[TERRITORY_SET] Incrementing geometry_version")
+                    self.geometry_version += 1
+                    logger.info(f"[TERRITORY_SET] Territory GeoJSON cached: {clean_geom['type']} with {len(clean_geom.get('coordinates', []))} coord groups")
+                except Exception as geojson_err:
+                    logger.warning(f"[TERRITORY_SET] Could not convert territory geometry to GeoJSON: {geojson_err}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue without GeoJSON overlay
+                    self.territory_geojson_features = []
+
+                try:
+                    logger.info(f"[TERRITORY_SET] Computing bounds for zoom")
+                    # Get bounds for zoom
+                    bounds = geom.bounds().getInfo()
+                    if bounds and "coordinates" in bounds:
+                        coords = bounds["coordinates"][0]
+                        if coords and len(coords) > 0:
+                            min_lat = min(c[1] for c in coords)
+                            max_lat = max(c[1] for c in coords)
+                            min_lon = min(c[0] for c in coords)
+                            max_lon = max(c[0] for c in coords)
+
+                            self.map_zoom_bounds = {
+                                "min_lat": min_lat,
+                                "max_lat": max_lat,
+                                "min_lon": min_lon,
+                                "max_lon": max_lon,
+                                "center_lat": (min_lat + max_lat) / 2,
+                                "center_lon": (min_lon + max_lon) / 2,
+                            }
+                            self.territory_geometry_displayed = True
+                            logger.info(f"[TERRITORY_SET] Territory bounds calculated for: {territory}")
+                    else:
+                        logger.warning(f"[TERRITORY_SET] No bounds found in geometry")
+                except Exception as bounds_err:
+                    logger.warning(f"[TERRITORY_SET] Could not calculate territory bounds: {bounds_err}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue without zoom bounds
+                    
+            except Exception as e:
+                logger.error(f"[TERRITORY_SET] Error loading territory geometry for {territory}: {e}")
+                import traceback
+                traceback.print_exc()
+                self.error_message = f"Error loading territory: {e}"
+
+            logger.info(f"[TERRITORY_SET] Territory selection completed successfully: {territory}")
+        except Exception as outer_e:
+            logger.error(f"[TERRITORY_SET] Unexpected error in set_selected_territory: {outer_e}")
+            import traceback
+            traceback.print_exc()
+            self.error_message = f"Unexpected error setting territory: {outer_e}"
         
     def set_pending_territory(self, territory: Optional[str]):
         """Set pending territory (waiting for confirmation)."""

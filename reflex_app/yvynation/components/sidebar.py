@@ -99,8 +99,8 @@ def mapbiomas_section() -> rx.Component:
                 size="1",
                 variant="outline",
                 color_scheme="gray",
+                flex="1",
             ),
-            width="100%",
             spacing="2",
         ),
         # Active layers
@@ -134,7 +134,6 @@ def mapbiomas_section() -> rx.Component:
             rx.box(),
         ),
         spacing="2",
-        width="100%",
     )
 
 
@@ -172,7 +171,6 @@ def hansen_section() -> rx.Component:
                 color_scheme="teal",
                 flex="1",
             ),
-            width="100%",
             spacing="1",
         ),
         # Year selection
@@ -183,15 +181,15 @@ def hansen_section() -> rx.Component:
                 value=AppState.hansen_current_year,
                 on_change=AppState.set_hansen_year,
                 size="1",
-                width="100%",
+                flex="1",
             ),
             rx.button(
                 "Add",
                 on_click=AppState.add_hansen_selected_year,
                 size="1",
                 color_scheme="blue",
+                flex="0 1 auto",
             ),
-            width="100%",
             spacing="1",
         ),
         # Active layers
@@ -224,7 +222,6 @@ def hansen_section() -> rx.Component:
             rx.box(),
         ),
         spacing="2",
-        width="100%",
     )
 
 
@@ -256,7 +253,6 @@ def territory_section() -> rx.Component:
             value=AppState.territory_search_query,
             on_change=AppState.set_territory_search_query,
             size="1",
-            width="100%",
         ),
         rx.select(
             items=AppState.filtered_territories,
@@ -264,7 +260,6 @@ def territory_section() -> rx.Component:
             on_change=AppState.set_selected_territory,
             placeholder="Select territory",
             size="1",
-            width="100%",
         ),
         # Analysis controls (only when territory selected)
         rx.cond(
@@ -278,19 +273,19 @@ def territory_section() -> rx.Component:
                         value=AppState.mapbiomas_current_year_str,
                         on_change=AppState.set_mapbiomas_year,
                         size="1",
-                        width="100%",
+                        flex="1",
                     ),
                     rx.cond(
                         AppState.mapbiomas_analysis_pending,
-                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="green"),
+                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="green", flex="0 1 auto"),
                         rx.button(
                             "MapBiomas",
                             on_click=AppState.run_mapbiomas_analysis_on_territory,
                             size="1",
                             color_scheme="green",
+                            flex="0 1 auto",
                         ),
                     ),
-                    width="100%",
                     spacing="1",
                 ),
                 # Hansen analysis
@@ -300,19 +295,19 @@ def territory_section() -> rx.Component:
                         value=AppState.hansen_current_year,
                         on_change=AppState.set_hansen_year,
                         size="1",
-                        width="100%",
+                        flex="1",
                     ),
                     rx.cond(
                         AppState.hansen_analysis_pending,
-                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="blue"),
+                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="blue", flex="0 1 auto"),
                         rx.button(
                             "Hansen",
                             on_click=AppState.run_hansen_analysis_on_territory,
                             size="1",
                             color_scheme="blue",
+                            flex="0 1 auto",
                         ),
                     ),
-                    width="100%",
                     spacing="1",
                 ),
                 rx.divider(),
@@ -324,17 +319,16 @@ def territory_section() -> rx.Component:
                         value=AppState.comparison_year1_str,
                         on_change=AppState.set_comparison_year1,
                         size="1",
-                        width="100%",
+                        flex="1",
                     ),
-                    rx.text("vs", font_size="xs", color="gray"),
+                    rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
                     rx.select(
                         [str(y) for y in range(1985, 2024)],
                         value=AppState.comparison_year2_str,
                         on_change=AppState.set_comparison_year2,
                         size="1",
-                        width="100%",
+                        flex="1",
                     ),
-                    width="100%",
                     spacing="1",
                     align_items="center",
                 ),
@@ -342,13 +336,12 @@ def territory_section() -> rx.Component:
                     AppState.mapbiomas_analysis_pending,
                     rx.button(
                         rx.hstack(rx.spinner(size="1"), rx.text("Comparing..."), spacing="1"),
-                        is_disabled=True, size="1", width="100%", color_scheme="purple",
+                        is_disabled=True, size="1", color_scheme="purple",
                     ),
                     rx.button(
                         "Compare MapBiomas Years",
                         on_click=AppState.run_territory_comparison,
                         size="1",
-                        width="100%",
                         color_scheme="purple",
                     ),
                 ),
@@ -358,7 +351,6 @@ def territory_section() -> rx.Component:
             rx.text("Select a territory above", font_size="xs", color="gray"),
         ),
         spacing="2",
-        width="100%",
     )
 
 
@@ -397,7 +389,6 @@ def geometry_section() -> rx.Component:
                 color_scheme="red",
                 flex="1",
             ),
-            width="100%",
             spacing="1",
         ),
         # Change mask year selection (only visible when enabled)
@@ -409,24 +400,22 @@ def geometry_section() -> rx.Component:
                     value=AppState.change_mask_year1.to(str),
                     on_change=AppState.set_change_mask_year1,
                     size="1",
-                    width="100%",
+                    flex="1",
                 ),
-                rx.text("vs", font_size="xs", color="gray"),
+                rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
                     value=AppState.change_mask_year2.to(str),
                     on_change=AppState.set_change_mask_year2,
                     size="1",
-                    width="100%",
+                    flex="1",
                 ),
-                width="100%",
                 spacing="1",
                 align_items="center",
             ),
             rx.box(),
         ),
         spacing="2",
-        width="100%",
     )
 
 
