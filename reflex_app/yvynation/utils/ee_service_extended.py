@@ -184,6 +184,36 @@ class ExtendedEarthEngineService:
             logger.error(f"Error getting territory geometry for {territory_name}: {e}")
             return None
     
+    def get_name_property(self) -> str:
+        """Return the property name used for territory names."""
+        if not self.territories_fc:
+            return "name"
+        try:
+            first = self.territories_fc.first().getInfo()
+            props = list(first.get('properties', {}).keys())
+            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
+                if prop in props:
+                    return prop
+        except Exception:
+            pass
+        return "name"
+
+    def get_indigenous_lands_tile_url(self) -> Optional[str]:
+        """Get EE tile URL for all indigenous territories styled as boundaries."""
+        try:
+            if not self.territories_fc:
+                return None
+            styled = self.territories_fc.style(
+                color='#4B0082',
+                fillColor='#4B008215',
+                width=1,
+            )
+            map_id = styled.getMapId()
+            return map_id['tile_fetcher'].url_format
+        except Exception as e:
+            logger.error(f"Error creating indigenous lands tiles: {e}")
+            return None
+
     def get_mapbiomas(self) -> ee.Image:
         """Get or load MapBiomas Image."""
         if self.mapbiomas is None:

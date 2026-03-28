@@ -31,7 +31,7 @@ def _section(
                 rx.text(title, font_weight="600", font_size="sm"),
                 rx.spacer(),
                 badge if badge else rx.fragment(),
-                width="100%",
+                width="80%",
                 align_items="center",
                 spacing="2",
             ),
@@ -235,6 +235,21 @@ def hansen_section() -> rx.Component:
 def territory_section() -> rx.Component:
     """Territory search, selection, and analysis triggers."""
     return rx.vstack(
+        # Indigenous lands toggle
+        rx.hstack(
+            rx.button(
+                rx.cond(AppState.show_indigenous_lands, "Hide All Lands", "Show All Lands"),
+                on_click=AppState.toggle_indigenous_lands,
+                size="1",
+                variant=rx.cond(AppState.show_indigenous_lands, "solid", "outline"),
+                color_scheme="violet",
+                flex="1",
+            ),
+            rx.text("Click map markers to select", font_size="9px", color="gray"),
+            width="100%",
+            spacing="1",
+            align_items="center",
+        ),
         # Search + select (territories auto-load on page load)
         rx.input(
             placeholder="Search territories...",

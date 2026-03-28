@@ -36,10 +36,12 @@ def build_map(
     geometry_features: List[dict] = None,
     change_mask_years: Optional[tuple] = None,
     change_mask_geometry: Optional[dict] = None,
+    indigenous_lands_tile_url: Optional[str] = None,
+    territory_names: Optional[List[str]] = None,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
-    and optional change mask.
+    indigenous lands base layer, and optional change mask.
 
     Args:
         mapbiomas_years: List of years to display (e.g., [1985, 2023])
@@ -47,6 +49,8 @@ def build_map(
         geometry_features: List of GeoJSON feature dicts to overlay on the map
         change_mask_years: Tuple (year1, year2) for MapBiomas change mask layer
         change_mask_geometry: GeoJSON geometry dict to clip the change mask to
+        indigenous_lands_tile_url: Pre-built EE tile URL for all indigenous lands
+        territory_names: List of territory names (for search/click JS bridge)
 
     Returns:
         HTML string of the complete map
@@ -58,7 +62,7 @@ def build_map(
         
         # Create base map centered on Brazil
         display_map = folium.Map(
-            location=[-10, -52],
+            location=[-15, -52],
             zoom_start=5,
             tiles="OpenStreetMap"
         )
@@ -90,6 +94,74 @@ def build_map(
             control=True
         ).add_to(display_map)
         
+        # ADD INDIGENOUS LANDS BASE LAYER - all territories as EE tiles
+        if indigenous_lands_tile_url:
+            folium.TileLayer(
+                tiles=indigenous_lands_tile_url,
+                attr='Indigenous Lands (FUNAI)',
+                name='Indigenous Lands (all)',
+                overlay=True,
+                control=True,
+                show=True,
+                opacity=0.7,
+            ).add_to(display_map)
+            logger.info("Added indigenous lands tile layer")
+
+            # Add clickable markers at territory centroids for interactivity
+            if territory_names:
+                try:
+                    from .ee_service_extended import get_ee_service
+                    ee_svc = get_ee_service()
+                    if ee_svc.territories_fc:
+                        name_prop = ee_svc.get_name_property()
+                        # Get centroids for all territories (server-side computation)
+                        centroids_fc = ee_svc.territories_fc.map(
+                            lambda f: ee.Feature(
+                                f.centroid(100),
+                                {name_prop: f.get(name_prop)}
+                            )
+                        )
+                        centroids_geojson = centroids_fc.getInfo()
+
+                        marker_cluster = folium.FeatureGroup(
+                            name="Territory Labels (click to select)",
+                            show=True,
+                        )
+                        for feat in centroids_geojson.get("features", []):
+                            props = feat.get("properties", {})
+                            tname = props.get(name_prop, "Unknown")
+                            coords = feat.get("geometry", {}).get("coordinates", [])
+                            if not coords or len(coords) < 2:
+                                continue
+                            lon, lat = coords[0], coords[1]
+
+                            popup_html = f"""
+                            <div style="min-width:160px">
+                                <b>{tname}</b><br>
+                                <a href="#" onclick="
+                                    window._yvySelectTerritory('{tname.replace("'", "\\'")}');
+                                    return false;
+                                " style="color:#4B0082;font-weight:bold">
+                                    &#9654; Use for Analysis
+                                </a>
+                            </div>
+                            """
+                            folium.CircleMarker(
+                                location=[lat, lon],
+                                radius=4,
+                                color='#4B0082',
+                                fill=True,
+                                fill_color='#4B0082',
+                                fill_opacity=0.6,
+                                weight=1,
+                                popup=folium.Popup(popup_html, max_width=250),
+                                tooltip=tname,
+                            ).add_to(marker_cluster)
+                        marker_cluster.add_to(display_map)
+                        logger.info(f"Added {len(centroids_geojson.get('features', []))} territory centroid markers")
+                except Exception as centroid_err:
+                    logger.warning(f"Could not add territory centroids: {centroid_err}")
+
         # ADD MAPBIOMAS LAYERS - following Streamlit pattern
         layers_added = 0
         if mapbiomas_years and len(mapbiomas_years) > 0:
@@ -183,12 +255,10 @@ def build_map(
         
         logger.info(f"Layers added: {layers_added}")
 
-        # ADD GEOMETRY OVERLAYS - drawn/uploaded features shown on the map
+        # ADD GEOMETRY OVERLAYS - territory boundaries + drawn features
         bounds_to_fit = None
         if geometry_features:
             try:
-                import json
-                fg = folium.FeatureGroup(name="Drawn Geometries", show=True)
                 all_coords = []
 
                 for idx, feat in enumerate(geometry_features):
@@ -197,9 +267,11 @@ def build_map(
                     coords = geom.get("coordinates", [])
 
                     if not geom_type or not coords:
+                        logger.warning(f"Skipping feature {idx}: no type or coords")
                         continue
 
                     name = feat.get("name", f"Geometry {idx + 1}")
+                    is_territory = feat.get("_source") == "territory"
 
                     # Collect coordinates for bounds calculation
                     def _flatten_coords(c, acc):
@@ -210,38 +282,71 @@ def build_map(
                                 _flatten_coords(sub, acc)
                     _flatten_coords(coords, all_coords)
 
-                    # Style: green dashed for territories, purple for drawn
-                    if feat.get("_source") == "territory":
-                        style = {
-                            "fillColor": "#228B22",
-                            "color": "#006400",
-                            "weight": 3,
-                            "fillOpacity": 0.1,
-                            "dashArray": "5,5",
-                        }
-                    else:
-                        style = {
-                            "fillColor": "#8B5CF6",
-                            "color": "#6D28D9",
-                            "weight": 2.5,
-                            "fillOpacity": 0.15,
-                        }
-
+                    # Build GeoJSON Feature with NAME property for tooltip
                     geojson_feature = {
                         "type": "Feature",
                         "geometry": geom,
-                        "properties": {"name": name, "index": idx},
+                        "properties": {"name": name, "NAME": name, "index": idx},
                     }
-                    folium.GeoJson(
-                        geojson_feature,
-                        name=name,
-                        style_function=lambda x, s=style: s,
-                        tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["Geometry:"]),
-                    ).add_to(fg)
 
-                fg.add_to(display_map)
-                layers_added += 1
-                logger.info(f"Added {len(geometry_features)} geometry overlay(s)")
+                    if is_territory:
+                        # Territory boundary: orange/red (matching Streamlit style)
+                        territory_fg = folium.FeatureGroup(
+                            name=f"Territory: {name}", show=True
+                        )
+                        folium.GeoJson(
+                            geojson_feature,
+                            style_function=lambda x: {
+                                'fillColor': '#FF4500',
+                                'color': '#FF4500',
+                                'weight': 3,
+                                'opacity': 0.9,
+                                'fillOpacity': 0.25,
+                            },
+                            highlight_function=lambda x: {
+                                'fillColor': '#FF6B6B',
+                                'color': '#FF6B6B',
+                                'weight': 4,
+                                'opacity': 1.0,
+                                'fillOpacity': 0.4,
+                            },
+                            tooltip=folium.GeoJsonTooltip(
+                                fields=["NAME"],
+                                aliases=["Selected:"],
+                                sticky=True,
+                            ),
+                        ).add_to(territory_fg)
+                        territory_fg.add_to(display_map)
+                        layers_added += 1
+                        logger.info(f"Added territory overlay: {name}")
+                    else:
+                        # Drawn geometry: purple
+                        drawn_fg = folium.FeatureGroup(
+                            name=f"Geometry: {name}", show=True
+                        )
+                        folium.GeoJson(
+                            geojson_feature,
+                            style_function=lambda x: {
+                                'fillColor': '#8B5CF6',
+                                'color': '#6D28D9',
+                                'weight': 2.5,
+                                'fillOpacity': 0.15,
+                            },
+                            highlight_function=lambda x: {
+                                'fillColor': '#A78BFA',
+                                'color': '#7C3AED',
+                                'weight': 3,
+                                'fillOpacity': 0.3,
+                            },
+                            tooltip=folium.GeoJsonTooltip(
+                                fields=["name"],
+                                aliases=["Geometry:"],
+                                sticky=True,
+                            ),
+                        ).add_to(drawn_fg)
+                        drawn_fg.add_to(display_map)
+                        layers_added += 1
+                        logger.info(f"Added drawn geometry overlay: {name}")
 
                 # Calculate bounds for zoom
                 if all_coords:
@@ -459,6 +564,13 @@ def build_map(
                     exportFeatures();
                     console.log('[YvyBridge] draw:deleted');
                 });
+
+                // Territory selection bridge
+                window._yvySelectedTerritory = null;
+                window._yvySelectTerritory = function(name) {
+                    window._yvySelectedTerritory = name;
+                    console.log('[YvyBridge] Territory selected from map:', name);
+                };
 
                 console.log('[YvyBridge] Draw bridge initialized successfully');
             }

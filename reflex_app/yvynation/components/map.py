@@ -65,6 +65,31 @@ EXTRACT_DRAWINGS_JS = """
 """
 
 
+EXTRACT_TERRITORY_JS = """
+(function() {
+    var iframes = document.querySelectorAll('#map-container iframe');
+    if (!iframes.length) {
+        if (window._yvySelectedTerritory) {
+            var name = window._yvySelectedTerritory;
+            window._yvySelectedTerritory = null;
+            return name;
+        }
+        return "";
+    }
+    var iframe = iframes[iframes.length - 1];
+    try {
+        var iframeWin = iframe.contentWindow || iframe.contentDocument;
+        if (iframeWin && iframeWin._yvySelectedTerritory) {
+            var name = iframeWin._yvySelectedTerritory;
+            iframeWin._yvySelectedTerritory = null;
+            return name;
+        }
+    } catch(e) {}
+    return "";
+})()
+"""
+
+
 def create_base_map():
     """
     Create a base Folium map (fallback, not used in normal flow).
@@ -117,10 +142,14 @@ def leaflet_map() -> rx.Component:
                 size="1",
             ),
             rx.button(
-                "Test Geometry",
-                on_click=AppState.add_test_geometry,
-                color_scheme="orange",
+                "Load Territory",
+                on_click=rx.call_script(
+                    EXTRACT_TERRITORY_JS,
+                    callback=AppState.select_territory_from_map,
+                ),
+                color_scheme="purple",
                 size="1",
+                title="Click a territory on the map first, then click this button",
             ),
             rx.button(
                 "Clear Drawings",

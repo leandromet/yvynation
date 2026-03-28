@@ -106,6 +106,11 @@ class AppState(rx.State):
     # Territory GeoJSON for map overlay
     territory_geojson_features: List[Dict[str, Any]] = []
 
+    # Indigenous lands base layer (all territories)
+    indigenous_lands_tile_url: str = ""
+    show_indigenous_lands: bool = True
+    territory_name_property: str = "name"  # EE property used for names
+
     # Comparison year selection
     comparison_year1: int = 2018
     comparison_year2: int = 2023
@@ -173,12 +178,13 @@ class AppState(rx.State):
         "mapbiomas_displayed_years", "hansen_displayed_layers",
         "geometry_version", "show_geometries_on_map",
         "show_change_mask", "change_mask_year1", "change_mask_year2",
-        "territory_geojson_features",
+        "territory_geojson_features", "indigenous_lands_tile_url",
+        "show_indigenous_lands",
     ])
     def map_html(self) -> str:
         """
         Generate map HTML based on current layer selections, geometry overlays,
-        territory overlays, and optional change mask.
+        territory overlays, indigenous lands, and optional change mask.
         """
         try:
             from .utils.map_builder import build_map
@@ -197,11 +203,13 @@ class AppState(rx.State):
             change_geom = None
             if self.show_change_mask:
                 change_years = (self.change_mask_year1, self.change_mask_year2)
-                # Prefer territory geometry, fallback to drawn geometry
                 if self.territory_geojson_features:
                     change_geom = self.territory_geojson_features[0].get("geometry")
                 elif self.drawn_features:
                     change_geom = self.drawn_features[0].get("geometry")
+
+            # Indigenous lands tile URL
+            il_tile_url = self.indigenous_lands_tile_url if self.show_indigenous_lands else None
 
             html = build_map(
                 mapbiomas_years=self.mapbiomas_displayed_years or [],
@@ -209,6 +217,8 @@ class AppState(rx.State):
                 geometry_features=geom_features,
                 change_mask_years=change_years,
                 change_mask_geometry=change_geom,
+                indigenous_lands_tile_url=il_tile_url,
+                territory_names=self.available_territories if il_tile_url else None,
             )
             return html
         except Exception as e:
@@ -766,6 +776,27 @@ class AppState(rx.State):
         self.geometry_version += 1
         logger.info("Cleared all geometries")
     
+    def toggle_indigenous_lands(self):
+        """Toggle indigenous lands base layer."""
+        self.show_indigenous_lands = not self.show_indigenous_lands
+        self.geometry_version += 1
+
+    def select_territory_from_map(self, territory_name: str):
+        """Handle territory selection from map click (JS bridge callback)."""
+        if not territory_name or territory_name == "null":
+            return
+        # Clean up the name (may have extra whitespace from JS)
+        territory_name = territory_name.strip()
+        if territory_name in self.available_territories:
+            self.set_selected_territory(territory_name)
+        else:
+            # Try partial match
+            for t in self.available_territories:
+                if territory_name in t or t in territory_name:
+                    self.set_selected_territory(t)
+                    return
+            self.error_message = f"Territory '{territory_name}' not found in list"
+
     def toggle_geometries_on_map(self):
         """Toggle geometry overlay visibility on the map."""
         self.show_geometries_on_map = not self.show_geometries_on_map
@@ -867,8 +898,19 @@ class AppState(rx.State):
                     "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná"
                 ]
 
+            # Cache indigenous lands tile URL for map display
+            try:
+                tile_url = ee_service.get_indigenous_lands_tile_url()
+                if tile_url:
+                    self.indigenous_lands_tile_url = tile_url
+                    logger.info("Indigenous lands tile layer cached")
+                self.territory_name_property = ee_service.get_name_property()
+            except Exception as tile_err:
+                logger.warning(f"Could not load indigenous lands tiles: {tile_err}")
+
             self.data_loaded = True
             self.ee_initialized = True
+            self.geometry_version += 1  # Force map rebuild with new layer
             logger.info(f"App initialized with {len(self.available_territories)} territories")
         except Exception as e:
             self.error_message = f"Failed to initialize: {str(e)}"
@@ -1058,17 +1100,27 @@ class AppState(rx.State):
             geom = ee_service.get_territory_geometry(territory)
             if geom:
                 # Get GeoJSON for map overlay
-                geojson = geom.getInfo()
+                # ee.Geometry.getInfo() returns bare geometry dict, possibly
+                # with EE-specific keys like 'geodesic', 'evenOdd'.
+                raw_geojson = geom.getInfo()
+
+                # Strip EE-specific keys, keep only standard GeoJSON fields
+                clean_geom = {
+                    "type": raw_geojson.get("type", "Polygon"),
+                    "coordinates": raw_geojson.get("coordinates", []),
+                }
+
                 territory_feature = {
                     "type": "Feature",
-                    "geometry": geojson,
-                    "properties": {"name": territory},
+                    "geometry": clean_geom,
+                    "properties": {"name": territory, "NAME": territory},
                     "name": territory,
                     "_source": "territory",
                 }
                 # Replace any existing territory features (keep only current)
                 self.territory_geojson_features = [territory_feature]
                 self.geometry_version += 1
+                logger.info(f"Territory GeoJSON cached: {clean_geom['type']} with {len(clean_geom['coordinates'])} coord groups")
 
                 # Get bounds for zoom
                 bounds = geom.bounds().getInfo()
@@ -1615,35 +1667,53 @@ class AppState(rx.State):
     
     def create_buffer_from_geometry(self, geometry_name: str, buffer_distance_km: float):
         """
-        Create an external buffer from a drawn geometry.
-        
+        Create an external buffer from a drawn or territory geometry.
+
         Args:
             geometry_name: Name of the geometry to buffer
             buffer_distance_km: Buffer distance in kilometers
         """
         try:
             from .utils.buffer_utils import (
-                create_external_buffer, 
+                create_external_buffer,
                 create_buffer_geometry_dict,
                 convert_geojson_to_ee_geometry
             )
+            from .utils.ee_service_extended import get_ee_service
             import datetime
-            
-            # Find the geometry
-            geom_feature = None
-            for feat in self.all_drawn_features:
-                if feat.get('properties', {}).get('name') == geometry_name:
-                    geom_feature = feat
-                    break
-            
-            if not geom_feature:
-                self.error_message = f"Geometry '{geometry_name}' not found"
-                return False
-            
-            # Convert to EE geometry
-            ee_geom = convert_geojson_to_ee_geometry(geom_feature)
+
+            ee_geom = None
+
+            # First try: territory geometry from EE (most reliable)
+            try:
+                ee_service = get_ee_service()
+                territory_geom = ee_service.get_territory_geometry(geometry_name)
+                if territory_geom:
+                    ee_geom = territory_geom
+                    logger.info(f"Buffer: using EE geometry for territory '{geometry_name}'")
+            except Exception:
+                pass
+
+            # Second try: search drawn features
             if not ee_geom:
-                self.error_message = "Failed to convert geometry for buffering"
+                geom_feature = None
+                for feat in self.all_drawn_features + self.drawn_features:
+                    name = feat.get('name') or feat.get('properties', {}).get('name', '')
+                    if name == geometry_name:
+                        geom_feature = feat
+                        break
+                if geom_feature:
+                    ee_geom = convert_geojson_to_ee_geometry(geom_feature)
+
+            # Third try: territory geojson cache
+            if not ee_geom:
+                for feat in self.territory_geojson_features:
+                    if feat.get('name') == geometry_name:
+                        ee_geom = convert_geojson_to_ee_geometry(feat)
+                        break
+
+            if not ee_geom:
+                self.error_message = f"Geometry '{geometry_name}' not found"
                 return False
             
             # Create buffer
