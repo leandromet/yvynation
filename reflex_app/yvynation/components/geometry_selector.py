@@ -113,11 +113,102 @@ def geometry_selector() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.heading("Selected for Analysis", size="2"),
-                        rx.button(
-                            "📊 Analyze Against Active Layers",
+                        # Analysis type selector
+                        rx.vstack(
+                            rx.text("Analysis Type", font_size="xs", font_weight="bold"),
+                            rx.select(
+                                ["mapbiomas", "hansen"],
+                                value=AppState.geometry_analysis_type,
+                                on_change=AppState.set_geometry_analysis_type,
+                                size="2",
+                                width="100%",
+                            ),
+                            spacing="1",
                             width="100%",
-                            color_scheme="blue",
-                            size="1",
+                        ),
+                        # Year selector
+                        rx.cond(
+                            AppState.geometry_analysis_type == "mapbiomas",
+                            rx.vstack(
+                                rx.text("MapBiomas Year", font_size="xs", font_weight="bold"),
+                                rx.select(
+                                    [str(y) for y in range(1985, 2024)],
+                                    value=AppState.geometry_analysis_year_str,
+                                    on_change=AppState.set_geometry_analysis_year,
+                                    size="2",
+                                    width="100%",
+                                ),
+                                spacing="1",
+                                width="100%",
+                            ),
+                            rx.vstack(
+                                rx.text("Hansen Year", font_size="xs", font_weight="bold"),
+                                rx.select(
+                                    ["2000", "2005", "2010", "2015", "2020"],
+                                    value=AppState.geometry_analysis_year_str,
+                                    on_change=AppState.set_geometry_analysis_year,
+                                    size="2",
+                                    width="100%",
+                                ),
+                                spacing="1",
+                                width="100%",
+                            ),
+                        ),
+                        # Analyze button
+                        rx.cond(
+                            AppState.geometry_analysis_pending,
+                            rx.button(
+                                rx.hstack(
+                                    rx.spinner(size="1"),
+                                    rx.text("Analyzing..."),
+                                    spacing="1",
+                                ),
+                                is_disabled=True,
+                                width="100%",
+                                size="2",
+                                color_scheme="blue",
+                            ),
+                            rx.button(
+                                "📊 Analyze Custom Geometry",
+                                on_click=AppState.run_geometry_analysis,
+                                width="100%",
+                                color_scheme="blue",
+                                size="2",
+                            ),
+                        ),
+                        # Show results if available
+                        rx.cond(
+                            AppState.geometry_analysis_results.get(AppState.selected_geometry_idx) != None,
+                            rx.box(
+                                rx.vstack(
+                                    rx.text(
+                                        "✅ Analysis available",
+                                        font_size="xs",
+                                        color="green",
+                                        font_weight="bold"
+                                    ),
+                                    rx.text(
+                                        "Analysis results stored",
+                                        font_size="xs",
+                                        color="gray"
+                                    ),
+                                    rx.button(
+                                        "View Results",
+                                        size="1",
+                                        color_scheme="green",
+                                        variant="outline",
+                                        on_click=lambda: AppState.set_active_tab("analysis"),
+                                        width="100%",
+                                    ),
+                                    spacing="1",
+                                    width="100%",
+                                ),
+                                padding="1rem",
+                                bg="green.50",
+                                border_radius="md",
+                                border_left="3px solid #22c55e",
+                            ),
+                            rx.box(),
                         ),
                         spacing="2",
                     ),

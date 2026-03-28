@@ -4,7 +4,7 @@ Reactive state eliminates Streamlit reruns for better performance.
 """
 
 import reflex as rx
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 import ee
 import logging
@@ -74,7 +74,13 @@ class AppState(rx.State):
     buffer_geometries: Dict[str, BufferGeometry] = {}
     current_buffer_for_analysis: Optional[str] = None
     buffer_compare_mode: bool = False
-    
+
+    # Geometry analysis for drawn features
+    geometry_analysis_results: Dict[int, Dict[str, Any]] = {}  # Results by geometry index
+    geometry_analysis_type: str = "mapbiomas"  # "mapbiomas" or "hansen"
+    geometry_analysis_year: Union[int, str] = 2023  # Year for MapBiomas (int) or Hansen (str "2020")
+    geometry_analysis_pending: bool = False
+
     # Geometry Info Popup
     show_geometry_popup: bool = False  # Show/hide geometry info popup
     geometry_popup_info: Dict[str, Any] = {}  # Info to display in popup
@@ -362,6 +368,14 @@ class AppState(rx.State):
     def mapbiomas_current_year_str(self) -> str:
         """MapBiomas current year as string for UI binding."""
         return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else "2023"
+
+    @rx.var(auto_deps=False, deps=["geometry_analysis_year"])
+    def geometry_analysis_year_str(self) -> str:
+        """Geometry analysis year as string for UI binding."""
+        if isinstance(self.geometry_analysis_year, int):
+            return str(self.geometry_analysis_year)
+        else:
+            return str(self.geometry_analysis_year) if self.geometry_analysis_year else "2023"
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
     def comparison_chart(self) -> Optional[Figure]:
@@ -1599,12 +1613,173 @@ class AppState(rx.State):
                 logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
 
             self.hansen_analysis_pending = False
-        
+
         except Exception as e:
             self.error_message = f"Hansen analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
             logger.error(f"Hansen analysis error: {e}")
-    
+
+    def set_geometry_analysis_type(self, analysis_type: str):
+        """Set analysis type for drawn geometries (mapbiomas or hansen)."""
+        if analysis_type in ["mapbiomas", "hansen"]:
+            self.geometry_analysis_type = analysis_type
+
+    def set_geometry_analysis_year(self, year: Any):
+        """Set year for geometry analysis."""
+        try:
+            if self.geometry_analysis_type == "mapbiomas":
+                self.geometry_analysis_year = int(year)
+            else:
+                self.geometry_analysis_year = str(year)
+        except (ValueError, TypeError):
+            pass
+
+    async def run_geometry_analysis(self):
+        """Run selected analysis on the selected drawn geometry."""
+        if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+            self.error_message = "Please select a geometry first"
+            return
+
+        # Zoom to geometry bounds
+        try:
+            feature = self.drawn_features[self.selected_geometry_idx]
+            if "bounds" in feature:
+                bounds = feature["bounds"]
+                self.map_zoom_bounds = {
+                    "min_lat": bounds["min_lat"],
+                    "max_lat": bounds["max_lat"],
+                    "min_lon": bounds["min_lon"],
+                    "max_lon": bounds["max_lon"],
+                    "center_lat": (bounds["min_lat"] + bounds["max_lat"]) / 2,
+                    "center_lon": (bounds["min_lon"] + bounds["max_lon"]) / 2,
+                }
+        except Exception as e:
+            logger.warning(f"Could not zoom to geometry: {e}")
+
+        if self.geometry_analysis_type == "mapbiomas":
+            await self.run_geometry_mapbiomas_analysis()
+        elif self.geometry_analysis_type == "hansen":
+            await self.run_geometry_hansen_analysis()
+
+    async def run_geometry_mapbiomas_analysis(self):
+        """Run MapBiomas analysis on selected drawn geometry."""
+        try:
+            from .utils.ee_service_extended import get_ee_service
+
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
+                return
+
+            self.geometry_analysis_pending = True
+            self.loading_message = f"Analyzing MapBiomas {self.geometry_analysis_year}..."
+            self.error_message = ""
+
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
+                self.geometry_analysis_pending = False
+                return
+
+            ee_service = get_ee_service()
+            analysis_df = ee_service.analyze_mapbiomas(ee_geom, self.geometry_analysis_year)
+
+            if analysis_df.empty:
+                self.error_message = f"No MapBiomas data found for year {self.geometry_analysis_year}"
+            else:
+                # Store results for this geometry
+                result_dict = {
+                    "type": "mapbiomas",
+                    "year": self.geometry_analysis_year,
+                    "num_classes": len(analysis_df),
+                    "total_area_ha": float(analysis_df['Area_ha'].sum()),
+                    "data": analysis_df.to_dict('records'),
+                }
+                self.geometry_analysis_results[self.selected_geometry_idx] = result_dict
+
+                # Also set as active result for viewing
+                self.analysis_results = {
+                    "type": "mapbiomas",
+                    "geometry": f"Custom Geometry #{self.selected_geometry_idx + 1}",
+                    "year": self.geometry_analysis_year,
+                    "data": analysis_df.to_dict('records'),
+                    "summary": {
+                        "total_area_ha": float(analysis_df['Area_ha'].sum()),
+                        "classes": len(analysis_df)
+                    }
+                }
+                self.set_active_tab("analysis")
+                self.loading_message = ""
+                logger.info(f"Geometry MapBiomas analysis complete: {len(analysis_df)} classes")
+
+            self.geometry_analysis_pending = False
+
+        except Exception as e:
+            self.error_message = f"Analysis failed: {str(e)}"
+            self.geometry_analysis_pending = False
+            logger.error(f"Geometry MapBiomas analysis error: {e}")
+
+    async def run_geometry_hansen_analysis(self):
+        """Run Hansen analysis on selected drawn geometry."""
+        try:
+            from .utils.hansen_analysis import get_hansen_analyzer
+
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
+                return
+
+            self.geometry_analysis_pending = True
+            self.loading_message = f"Analyzing Hansen {self.geometry_analysis_year}..."
+
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
+                self.geometry_analysis_pending = False
+                return
+
+            analyzer = get_hansen_analyzer()
+            if not analyzer.is_available():
+                self.error_message = "Hansen dataset not available"
+                self.geometry_analysis_pending = False
+                return
+
+            result_df = analyzer.get_area_distribution(ee_geom, year=str(self.geometry_analysis_year), scale=30)
+
+            if result_df is None or result_df.empty:
+                self.error_message = f"No Hansen data found for year {self.geometry_analysis_year}"
+            else:
+                # Store results for this geometry
+                result_dict = {
+                    "type": "hansen",
+                    "year": str(self.geometry_analysis_year),
+                    "num_classes": len(result_df),
+                    "total_area_ha": float(result_df['Area_ha'].sum()),
+                    "data": result_df.to_dict('records'),
+                }
+                self.geometry_analysis_results[self.selected_geometry_idx] = result_dict
+
+                # Also set as active result for viewing
+                self.analysis_results = {
+                    "type": "hansen",
+                    "geometry": f"Custom Geometry #{self.selected_geometry_idx + 1}",
+                    "year": str(self.geometry_analysis_year),
+                    "data": result_df.to_dict('records'),
+                    "summary": {
+                        "year": str(self.geometry_analysis_year),
+                        "num_classes": len(result_df),
+                        "total_area_ha": float(result_df['Area_ha'].sum()),
+                    }
+                }
+                self.set_active_tab("analysis")
+                self.loading_message = ""
+                logger.info(f"Geometry Hansen analysis complete: {len(result_df)} classes")
+
+            self.geometry_analysis_pending = False
+
+        except Exception as e:
+            self.error_message = f"Analysis failed: {str(e)}"
+            self.geometry_analysis_pending = False
+            logger.error(f"Geometry Hansen analysis error: {e}")
+
     async def run_mapbiomas_comparison(self):
         """
         Compare MapBiomas data between two years.
