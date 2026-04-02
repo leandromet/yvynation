@@ -13,21 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_ee_initialized():
-    """Ensure Earth Engine is initialized."""
+    """Ensure Earth Engine is initialized (non-blocking check)."""
     try:
-        # Test if EE is already initialized
-        ee.Image('USGS/SRTM90_V4').getInfo()
-        logger.info("✓ Earth Engine already initialized")
+        # Just try to initialize - doesn't block on computation
+        ee.Initialize()
+        logger.info("✓ Earth Engine initialized")
         return True
     except Exception as e:
-        try:
-            logger.info("Initializing Earth Engine...")
-            ee.Initialize()
-            logger.info("✓ Earth Engine initialized")
+        # Already initialized or initialization failed
+        if "already initialized" in str(e).lower():
+            logger.info("✓ Earth Engine already initialized")
             return True
-        except Exception as init_error:
-            logger.error(f"Failed to initialize Earth Engine: {init_error}")
-            return False
+        logger.error(f"Failed to initialize Earth Engine: {e}")
+        return False
 
 
 def build_map(
@@ -164,16 +162,26 @@ def build_map(
                                     },
                                 }
                                 
-                                # Create popover HTML with click handler
+                                # Create popover HTML with click handler that stores territory and clicks hidden button
                                 popup_html = f"""
                                 <div style="font-family:Arial;width:220px;">
                                     <b style="font-size:14px;color:#4B0082">{tname}</b><br>
-                                    <a href="#" onclick="
-                                        window._yvySelectTerritory('{tname.replace("'", "\\'")}');
-                                        return false;
-                                    " style="color:#4B0082;font-weight:bold;text-decoration:none;display:inline-block;margin-top:5px;">
-                                        &#9654; Load for Analysis
-                                    </a>
+                                    <button onclick="
+                                        window._yvyTerritory = '{tname.replace("'", "\\'")}';
+                                        try {{
+                                            var btn = parent.document.getElementById('hidden-load-territory-btn');
+                                            if (btn) {{
+                                                btn.click();
+                                                console.log('[Popup] Clicked hidden button for territory:', window._yvyTerritory);
+                                            }} else {{
+                                                console.warn('[Popup] Hidden button not found');
+                                            }}
+                                        }} catch(e) {{
+                                            console.error('[Popup] Error clicking button:', e);
+                                        }}
+                                    " style="margin-top:8px;padding:6px 12px;background:#4B0082;color:white;border:none;border-radius:3px;cursor:pointer;font-weight:bold;font-size:12px;">
+                                        &#9654; Queue for Analysis
+                                    </button>
                                 </div>
                                 """
                                 
@@ -208,68 +216,6 @@ def build_map(
                             logger.info(f"Added {features_added} interactive territory boundaries to map")
                         else:
                             logger.warning("No interactive territory features were successfully added")
-                        
-                        # Also add centroid markers for better visibility
-                        try:
-                            logger.info("Creating centroid markers for territories...")
-                            centroids_fc = ee_svc.territories_fc.map(
-                                lambda f: ee.Feature(
-                                    f.geometry().centroid(100),
-                                    {name_prop: f.get(name_prop)}
-                                )
-                            )
-                            logger.info("Centroid FeatureCollection created, retrieving GeoJSON...")
-                            centroids_geojson = centroids_fc.getInfo()
-                            centroid_count = len(centroids_geojson.get("features", []))
-                            logger.info(f"Retrieved {centroid_count} centroids from Earth Engine")
-
-                            marker_fg = folium.FeatureGroup(
-                                name="Territory Labels (Centroids)",
-                                show=True,
-                            )
-                            markers_added = 0
-                            for feat in centroids_geojson.get("features", []):
-                                try:
-                                    props = feat.get("properties", {})
-                                    tname = props.get(name_prop, "Unknown")
-                                    coords = feat.get("geometry", {}).get("coordinates", [])
-                                    if not coords or len(coords) < 2:
-                                        logger.debug(f"Skipping centroid marker for {tname}: invalid coordinates")
-                                        continue
-                                    lon, lat = coords[0], coords[1]
-
-                                    marker_popup_html = f"""
-                                    <div style="font-family:Arial;min-width:180px;">
-                                        <b style="color:#4B0082">{tname}</b><br>
-                                        <small>Centroid Marker</small>
-                                    </div>
-                                    """
-                                    
-                                    folium.CircleMarker(
-                                        location=[lat, lon],
-                                        radius=5,
-                                        color='#4B0082',
-                                        fill=True,
-                                        fill_color='#8B5CF6',
-                                        fill_opacity=0.7,
-                                        weight=2,
-                                        popup=folium.Popup(marker_popup_html, max_width=220),
-                                        tooltip=f"📍 {tname}",
-                                    ).add_to(marker_fg)
-                                    markers_added += 1
-                                except Exception as marker_err:
-                                    logger.warning(f"Error adding centroid marker: {marker_err}")
-                                    continue
-                            
-                            if markers_added > 0:
-                                marker_fg.add_to(display_map)
-                                logger.info(f"Added {markers_added} territory centroid markers")
-                            else:
-                                logger.warning("No centroid markers were successfully added")
-                        except Exception as centroid_err:
-                            logger.warning(f"Could not add territory centroids: {centroid_err}")
-                            import traceback
-                            traceback.print_exc()
                     else:
                         logger.warning("Territories FeatureCollection is still None - territory layers will not be added")
                         
@@ -638,6 +584,7 @@ def build_map(
                 window._yvyDrawnItems = drawnItems;
                 window._yvyDrawnFeatures = {"type": "FeatureCollection", "features": []};
                 window._yvyMap = map;
+                window._yvyTerritoryLayers = {};  // Will be populated by territory click handlers
 
                 // Helper: export all drawn features to GeoJSON
                 function exportFeatures() {
@@ -695,6 +642,7 @@ def build_map(
                     
                     try {
                         var handlersAttached = 0;
+                        var handlersSkipped = 0;
                         map.eachLayer(function(layer) {
                             if (layer instanceof L.GeoJSON) {
                                 // Iterate through features in this GeoJSON layer
@@ -705,38 +653,26 @@ def build_map(
                                         if (props.territory_name) {
                                             var territoryName = props.territory_name;
                                             
-                                            // Remove any existing click listeners
-                                            featureLayer.off('click');
+                                            // Check if this layer already has a click handler
+                                            // We need to check if a handler exists to avoid adding duplicates
+                                            var alreadyHasHandler = false;
+                                            if (featureLayer._events && featureLayer._events.click) {
+                                                alreadyHasHandler = true;
+                                                handlersSkipped++;
+                                            }
                                             
-                                            // Add new click handler
-                                            featureLayer.on('click', function(e) {
-                                                window._yvySelectTerritory(territoryName);
-                                                console.log('[YvyBridge] Territory feature clicked:', territoryName);
+                                            if (!alreadyHasHandler) {
+                                                // Store reference to this layer so popup can access it
+                                                window._yvyTerritoryLayers[territoryName] = featureLayer;
                                                 
-                                                // Flash effect on the clicked territory
-                                                var originalStyle = {
-                                                    fillColor: props.fillColor || '#4B0082',
-                                                    color: props.color || '#8B5CF6',
-                                                    weight: props.weight || 1.5,
-                                                    opacity: props.opacity || 0.4,
-                                                    fillOpacity: props.fillOpacity || 0.05,
-                                                };
-                                                
-                                                featureLayer.setStyle({
-                                                    fillColor: '#FFD700',
-                                                    color: '#FFA500',
-                                                    weight: 3,
-                                                    opacity: 1,
-                                                    fillOpacity: 0.3,
+                                                // Add click handler - just opens popup, visual feedback on popup link click
+                                                featureLayer.on('click', function(e) {
+                                                    console.log('[YvyBridge] Territory feature clicked (popup will open):', territoryName);
+                                                    // Popup opens automatically from Folium
                                                 });
                                                 
-                                                // Reset style after animation
-                                                setTimeout(function() {
-                                                    featureLayer.setStyle(originalStyle);
-                                                }, 800);
-                                            });
-                                            
-                                            handlersAttached++;
+                                                handlersAttached++;
+                                            }
                                         }
                                     }
                                 });
@@ -744,23 +680,34 @@ def build_map(
                         });
                         
                         if (handlersAttached > 0) {
-                            console.log('[YvyBridge] Attached click handlers to', handlersAttached, 'territory features');
-                        } else if (attempt < 5) {
+                            console.log('[YvyBridge] Attached', handlersAttached, 'new territory click handlers (skipped', handlersSkipped, ' existing)');
+                        } else if (handlersSkipped > 0) {
+                            console.log('[YvyBridge] All territory features already have handlers (', handlersSkipped, ' features)');
+                        } else if (attempt < 10) {
                             // Retry in case GeoJSON layers haven't been added yet
-                            console.log('[YvyBridge] Retrying territory click handler attachment (attempt', attempt + 1, ')');
+                            console.log('[YvyBridge] No territory features found, retrying (attempt', attempt + 1, ')');
                             setTimeout(function() {
                                 attachTerritoryClickHandlers(attempt + 1);
-                            }, 300);
+                            }, 200);
                         }
                     } catch(e) {
                         console.warn('[YvyBridge] Error attaching territory click handlers:', e);
+                        if (attempt < 10) {
+                            setTimeout(function() {
+                                attachTerritoryClickHandlers(attempt + 1);
+                            }, 200);
+                        }
                     }
                 }
                 
-                // Attach handlers after map initialization
+                // Attach handlers immediately and after a delay for map initialization
+                attachTerritoryClickHandlers();
                 setTimeout(function() {
-                    attachTerritoryClickHandlers();
-                }, 1000);
+                    attachTerritoryClickHandlers(0);
+                }, 500);
+                setTimeout(function() {
+                    attachTerritoryClickHandlers(0);
+                }, 1500);
 
                 console.log('[YvyBridge] Draw bridge initialized successfully');
             }

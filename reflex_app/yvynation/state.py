@@ -33,6 +33,7 @@ class AppState(rx.State):
     data_loaded: bool = True
     ee_initialized: bool = False
     loading_message: str = ""
+    loading_type: str = ""  # "ee" (Earth Engine), "processing" (compute), "preparing" (data prep), or "" (none)
     error_message: str = ""
     
     # Language & Preferences
@@ -372,7 +373,9 @@ class AppState(rx.State):
         """Plotly bar chart figure for MapBiomas results."""
         try:
             from .utils.visualization import get_chart_for_analysis
-            fig = get_chart_for_analysis(self.analysis_results, chart_type='bar')
+            # Use mapbiomas_analysis_result if available, otherwise analysis_results
+            result = self.mapbiomas_analysis_result or self.analysis_results
+            fig = get_chart_for_analysis(result, chart_type='bar')
             return fig if fig else None
         except Exception as e:
             logger.error(f"Error generating MapBiomas bar chart: {e}")
@@ -383,23 +386,84 @@ class AppState(rx.State):
         """Plotly pie chart figure for MapBiomas results."""
         try:
             from .utils.visualization import get_chart_for_analysis
-            fig = get_chart_for_analysis(self.analysis_results, chart_type='pie')
+            # Use mapbiomas_analysis_result if available, otherwise analysis_results
+            result = self.mapbiomas_analysis_result or self.analysis_results
+            fig = get_chart_for_analysis(result, chart_type='pie')
             return fig if fig else None
         except Exception as e:
             logger.error(f"Error generating MapBiomas pie chart: {e}")
             return None
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_analysis_result"])
+    def mapbiomas_table_data(self) -> List[Dict[str, Any]]:
+        """Table data from MapBiomas analysis result."""
+        if not self.mapbiomas_analysis_result:
+            return []
+        try:
+            data = self.mapbiomas_analysis_result.get("data", [])
+            return data if data else []
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["mapbiomas_analysis_result"])
+    def mapbiomas_table_columns(self) -> List[str]:
+        """Table columns from MapBiomas analysis result."""
+        if not self.mapbiomas_analysis_result:
+            return []
+        try:
+            data = self.mapbiomas_analysis_result.get("data", [])
+            if not data:
+                return []
+            import pandas as pd
+            df = pd.DataFrame(data)
+            display_cols = [c for c in ['Class_Name', 'Class', 'Class_ID', 'Area_ha', 'Pixels', 'Percentage'] if c in df.columns]
+            if not display_cols:
+                display_cols = list(df.columns)[:6]
+            return display_cols
+        except Exception:
+            return []
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_balance_chart(self) -> Optional[Figure]:
         """Plotly area distribution chart for Hansen results."""
         try:
             from .utils.visualization import get_chart_for_analysis
-            # Use 'bar' chart type for area distribution (not 'balance')
-            fig = get_chart_for_analysis(self.analysis_results, chart_type='bar')
+            # Use hansen_analysis_result if available, otherwise analysis_results
+            result = self.hansen_analysis_result or self.analysis_results
+            fig = get_chart_for_analysis(result, chart_type='bar')
             return fig if fig else None
         except Exception as e:
             logger.error(f"Error generating Hansen chart: {e}")
             return None
+
+    @rx.var(auto_deps=False, deps=["hansen_analysis_result"])
+    def hansen_table_data(self) -> List[Dict[str, Any]]:
+        """Table data from Hansen analysis result."""
+        if not self.hansen_analysis_result:
+            return []
+        try:
+            data = self.hansen_analysis_result.get("data", [])
+            return data if data else []
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["hansen_analysis_result"])
+    def hansen_table_columns(self) -> List[str]:
+        """Table columns from Hansen analysis result."""
+        if not self.hansen_analysis_result:
+            return []
+        try:
+            data = self.hansen_analysis_result.get("data", [])
+            if not data:
+                return []
+            import pandas as pd
+            df = pd.DataFrame(data)
+            display_cols = [c for c in ['Class_Name', 'Class', 'Class_ID', 'Area_ha', 'Pixels', 'Percentage'] if c in df.columns]
+            if not display_cols:
+                display_cols = list(df.columns)[:6]
+            return display_cols
+        except Exception:
+            return []
 
     @rx.var(auto_deps=False, deps=["analysis_results", "selected_territory", "territory_analysis_year"])
     def analysis_info_text(self) -> str:
@@ -803,7 +867,7 @@ class AppState(rx.State):
             time_since_last = current_time - self._selection_timestamp if self._selection_timestamp else 0
             self._selection_timestamp = current_time
             
-            logger.info(f"[MAP_SELECTION #{call_num}] Call #{call_num}, {time_since_last:.3f}s since last call: {territory_name}")
+            logger.info(f"[MAP_SELECTION #{call_num}] Call #{call_num}, {time_since_last:.3f}s since last: {territory_name}")
             
             # Guard against empty/invalid names
             if not territory_name or territory_name == "null" or not isinstance(territory_name, str):
@@ -816,14 +880,10 @@ class AppState(rx.State):
                 logger.warning(f"[MAP_SELECTION #{call_num}] Territory name is empty after strip()")
                 return
             
-            # Prevent immediate re-selection of the same territory (guards against double-fire)
+            # Prevent immediate re-selection of the EXACT same territory (guards against double-fire)
+            # But allow clicking different territories even rapidly
             if self.selected_territory == territory_name:
                 logger.info(f"[MAP_SELECTION #{call_num}] Territory already selected: {territory_name} - skipping duplicate")
-                return
-            
-            # Guard against rapid successive calls (might indicate a polling issue)
-            if time_since_last < 0.2 and call_num > 1:
-                logger.warning(f"[MAP_SELECTION #{call_num}] Calls too rapid ({time_since_last:.3f}s apart), might be a loop")
                 return
             
             # Find exact match or partial match
@@ -936,9 +996,19 @@ class AppState(rx.State):
         return None
     
     def initialize_app(self):
-        """Initialize application state on first load - auto-loads territories."""
+        """Initialize application state on first load - shows UI immediately, loads data in background."""
         if self.ee_initialized:
             return  # Already initialized
+        
+        # Show UI immediately (don't gate behind data loading)
+        self.data_loaded = True
+        self.ee_initialized = True
+        
+        # Load territories in background (non-blocking)
+        self._load_territories_background()
+    
+    def _load_territories_background(self):
+        """Load territories and cache data in background (non-blocking)."""
         try:
             from .utils.ee_service_extended import get_ee_service
             ee_service = get_ee_service()
@@ -963,15 +1033,14 @@ class AppState(rx.State):
             except Exception as tile_err:
                 logger.warning(f"Could not load indigenous lands tiles: {tile_err}")
 
-            self.data_loaded = True
-            self.ee_initialized = True
             self.geometry_version += 1  # Force map rebuild with new layer
             logger.info(f"App initialized with {len(self.available_territories)} territories")
         except Exception as e:
-            self.error_message = f"Failed to initialize: {str(e)}"
-            self.available_territories = []
-            self.data_loaded = True
-            self.ee_initialized = False
+            logger.error(f"Failed to load territory data in background: {str(e)}")
+            self.available_territories = [
+                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
+                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná"
+            ]
     
     def run_mapbiomas_analysis(self):
         """Run MapBiomas analysis for selected territory and year."""
@@ -983,7 +1052,8 @@ class AppState(rx.State):
                 return
 
             self.mapbiomas_analysis_pending = True
-            self.loading_message = f"Analyzing {self.selected_territory} for MapBiomas {self.mapbiomas_current_year}..."
+            self.loading_type = "ee"
+            self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
             self.error_message = ""
 
             ee_service = get_ee_service()
@@ -995,9 +1065,12 @@ class AppState(rx.State):
                 self.error_message = f"Could not find territory: {self.selected_territory}"
                 logger.error(self.error_message)
                 self.mapbiomas_analysis_pending = False
+                self.loading_type = ""
                 self.loading_message = ""
                 return
 
+            self.loading_type = "processing"
+            self.loading_message = f"Processing MapBiomas {self.mapbiomas_current_year} data..."
             logger.info(f"Running MapBiomas analysis for {self.selected_territory}, year {self.mapbiomas_current_year}")
 
             # Run analysis
@@ -1007,6 +1080,9 @@ class AppState(rx.State):
                 self.error_message = f"No MapBiomas data found for {self.selected_territory} in {self.mapbiomas_current_year}"
                 logger.warning(self.error_message)
             else:
+                self.loading_type = "preparing"
+                self.loading_message = "Preparing visualizations..."
+                
                 # Store results in both places
                 result_dict = {
                     "type": "mapbiomas",
@@ -1021,16 +1097,17 @@ class AppState(rx.State):
                 self.analysis_results = result_dict  # Set as active result for display
                 self.mapbiomas_analysis_result = result_dict  # Persist MapBiomas result
                 self.territory_analysis_year = self.mapbiomas_current_year  # Track year used
-                self.loading_message = f"✓ Analysis complete: {len(analysis_df)} classes found"
+                self.loading_message = f"✓ {len(analysis_df)} classes found"
                 logger.info(f"✓ MapBiomas analysis success: {len(analysis_df)} classes")
 
             self.mapbiomas_analysis_pending = False
+            self.clear_loading()
 
         except Exception as e:
             logger.error(f"MapBiomas analysis error: {e}", exc_info=True)
             self.error_message = f"Analysis failed: {str(e)}"
             self.mapbiomas_analysis_pending = False
-            self.loading_message = ""
+            self.clear_loading()
     
     def run_hansen_analysis(self):
         """Run Hansen analysis for selected territory and year."""
@@ -1042,7 +1119,9 @@ class AppState(rx.State):
                 return
             
             self.hansen_analysis_pending = True
-            self.loading_message = f"Analyzing {self.selected_territory} for Hansen {self.hansen_current_year}..."
+            self.loading_type = "ee"
+            self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
+            self.error_message = ""
             
             ee_service = get_ee_service()
             
@@ -1051,7 +1130,12 @@ class AppState(rx.State):
             if territory_geom is None:
                 self.error_message = f"Could not find territory: {self.selected_territory}"
                 self.hansen_analysis_pending = False
+                self.loading_type = ""
+                self.loading_message = ""
                 return
+            
+            self.loading_type = "processing"
+            self.loading_message = f"Processing Hansen {self.hansen_current_year} data..."
             
             # Run analysis
             analysis_df = ee_service.analyze_hansen(territory_geom, self.hansen_current_year)
@@ -1059,20 +1143,28 @@ class AppState(rx.State):
             if analysis_df.empty:
                 self.error_message = f"No data found for this territory"
             else:
+                self.loading_type = "preparing"
+                self.loading_message = "Preparing visualizations..."
+                
                 # Store results
-                self.analysis_results = {
+                result_dict = {
                     "type": "hansen",
                     "territory": self.selected_territory,
                     "year": self.hansen_current_year,
-                    "data": analysis_df.to_dict(),
+                    "data": analysis_df.to_dict('records'),
                 }
-                self.loading_message = ""
+                self.analysis_results = result_dict
+                self.hansen_analysis_result = result_dict  # Persist Hansen result
+                self.loading_message = "✓ Analysis complete"
+                logger.info(f"✓ Hansen analysis success for {self.selected_territory}")
             
             self.hansen_analysis_pending = False
+            self.clear_loading()
         
         except Exception as e:
             self.error_message = f"Analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
+            self.clear_loading()
         
     def set_language(self, lang: str):
         """Change application language."""
@@ -1162,6 +1254,11 @@ class AppState(rx.State):
                 logger.warning("[TERRITORY_SET] Territory is empty, returning")
                 return
 
+            # Clear previous territory state completely
+            self.territory_result = None
+            self.territory_result_year2 = None
+            logger.info(f"[TERRITORY_SET] Cleared previous territory results")
+
             logger.info(f"[TERRITORY_SET] Updating selected_territory state")
             self.selected_territory = territory
             self.pending_territory = None
@@ -1235,7 +1332,7 @@ class AppState(rx.State):
                     logger.info(f"[TERRITORY_SET] Updating territory_geojson_features")
                     # Replace any existing territory features (keep only current)
                     self.territory_geojson_features = [territory_feature]
-                    logger.info(f"[TERRITORY_SET] Incrementing geometry_version")
+                    logger.info(f"[TERRITORY_SET] Incrementing geometry_version to trigger map rebuild")
                     self.geometry_version += 1
                     logger.info(f"[TERRITORY_SET] Territory GeoJSON cached: {clean_geom['type']} with {len(clean_geom.get('coordinates', []))} coord groups")
                 except Exception as geojson_err:
@@ -1594,6 +1691,7 @@ class AppState(rx.State):
     def clear_loading(self):
         """Clear loading state."""
         self.loading_message = ""
+        self.loading_type = ""
         
     def set_buffer_distance_input(self, value: str):
         """Update buffer distance input field."""
@@ -1632,6 +1730,54 @@ class AppState(rx.State):
             return rx.download(data=csv_content, filename=filename)
         except Exception as e:
             self.error_message = f"Export error: {str(e)}"
+
+    def download_mapbiomas_csv(self):
+        """Generate and trigger CSV download of MapBiomas analysis results."""
+        try:
+            import pandas as pd
+            if not self.mapbiomas_analysis_result:
+                self.error_message = "No MapBiomas analysis data to export"
+                return
+            
+            data = self.mapbiomas_analysis_result.get("data", [])
+            if not data:
+                self.error_message = "No MapBiomas data to export"
+                return
+
+            df = pd.DataFrame(data)
+            csv_content = df.to_csv(index=False)
+
+            territory = self.mapbiomas_analysis_result.get("territory", "unknown")
+            year = self.mapbiomas_analysis_result.get("year", "")
+            filename = f"{territory}_MapBiomas_{year}.csv".replace(" ", "_")
+
+            return rx.download(data=csv_content, filename=filename)
+        except Exception as e:
+            self.error_message = f"MapBiomas export error: {str(e)}"
+
+    def download_hansen_csv(self):
+        """Generate and trigger CSV download of Hansen analysis results."""
+        try:
+            import pandas as pd
+            if not self.hansen_analysis_result:
+                self.error_message = "No Hansen analysis data to export"
+                return
+            
+            data = self.hansen_analysis_result.get("data", [])
+            if not data:
+                self.error_message = "No Hansen data to export"
+                return
+
+            df = pd.DataFrame(data)
+            csv_content = df.to_csv(index=False)
+
+            territory = self.hansen_analysis_result.get("territory", "unknown")
+            year = self.hansen_analysis_result.get("year", "")
+            filename = f"{territory}_Hansen_{year}.csv".replace(" ", "_")
+
+            return rx.download(data=csv_content, filename=filename)
+        except Exception as e:
+            self.error_message = f"Hansen export error: {str(e)}"
 
     def download_comparison_csv(self):
         """Generate CSV download of comparison results."""
@@ -2417,7 +2563,6 @@ class AppState(rx.State):
         Uses territory geometry from Earth Engine.
         """
         try:
-            from .utils.mapbiomas_analysis import get_mapbiomas_analyzer
             from .utils.ee_service_extended import get_ee_service
             
             if not self.selected_territory:
@@ -2425,7 +2570,9 @@ class AppState(rx.State):
                 return
             
             self.mapbiomas_analysis_pending = True
-            self.loading_message = f"Analyzing {self.selected_territory} with MapBiomas {self.mapbiomas_current_year}..."
+            self.loading_type = "ee"
+            self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
+            self.error_message = ""
             
             # Get territory geometry from EE
             ee_service = get_ee_service()
@@ -2434,49 +2581,48 @@ class AppState(rx.State):
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.mapbiomas_analysis_pending = False
+                self.loading_type = ""
+                self.loading_message = ""
                 return
+            
+            self.loading_type = "processing"
+            self.loading_message = f"Processing MapBiomas {self.mapbiomas_current_year} data..."
             
             # Run analysis
-            analyzer = get_mapbiomas_analyzer()
-            if not analyzer.is_available():
-                self.error_message = "MapBiomas dataset not available"
-                self.mapbiomas_analysis_pending = False
-                return
-            
-            result_df = analyzer.analyze_single_year(
-                ee_geom,
-                self.mapbiomas_current_year,
-                scale=30
-            )
+            result_df = ee_service.analyze_mapbiomas(ee_geom, self.mapbiomas_current_year)
             
             if result_df.empty:
                 self.error_message = f"No MapBiomas data found for {self.selected_territory}"
             else:
-                # Store results
+                self.loading_type = "preparing"
+                self.loading_message = "Preparing visualizations..."
+                
+                # Store results in persistent state
                 result_dict = {
                     "type": "mapbiomas",
-                    "geometry": self.selected_territory,
+                    "territory": self.selected_territory,
                     "year": self.mapbiomas_current_year,
                     "data": result_df.to_dict('records'),
                     "summary": {
                         "total_area_ha": result_df['Area_ha'].sum(),
-                        "num_classes": len(result_df),
-                        "top_class": result_df.iloc[0]['Class_Name'] if len(result_df) > 0 else 'Unknown',
+                        "classes": len(result_df)
                     }
                 }
-                # Store in multi-result system
-                key = f"territory::{self.selected_territory}"
-                geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
-                self._store_result(key, result_dict, geojson_feature=geojson_feat)
-                self.set_active_tab("analysis")
-                self.loading_message = ""
+                # Store in both places for compatibility
+                self.mapbiomas_analysis_result = result_dict  # Persist MapBiomas result
+                self.analysis_results = result_dict  # Set as active result for display
+                self.territory_analysis_year = self.mapbiomas_current_year
+                self.loading_message = f"✓ {len(result_df)} classes found"
+                logger.info(f"✓ MapBiomas analysis success: {len(result_df)} classes")
 
             self.mapbiomas_analysis_pending = False
+            self.clear_loading()
 
         except Exception as e:
             self.error_message = f"Territory analysis failed: {str(e)}"
             self.mapbiomas_analysis_pending = False
-            logger.error(f"MapBiomas territory analysis error: {e}")
+            self.clear_loading()
+            logger.error(f"MapBiomas territory analysis error: {e}", exc_info=True)
 
     async def run_hansen_analysis_on_territory(self):
         """
@@ -2484,7 +2630,6 @@ class AppState(rx.State):
         Uses territory geometry from Earth Engine.
         """
         try:
-            from .utils.hansen_analysis import get_hansen_analyzer
             from .utils.ee_service_extended import get_ee_service
 
             if not self.selected_territory:
@@ -2492,7 +2637,9 @@ class AppState(rx.State):
                 return
 
             self.hansen_analysis_pending = True
-            self.loading_message = f"Analyzing Hansen {self.hansen_current_year} in {self.selected_territory}..."
+            self.loading_type = "ee"
+            self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
+            self.error_message = ""
 
             # Get territory geometry from EE
             ee_service = get_ee_service()
@@ -2501,49 +2648,48 @@ class AppState(rx.State):
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.hansen_analysis_pending = False
+                self.loading_type = ""
+                self.loading_message = ""
                 return
+
+            self.loading_type = "processing"
+            self.loading_message = f"Processing Hansen {self.hansen_current_year} data..."
 
             # Run analysis
-            analyzer = get_hansen_analyzer()
-            if not analyzer.is_available():
-                self.error_message = "Hansen dataset not available"
-                self.hansen_analysis_pending = False
-                return
-
-            # Get area distribution for selected year
-            result_df = analyzer.get_area_distribution(ee_geom, year=self.hansen_current_year, scale=30)
+            result_df = ee_service.analyze_hansen(ee_geom, self.hansen_current_year)
 
             # Handle DataFrame result
             if result_df is None or result_df.empty:
                 self.error_message = f"No Hansen data found for {self.selected_territory} in {self.hansen_current_year}"
             else:
-                # Store results in both places
+                self.loading_type = "preparing"
+                self.loading_message = "Preparing visualizations..."
+                
+                # Store results in persistent state
                 result_dict = {
                     "type": "hansen",
-                    "geometry": self.selected_territory,
+                    "territory": self.selected_territory,
+                    "year": self.hansen_current_year,
                     "data": result_df.to_dict('records'),
                     "summary": {
-                        "year": self.hansen_current_year,
-                        "num_classes": len(result_df),
-                        "total_area_ha": float(result_df['Area_ha'].sum()),
+                        "total_area_ha": result_df['Area_ha'].sum(),
+                        "classes": len(result_df)
                     }
                 }
-                # Store in multi-result system
-                key = f"territory::{self.selected_territory}"
-                geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
-                self._store_result(key, result_dict, geojson_feature=geojson_feat)
-                self.hansen_analysis_result = result_dict
-                self.territory_analysis_year = int(self.hansen_current_year)
-                self.set_active_tab("analysis")
-                self.loading_message = ""
-                logger.info(f"Hansen analysis complete: {len(result_df)} classes, {result_df['Area_ha'].sum():.0f} ha")
+                # Store in both places for compatibility
+                self.hansen_analysis_result = result_dict  # Persist Hansen result
+                self.analysis_results = result_dict  # Set as active result for display
+                self.loading_message = "✓ Analysis complete"
+                logger.info(f"✓ Hansen analysis success for {self.selected_territory}")
 
             self.hansen_analysis_pending = False
+            self.clear_loading()
 
         except Exception as e:
             self.error_message = f"Hansen analysis failed: {str(e)}"
             self.hansen_analysis_pending = False
-            logger.error(f"Hansen territory analysis error: {e}")
+            self.clear_loading()
+            logger.error(f"Hansen territory analysis error: {e}", exc_info=True)
 
     # ========================================================================
     # Phase 4: Comparison & Territory Comparison Handlers

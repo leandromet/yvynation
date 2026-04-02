@@ -138,14 +138,21 @@ def _hansen_summary_metrics() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def mapbiomas_tab() -> rx.Component:
-    """MapBiomas land cover analysis tab."""
+    """MapBiomas land cover analysis tab. Displays persisted mapbiomas_analysis_result."""
     return rx.vstack(
         rx.heading(AppState.tr["mapbiomas_analysis_title"], size="3"),
         # Analysis info
         rx.cond(
-            AppState.analysis_info_text != "",
+            AppState.mapbiomas_analysis_result != None,
             rx.box(
-                rx.text(AppState.analysis_info_text, font_size="sm", color="gray"),
+                rx.text(
+                    rx.cond(
+                        AppState.selected_territory != "",
+                        f"📍 {AppState.selected_territory} • MapBiomas {AppState.territory_analysis_year}",
+                        "MapBiomas Analysis Ready"
+                    ),
+                    font_size="sm", color="gray"
+                ),
                 padding="1rem",
                 bg="gray.50",
                 border_radius="md",
@@ -154,9 +161,9 @@ def mapbiomas_tab() -> rx.Component:
             rx.box(),
         ),
         rx.cond(
-            AppState.analysis_results.get("type") == "mapbiomas",
+            AppState.mapbiomas_analysis_result != None,
             rx.vstack(
-                _summary_metrics_row(AppState.analysis_results),
+                _summary_metrics_row(AppState.mapbiomas_analysis_result),
                 rx.divider(),
                 rx.box(
                     rx.plotly(data=AppState.mapbiomas_bar_chart, use_resize_handler=True),
@@ -170,8 +177,8 @@ def mapbiomas_tab() -> rx.Component:
                 rx.divider(),
                 rx.box(
                     rx.data_table(
-                        data=AppState.analysis_table_data,
-                        columns=AppState.analysis_table_columns,
+                        data=AppState.mapbiomas_table_data,
+                        columns=AppState.mapbiomas_table_columns,
                         pagination=True,
                         search=True,
                     ),
@@ -181,7 +188,7 @@ def mapbiomas_tab() -> rx.Component:
                 rx.divider(),
                 rx.button(
                     AppState.tr["export_as_csv"],
-                    on_click=AppState.download_analysis_csv,
+                    on_click=AppState.download_mapbiomas_csv,
                     color_scheme="blue",
                     size="2",
                     variant="outline",
@@ -189,11 +196,11 @@ def mapbiomas_tab() -> rx.Component:
                 rx.cond(
                     AppState.hansen_analysis_result != None,
                     rx.button(
-                        AppState.tr["hansen_analysis"],
-                        on_click=lambda: AppState.set_active_tab("hansen"),
+                        "→ View Hansen Results",
+                        on_click=AppState.set_active_tab("hansen"),
                         size="1",
                         color_scheme="orange",
-                        variant="outline",
+                        variant="solid",
                     ),
                     rx.box(),
                 ),
@@ -213,13 +220,20 @@ def mapbiomas_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def hansen_tab() -> rx.Component:
-    """Hansen/GLAD forest change analysis tab."""
+    """Hansen/GLAD forest change analysis tab. Displays persisted hansen_analysis_result."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
         rx.cond(
-            AppState.analysis_info_text != "",
+            AppState.hansen_analysis_result != None,
             rx.box(
-                rx.text(AppState.analysis_info_text, font_size="sm", color="gray"),
+                rx.text(
+                    rx.cond(
+                        AppState.selected_territory != "",
+                        f"📍 {AppState.selected_territory} • Hansen {AppState.hansen_current_year}",
+                        "Hansen Analysis Ready"
+                    ),
+                    font_size="sm", color="gray"
+                ),
                 padding="1rem",
                 bg="gray.50",
                 border_radius="md",
@@ -228,7 +242,7 @@ def hansen_tab() -> rx.Component:
             rx.box(),
         ),
         rx.cond(
-            AppState.analysis_results.get("type") == "hansen",
+            AppState.hansen_analysis_result != None,
             rx.vstack(
                 _hansen_summary_metrics(),
                 rx.divider(),
@@ -239,8 +253,8 @@ def hansen_tab() -> rx.Component:
                 rx.divider(),
                 rx.box(
                     rx.data_table(
-                        data=AppState.analysis_table_data,
-                        columns=AppState.analysis_table_columns,
+                        data=AppState.hansen_table_data,
+                        columns=AppState.hansen_table_columns,
                         pagination=True,
                         search=True,
                     ),
@@ -250,7 +264,7 @@ def hansen_tab() -> rx.Component:
                 rx.divider(),
                 rx.button(
                     AppState.tr["export_as_csv"],
-                    on_click=AppState.download_analysis_csv,
+                    on_click=AppState.download_hansen_csv,
                     color_scheme="blue",
                     size="2",
                     variant="outline",
@@ -258,11 +272,11 @@ def hansen_tab() -> rx.Component:
                 rx.cond(
                     AppState.mapbiomas_analysis_result != None,
                     rx.button(
-                        AppState.tr["mapbiomas_analysis"],
-                        on_click=lambda: AppState.set_active_tab("mapbiomas"),
+                        "→ View MapBiomas Results",
+                        on_click=AppState.set_active_tab("mapbiomas"),
                         size="1",
                         color_scheme="green",
-                        variant="outline",
+                        variant="solid",
                     ),
                     rx.box(),
                 ),

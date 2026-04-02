@@ -12,6 +12,7 @@ from ..components.export_panel import export_panel
 from ..components.geometry_popup import geometry_info_popup
 from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
+from ..components.loading_indicator import loading_indicator
 
 
 def navbar() -> rx.Component:
@@ -203,29 +204,7 @@ def error_toast(state: AppState) -> rx.Component:
     )
 
 
-def loading_overlay(state: AppState) -> rx.Component:
-    """Display loading overlay."""
-    return rx.cond(
-        state.loading_message != "",
-        rx.box(
-            rx.vstack(
-                rx.spinner(color="green", size="3"),
-                rx.text(state.loading_message),
-                align_items="center",
-                justify_content="center",
-                height="100vh",
-                width="100%",
-            ),
-            position="fixed",
-            top="0",
-            left="0",
-            width="100%",
-            height="100vh",
-            bg="rgba(0,0,0,0.5)",
-            z_index="10000",
-        ),
-        rx.box(),
-    )
+
 
 
 def comparison_results_section() -> rx.Component:
@@ -360,7 +339,7 @@ def main_content_area() -> rx.Component:
         display="grid",
         grid_template_rows=rx.cond(
             has_analysis,
-            "auto auto minmax(250px, 38vh) auto 1fr",
+            "auto auto minmax(500px, 76vh) auto 1fr",
             "auto auto 1fr auto 0px",
         ),
         width="100%",
@@ -373,47 +352,35 @@ def index() -> rx.Component:
     """Main application layout with modern design."""
     return rx.vstack(
         navbar(),
-        rx.cond(
-            AppState.data_loaded,
-            rx.hstack(
-                # Sidebar (collapsible and resizable)
-                rx.cond(
-                    AppState.sidebar_open,
-                    rx.box(
-                        sidebar(),
-                        width=rx.cond(
-                            AppState.sidebar_width != 0,
-                            f"{AppState.sidebar_width}px",
-                            "300px",
-                        ),
-                        max_width="500px",
-                        min_width="200px",
-                        overflow_y="auto",
-                        overflow_x="hidden",
-                        border_right="2px solid #d0d0d0",
-                        bg="white",
-                        position="relative",
+        rx.hstack(
+            # Sidebar (collapsible and resizable)
+            rx.cond(
+                AppState.sidebar_open,
+                rx.box(
+                    sidebar(),
+                    width=rx.cond(
+                        AppState.sidebar_width != 0,
+                        f"{AppState.sidebar_width}px",
+                        "300px",
                     ),
-                    rx.box(),
+                    max_width="500px",
+                    min_width="200px",
+                    overflow_y="auto",
+                    overflow_x="hidden",
+                    border_right="2px solid #d0d0d0",
+                    bg="white",
+                    position="relative",
                 ),
-                # Main content area
-                main_content_area(),
-                width="100%",
-                height="calc(100vh - 70px)",
-                spacing="0",
+                rx.box(),
             ),
-            # Loading state
-            rx.vstack(
-                rx.spinner(color="green", size="3"),
-                rx.text(AppState.tr["initializing"]),
-                align_items="center",
-                justify_content="center",
-                height="calc(100vh - 70px)",
-                spacing="4",
-            ),
+            # Main content area
+            main_content_area(),
+            width="100%",
+            height="calc(100vh - 70px)",
+            spacing="0",
         ),
         error_toast(AppState),
-        loading_overlay(AppState),
+        loading_indicator(),
         geometry_info_popup(),
         width="100%",
         height="100vh",
