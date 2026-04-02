@@ -149,6 +149,7 @@ class AppState(rx.State):
     is_resizing_sidebar: bool = False  # Whether currently resizing
     show_tutorial: bool = False
     tutorial_expanded_steps: List[int] = []  # Which tutorial steps are expanded
+    show_layer_reference: bool = False  # Layer reference guide visibility
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""  # Buffer distance input field
     
@@ -1084,6 +1085,10 @@ class AppState(rx.State):
     def toggle_tutorial(self):
         """Toggle tutorial visibility."""
         self.show_tutorial = not self.show_tutorial
+
+    def toggle_layer_reference(self):
+        """Toggle layer reference guide visibility."""
+        self.show_layer_reference = not self.show_layer_reference
 
     def toggle_tutorial_step(self, step_index: int):
         """Toggle a tutorial step expansion."""
@@ -2622,12 +2627,21 @@ class AppState(rx.State):
             self.territory_year2 = y2
             self.territory_source = "MapBiomas"
 
+            # Compute pixel-level transitions for Sankey & transition matrix
+            self.loading_message = f"Computing transitions {y1} -> {y2}..."
+            transitions = analyzer.compute_transitions(ee_geom, y1, y2, scale=30)
+            if transitions:
+                self.territory_transitions = transitions
+            else:
+                self.territory_transitions = None
+
             # Store comparison for charts
             comparison_dict = {
                 "year_start": y1,
                 "year_end": y2,
                 "territory": self.selected_territory,
                 "data": comparison_df.to_dict('records'),
+                "transitions": transitions if transitions else None,
             }
             self.mapbiomas_comparison_result = comparison_dict
 

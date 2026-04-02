@@ -11,6 +11,7 @@ from ..components.results_panel import results_panel
 from ..components.export_panel import export_panel
 from ..components.geometry_popup import geometry_info_popup
 from ..components.tutorial import tutorial_section
+from ..components.layer_reference import layer_reference_guide
 
 
 def navbar() -> rx.Component:
@@ -315,6 +316,12 @@ def main_content_area() -> rx.Component:
         # Row 2: map (fixed height via grid row)
         leaflet_map(),
 
+        # Row 2.5: Layer reference guide (collapsible)
+        rx.box(
+            layer_reference_guide(),
+            padding="0 1rem",
+        ),
+
         # Row 3: results area (scrollable, takes remaining space)
         rx.cond(
             has_analysis,
@@ -344,16 +351,17 @@ def main_content_area() -> rx.Component:
             rx.box(),
         ),
 
-        # CSS Grid layout: 4 rows
-        # - auto: layer bar takes its natural height
-        # - auto: tutorial takes its natural height
+        # CSS Grid layout: 5 rows
+        # - auto: layer bar
+        # - auto: tutorial
         # - map row: big when no analysis, smaller when analysis shown
-        # - 1fr: results take remaining space (or 0 if hidden)
+        # - auto: layer reference guide
+        # - 1fr: results (or 0 if hidden)
         display="grid",
         grid_template_rows=rx.cond(
             has_analysis,
-            "auto auto minmax(250px, 40vh) 1fr",
-            "auto auto 1fr 0px",
+            "auto auto minmax(250px, 38vh) auto 1fr",
+            "auto auto 1fr auto 0px",
         ),
         width="100%",
         height="100%",

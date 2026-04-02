@@ -178,6 +178,70 @@ class MapBiomasAnalyzer:
             logger.error(f"Error comparing years {year_start}-{year_end}: {e}")
             return pd.DataFrame()
     
+    def compute_transitions(
+        self,
+        geometry: ee.Geometry,
+        year_start: int,
+        year_end: int,
+        scale: int = 30,
+        max_pixels: int = 1_000_000_000,
+    ) -> Dict:
+        """
+        Compute pixel-level land cover transitions between two years.
+
+        Uses the EE pattern: band1 * 1000 + band2 -> frequencyHistogram
+        to get a dict of {source_class_id: {target_class_id: area_ha}}.
+
+        Returns:
+            Dict[int, Dict[int, float]] — transitions dict for Sankey/matrix.
+            Empty dict on error.
+        """
+        try:
+            if not self.is_available():
+                return {}
+
+            band1 = f'classification_{year_start}'
+            band2 = f'classification_{year_end}'
+            img1 = self.mapbiomas_dataset.select(band1)
+            img2 = self.mapbiomas_dataset.select(band2)
+
+            combined = img1.multiply(1000).add(img2)
+            hist = combined.reduceRegion(
+                reducer=ee.Reducer.frequencyHistogram(),
+                geometry=geometry,
+                scale=scale,
+                maxPixels=max_pixels,
+            ).getInfo()
+
+            if not hist:
+                return {}
+
+            trans_key = list(hist.keys())[0]
+            raw = hist.get(trans_key, {})
+            if not raw:
+                return {}
+
+            transitions: Dict[int, Dict[int, float]] = {}
+            for combined_str, count in raw.items():
+                combined_val = int(combined_str)
+                src = combined_val // 1000
+                tgt = combined_val % 1000
+                area_ha = count * 0.09  # 30m pixel = 900 m² = 0.09 ha
+                if src > 0 and tgt > 0 and area_ha > 0:
+                    if src not in transitions:
+                        transitions[src] = {}
+                    transitions[src][tgt] = transitions[src].get(tgt, 0) + area_ha
+
+            logger.info(
+                f"Computed transitions {year_start}->{year_end}: "
+                f"{len(transitions)} source classes"
+            )
+            return transitions
+
+        except Exception as e:
+            logger.error(f"Error computing transitions {year_start}-{year_end}: {e}")
+            return {}
+
     def get_change_timeline(
         self,
         geometry: ee.Geometry,
