@@ -10,6 +10,7 @@ from ..components.map import leaflet_map, map_metrics
 from ..components.results_panel import results_panel
 from ..components.export_panel import export_panel
 from ..components.geometry_popup import geometry_info_popup
+from ..components.tutorial import tutorial_section
 
 
 def navbar() -> rx.Component:
@@ -67,9 +68,9 @@ def navbar() -> rx.Component:
                 margin="0",
             ),
             rx.vstack(
-                rx.heading("Yvynation", size="3"),
+                rx.heading(AppState.tr["app_title"], size="3"),
                 rx.text(
-                    "Indigenous Land Monitoring",
+                    AppState.tr["app_subtitle"],
                     font_size="xs",
                     color="gray",
                 ),
@@ -87,13 +88,13 @@ def navbar() -> rx.Component:
             rx.cond(
                 (AppState.analysis_results != {}) & (AppState.analysis_results != None),
                 rx.badge(
-                    "Analysis Active",
+                    AppState.tr["analysis_active_badge"],
                     color_scheme="green",
                     variant="solid",
                     size="1",
                 ),
                 rx.text(
-                    "Global Forest Monitoring Platform",
+                    AppState.tr["app_description"],
                     font_size="sm",
                     color="gray",
                     display=rx.cond(AppState.sidebar_open, "block", "none"),
@@ -123,7 +124,7 @@ def active_layers_summary() -> rx.Component:
             AppState.selected_territory != None,
             rx.hstack(
                 rx.text("|", color="gray", font_size="sm"),
-                rx.text("Compare:", font_size="xs", color="gray"),
+                rx.text(AppState.tr["compare_label"], font_size="xs", color="gray"),
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
                     value=AppState.comparison_year1.to(str),
@@ -131,7 +132,7 @@ def active_layers_summary() -> rx.Component:
                     size="1",
                     width="80px",
                 ),
-                rx.text("vs", font_size="xs", color="gray"),
+                rx.text(AppState.tr["vs_label"], font_size="xs", color="gray"),
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
                     value=AppState.comparison_year2.to(str),
@@ -148,7 +149,7 @@ def active_layers_summary() -> rx.Component:
                         color_scheme="blue",
                     ),
                     rx.button(
-                        "Compare",
+                        AppState.tr["compare_btn"],
                         on_click=AppState.run_territory_comparison,
                         size="1",
                         color_scheme="green",
@@ -181,7 +182,7 @@ def error_toast(state: AppState) -> rx.Component:
                     width="100%",
                 ),
                 rx.button(
-                    "Dismiss",
+                    AppState.tr["dismiss"],
                     size="1",
                     on_click=state.clear_error,
                 ),
@@ -231,10 +232,10 @@ def comparison_results_section() -> rx.Component:
     return rx.box(
         rx.vstack(
             rx.hstack(
-                rx.heading("Year Comparison Results", size="3"),
+                rx.heading(AppState.tr["year_comparison_results"], size="3"),
                 rx.spacer(),
                 rx.button(
-                    "Download Comparison CSV",
+                    AppState.tr["download_comparison_csv"],
                     on_click=AppState.download_comparison_csv,
                     size="1",
                     color_scheme="blue",
@@ -252,7 +253,7 @@ def comparison_results_section() -> rx.Component:
             rx.hstack(
                 rx.box(
                     rx.vstack(
-                        rx.text("Total Gains", font_size="xs", color="gray"),
+                        rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
                         rx.text(AppState.comparison_total_gains,
                                 font_weight="bold", color="green"),
                         spacing="0", align="center",
@@ -262,7 +263,7 @@ def comparison_results_section() -> rx.Component:
                 ),
                 rx.box(
                     rx.vstack(
-                        rx.text("Total Losses", font_size="xs", color="gray"),
+                        rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
                         rx.text(AppState.comparison_total_losses,
                                 font_weight="bold", color="red"),
                         spacing="0", align="center",
@@ -272,7 +273,7 @@ def comparison_results_section() -> rx.Component:
                 ),
                 rx.box(
                     rx.vstack(
-                        rx.text("Net Change", font_size="xs", color="gray"),
+                        rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
                         rx.text(AppState.comparison_net_change,
                                 font_weight="bold"),
                         spacing="0", align="center",
@@ -304,6 +305,12 @@ def main_content_area() -> rx.Component:
     return rx.box(
         # Row 1: layer summary bar (auto height)
         active_layers_summary(),
+
+        # Row 1.5: Tutorial section (collapsible)
+        rx.box(
+            tutorial_section(),
+            padding="0.5rem 1rem 0",
+        ),
 
         # Row 2: map (fixed height via grid row)
         leaflet_map(),
@@ -337,15 +344,16 @@ def main_content_area() -> rx.Component:
             rx.box(),
         ),
 
-        # CSS Grid layout: 3 rows
+        # CSS Grid layout: 4 rows
         # - auto: layer bar takes its natural height
+        # - auto: tutorial takes its natural height
         # - map row: big when no analysis, smaller when analysis shown
         # - 1fr: results take remaining space (or 0 if hidden)
         display="grid",
         grid_template_rows=rx.cond(
             has_analysis,
-            "auto minmax(250px, 45vh) 1fr",
-            "auto 1fr 0px",
+            "auto auto minmax(250px, 40vh) 1fr",
+            "auto auto 1fr 0px",
         ),
         width="100%",
         height="100%",
@@ -389,7 +397,7 @@ def index() -> rx.Component:
             # Loading state
             rx.vstack(
                 rx.spinner(color="green", size="3"),
-                rx.text("Initializing Yvynation Platform..."),
+                rx.text(AppState.tr["initializing"]),
                 align_items="center",
                 justify_content="center",
                 height="calc(100vh - 70px)",

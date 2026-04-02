@@ -147,7 +147,8 @@ class AppState(rx.State):
     sidebar_open: bool = True
     sidebar_width: int = 300  # Sidebar width in pixels
     is_resizing_sidebar: bool = False  # Whether currently resizing
-    show_tutorial: bool = True
+    show_tutorial: bool = False
+    tutorial_expanded_steps: List[int] = []  # Which tutorial steps are expanded
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""  # Buffer distance input field
     
@@ -166,7 +167,13 @@ class AppState(rx.State):
     # ========================================================================
     # Computed Properties (Reflex Reactive)
     # ========================================================================
-    
+
+    @rx.var(auto_deps=False, deps=["language"])
+    def tr(self) -> Dict[str, str]:
+        """Current translations dict, reactive to language changes."""
+        from .utils.translations import TRANSLATIONS
+        return TRANSLATIONS.get(self.language, TRANSLATIONS["en"])
+
     @rx.var
     def filtered_territories(self) -> List[str]:
         """Filter territories based on search query (reactive)."""
@@ -1074,6 +1081,17 @@ class AppState(rx.State):
         """Change selected country/region."""
         self.selected_country = country
         
+    def toggle_tutorial(self):
+        """Toggle tutorial visibility."""
+        self.show_tutorial = not self.show_tutorial
+
+    def toggle_tutorial_step(self, step_index: int):
+        """Toggle a tutorial step expansion."""
+        if step_index in self.tutorial_expanded_steps:
+            self.tutorial_expanded_steps = [s for s in self.tutorial_expanded_steps if s != step_index]
+        else:
+            self.tutorial_expanded_steps = self.tutorial_expanded_steps + [step_index]
+
     def toggle_sidebar(self):
         """Toggle sidebar visibility."""
         self.sidebar_open = not self.sidebar_open

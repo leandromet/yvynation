@@ -2,6 +2,7 @@
 Sidebar component for Yvynation Reflex app.
 Clean, compact layout with collapsible sections for layer management,
 territory selection, geometry analysis, and comparison controls.
+All text uses AppState.tr for i18n support.
 """
 
 import reflex as rx
@@ -17,18 +18,18 @@ from .geometry_selector import geometry_selector, drawing_instructions
 # ---------------------------------------------------------------------------
 
 def _section(
-    title: str,
+    title_key: str,
     content: rx.Component,
     is_expanded,
     on_toggle,
     badge: rx.Component = None,
 ) -> rx.Component:
-    """Compact collapsible section with optional status badge."""
+    """Compact collapsible section with translated title and optional status badge."""
     return rx.box(
         rx.button(
             rx.hstack(
                 rx.text(rx.cond(is_expanded, "v", ">"), font_size="xs", width="12px"),
-                rx.text(title, font_weight="600", font_size="sm"),
+                rx.text(AppState.tr[title_key], font_weight="600", font_size="sm"),
                 rx.spacer(),
                 badge if badge else rx.fragment(),
                 width="80%",
@@ -87,14 +88,14 @@ def mapbiomas_section() -> rx.Component:
         ),
         rx.hstack(
             rx.button(
-                "Add to map",
+                AppState.tr["add_to_map"],
                 on_click=lambda: AppState.add_mapbiomas_layer(),
                 size="1",
                 color_scheme="green",
                 flex="1",
             ),
             rx.button(
-                "Clear all",
+                AppState.tr["clear_all"],
                 on_click=AppState.clear_all_layers,
                 size="1",
                 variant="outline",
@@ -145,10 +146,10 @@ def hansen_section() -> rx.Component:
     """Hansen GFC layer controls - year + layer type toggles."""
     return rx.vstack(
         # GFC layer toggles (compact)
-        rx.text("Data layers", font_size="xs", font_weight="600", color="gray"),
+        rx.text(AppState.tr["data_layers"], font_size="xs", font_weight="600", color="gray"),
         rx.hstack(
             rx.button(
-                "Tree Cover",
+                AppState.tr["tree_cover_btn"],
                 on_click=lambda: AppState.add_hansen_layer("cover"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("cover"), "solid", "outline"),
@@ -156,7 +157,7 @@ def hansen_section() -> rx.Component:
                 flex="1",
             ),
             rx.button(
-                "Loss",
+                AppState.tr["loss_btn"],
                 on_click=lambda: AppState.add_hansen_layer("loss"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("loss"), "solid", "outline"),
@@ -164,7 +165,7 @@ def hansen_section() -> rx.Component:
                 flex="1",
             ),
             rx.button(
-                "Gain",
+                AppState.tr["gain_btn"],
                 on_click=lambda: AppState.add_hansen_layer("gain"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("gain"), "solid", "outline"),
@@ -174,7 +175,7 @@ def hansen_section() -> rx.Component:
             spacing="1",
         ),
         # Year selection
-        rx.text("Year layers", font_size="xs", font_weight="600", color="gray"),
+        rx.text(AppState.tr["year_layers"], font_size="xs", font_weight="600", color="gray"),
         rx.hstack(
             rx.select(
                 HANSEN_YEARS,
@@ -184,7 +185,7 @@ def hansen_section() -> rx.Component:
                 flex="1",
             ),
             rx.button(
-                "Add",
+                AppState.tr["add_btn"],
                 on_click=AppState.add_hansen_selected_year,
                 size="1",
                 color_scheme="blue",
@@ -235,21 +236,21 @@ def territory_section() -> rx.Component:
         # Indigenous lands toggle
         rx.hstack(
             rx.button(
-                rx.cond(AppState.show_indigenous_lands, "Hide All Lands", "Show All Lands"),
+                rx.cond(AppState.show_indigenous_lands, AppState.tr["hide_all_lands"], AppState.tr["show_all_lands"]),
                 on_click=AppState.toggle_indigenous_lands,
                 size="1",
                 variant=rx.cond(AppState.show_indigenous_lands, "solid", "outline"),
                 color_scheme="violet",
                 flex="1",
             ),
-            rx.text("Click map markers to select", font_size="9px", color="gray"),
+            rx.text(AppState.tr["click_map_to_select"], font_size="9px", color="gray"),
             width="100%",
             spacing="1",
             align_items="center",
         ),
         # Search + select (territories auto-load on page load)
         rx.input(
-            placeholder="Search territories...",
+            placeholder=AppState.tr["search_territories"],
             value=AppState.territory_search_query,
             on_change=AppState.set_territory_search_query,
             size="1",
@@ -258,7 +259,7 @@ def territory_section() -> rx.Component:
             items=AppState.filtered_territories,
             value=AppState.selected_territory,
             on_change=AppState.set_selected_territory,
-            placeholder="Select territory",
+            placeholder=AppState.tr["select_territory_placeholder"],
             size="1",
         ),
         # Analysis controls (only when territory selected)
@@ -312,7 +313,7 @@ def territory_section() -> rx.Component:
                 ),
                 rx.divider(),
                 # Year comparison
-                rx.text("Compare years", font_size="xs", font_weight="600", color="gray"),
+                rx.text(AppState.tr["compare_years"], font_size="xs", font_weight="600", color="gray"),
                 rx.hstack(
                     rx.select(
                         [str(y) for y in range(1985, 2024)],
@@ -321,7 +322,7 @@ def territory_section() -> rx.Component:
                         size="1",
                         flex="1",
                     ),
-                    rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
+                    rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
                     rx.select(
                         [str(y) for y in range(1985, 2024)],
                         value=AppState.comparison_year2_str,
@@ -335,11 +336,11 @@ def territory_section() -> rx.Component:
                 rx.cond(
                     AppState.mapbiomas_analysis_pending,
                     rx.button(
-                        rx.hstack(rx.spinner(size="1"), rx.text("Comparing..."), spacing="1"),
+                        rx.hstack(rx.spinner(size="1"), rx.text(AppState.tr["comparing_label"]), spacing="1"),
                         is_disabled=True, size="1", color_scheme="purple",
                     ),
                     rx.button(
-                        "Compare MapBiomas Years",
+                        AppState.tr["compare_mapbiomas_years"],
                         on_click=AppState.run_territory_comparison,
                         size="1",
                         color_scheme="purple",
@@ -348,7 +349,7 @@ def territory_section() -> rx.Component:
                 spacing="2",
                 width="100%",
             ),
-            rx.text("Select a territory above", font_size="xs", color="gray"),
+            rx.text(AppState.tr["select_territory_above"], font_size="xs", color="gray"),
         ),
         spacing="2",
     )
@@ -364,17 +365,17 @@ def geometry_section() -> rx.Component:
         drawing_instructions(),
         geometry_selector(),
         rx.divider(),
-        rx.text("Upload geometry file", font_size="xs", font_weight="600", color="gray"),
+        rx.text(AppState.tr["upload_geometry_file"], font_size="xs", font_weight="600", color="gray"),
         geometry_file_upload(),
         rx.divider(),
-        rx.text("Analyze selected geometry", font_size="xs", font_weight="600", color="gray"),
+        rx.text(AppState.tr["analyze_selected_geometry"], font_size="xs", font_weight="600", color="gray"),
         analysis_controls(),
         rx.divider(),
         # Map overlay toggles
-        rx.text("Map overlays", font_size="xs", font_weight="600", color="gray"),
+        rx.text(AppState.tr["map_overlays"], font_size="xs", font_weight="600", color="gray"),
         rx.hstack(
             rx.button(
-                rx.cond(AppState.show_geometries_on_map, "Hide Geometries", "Show Geometries"),
+                rx.cond(AppState.show_geometries_on_map, AppState.tr["hide_geometries"], AppState.tr["show_geometries"]),
                 on_click=AppState.toggle_geometries_on_map,
                 size="1",
                 variant=rx.cond(AppState.show_geometries_on_map, "solid", "outline"),
@@ -382,7 +383,7 @@ def geometry_section() -> rx.Component:
                 flex="1",
             ),
             rx.button(
-                rx.cond(AppState.show_change_mask, "Hide Change", "Show Change"),
+                rx.cond(AppState.show_change_mask, AppState.tr["hide_change"], AppState.tr["show_change"]),
                 on_click=AppState.toggle_change_mask,
                 size="1",
                 variant=rx.cond(AppState.show_change_mask, "solid", "outline"),
@@ -402,7 +403,7 @@ def geometry_section() -> rx.Component:
                     size="1",
                     flex="1",
                 ),
-                rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
+                rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
                     value=AppState.change_mask_year2.to(str),
@@ -424,7 +425,7 @@ def geometry_section() -> rx.Component:
 # ---------------------------------------------------------------------------
 
 def quick_settings() -> rx.Component:
-    """Compact language + region row."""
+    """Compact language + region row with EN/PT/ES."""
     return rx.hstack(
         # Language
         rx.hstack(
@@ -442,13 +443,20 @@ def quick_settings() -> rx.Component:
                 variant=rx.cond(AppState.language == "pt", "solid", "outline"),
                 color_scheme=rx.cond(AppState.language == "pt", "green", "gray"),
             ),
+            rx.button(
+                "ES",
+                on_click=lambda: AppState.set_language("es"),
+                size="1",
+                variant=rx.cond(AppState.language == "es", "solid", "outline"),
+                color_scheme=rx.cond(AppState.language == "es", "green", "gray"),
+            ),
             spacing="1",
         ),
         rx.spacer(),
         # Region
         rx.hstack(
             rx.button(
-                "Brazil",
+                "Brasil",
                 on_click=lambda: AppState.set_country("Brazil"),
                 size="1",
                 variant=rx.cond(AppState.selected_country == "Brazil", "solid", "outline"),
@@ -481,9 +489,9 @@ def sidebar() -> rx.Component:
             # Header
             rx.box(
                 rx.hstack(
-                    rx.heading("Yvynation", size="3"),
+                    rx.heading(AppState.tr["app_title"], size="3"),
                     rx.spacer(),
-                    rx.badge("Controls", color_scheme="green", variant="surface", size="1"),
+                    rx.badge(AppState.tr["controls_badge"], color_scheme="green", variant="surface", size="1"),
                     width="100%",
                     align_items="center",
                 ),
@@ -500,7 +508,7 @@ def sidebar() -> rx.Component:
                 rx.vstack(
                     # MapBiomas layers
                     _section(
-                        "MapBiomas Layers",
+                        "mapbiomas_section_title",
                         mapbiomas_section(),
                         AppState.sidebar_mapbiomas_expanded,
                         lambda: AppState.toggle_sidebar_section("mapbiomas"),
@@ -509,7 +517,7 @@ def sidebar() -> rx.Component:
 
                     # Hansen layers
                     _section(
-                        "Hansen GFC",
+                        "hansen_section_title",
                         hansen_section(),
                         AppState.sidebar_hansen_expanded,
                         lambda: AppState.toggle_sidebar_section("hansen"),
@@ -518,7 +526,7 @@ def sidebar() -> rx.Component:
 
                     # Territory analysis
                     _section(
-                        "Territory Analysis",
+                        "territory_section_title",
                         territory_section(),
                         AppState.sidebar_territory_expanded,
                         lambda: AppState.toggle_sidebar_section("territory"),
@@ -531,7 +539,7 @@ def sidebar() -> rx.Component:
 
                     # Geometry & Drawing
                     _section(
-                        "Geometry & Drawing",
+                        "geometry_section_title",
                         geometry_section(),
                         AppState.sidebar_geometry_expanded,
                         lambda: AppState.toggle_sidebar_section("geometry"),
