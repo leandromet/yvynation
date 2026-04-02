@@ -36,6 +36,7 @@ def build_map(
     change_mask_geometry: Optional[dict] = None,
     indigenous_lands_tile_url: Optional[str] = None,
     territory_names: Optional[List[str]] = None,
+    analysis_tile_layers: List[dict] = None,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -486,6 +487,23 @@ def build_map(
         if bounds_to_fit:
             display_map.fit_bounds(bounds_to_fit, padding=(20, 20))
             logger.info(f"Map zoomed to geometry bounds: {bounds_to_fit}")
+
+        # Add clipped analysis tile layers (from territory analysis)
+        if analysis_tile_layers:
+            for layer_info in analysis_tile_layers:
+                try:
+                    folium.TileLayer(
+                        tiles=layer_info["url"],
+                        attr=layer_info.get("attr", "Analysis"),
+                        name=layer_info.get("name", "Analysis Layer"),
+                        overlay=True,
+                        control=True,
+                        opacity=0.8,
+                        show=True,
+                    ).add_to(display_map)
+                    logger.info(f"Added analysis tile layer: {layer_info.get('name')}")
+                except Exception as atl_e:
+                    logger.warning(f"Failed to add analysis tile layer: {atl_e}")
 
         # Add Leaflet Draw tool
         Draw(

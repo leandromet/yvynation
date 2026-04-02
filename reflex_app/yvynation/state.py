@@ -137,6 +137,10 @@ class AppState(rx.State):
     # Incremented to force map rebuild when geometries change
     geometry_version: int = 0
 
+    # Analysis tile layers: clipped EE layers added after territory analysis
+    # Each dict has {"url": tile_url, "name": display_name, "attr": attribution}
+    analysis_tile_layers: List[Dict[str, str]] = []
+
     # Analysis pending/computed flags
     mapbiomas_analysis_pending: bool = False
     hansen_analysis_pending: bool = False
@@ -192,7 +196,7 @@ class AppState(rx.State):
         "geometry_version", "show_geometries_on_map",
         "show_change_mask", "change_mask_year1", "change_mask_year2",
         "territory_geojson_features", "indigenous_lands_tile_url",
-        "show_indigenous_lands",
+        "show_indigenous_lands", "analysis_tile_layers",
     ])
     def map_html(self) -> str:
         """
@@ -232,6 +236,7 @@ class AppState(rx.State):
                 change_mask_geometry=change_geom,
                 indigenous_lands_tile_url=il_tile_url,
                 territory_names=self.available_territories if il_tile_url else None,
+                analysis_tile_layers=self.analysis_tile_layers or [],
             )
             return html
         except Exception as e:
@@ -2615,6 +2620,28 @@ class AppState(rx.State):
                 self.loading_message = f"✓ {len(result_df)} classes found"
                 logger.info(f"✓ MapBiomas analysis success: {len(result_df)} classes")
 
+                # Generate clipped tile layer for map display
+                try:
+                    from .utils.ee_layers import _cached_get_map_id, MAPBIOMAS_PALETTE
+                    mapbiomas_img = ee_service.get_mapbiomas()
+                    year = self.mapbiomas_current_year
+                    territory = self.selected_territory
+                    clipped = mapbiomas_img.select(f'classification_{year}').clip(ee_geom)
+                    vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+                    tile_url = _cached_get_map_id(
+                        f'analysis_mapbiomas_{territory}_{year}',
+                        lambda: clipped,
+                        vis_params
+                    )
+                    if tile_url:
+                        self.analysis_tile_layers = [
+                            {"url": tile_url, "name": f"MapBiomas {year} - {territory}", "attr": "MapBiomas"}
+                        ]
+                        self.geometry_version += 1  # trigger map rebuild
+                        logger.info(f"Added clipped MapBiomas tile layer for {territory} {year}")
+                except Exception as tile_e:
+                    logger.warning(f"Could not generate analysis tile layer: {tile_e}")
+
             self.mapbiomas_analysis_pending = False
             self.clear_loading()
 
@@ -2681,6 +2708,33 @@ class AppState(rx.State):
                 self.analysis_results = result_dict  # Set as active result for display
                 self.loading_message = "✓ Analysis complete"
                 logger.info(f"✓ Hansen analysis success for {self.selected_territory}")
+
+                # Generate clipped tile layer for map display
+                try:
+                    from .utils.ee_layers import _cached_get_map_id, HANSEN_PALETTE
+                    from .config import HANSEN_DATASETS, HANSEN_OCEAN_MASK
+                    year_key = str(self.hansen_current_year)
+                    territory = self.selected_territory
+                    landmask = ee.Image(HANSEN_OCEAN_MASK).lte(1)
+                    hansen_img = ee.Image(HANSEN_DATASETS[year_key]).updateMask(landmask)
+                    clipped = hansen_img.clip(ee_geom)
+                    vis_params = {'min': 0, 'max': 255, 'palette': HANSEN_PALETTE}
+                    tile_url = _cached_get_map_id(
+                        f'analysis_hansen_{territory}_{year_key}',
+                        lambda: clipped,
+                        vis_params
+                    )
+                    if tile_url:
+                        # Append to existing layers (MapBiomas may already be there)
+                        current_layers = list(self.analysis_tile_layers)
+                        current_layers.append(
+                            {"url": tile_url, "name": f"Hansen {year_key} - {territory}", "attr": "Hansen/GLAD"}
+                        )
+                        self.analysis_tile_layers = current_layers
+                        self.geometry_version += 1  # trigger map rebuild
+                        logger.info(f"Added clipped Hansen tile layer for {territory} {year_key}")
+                except Exception as tile_e:
+                    logger.warning(f"Could not generate Hansen analysis tile layer: {tile_e}")
 
             self.hansen_analysis_pending = False
             self.clear_loading()
