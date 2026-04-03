@@ -98,6 +98,23 @@ class UIMixin(rx.State, mixin=True):
         self.loading_message = ""
         self.loading_type = ""
 
+    # ---- Navigation (analysis mode) ------------------------------------------
+
+    def go_to_geometry_analysis(self):
+        """Navigate to geometry analysis page."""
+        self.analysis_mode = "geometry"
+        self.show_indigenous_lands = False  # Hide indigenous lands for geometry analysis
+
+    def go_to_territory_analysis(self):
+        """Navigate to territory analysis page."""
+        self.analysis_mode = "territory"
+        self.show_indigenous_lands = True  # Show indigenous lands for territory analysis
+
+    def go_to_portal(self):
+        """Navigate back to the portal/introduction page."""
+        self.analysis_mode = "portal"
+        self.show_indigenous_lands = False  # Hide on portal
+
     def mark_data_loaded(self):
         """Mark that core data has been loaded."""
         self.data_loaded = True

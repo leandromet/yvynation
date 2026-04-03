@@ -383,6 +383,28 @@ The map will center on your selected region.""",
         # Polygon analysis
         "polygon_analysis_header": "Polygon Analysis & Statistics",
         "draw_polygon_instruction": "Draw a polygon on the map to start analyzing land cover in that area. Use the drawing tools in the top-left of the map.",
+
+        # Portal page
+        "about_section": "About Yvynation",
+        "about_description": "Yvynation is a comprehensive platform for indigenous land monitoring and analysis. It combines satellite imagery, geospatial analysis tools, and forest change detection to provide insights into land use changes and ecosystem dynamics.",
+        
+        # Sidebar sections
+        "geometry_tools": "Geometry Tools",
+        "geometry_section": "Geometry & Drawing",
+        "buffer_controls": "Buffer Controls",
+        "analysis_settings": "Analysis Settings",
+        "territory_selection": "Territory Selection",
+        "comparison_controls": "Comparison Controls",
+        
+        # Form inputs
+        "enter_distance": "Enter distance",
+        "territory_search": "Search Territory",
+        "search_territory": "Search territory by name...",
+        "country": "Country",
+        
+        # Other
+        "no_results": "No results found",
+        "remove": "Remove",
     },
     "pt": {
         # Page
@@ -759,6 +781,28 @@ O mapa sera centralizado na regiao selecionada.""",
         # Polygon analysis
         "polygon_analysis_header": "Analise de Poligono e Estatisticas",
         "draw_polygon_instruction": "Desenhe um poligono no mapa para comecar a analisar a cobertura do solo nessa area. Use as ferramentas de desenho no canto superior esquerdo do mapa.",
+
+        # Portal page
+        "about_section": "Sobre Yvynation",
+        "about_description": "Yvynation e uma plataforma abrangente para monitoramento e analise de terras indigenas. Combina imagens de satelite, ferramentas de analise geoespacial e deteccao de mudancas florestais para fornecer insights sobre mudancas no uso da terra e dinamicas de ecossistemas.",
+        
+        # Sidebar sections
+        "geometry_tools": "Ferramentas de Geometria",
+        "geometry_section": "Geometria e Desenho",
+        "buffer_controls": "Controles de Buffer",
+        "analysis_settings": "Configuracoes de Analise",
+        "territory_selection": "Selecao de Territorio",
+        "comparison_controls": "Controles de Comparacao",
+        
+        # Form inputs
+        "enter_distance": "Digite a distancia",
+        "territory_search": "Pesquisar Territorio",
+        "search_territory": "Pesquise territorio por nome...",
+        "country": "Pais",
+        
+        # Other
+        "no_results": "Nenhum resultado encontrado",
+        "remove": "Remover",
     },
     "es": {
         # Page
@@ -1044,6 +1088,28 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
         # Polygon analysis
         "polygon_analysis_header": "Analisis de Poligono y Estadisticas",
         "draw_polygon_instruction": "Dibuje un poligono en el mapa para comenzar a analizar la cobertura del suelo. Use las herramientas de dibujo en la esquina superior izquierda.",
+
+        # Portal page
+        "about_section": "Acerca de Yvynation",
+        "about_description": "Yvynation es una plataforma integral para el monitoreo y analisis de tierras indigenas. Combina imagenes de satelite, herramientas de analisis geoespacial y deteccion de cambios forestales para proporcionar informacion sobre cambios en el uso del suelo y dinamicas de ecosistemas.",
+        
+        # Sidebar sections
+        "geometry_tools": "Herramientas de Geometria",
+        "geometry_section": "Geometria y Dibujo",
+        "buffer_controls": "Controles de Buffer",
+        "analysis_settings": "Configuracion de Analisis",
+        "territory_selection": "Seleccion de Territorio",
+        "comparison_controls": "Controles de Comparacion",
+        
+        # Form inputs
+        "enter_distance": "Ingrese la distancia",
+        "territory_search": "Buscar Territorio",
+        "search_territory": "Busque territorio por nombre...",
+        "country": "Pais",
+        
+        # Other
+        "no_results": "No se encontraron resultados",
+        "remove": "Eliminar",
     },
 }
 

@@ -191,6 +191,7 @@ class AppState(
     # UI state
     # ====================================================================
     active_tab: str = "map"   # "map" | "analysis" | "tutorial" | "about"
+    analysis_mode: str = "portal"  # "portal" | "geometry" | "territory"
     sidebar_open: bool = True
     sidebar_width: int = 300
     is_resizing_sidebar: bool = False

@@ -407,17 +407,22 @@ class GeometryMixin(rx.State, mixin=True):
             self.error_message = f"Error creating buffer: {e}"
             return False
 
-    async def handle_create_buffer(self, buffer_distance: str):
-        """Handle buffer creation from UI input (string distance in km)."""
+    def handle_create_buffer(self):
+        """Handle buffer creation from UI input (gets distance from state)."""
         try:
-            distance_km = float(buffer_distance)
+            distance_km = float(self.buffer_distance_input)
             if distance_km <= 0:
                 self.error_message = "Buffer distance must be greater than 0"
                 return
-            if not self.selected_territory:
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
                 self.error_message = "Select a geometry first"
                 return
-            self.create_buffer_from_geometry(self.selected_territory, distance_km)
+            
+            # Get the geometry name/identifier from the selected feature
+            feature = self.drawn_features[self.selected_geometry_idx]
+            geometry_name = feature.get("name") or feature.get("properties", {}).get("name") or f"geometry_{self.selected_geometry_idx}"
+            
+            self.create_buffer_from_geometry(geometry_name, distance_km)
         except ValueError:
             self.error_message = "Invalid buffer distance. Enter a number."
         except Exception as e:

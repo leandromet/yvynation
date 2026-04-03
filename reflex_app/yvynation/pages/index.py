@@ -5,7 +5,8 @@ Phase 4-5: Analysis tabs, Plotly visualizations, export functionality.
 
 import reflex as rx
 from ..state import AppState
-from ..components.sidebar import sidebar
+from ..components.geometry_sidebar import geometry_sidebar
+from ..components.territory_sidebar import territory_sidebar
 from ..components.map import leaflet_map, map_metrics
 from ..components.results_panel import results_panel
 from ..components.export_panel import export_panel
@@ -13,6 +14,7 @@ from ..components.geometry_popup import geometry_info_popup
 from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
 from ..components.loading_indicator import loading_indicator
+from .portal import portal
 
 
 def navbar() -> rx.Component:
@@ -349,40 +351,50 @@ def main_content_area() -> rx.Component:
 
 
 def index() -> rx.Component:
-    """Main application layout with modern design."""
-    return rx.vstack(
-        navbar(),
-        rx.hstack(
-            # Sidebar (collapsible and resizable)
-            rx.cond(
-                AppState.sidebar_open,
-                rx.box(
-                    sidebar(),
-                    width=rx.cond(
-                        AppState.sidebar_width != 0,
-                        f"{AppState.sidebar_width}px",
-                        "300px",
+    """Main application layout with dynamic content based on analysis mode."""
+    return rx.cond(
+        AppState.analysis_mode == "portal",
+        portal(),
+        # Analysis pages (geometry or territory mode)
+        rx.vstack(
+            navbar(),
+            rx.hstack(
+                # Sidebar (collapsible and resizable)
+                rx.cond(
+                    AppState.sidebar_open,
+                    rx.box(
+                        # Choose sidebar based on analysis mode
+                        rx.cond(
+                            AppState.analysis_mode == "geometry",
+                            geometry_sidebar(),
+                            territory_sidebar(),
+                        ),
+                        width=rx.cond(
+                            AppState.sidebar_width != 0,
+                            f"{AppState.sidebar_width}px",
+                            "300px",
+                        ),
+                        max_width="500px",
+                        min_width="200px",
+                        overflow_y="auto",
+                        overflow_x="hidden",
+                        border_right="2px solid #d0d0d0",
+                        bg="white",
+                        position="relative",
                     ),
-                    max_width="500px",
-                    min_width="200px",
-                    overflow_y="auto",
-                    overflow_x="hidden",
-                    border_right="2px solid #d0d0d0",
-                    bg="white",
-                    position="relative",
+                    rx.box(),
                 ),
-                rx.box(),
+                # Main content area
+                main_content_area(),
+                width="100%",
+                height="calc(100vh - 70px)",
+                spacing="0",
             ),
-            # Main content area
-            main_content_area(),
+            error_toast(AppState),
+            loading_indicator(),
+            geometry_info_popup(),
             width="100%",
-            height="calc(100vh - 70px)",
+            height="100vh",
             spacing="0",
         ),
-        error_toast(AppState),
-        loading_indicator(),
-        geometry_info_popup(),
-        width="100%",
-        height="100vh",
-        spacing="0",
     )
