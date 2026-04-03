@@ -62,11 +62,31 @@ def _geometry_tools_section() -> rx.Component:
             width="100%",
         ),
 
-        # Upload geometry file
+        # Upload geometry file (collapsible)
         rx.box(
             rx.vstack(
-                rx.heading("📁 Upload File", size="4"),
-                geometry_file_upload(),
+                rx.hstack(
+                    rx.heading("📁 Upload File", size="4", flex="1"),
+                    rx.button(
+                        rx.cond(AppState.upload_file_expanded, "−", "+"),
+                        on_click=lambda: AppState.toggle_sidebar_section("upload_file"),
+                        size="1",
+                        variant="ghost",
+                        padding="0.25rem 0.5rem",
+                    ),
+                    width="100%",
+                    justify_content="space-between",
+                    align_items="center",
+                ),
+                rx.cond(
+                    AppState.upload_file_expanded,
+                    rx.vstack(
+                        geometry_file_upload(),
+                        spacing="2",
+                        width="100%",
+                    ),
+                    rx.box(),
+                ),
                 spacing="2",
                 width="100%",
             ),
@@ -274,28 +294,137 @@ def _analysis_section() -> rx.Component:
                 rx.vstack(
                     rx.heading("🔍 Single Layer Analysis", size="4"),
                     rx.text(
-                        "Analyze just MapBiomas or Hansen for a quick look.",
+                        "Analyze individual data layers for quick insights.",
                         font_size="xs",
                         color="gray.600",
                     ),
-                    rx.hstack(
+                    
+                    # MapBiomas year matrix + button
+                    rx.vstack(
+                        rx.text("MapBiomas Year:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.flex(
+                            rx.foreach(
+                                MAPBIOMAS_YEARS,
+                                lambda year: rx.button(
+                                    year.to(str),
+                                    on_click=lambda *a, y=year: AppState.set_mapbiomas_year(y),
+                                    size="1",
+                                    padding="4px 6px",
+                                    font_size="10px",
+                                    variant=rx.cond(AppState.mapbiomas_current_year == year, "solid", "outline"),
+                                    color_scheme=rx.cond(AppState.mapbiomas_current_year == year, "green", "gray"),
+                                ),
+                            ),
+                            flex_wrap="wrap",
+                            gap="1",
+                            width="100%",
+                        ),
                         rx.button(
-                            "MapBiomas",
+                            "🌱 MapBiomas",
                             on_click=AppState.run_mapbiomas_analysis_on_geometry,
                             size="1",
                             color_scheme="green",
-                            flex="1",
+                            width="100%",
                         ),
-                        rx.button(
-                            "Hansen",
-                            on_click=AppState.run_hansen_analysis_on_geometry,
-                            size="1",
-                            color_scheme="blue",
-                            flex="1",
-                        ),
+                        spacing="2",
                         width="100%",
-                        spacing="1",
                     ),
+                    
+                    # Hansen GLAD - Forest cover by year
+                    rx.vstack(
+                        rx.text("Hansen GLAD — Forest Cover:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.text(
+                            "Annual forest cover: 2000, 2005, 2010, 2015, 2020",
+                            font_size="9px",
+                            color="gray.500",
+                        ),
+                        rx.hstack(
+                            rx.select(
+                                HANSEN_YEARS,
+                                value=AppState.geometry_hansen_glad_year,
+                                on_change=AppState.set_geometry_hansen_glad_year,
+                                size="1",
+                                flex="1",
+                            ),
+                            rx.cond(
+                                AppState.geometry_analysis_pending,
+                                rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="blue", flex="0 1 auto"),
+                                rx.button(
+                                    "Analyze",
+                                    on_click=AppState.run_hansen_glad_analysis_on_geometry,
+                                    size="1",
+                                    color_scheme="blue",
+                                    flex="0 1 auto",
+                                ),
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+
+                    # Hansen GFC - Tree cover/loss/gain layers + analysis
+                    rx.vstack(
+                        rx.text("Hansen GFC — Global Forest Change:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.text(
+                            "Tree cover 2000 baseline · loss · gain layers",
+                            font_size="9px",
+                            color="gray.500",
+                        ),
+                        # Add/remove GFC layers on the map
+                        rx.hstack(
+                            rx.button(
+                                "🌳 Cover",
+                                on_click=lambda: AppState.toggle_gfc_layer("tree_cover"),
+                                size="1",
+                                variant=rx.cond(AppState.show_hansen_gfc_tree_cover, "solid", "outline"),
+                                color_scheme="green",
+                                flex="1",
+                                title="Tree Cover 2000 (baseline)",
+                            ),
+                            rx.button(
+                                "📉 Loss",
+                                on_click=lambda: AppState.toggle_gfc_layer("tree_loss"),
+                                size="1",
+                                variant=rx.cond(AppState.show_hansen_gfc_tree_loss, "solid", "outline"),
+                                color_scheme="red",
+                                flex="1",
+                                title="Tree Loss (2000–present)",
+                            ),
+                            rx.button(
+                                "📈 Gain",
+                                on_click=lambda: AppState.toggle_gfc_layer("tree_gain"),
+                                size="1",
+                                variant=rx.cond(AppState.show_hansen_gfc_tree_gain, "solid", "outline"),
+                                color_scheme="teal",
+                                flex="1",
+                                title="Tree Gain (2000–2012)",
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        rx.text(
+                            "Toggling adds/removes the layer on the map",
+                            font_size="9px",
+                            color="gray.500",
+                        ),
+                        # Analyze GFC (area stats)
+                        rx.cond(
+                            AppState.geometry_analysis_pending,
+                            rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="purple", width="100%"),
+                            rx.button(
+                                "🌲 Analyze GFC (area stats)",
+                                on_click=AppState.run_hansen_gfc_analysis_on_geometry,
+                                size="1",
+                                color_scheme="purple",
+                                width="100%",
+                            ),
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+                    
                     spacing="2",
                     width="100%",
                 ),
@@ -324,24 +453,13 @@ def _analysis_section() -> rx.Component:
 
 
 def _mapbiomas_layers_section() -> rx.Component:
-    """MapBiomas year grid + active badges with per-year removal."""
+    """MapBiomas layers display and management (add/clear buttons + active badges)."""
     return rx.vstack(
-        rx.flex(
-            rx.foreach(
-                MAPBIOMAS_YEARS,
-                lambda year: rx.button(
-                    year.to(str),
-                    on_click=lambda *a, y=year: AppState.set_mapbiomas_year(y),
-                    size="1",
-                    padding="4px 6px",
-                    font_size="10px",
-                    variant=rx.cond(AppState.mapbiomas_current_year == year, "solid", "outline"),
-                    color_scheme=rx.cond(AppState.mapbiomas_current_year == year, "green", "gray"),
-                ),
-            ),
-            flex_wrap="wrap",
-            gap="1",
-            width="100%",
+        rx.text(
+            "Selected for map display:",
+            font_size="xs",
+            color="gray.600",
+            font_weight="600",
         ),
         rx.hstack(
             rx.button(
@@ -389,7 +507,7 @@ def _mapbiomas_layers_section() -> rx.Component:
                 flex_wrap="wrap",
                 gap="1",
             ),
-            rx.box(),
+            rx.text("(None selected)", font_size="xs", color="gray.500"),
         ),
         spacing="2",
         width="100%",

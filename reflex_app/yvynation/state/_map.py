@@ -95,13 +95,14 @@ class MapMixin(rx.State, mixin=True):
     # ---- GFC (Global Forest Change) layers ------------------------------
 
     def toggle_gfc_layer(self, layer_type: str):
-        """Toggle a GFC layer (tree_cover / tree_loss / tree_gain)."""
+        """Toggle a GFC layer (tree_cover / tree_loss / tree_gain) and rebuild map."""
         if layer_type == "tree_cover":
             self.show_hansen_gfc_tree_cover = not self.show_hansen_gfc_tree_cover
         elif layer_type == "tree_loss":
             self.show_hansen_gfc_tree_loss = not self.show_hansen_gfc_tree_loss
         elif layer_type == "tree_gain":
             self.show_hansen_gfc_tree_gain = not self.show_hansen_gfc_tree_gain
+        self.geometry_version += 1
 
     # ---- Indigenous lands -----------------------------------------------
 

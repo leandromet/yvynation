@@ -45,6 +45,8 @@ class UIMixin(rx.State, mixin=True):
             self.sidebar_territory_expanded = not self.sidebar_territory_expanded
         elif section == "geometry":
             self.sidebar_geometry_expanded = not self.sidebar_geometry_expanded
+        elif section == "upload_file":
+            self.upload_file_expanded = not self.upload_file_expanded
 
     def start_resize(self):
         """Begin sidebar resize drag."""
@@ -102,11 +104,13 @@ class UIMixin(rx.State, mixin=True):
 
     def go_to_geometry_analysis(self):
         """Navigate to geometry analysis page."""
+        self.initialize_app()  # Initialize EE data when navigating away from portal
         self.analysis_mode = "geometry"
         self.show_indigenous_lands = False  # Hide indigenous lands for geometry analysis
 
     def go_to_territory_analysis(self):
         """Navigate to territory analysis page."""
+        self.initialize_app()  # Initialize EE data when navigating away from portal
         self.analysis_mode = "territory"
         self.show_indigenous_lands = True  # Show indigenous lands for territory analysis
 

@@ -57,7 +57,7 @@ def main_page() -> rx.Component:
                 rx.box(
                     rx.html(AppState.map_html, width="100%", height="100%"),
                     width="100%",
-                    height="600px",
+                    height="900px",
                     overflow="hidden",
                     border_radius="md",
                     border="1px solid #e5e7eb",
@@ -67,7 +67,7 @@ def main_page() -> rx.Component:
                 geometry_analysis_panel(),
                 
                 width="45%",
-                height="calc(100vh - 120px)",
+                height="calc(300vh - 160px)",
                 overflow_y="auto",
                 padding="1rem",
                 spacing="2",

@@ -123,8 +123,9 @@ class AppState(
 
     # Per-geometry analysis cache
     geometry_analysis_results: Dict[int, Dict[str, Any]] = {}
-    geometry_analysis_type: str = "mapbiomas"   # "mapbiomas" | "hansen"
+    geometry_analysis_type: str = "mapbiomas"   # "mapbiomas" | "hansen_glad" | "hansen_gfc"
     geometry_analysis_year: Union[int, str] = 2023
+    geometry_hansen_glad_year: str = "2020"  # For Hansen GLAD (forest cover) analysis on geometry - year options: 2000, 2005, 2010, 2015, 2020
     geometry_analysis_pending: bool = False
 
     # Geometry info popup
@@ -208,6 +209,7 @@ class AppState(
     sidebar_hansen_expanded: bool = False
     sidebar_territory_expanded: bool = False
     sidebar_geometry_expanded: bool = False
+    upload_file_expanded: bool = False
 
     # Pending territory confirmation
     pending_territory: Optional[str] = None
@@ -239,6 +241,8 @@ class AppState(
             "show_change_mask", "change_mask_year1", "change_mask_year2",
             "territory_geojson_features", "indigenous_lands_tile_url",
             "show_indigenous_lands", "analysis_tile_layers",
+            "show_hansen_gfc_tree_cover", "show_hansen_gfc_tree_loss",
+            "show_hansen_gfc_tree_gain",
         ],
     )
     def map_html(self) -> str:
@@ -277,6 +281,9 @@ class AppState(
                 indigenous_lands_tile_url=il_tile_url,
                 territory_names=self.available_territories if il_tile_url else None,
                 analysis_tile_layers=self.analysis_tile_layers or [],
+                show_gfc_tree_cover=self.show_hansen_gfc_tree_cover,
+                show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,
+                show_gfc_tree_gain=self.show_hansen_gfc_tree_gain,
             )
 
         except Exception as e:

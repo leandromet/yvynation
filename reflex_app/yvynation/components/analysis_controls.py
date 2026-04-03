@@ -48,8 +48,8 @@ def analysis_controls() -> rx.Component:
                         flex="1",
                     ),
                     rx.button(
-                        "Hansen",
-                        on_click=AppState.run_hansen_analysis_on_geometry,
+                        "Hansen GLAD",
+                        on_click=AppState.run_hansen_glad_analysis_on_geometry,
                         size="1",
                         color_scheme="blue",
                         flex="1",

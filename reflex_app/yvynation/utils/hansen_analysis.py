@@ -249,6 +249,97 @@ class HansenAnalyzer:
             logger.error(f"Error creating loss timeline: {e}")
             return pd.DataFrame()
     
+    def analyze_gfc(
+        self,
+        geometry: ee.Geometry,
+        scale: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive Hansen GFC (Global Forest Change) analysis combining:
+        - Tree cover 2000 (baseline)
+        - Tree loss (2000-2023)
+        - Tree gain (2000-2012)
+        
+        Args:
+            geometry: Area of interest
+            scale: Analysis scale (default 30m Landsat pixels)
+        
+        Returns:
+            Dictionary with GFC analysis results including tree cover, loss, and gain metrics
+        """
+        try:
+            if not self.is_available():
+                return {
+                    "error": "Hansen dataset not available",
+                    "table": [],
+                    "summary": {}
+                }
+            
+            # Get tree cover 2000
+            cover_data = self.get_tree_cover_2000(geometry, scale)
+            cover_area = cover_data.get("tree_cover_area_ha", 0)
+            cover_percent = cover_data.get("tree_cover_percent", 0)
+            
+            # Get forest loss summary (2000-2023)
+            loss_by_year = self.get_forest_loss(geometry, start_year=2000, end_year=2023, scale=scale)
+            total_loss_area = sum(year_data.get("loss_area_ha", 0) for year_data in loss_by_year.values())
+            loss_percent = (total_loss_area / cover_area * 100) if cover_area > 0 else 0
+            
+            # Get forest gain summary (2000-2012)
+            gain_data = self.get_forest_gain(geometry, period='12')
+            gain_area = gain_data.get("gain_area_ha", 0)
+            gain_percent = (gain_area / cover_area * 100) if cover_area > 0 else 0
+            
+            # Combine into GFC results table
+            gfc_records = [
+                {
+                    "Metric": "Tree Cover 2000",
+                    "Area_ha": round(cover_area, 0),
+                    "Percent": f"{cover_percent:.1f}%",
+                    "Description": "Baseline tree cover from 2000"
+                },
+                {
+                    "Metric": "Forest Loss",
+                    "Area_ha": round(total_loss_area, 0),
+                    "Percent": f"{loss_percent:.1f}%",
+                    "Description": "Forest loss 2000-2023"
+                },
+                {
+                    "Metric": "Forest Gain",
+                    "Area_ha": round(gain_area, 0),
+                    "Percent": f"{gain_percent:.1f}%",
+                    "Description": "Forest gain 2000-2012"
+                }
+            ]
+            
+            net_change = gain_area - total_loss_area
+            
+            result = {
+                "type": "hansen_gfc",
+                "source": "Hansen GFC",
+                "table": gfc_records,
+                "summary": {
+                    "tree_cover_2000_ha": round(cover_area, 0),
+                    "forest_loss_ha": round(total_loss_area, 0),
+                    "forest_gain_ha": round(gain_area, 0),
+                    "net_change_ha": round(net_change, 0)
+                },
+                "data": gfc_records  # For compatibility with result storage
+            }
+            
+            logger.info(f"GFC analysis complete: Cover={cover_area:.0f}ha, Loss={total_loss_area:.0f}ha, Gain={gain_area:.0f}ha, Net={net_change:.0f}ha")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in GFC analysis: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "error": str(e),
+                "table": [],
+                "summary": {}
+            }
+    
     def get_area_distribution(
         self,
         geometry: ee.Geometry,

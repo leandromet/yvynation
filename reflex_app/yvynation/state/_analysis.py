@@ -576,8 +576,8 @@ class AnalysisMixin(rx.State, mixin=True):
             self.mapbiomas_analysis_pending = False
             logger.error(f"MapBiomas geometry analysis error: {e}")
 
-    async def run_hansen_analysis_on_geometry(self):
-        """Run Hansen area-distribution on selected geometry and store in result system."""
+    async def run_hansen_glad_analysis_on_geometry(self):
+        """Run Hansen GLAD (forest cover) analysis on selected geometry for the chosen year."""
         try:
             from ..utils.hansen_analysis import get_hansen_analyzer
 
@@ -591,7 +591,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 return
 
             self.hansen_analysis_pending = True
-            self.loading_message = f"Analyzing Hansen {self.hansen_current_year}..."
+            self.loading_message = f"Analyzing Hansen GLAD {self.geometry_hansen_glad_year}..."
 
             analyzer = get_hansen_analyzer()
             if not analyzer.is_available():
@@ -599,20 +599,21 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.hansen_analysis_pending = False
                 return
 
-            result_df = analyzer.get_area_distribution(ee_geom, year=self.hansen_current_year, scale=30)
+            result_df = analyzer.get_area_distribution(ee_geom, year=int(self.geometry_hansen_glad_year), scale=30)
 
             if result_df is None or result_df.empty:
-                self.error_message = "No Hansen data found for this area"
+                self.error_message = "No Hansen GLAD data found for this area"
             else:
                 geom_name = self.drawn_features[self.selected_geometry_idx].get(
                     "name", "Selected Geometry"
                 )
                 result_dict = {
-                    "type": "hansen",
-                    "geometry": geom_name,
+                    "type": "hansen_glad",
+                    "source": "Hansen GLAD",
+                    "geometry_name": geom_name,
                     "data": result_df.to_dict("records"),
                     "summary": {
-                        "year": self.hansen_current_year,
+                        "year": int(self.geometry_hansen_glad_year),
                         "num_classes": len(result_df),
                         "total_area_ha": float(result_df["Area_ha"].sum()),
                     },
@@ -622,14 +623,63 @@ class AnalysisMixin(rx.State, mixin=True):
                 self._store_result(key, result_dict, geojson_feature=feat)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
-                logger.info(f"Hansen geometry analysis: {len(result_df)} classes")
+                logger.info(f"Hansen GLAD geometry analysis: {len(result_df)} classes")
 
             self.hansen_analysis_pending = False
 
         except Exception as e:
-            self.error_message = f"Hansen analysis failed: {e}"
+            self.error_message = f"Hansen GLAD analysis failed: {e}"
             self.hansen_analysis_pending = False
-            logger.error(f"Hansen geometry analysis error: {e}")
+            logger.error(f"Hansen GLAD geometry analysis error: {e}")
+
+    def set_geometry_hansen_glad_year(self, year: str):
+        """Set Hansen GLAD year for geometry analysis (2000, 2005, 2010, 2015, 2020)."""
+        self.geometry_hansen_glad_year = year
+
+    async def run_hansen_gfc_analysis_on_geometry(self):
+        """Run Hansen GFC (Global Forest Change - tree cover 2000 baseline, tree loss and gain) analysis on selected geometry."""
+        try:
+            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
+                self.error_message = "Please select a geometry first"
+                return
+
+            ee_geom = self.get_selected_geometry_ee()
+            if not ee_geom:
+                self.error_message = "Selected geometry is not valid for analysis"
+                return
+
+            self.geometry_analysis_pending = True
+            self.loading_message = "Running Hansen GFC analysis (tree cover, loss, gain)..."
+            
+            # Hansen GFC analyzes tree cover baseline (2000) + tree loss and gain across all years
+            from ..utils.hansen_analysis import get_hansen_analyzer
+            
+            geom_name = self.drawn_features[self.selected_geometry_idx].get("name", f"Geometry {self.selected_geometry_idx + 1}")
+            
+            # get_hansen_analyzer() is NOT async, and analyze_gfc() is synchronous
+            analyzer = get_hansen_analyzer()
+            
+            # Get GFC metrics: tree cover (2000 baseline), tree loss, and tree gain
+            result_dict = analyzer.analyze_gfc(ee_geom)
+            
+            if result_dict and "error" not in result_dict:
+                result_dict["geometry_name"] = geom_name
+                
+                key = f"geometry::{self.selected_geometry_idx}"
+                feat = self.drawn_features[self.selected_geometry_idx]
+                self._store_result(key, result_dict, geojson_feature=feat)
+                self.set_active_tab("analysis")
+                self.loading_message = ""
+                logger.info(f"Hansen GFC geometry analysis: completed")
+            elif result_dict and "error" in result_dict:
+                self.error_message = result_dict["error"]
+
+            self.geometry_analysis_pending = False
+
+        except Exception as e:
+            self.error_message = f"Hansen GFC analysis failed: {e}"
+            self.geometry_analysis_pending = False
+            logger.error(f"Hansen GFC geometry analysis error: {e}")
 
     async def run_full_analysis_on_geometry(self):
         """Run full MapBiomas comparison (two years) on selected geometry."""

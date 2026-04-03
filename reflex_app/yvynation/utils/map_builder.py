@@ -37,6 +37,9 @@ def build_map(
     indigenous_lands_tile_url: Optional[str] = None,
     territory_names: Optional[List[str]] = None,
     analysis_tile_layers: List[dict] = None,
+    show_gfc_tree_cover: bool = False,
+    show_gfc_tree_loss: bool = False,
+    show_gfc_tree_gain: bool = False,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -316,6 +319,35 @@ def build_map(
                 import traceback
                 traceback.print_exc()
         
+        # ADD GFC LAYERS (Tree Cover 2000, Loss, Gain) — driven by dedicated booleans
+        if show_gfc_tree_cover or show_gfc_tree_loss or show_gfc_tree_gain:
+            try:
+                from .ee_layers import (
+                    add_hansen_gfc_tree_cover,
+                    add_hansen_gfc_tree_loss,
+                    add_hansen_gfc_tree_gain,
+                )
+                if show_gfc_tree_cover:
+                    result = add_hansen_gfc_tree_cover(display_map, opacity=0.7, shown=True)
+                    if result is not None:
+                        display_map = result
+                        layers_added += 1
+                        logger.info("✓ GFC Tree Cover 2000 added")
+                if show_gfc_tree_loss:
+                    result = add_hansen_gfc_tree_loss(display_map, opacity=0.8, shown=True)
+                    if result is not None:
+                        display_map = result
+                        layers_added += 1
+                        logger.info("✓ GFC Tree Loss added")
+                if show_gfc_tree_gain:
+                    result = add_hansen_gfc_tree_gain(display_map, opacity=0.8, shown=True)
+                    if result is not None:
+                        display_map = result
+                        layers_added += 1
+                        logger.info("✓ GFC Tree Gain added")
+            except Exception as e:
+                logger.error(f"Error adding GFC layers: {e}")
+
         logger.info(f"Layers added: {layers_added}")
 
         # ADD GEOMETRY OVERLAYS - territory boundaries + drawn features

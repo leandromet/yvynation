@@ -138,18 +138,23 @@ def _hansen_summary_metrics() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def mapbiomas_tab() -> rx.Component:
-    """MapBiomas land cover analysis tab. Displays persisted mapbiomas_analysis_result."""
+    """MapBiomas land cover analysis tab. Displays mapbiomas_analysis_result or generic analysis_results."""
     return rx.vstack(
         rx.heading(AppState.tr["mapbiomas_analysis_title"], size="3"),
         # Analysis info
         rx.cond(
-            AppState.mapbiomas_analysis_result != None,
+            (AppState.mapbiomas_analysis_result != None) | (AppState.analysis_results.get("type") == "mapbiomas"),
             rx.box(
                 rx.text(
                     rx.cond(
-                        AppState.selected_territory != "",
-                        f"📍 {AppState.selected_territory} • MapBiomas {AppState.territory_analysis_year}",
-                        "MapBiomas Analysis Ready"
+                        AppState.mapbiomas_analysis_result != None,
+                        rx.cond(
+                            AppState.selected_territory != "",
+                            f"📍 {AppState.selected_territory} • MapBiomas {AppState.territory_analysis_year}",
+                            "MapBiomas Analysis Ready"
+                        ),
+                        # For geometry analysis
+                        f"🔍 {AppState.analysis_results.get('geometry', 'Geometry')} • MapBiomas {AppState.analysis_results.get('year', 'N/A')}",
                     ),
                     font_size="sm", color="gray"
                 ),
@@ -161,9 +166,13 @@ def mapbiomas_tab() -> rx.Component:
             rx.box(),
         ),
         rx.cond(
-            AppState.mapbiomas_analysis_result != None,
+            (AppState.mapbiomas_analysis_result != None) | (AppState.analysis_results.get("type") == "mapbiomas"),
             rx.vstack(
-                _summary_metrics_row(AppState.mapbiomas_analysis_result),
+                rx.cond(
+                    AppState.mapbiomas_analysis_result != None,
+                    _summary_metrics_row(AppState.mapbiomas_analysis_result),
+                    _summary_metrics_row(AppState.analysis_results),
+                ),
                 rx.divider(),
                 rx.box(
                     rx.plotly(data=AppState.mapbiomas_bar_chart, use_resize_handler=True),
@@ -194,7 +203,7 @@ def mapbiomas_tab() -> rx.Component:
                     variant="outline",
                 ),
                 rx.cond(
-                    AppState.hansen_analysis_result != None,
+                    (AppState.hansen_analysis_result != None) | (AppState.analysis_results.get("type") == "hansen"),
                     rx.button(
                         "→ View Hansen Results",
                         on_click=AppState.set_active_tab("hansen"),
@@ -220,17 +229,22 @@ def mapbiomas_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def hansen_tab() -> rx.Component:
-    """Hansen/GLAD forest change analysis tab. Displays persisted hansen_analysis_result."""
+    """Hansen/GLAD forest change analysis tab. Displays hansen_analysis_result or generic analysis_results."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
         rx.cond(
-            AppState.hansen_analysis_result != None,
+            (AppState.hansen_analysis_result != None) | (AppState.analysis_results.get("source") == "Hansen GLAD") | (AppState.analysis_results.get("source") == "Hansen GFC"),
             rx.box(
                 rx.text(
                     rx.cond(
-                        AppState.selected_territory != "",
-                        f"📍 {AppState.selected_territory} • Hansen {AppState.hansen_current_year}",
-                        "Hansen Analysis Ready"
+                        AppState.hansen_analysis_result != None,
+                        rx.cond(
+                            AppState.selected_territory != "",
+                            f"📍 {AppState.selected_territory} • Hansen {AppState.hansen_current_year}",
+                            "Hansen Analysis Ready"
+                        ),
+                        # For geometry analysis
+                        f"🔍 {AppState.analysis_results.get('geometry_name', 'Geometry')} • {AppState.analysis_results.get('source', 'Hansen')} {AppState.analysis_results.get('year', 'N/A')}",
                     ),
                     font_size="sm", color="gray"
                 ),
@@ -242,7 +256,7 @@ def hansen_tab() -> rx.Component:
             rx.box(),
         ),
         rx.cond(
-            AppState.hansen_analysis_result != None,
+            (AppState.hansen_analysis_result != None) | (AppState.analysis_results.get("source") == "Hansen GLAD") | (AppState.analysis_results.get("source") == "Hansen GFC"),
             rx.vstack(
                 _hansen_summary_metrics(),
                 rx.divider(),
@@ -270,7 +284,7 @@ def hansen_tab() -> rx.Component:
                     variant="outline",
                 ),
                 rx.cond(
-                    AppState.mapbiomas_analysis_result != None,
+                    (AppState.mapbiomas_analysis_result != None) | (AppState.analysis_results.get("type") == "mapbiomas"),
                     rx.button(
                         "→ View MapBiomas Results",
                         on_click=AppState.set_active_tab("mapbiomas"),
@@ -296,18 +310,38 @@ def hansen_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def hansen_gfc_tab() -> rx.Component:
-    """Hansen Global Forest Change (tree cover/loss/gain) tab."""
+    """Hansen GFC (Global Forest Change - tree cover 2000, tree loss, tree gain) tab."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_gfc_label"], size="3"),
         rx.text(
-            "Tree Cover 2000 | Tree Loss | Tree Gain",
+            "Tree Cover 2000 (baseline) | Tree Loss | Tree Gain",
             font_size="sm", color="gray",
         ),
         rx.divider(),
         rx.cond(
-            AppState.analysis_results.get("type") == "hansen",
+            (AppState.analysis_results.get("type") == "hansen_gfc") | (AppState.analysis_results.get("source") == "Hansen GFC"),
             rx.vstack(
+                rx.box(
+                    rx.text(
+                        f"🔍 {AppState.analysis_results.get('geometry_name', 'Geometry')} • Hansen GFC",
+                        font_size="sm", color="gray", padding="1rem",
+                    ),
+                    padding="0.5rem",
+                    bg="gray.50",
+                    border_radius="md",
+                ),
                 rx.plotly(data=AppState.hansen_balance_chart, use_resize_handler=True),
+                rx.divider(),
+                rx.box(
+                    rx.data_table(
+                        data=AppState.hansen_table_data,
+                        columns=AppState.hansen_table_columns,
+                        pagination=True,
+                        search=True,
+                    ),
+                    width="100%",
+                    overflow_x="auto",
+                ),
                 spacing="3",
                 width="100%",
             ),

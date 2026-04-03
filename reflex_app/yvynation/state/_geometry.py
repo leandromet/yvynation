@@ -51,17 +51,21 @@ class GeometryMixin(rx.State, mixin=True):
 
     def add_drawn_feature(self, feature: Dict[str, Any]):
         """Append a newly drawn feature, stamping its index fields.
-        Auto-selects the first geometry for immediate analysis (no 'Save Drawing' needed).
+        Auto-selects the new geometry and expands the geometry section.
         """
         feature["_idx"] = len(self.drawn_features)
         feature["_display_idx"] = len(self.drawn_features) + 1
         self.drawn_features.append(feature)
         self.all_drawn_features.append(feature)
-        # Auto-select the first geometry when added
-        if self.selected_geometry_idx is None:
-            self.selected_geometry_idx = 0
+        # Always auto-select the newly added geometry
+        self.selected_geometry_idx = len(self.drawn_features) - 1
+        # Expand the geometry section so the user sees the selection
+        self.sidebar_geometry_expanded = True
         self.geometry_version += 1
-        logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')} (auto-selected)")
+        logger.info(
+            f"Added drawn feature #{self.selected_geometry_idx}: "
+            f"{feature.get('type', 'Unknown')} (auto-selected)"
+        )
 
     def remove_geometry(self, idx: int):
         """Remove the drawn geometry whose _idx matches *idx*."""
