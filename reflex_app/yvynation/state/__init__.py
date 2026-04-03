@@ -115,6 +115,8 @@ class AppState(
     all_drawn_features: List[Dict[str, Any]] = []
     selected_geometry_idx: Optional[int] = None
     selected_geometry_is_territory: bool = False
+    #: Track geometry hashes to avoid duplicates when "Save Drawing" is clicked repeatedly
+    _processed_geometry_hashes: set = rx.Field(default_factory=set)
     buffer_geometries: Dict[str, BufferGeometry] = {}
     current_buffer_for_analysis: Optional[str] = None
     buffer_compare_mode: bool = False

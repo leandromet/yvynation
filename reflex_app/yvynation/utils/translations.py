@@ -405,6 +405,7 @@ The map will center on your selected region.""",
         # Other
         "no_results": "No results found",
         "remove": "Remove",
+        "aafc_section_title": "AAFC Layers (Canada)",
     },
     "pt": {
         # Page
@@ -803,6 +804,7 @@ O mapa sera centralizado na regiao selecionada.""",
         # Other
         "no_results": "Nenhum resultado encontrado",
         "remove": "Remover",
+        "aafc_section_title": "Camadas AAFC (Canada)",
     },
     "es": {
         # Page
@@ -1110,6 +1112,7 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
         # Other
         "no_results": "No se encontraron resultados",
         "remove": "Eliminar",
+        "aafc_section_title": "Capas AAFC (Canada)",
     },
 }
 

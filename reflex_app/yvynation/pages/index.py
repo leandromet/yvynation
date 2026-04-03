@@ -72,7 +72,30 @@ def navbar() -> rx.Component:
                 margin="0",
             ),
             rx.vstack(
-                rx.heading(AppState.tr["app_title"], size="3"),
+                rx.hstack(
+                    rx.heading(AppState.tr["app_title"], size="3"),
+                    rx.cond(
+                        AppState.analysis_mode != "portal",
+                        rx.hstack(
+                            rx.text("•", color="#4a7c59", font_weight="bold"),
+                            rx.text(
+                                rx.cond(
+                                    AppState.analysis_mode == "geometry",
+                                    "🔷 Geometry Analysis",
+                                    "🗺️ Territory Analysis",
+                                ),
+                                font_size="sm",
+                                color="#1a472a",
+                                font_weight="500",
+                            ),
+                            spacing="1",
+                            align_items="center",
+                        ),
+                        rx.box(),
+                    ),
+                    spacing="2",
+                    align_items="center",
+                ),
                 rx.text(
                     AppState.tr["app_subtitle"],
                     font_size="xs",
@@ -87,8 +110,15 @@ def navbar() -> rx.Component:
         ),
         # Center spacer
         rx.spacer(),
-        # Right side - active analysis indicator
+        # Right side - back button and analysis indicator
         rx.hstack(
+            rx.button(
+                "← Back to Portal",
+                on_click=lambda: AppState.go_to_portal(),
+                size="1",
+                variant="outline",
+                color_scheme="green",
+            ),
             rx.cond(
                 (AppState.analysis_results != {}) & (AppState.analysis_results != None),
                 rx.badge(

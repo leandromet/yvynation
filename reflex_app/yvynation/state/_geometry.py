@@ -8,11 +8,24 @@ Also defines BufferGeometry (used in AppState vars and imported by __init__).
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+import hashlib
+import json
 
 import ee
 import reflex as rx
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_geometry_hash(geometry: Dict[str, Any]) -> str:
+    """Compute a SHA256 hash of geometry coordinates to detect duplicates."""
+    try:
+        # Only hash the coordinates to identify duplicate geometries
+        coords_str = json.dumps(geometry.get("coordinates", []), sort_keys=True)
+        return hashlib.sha256(coords_str.encode()).hexdigest()
+    except Exception as e:
+        logger.warning(f"Error computing geometry hash: {e}")
+        return ""
 
 
 @dataclass
@@ -57,12 +70,14 @@ class GeometryMixin(rx.State, mixin=True):
         """Clear all drawn geometries and reset selection."""
         self.drawn_features = []
         self.selected_geometry_idx = None
+        self._processed_geometry_hashes = set()
         self.geometry_version += 1
         logger.info("Cleared all geometries")
 
     # kept as alias for backward compatibility
     def clear_drawn_features(self):
         self.drawn_features = []
+        self._processed_geometry_hashes = set()
         self.geometry_version += 1
 
     # ---- EE geometry helper ---------------------------------------------
@@ -105,10 +120,9 @@ class GeometryMixin(rx.State, mixin=True):
         Receive GeoJSON captured from the Leaflet Draw layer via JS bridge.
 
         *geojson_data* is a JSON string (FeatureCollection or error object).
+        Uses geometry hashes to avoid duplicates when "Save Drawing" is clicked multiple times.
         """
         try:
-            import json
-
             data = json.loads(geojson_data) if isinstance(geojson_data, str) else geojson_data
 
             if "error" in data and "features" not in data:
@@ -122,12 +136,25 @@ class GeometryMixin(rx.State, mixin=True):
                 return
 
             new_count = 0
+            duplicate_count = 0
+            
             for feature in features:
                 try:
                     geom = feature.get("geometry", {})
                     geom_type = geom.get("type", "Unknown")
                     if not geom or not geom.get("coordinates"):
                         continue
+
+                    # Compute hash to detect duplicates
+                    geom_hash = _compute_geometry_hash(geom)
+                    if geom_hash in self._processed_geometry_hashes:
+                        logger.debug(f"Skipping duplicate geometry with hash {geom_hash}")
+                        duplicate_count += 1
+                        continue
+                    
+                    # Mark this geometry as processed
+                    if geom_hash:
+                        self._processed_geometry_hashes.add(geom_hash)
 
                     idx = len(self.drawn_features)
                     feature_obj = {
@@ -146,10 +173,14 @@ class GeometryMixin(rx.State, mixin=True):
                     logger.warning(f"Error processing feature: {feature_err}")
 
             if new_count:
-                self.error_message = (
-                    f"Captured {new_count} drawing(s) from map ({len(self.drawn_features)} total)"
-                )
+                msg = f"Captured {new_count} new drawing(s)"
+                if duplicate_count:
+                    msg += f" ({duplicate_count} duplicate(s) skipped)"
+                msg += f" ({len(self.drawn_features)} total)"
+                self.error_message = msg
                 self.geometry_version += 1
+            elif duplicate_count:
+                self.error_message = f"All {duplicate_count} drawing(s) were duplicates. No new geometries added."
             else:
                 self.error_message = "No valid geometries could be extracted"
 
