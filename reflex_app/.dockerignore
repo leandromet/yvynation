@@ -1,21 +1,49 @@
+# Version control
 .git
 .gitignore
+**/.gitkeep
+
+# Python artefacts
 __pycache__
+**/__pycache__
 *.pyc
+**/*.pyc
+*.pyo
+*.pyd
 .pytest_cache
+*.egg-info
+dist
+build
+
+# Virtual environments
 .venv
 venv
+env
+
+# IDE / editor
 .vscode
 .idea
 *.swp
 *.swo
 *~
 .DS_Store
-build
-dist
-*.egg-info
+
+# Secrets – never bake credentials into the image
 .env
-reflex.db
+*.json.key
+*service-account*.json
+
+# Reflex runtime artefacts (recreated during `reflex init` in Docker build)
 .web
+reflex.db
+
+# Node (inside .web, but guard here too)
 node_modules
 .next
+
+# Runtime upload directory (empty in image; mounted at runtime if needed)
+uploaded_files
+
+# Tests and docs (not needed in the container)
+tests/
+*.md

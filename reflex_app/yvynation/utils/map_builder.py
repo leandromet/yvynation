@@ -646,86 +646,92 @@ def build_map(
                     console.log('[YvyBridge] draw:deleted');
                 });
 
-                // Territory selection bridge
-                window._yvySelectedTerritory = null;
-                window._yvySelectTerritory = function(name) {
-                    window._yvySelectedTerritory = name;
-                    console.log('[YvyBridge] Territory selected from map:', name);
-                };
+                // Territory selection bridge - only if territories are being displayed
+                var hasTerritories = """ + ("true" if territory_names else "false") + """;
+                
+                if (hasTerritories) {
+                    window._yvySelectedTerritory = null;
+                    window._yvySelectTerritory = function(name) {
+                        window._yvySelectedTerritory = name;
+                        console.log('[YvyBridge] Territory selected from map:', name);
+                    };
 
-                // Attach click handlers to territory GeoJSON features for direct selection
-                // This runs after all layers are added to the map
-                function attachTerritoryClickHandlers(attempt) {
-                    attempt = attempt || 0;
-                    
-                    try {
-                        var handlersAttached = 0;
-                        var handlersSkipped = 0;
-                        map.eachLayer(function(layer) {
-                            if (layer instanceof L.GeoJSON) {
-                                // Iterate through features in this GeoJSON layer
-                                layer.eachLayer(function(featureLayer) {
-                                    if (featureLayer.feature && featureLayer.feature.properties) {
-                                        var props = featureLayer.feature.properties;
-                                        // Check if this is a territory feature
-                                        if (props.territory_name) {
-                                            var territoryName = props.territory_name;
-                                            
-                                            // Check if this layer already has a click handler
-                                            // We need to check if a handler exists to avoid adding duplicates
-                                            var alreadyHasHandler = false;
-                                            if (featureLayer._events && featureLayer._events.click) {
-                                                alreadyHasHandler = true;
-                                                handlersSkipped++;
-                                            }
-                                            
-                                            if (!alreadyHasHandler) {
-                                                // Store reference to this layer so popup can access it
-                                                window._yvyTerritoryLayers[territoryName] = featureLayer;
+                    // Attach click handlers to territory GeoJSON features for direct selection
+                    // This runs after all layers are added to the map
+                    function attachTerritoryClickHandlers(attempt) {
+                        attempt = attempt || 0;
+                        
+                        try {
+                            var handlersAttached = 0;
+                            var handlersSkipped = 0;
+                            map.eachLayer(function(layer) {
+                                if (layer instanceof L.GeoJSON) {
+                                    // Iterate through features in this GeoJSON layer
+                                    layer.eachLayer(function(featureLayer) {
+                                        if (featureLayer.feature && featureLayer.feature.properties) {
+                                            var props = featureLayer.feature.properties;
+                                            // Check if this is a territory feature
+                                            if (props.territory_name) {
+                                                var territoryName = props.territory_name;
                                                 
-                                                // Add click handler - just opens popup, visual feedback on popup link click
-                                                featureLayer.on('click', function(e) {
-                                                    console.log('[YvyBridge] Territory feature clicked (popup will open):', territoryName);
-                                                    // Popup opens automatically from Folium
-                                                });
+                                                // Check if this layer already has a click handler
+                                                // We need to check if a handler exists to avoid adding duplicates
+                                                var alreadyHasHandler = false;
+                                                if (featureLayer._events && featureLayer._events.click) {
+                                                    alreadyHasHandler = true;
+                                                    handlersSkipped++;
+                                                }
                                                 
-                                                handlersAttached++;
+                                                if (!alreadyHasHandler) {
+                                                    // Store reference to this layer so popup can access it
+                                                    window._yvyTerritoryLayers[territoryName] = featureLayer;
+                                                    
+                                                    // Add click handler - just opens popup, visual feedback on popup link click
+                                                    featureLayer.on('click', function(e) {
+                                                        console.log('[YvyBridge] Territory feature clicked (popup will open):', territoryName);
+                                                        // Popup opens automatically from Folium
+                                                    });
+                                                    
+                                                    handlersAttached++;
+                                                }
                                             }
                                         }
-                                    }
-                                });
+                                    });
+                                }
+                            });
+                            
+                            if (handlersAttached > 0) {
+                                console.log('[YvyBridge] Attached', handlersAttached, 'new territory click handlers (skipped', handlersSkipped, ' existing)');
+                            } else if (handlersSkipped > 0) {
+                                console.log('[YvyBridge] All territory features already have handlers (', handlersSkipped, ' features)');
+                            } else if (attempt < 10) {
+                                // Retry in case GeoJSON layers haven't been added yet
+                                console.log('[YvyBridge] No territory features found, retrying (attempt', attempt + 1, ')');
+                                setTimeout(function() {
+                                    attachTerritoryClickHandlers(attempt + 1);
+                                }, 200);
                             }
-                        });
-                        
-                        if (handlersAttached > 0) {
-                            console.log('[YvyBridge] Attached', handlersAttached, 'new territory click handlers (skipped', handlersSkipped, ' existing)');
-                        } else if (handlersSkipped > 0) {
-                            console.log('[YvyBridge] All territory features already have handlers (', handlersSkipped, ' features)');
-                        } else if (attempt < 10) {
-                            // Retry in case GeoJSON layers haven't been added yet
-                            console.log('[YvyBridge] No territory features found, retrying (attempt', attempt + 1, ')');
-                            setTimeout(function() {
-                                attachTerritoryClickHandlers(attempt + 1);
-                            }, 200);
-                        }
-                    } catch(e) {
-                        console.warn('[YvyBridge] Error attaching territory click handlers:', e);
-                        if (attempt < 10) {
-                            setTimeout(function() {
-                                attachTerritoryClickHandlers(attempt + 1);
-                            }, 200);
+                        } catch(e) {
+                            console.warn('[YvyBridge] Error attaching territory click handlers:', e);
+                            if (attempt < 10) {
+                                setTimeout(function() {
+                                    attachTerritoryClickHandlers(attempt + 1);
+                                }, 200);
+                            }
                         }
                     }
+                    
+                    // Attach handlers immediately and after a delay for map initialization
+                    attachTerritoryClickHandlers();
+                    setTimeout(function() {
+                        attachTerritoryClickHandlers(0);
+                    }, 500);
+                    setTimeout(function() {
+                        attachTerritoryClickHandlers(0);
+                    }, 1500);
+                } else {
+                    console.log('[YvyBridge] No territories in this map, skipping territory click handler setup');
                 }
-                
-                // Attach handlers immediately and after a delay for map initialization
-                attachTerritoryClickHandlers();
-                setTimeout(function() {
-                    attachTerritoryClickHandlers(0);
-                }, 500);
-                setTimeout(function() {
-                    attachTerritoryClickHandlers(0);
-                }, 1500);
 
                 console.log('[YvyBridge] Draw bridge initialized successfully');
             }

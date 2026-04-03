@@ -1,14 +1,12 @@
 """
-Sidebar component for geometry-focused analysis.
-Draw/upload geometries, buffer, analysis with year comparison,
-MapBiomas/Hansen/AAFC layers, and map overlay controls.
+Geometry sidebar for analysis: draw, upload, and immediately use geometries.
+Unified interface — no "Save Drawing" needed. Drawn/uploaded geometries are auto-selected.
 """
 
 import reflex as rx
 from ..state import AppState
 from ..config import MAPBIOMAS_YEARS, HANSEN_YEARS
 from .geometry_upload import geometry_file_upload
-from .geometry_selector import geometry_selector, drawing_instructions
 from .sidebar import _section, _active_count_badge
 
 
@@ -37,8 +35,296 @@ def _region_selector() -> rx.Component:
     )
 
 
+def _geometry_tools_section() -> rx.Component:
+    """Draw tools, upload, and list of your geometries — all in one place."""
+    return rx.vstack(
+        # Draw instructions
+        rx.box(
+            rx.vstack(
+                rx.heading("🖍️ Draw on Map", size="4"),
+                rx.text(
+                    "Use the tools in the top-left corner of the map to draw polygons, rectangles, or lines.",
+                    font_size="xs",
+                    color="gray.600",
+                ),
+                rx.text(
+                    "🎯 Tip: Drawn geometries appear below and are automatically selected for analysis.",
+                    font_size="9px",
+                    color="blue.600",
+                    font_weight="500",
+                ),
+                spacing="2",
+            ),
+            padding="0.75rem",
+            bg="blue.50",
+            border="1px solid #bfdbfe",
+            border_radius="md",
+            width="100%",
+        ),
+
+        # Upload geometry file
+        rx.box(
+            rx.vstack(
+                rx.heading("📁 Upload File", size="4"),
+                geometry_file_upload(),
+                spacing="2",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="1px solid #e5e7eb",
+            border_radius="md",
+            width="100%",
+        ),
+
+        # Your Geometries list
+        rx.cond(
+            AppState.drawn_features.length() > 0,
+            rx.box(
+                rx.vstack(
+                    rx.heading("✓ Your Geometries", size="4"),
+                    rx.text(
+                        f"Click to select · {AppState.drawn_features.length().to(str)} total",
+                        font_size="xs",
+                        color="gray.600",
+                    ),
+                    rx.vstack(
+                        rx.foreach(
+                            AppState.drawn_features,
+                            lambda geom, idx: rx.button(
+                                rx.hstack(
+                                    rx.icon(
+                                        "check-circle-2",
+                                        color=rx.cond(
+                                            AppState.selected_geometry_idx == idx,
+                                            "green",
+                                            "gray",
+                                        ),
+                                    ),
+                                    rx.vstack(
+                                        rx.text(
+                                            rx.cond(
+                                                geom.get("name"),
+                                                geom["name"],
+                                                f"Geometry #{geom.get('_display_idx', idx + 1)}",
+                                            ),
+                                            font_size="sm",
+                                            font_weight=rx.cond(
+                                                AppState.selected_geometry_idx == idx,
+                                                "bold",
+                                                "normal",
+                                            ),
+                                            flex="1",
+                                        ),
+                                        rx.text(
+                                            geom.get("type", "Unknown"),
+                                            font_size="9px",
+                                            color="gray.500",
+                                        ),
+                                        spacing="0",
+                                    ),
+                                    width="100%",
+                                    spacing="2",
+                                ),
+                                on_click=lambda *a, i=idx: AppState.set_selected_geometry(i),
+                                width="100%",
+                                variant=rx.cond(
+                                    AppState.selected_geometry_idx == idx,
+                                    "solid",
+                                    "ghost",
+                                ),
+                                color_scheme=rx.cond(
+                                    AppState.selected_geometry_idx == idx,
+                                    "green",
+                                    "gray",
+                                ),
+                                justify_content="flex-start",
+                                size="1",
+                            ),
+                        ),
+                        width="100%",
+                        spacing="1",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                padding="0.75rem",
+                bg="green.50",
+                border="1px solid #bbf7d0",
+                border_radius="md",
+                width="100%",
+            ),
+            rx.text(
+                "Draw or upload a geometry to begin",
+                font_size="xs",
+                color="gray.500",
+                text_align="center",
+                padding="1rem",
+            ),
+        ),
+
+        spacing="2",
+        width="100%",
+    )
+
+
+def _buffer_section() -> rx.Component:
+    """Create buffer zone around the selected geometry."""
+    has_geometry = AppState.selected_geometry_idx != None
+    return rx.cond(
+        has_geometry,
+        rx.box(
+            rx.vstack(
+                rx.heading("🔵 Buffer Zone", size="4"),
+                rx.text(
+                    "Create an expanded analysis boundary around the selected geometry.",
+                    font_size="xs",
+                    color="gray.600",
+                ),
+                rx.hstack(
+                    rx.input(
+                        value=AppState.buffer_distance_input,
+                        on_change=AppState.set_buffer_distance_input,
+                        type_="number",
+                        placeholder="Distance (km)",
+                        size="1",
+                        flex="1",
+                    ),
+                    rx.button(
+                        "Create",
+                        on_click=AppState.handle_create_buffer,
+                        size="1",
+                        color_scheme="green",
+                    ),
+                    width="100%",
+                    spacing="1",
+                ),
+                spacing="2",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="1px solid #e5e7eb",
+            border_radius="md",
+            width="100%",
+        ),
+        rx.box(),
+    )
+
+
+def _analysis_section() -> rx.Component:
+    """Analysis buttons: full analysis (comparison + change mask) + individual layers."""
+    has_geometry = AppState.selected_geometry_idx != None
+    return rx.cond(
+        has_geometry,
+        rx.box(
+            rx.vstack(
+                # Year comparison section
+                rx.vstack(
+                    rx.heading("📅 Year Comparison", size="4"),
+                    rx.text(
+                        "Select two years to compare MapBiomas land cover changes.",
+                        font_size="xs",
+                        color="gray.600",
+                    ),
+                    rx.hstack(
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year1_str,
+                            on_change=AppState.set_comparison_year1,
+                            size="1",
+                            flex="1",
+                        ),
+                        rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year2_str,
+                            on_change=AppState.set_comparison_year2,
+                            size="1",
+                            flex="1",
+                        ),
+                        width="100%",
+                        spacing="1",
+                        align_items="center",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+
+                # Full analysis button (comparison + change mask)
+                rx.cond(
+                    AppState.mapbiomas_analysis_pending,
+                    rx.button(
+                        rx.hstack(rx.spinner(size="1"), rx.text("Analyzing..."), spacing="2"),
+                        is_disabled=True,
+                        width="100%",
+                        color_scheme="purple",
+                        size="1",
+                    ),
+                    rx.button(
+                        "🔄 Full Analysis (Comparison + Change Mask)",
+                        on_click=AppState.run_full_analysis_on_geometry,
+                        width="100%",
+                        color_scheme="purple",
+                        size="1",
+                    ),
+                ),
+
+                rx.divider(),
+
+                # Individual layer analysis
+                rx.vstack(
+                    rx.heading("🔍 Single Layer Analysis", size="4"),
+                    rx.text(
+                        "Analyze just MapBiomas or Hansen for a quick look.",
+                        font_size="xs",
+                        color="gray.600",
+                    ),
+                    rx.hstack(
+                        rx.button(
+                            "MapBiomas",
+                            on_click=AppState.run_mapbiomas_analysis_on_geometry,
+                            size="1",
+                            color_scheme="green",
+                            flex="1",
+                        ),
+                        rx.button(
+                            "Hansen",
+                            on_click=AppState.run_hansen_analysis_on_geometry,
+                            size="1",
+                            color_scheme="blue",
+                            flex="1",
+                        ),
+                        width="100%",
+                        spacing="1",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+
+                spacing="3",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="1px solid #e5e7eb",
+            border_radius="md",
+            width="100%",
+        ),
+        rx.box(
+            rx.text(
+                "👆 Select a geometry above to analyze",
+                font_size="xs",
+                color="gray.600",
+                text_align="center",
+            ),
+            padding="1rem",
+            bg="gray.50",
+            border_radius="md",
+            width="100%",
+        ),
+    )
+
+
 def _mapbiomas_layers_section() -> rx.Component:
-    """MapBiomas year grid with add/clear and active badges with per-year removal."""
+    """MapBiomas year grid + active badges with per-year removal."""
     return rx.vstack(
         rx.flex(
             rx.foreach(
@@ -111,7 +397,7 @@ def _mapbiomas_layers_section() -> rx.Component:
 
 
 def _hansen_layers_section() -> rx.Component:
-    """Hansen GFC with cover/loss/gain type toggles, year selector, and active badges."""
+    """Hansen GFC types (cover/loss/gain) + year selector + active badges."""
     return rx.vstack(
         rx.text(AppState.tr["data_layers"], font_size="xs", font_weight="600", color="gray"),
         rx.hstack(
@@ -193,90 +479,6 @@ def _hansen_layers_section() -> rx.Component:
     )
 
 
-def _analysis_settings_section() -> rx.Component:
-    """Analysis controls with comparison year pickers for the selected geometry."""
-    has_geometry = AppState.selected_geometry_idx != None
-    return rx.vstack(
-        rx.cond(
-            has_geometry,
-            rx.vstack(
-                # Comparison year selectors
-                rx.text(AppState.tr["compare_years"], font_size="xs", font_weight="600", color="gray"),
-                rx.hstack(
-                    rx.select(
-                        [str(y) for y in range(1985, 2024)],
-                        value=AppState.comparison_year1_str,
-                        on_change=AppState.set_comparison_year1,
-                        size="1",
-                        flex="1",
-                    ),
-                    rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
-                    rx.select(
-                        [str(y) for y in range(1985, 2024)],
-                        value=AppState.comparison_year2_str,
-                        on_change=AppState.set_comparison_year2,
-                        size="1",
-                        flex="1",
-                    ),
-                    spacing="1",
-                    align_items="center",
-                    width="100%",
-                ),
-                # Full analysis (comparison + change mask)
-                rx.cond(
-                    AppState.mapbiomas_analysis_pending,
-                    rx.button(
-                        rx.hstack(rx.spinner(size="1"), rx.text("Analyzing..."), spacing="2"),
-                        is_disabled=True,
-                        width="100%",
-                        color_scheme="purple",
-                        size="1",
-                    ),
-                    rx.button(
-                        "Analyze Custom Geometry",
-                        on_click=AppState.run_full_analysis_on_geometry,
-                        width="100%",
-                        color_scheme="purple",
-                        size="1",
-                    ),
-                ),
-                rx.text("MapBiomas comparison + change mask", font_size="10px", color="gray"),
-                rx.divider(),
-                rx.text("Individual layers:", font_size="xs", color="gray"),
-                rx.hstack(
-                    rx.button(
-                        "MapBiomas",
-                        on_click=AppState.run_mapbiomas_analysis_on_geometry,
-                        size="1",
-                        color_scheme="green",
-                        flex="1",
-                    ),
-                    rx.button(
-                        "Hansen",
-                        on_click=AppState.run_hansen_analysis_on_geometry,
-                        size="1",
-                        color_scheme="blue",
-                        flex="1",
-                    ),
-                    width="100%",
-                    spacing="1",
-                ),
-                spacing="2",
-                width="100%",
-            ),
-            rx.text(
-                "Select a geometry above to analyze",
-                font_size="xs",
-                color="gray",
-                text_align="center",
-                padding="0.5rem",
-            ),
-        ),
-        spacing="2",
-        width="100%",
-    )
-
-
 def _map_overlays_section() -> rx.Component:
     """Show/hide geometry overlays and change mask with year range."""
     return rx.vstack(
@@ -327,32 +529,8 @@ def _map_overlays_section() -> rx.Component:
     )
 
 
-def _aafc_placeholder() -> rx.Component:
-    """AAFC section: active when Canada is selected, placeholder otherwise."""
-    return rx.cond(
-        AppState.selected_country == "Canada",
-        rx.vstack(
-            rx.text("AAFC Annual Crop Inventory (2009–2023)", font_size="xs", color="#555"),
-            rx.badge(
-                "Coming soon: Indigenous reserve boundaries",
-                color_scheme="orange",
-                variant="surface",
-                size="1",
-            ),
-            spacing="2",
-            width="100%",
-        ),
-        rx.text(
-            "Switch to Canada region to access AAFC crop inventory data.",
-            font_size="xs",
-            color="gray",
-            text_align="center",
-        ),
-    )
-
-
 def geometry_sidebar() -> rx.Component:
-    """Sidebar for geometry analysis: draw/upload, buffer, analysis, layers, overlays."""
+    """Geometry analysis sidebar: draw, upload, analyze."""
     return rx.vstack(
         # Back to portal
         rx.button(
@@ -370,16 +548,10 @@ def geometry_sidebar() -> rx.Component:
 
         rx.divider(),
 
-        # Geometry tools (draw + upload)
+        # Geometry tools: draw + upload + list (unified)
         _section(
             "geometry_tools",
-            rx.vstack(
-                drawing_instructions(),
-                geometry_selector(),
-                geometry_file_upload(),
-                spacing="4",
-                width="100%",
-            ),
+            _geometry_tools_section(),
             AppState.sidebar_geometry_expanded,
             lambda: AppState.toggle_sidebar_section("geometry"),
             _active_count_badge(AppState.drawn_features.length(), "orange"),
@@ -388,49 +560,15 @@ def geometry_sidebar() -> rx.Component:
         # Buffer controls
         _section(
             "buffer_controls",
-            rx.vstack(
-                rx.box(
-                    rx.vstack(
-                        rx.text(AppState.tr["buffer_distance"], font_size="sm", font_weight="600"),
-                        rx.hstack(
-                            rx.input(
-                                value=AppState.buffer_distance_input,
-                                on_change=AppState.set_buffer_distance_input,
-                                type_="number",
-                                placeholder=AppState.tr["enter_distance"],
-                                size="1",
-                                flex="1",
-                            ),
-                            rx.text("m", font_size="sm", color="gray"),
-                            width="100%",
-                            spacing="1",
-                        ),
-                        width="100%",
-                    ),
-                    border="1px solid #d0d0d0",
-                    padding="0.75rem",
-                    border_radius="md",
-                    width="100%",
-                ),
-                rx.button(
-                    AppState.tr["create_buffer"],
-                    on_click=AppState.handle_create_buffer,
-                    size="1",
-                    color_scheme="green",
-                    variant="solid",
-                    width="100%",
-                ),
-                spacing="3",
-                width="100%",
-            ),
+            _buffer_section(),
             AppState.sidebar_geometry_expanded,
             lambda: AppState.toggle_sidebar_section("geometry"),
         ),
 
-        # Analysis settings (year comparison + full + individual buttons)
+        # Analysis (full + individual buttons)
         _section(
             "analysis_settings",
-            _analysis_settings_section(),
+            _analysis_section(),
             AppState.sidebar_mapbiomas_expanded,
             lambda: AppState.toggle_sidebar_section("mapbiomas"),
         ),
@@ -453,15 +591,7 @@ def geometry_sidebar() -> rx.Component:
             _active_count_badge(AppState.hansen_displayed_layers.length(), "blue"),
         ),
 
-        # AAFC (Canada)
-        _section(
-            "aafc_section_title",
-            _aafc_placeholder(),
-            AppState.sidebar_hansen_expanded,
-            lambda: AppState.toggle_sidebar_section("hansen"),
-        ),
-
-        # Map overlays (show/hide geometries + change mask)
+        # Map overlays
         _section(
             "map_overlays",
             _map_overlays_section(),

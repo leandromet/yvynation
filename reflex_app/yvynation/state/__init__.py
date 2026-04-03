@@ -305,9 +305,24 @@ class AppState(
         coords = feature.get("coordinates", [])
         if not coords:
             return "[No coordinates]"
-        if isinstance(coords[0], (int, float)):
-            return f"[{coords[0]:.4f}, {coords[1]:.4f}]"
-        return f"[{coords[0][0]:.4f}, ...] ({len(coords)} points)"
+        
+        # Flatten nested coordinate arrays to get the first coordinate pair
+        first_coord = coords[0]
+        while isinstance(first_coord, list) and len(first_coord) > 0:
+            first_coord = first_coord[0]
+        
+        # Check if we have a valid coordinate pair [lon, lat]
+        if isinstance(first_coord, (int, float)):
+            # Single coordinate - shouldn't happen but handle it
+            return f"[{first_coord:.4f}, ...]"
+        
+        try:
+            if len(first_coord) >= 2 and isinstance(first_coord[0], (int, float)) and isinstance(first_coord[1], (int, float)):
+                return f"[{first_coord[0]:.4f}, {first_coord[1]:.4f}] ({len(coords)} ...)"
+        except (TypeError, IndexError):
+            pass
+        
+        return "[Invalid coordinates]"
 
     # ---- Analysis summary (generic active result) ----------------------
 

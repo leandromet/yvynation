@@ -50,13 +50,18 @@ class GeometryMixin(rx.State, mixin=True):
             logger.info(f"Selected geometry {idx}: {self.drawn_features[idx].get('type', 'Unknown')}")
 
     def add_drawn_feature(self, feature: Dict[str, Any]):
-        """Append a newly drawn feature, stamping its index fields."""
+        """Append a newly drawn feature, stamping its index fields.
+        Auto-selects the first geometry for immediate analysis (no 'Save Drawing' needed).
+        """
         feature["_idx"] = len(self.drawn_features)
         feature["_display_idx"] = len(self.drawn_features) + 1
         self.drawn_features.append(feature)
         self.all_drawn_features.append(feature)
+        # Auto-select the first geometry when added
+        if self.selected_geometry_idx is None:
+            self.selected_geometry_idx = 0
         self.geometry_version += 1
-        logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')}")
+        logger.info(f"Added drawn feature: {feature.get('type', 'Unknown')} (auto-selected)")
 
     def remove_geometry(self, idx: int):
         """Remove the drawn geometry whose _idx matches *idx*."""
@@ -278,11 +283,12 @@ class GeometryMixin(rx.State, mixin=True):
             )
             feature = {
                 "type": "Feature",
+                "name": feature_name,
                 "properties": {"name": feature_name, "type": "uploaded_geometry", "source": "upload"},
                 "geometry": raw_geom,
             }
             self.add_drawn_feature(feature)
-            self.selected_territory = feature_name
+            # Auto-selection happens inside add_drawn_feature
             self.error_message = ""
             return True
 
