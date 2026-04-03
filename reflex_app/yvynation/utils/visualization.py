@@ -483,6 +483,36 @@ class HansenVisualizer:
 # Dispatcher: choose chart from analysis_results dict
 # ---------------------------------------------------------------------------
 
+def _create_gfc_summary_chart(df: "pd.DataFrame") -> go.Figure:
+    """Bar chart for the 3-row GFC summary (Tree Cover, Forest Loss, Forest Gain)."""
+    try:
+        metrics = df["Metric"].tolist()
+        areas = df["Area_ha"].tolist()
+        percents = df["Percent"].tolist() if "Percent" in df.columns else [""] * len(metrics)
+        colors = ["#2ecc71", "#e74c3c", "#a8e6cf"]
+        fig = go.Figure(data=[
+            go.Bar(
+                x=metrics,
+                y=areas,
+                text=[f"{a:,.0f} ha  {p}" for a, p in zip(areas, percents)],
+                textposition="outside",
+                marker=dict(color=colors[: len(metrics)]),
+                hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+            )
+        ])
+        fig.update_layout(
+            title="Forest Dynamics Summary (Hansen GFC)",
+            yaxis_title="Area (hectares)",
+            template="plotly_white",
+            height=400,
+            showlegend=False,
+        )
+        return fig
+    except Exception as e:
+        logger.error(f"GFC summary chart error: {e}")
+        return go.Figure().add_annotation(text=f"Error: {str(e)}")
+
+
 def get_chart_for_analysis(analysis_data: Dict[str, Any],
                            chart_type: str = 'bar') -> Optional[go.Figure]:
     """
@@ -512,6 +542,12 @@ def get_chart_for_analysis(analysis_data: Dict[str, Any],
                 return HansenVisualizer.create_forest_balance_chart(df)
             elif chart_type == 'bar':
                 return HansenVisualizer.create_area_distribution_chart(df)
+        elif a_type == 'hansen_glad':
+            # GLAD returns class distribution — show horizontal bar chart
+            return HansenVisualizer.create_area_distribution_chart(df)
+        elif a_type == 'hansen_gfc':
+            # GFC returns 3-row summary (Metric / Area_ha / Percent / Description)
+            return _create_gfc_summary_chart(df)
 
         # Default fallback
         if a_type == 'mapbiomas':

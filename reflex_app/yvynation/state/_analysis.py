@@ -621,7 +621,10 @@ class AnalysisMixin(rx.State, mixin=True):
                 key = f"geometry::{self.selected_geometry_idx}"
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
+                # Store in dedicated GLAD var so GFC tab results are not overwritten
+                self.geometry_glad_result = result_dict
                 self.set_active_tab("analysis")
+                self.active_analysis_tab = "hansen"
                 self.loading_message = ""
                 logger.info(f"Hansen GLAD geometry analysis: {len(result_df)} classes")
 
@@ -664,13 +667,15 @@ class AnalysisMixin(rx.State, mixin=True):
             
             if result_dict and "error" not in result_dict:
                 result_dict["geometry_name"] = geom_name
-                
+                # Store in dedicated GFC var so GLAD tab results are not overwritten
+                self.geometry_gfc_result = result_dict
                 key = f"geometry::{self.selected_geometry_idx}"
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
                 self.set_active_tab("analysis")
+                self.active_analysis_tab = "gfc"
                 self.loading_message = ""
-                logger.info(f"Hansen GFC geometry analysis: completed")
+                logger.info("Hansen GFC geometry analysis: completed")
             elif result_dict and "error" in result_dict:
                 self.error_message = result_dict["error"]
 

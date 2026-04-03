@@ -26,8 +26,12 @@ class UIMixin(rx.State, mixin=True):
     # ---- Active tab -----------------------------------------------------
 
     def set_active_tab(self, tab: str):
-        """Switch active content tab."""
+        """Switch active content tab (map / analysis / tutorial / about)."""
         self.active_tab = tab
+
+    def set_active_analysis_tab(self, tab: str):
+        """Switch the active sub-tab inside the analysis panel."""
+        self.active_analysis_tab = tab
 
     # ---- Sidebar --------------------------------------------------------
 

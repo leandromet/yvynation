@@ -214,6 +214,13 @@ class AppState(
     # Pending territory confirmation
     pending_territory: Optional[str] = None
 
+    # Per-analysis-type geometry results (so GFC and GLAD tabs don't overwrite each other)
+    geometry_glad_result: Optional[Dict[str, Any]] = None
+    geometry_gfc_result: Optional[Dict[str, Any]] = None
+
+    # Which sub-tab is active inside the analysis panel (persists across Reflex re-renders)
+    active_analysis_tab: str = "mapbiomas"
+
     # ====================================================================
     # Computed properties
     # ====================================================================
@@ -442,6 +449,7 @@ class AppState(
 
     @rx.var(auto_deps=False, deps=["hansen_analysis_result"])
     def hansen_table_data(self) -> List[Dict[str, Any]]:
+        # Territory Hansen analysis only (geometry GLAD now uses glad_table_data)
         if not self.hansen_analysis_result:
             return []
         return self.hansen_analysis_result.get("data", [])
@@ -488,6 +496,194 @@ class AppState(
         except Exception as e:
             logger.error(f"MapBiomas pie chart error: {e}")
             return None
+
+    # ---- GFC-specific computed vars (read from geometry_gfc_result) ----
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_summary_cover(self) -> str:
+        try:
+            val = (self.geometry_gfc_result or {}).get("summary", {}).get("tree_cover_2000_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_summary_loss(self) -> str:
+        try:
+            val = (self.geometry_gfc_result or {}).get("summary", {}).get("forest_loss_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_summary_gain(self) -> str:
+        try:
+            val = (self.geometry_gfc_result or {}).get("summary", {}).get("forest_gain_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_summary_net(self) -> str:
+        try:
+            val = (self.geometry_gfc_result or {}).get("summary", {}).get("net_change_ha")
+            if val is None:
+                return "N/A"
+            sign = "+" if val > 0 else ""
+            return f"{sign}{val:,.0f} ha"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_table_data(self) -> List[Dict[str, Any]]:
+        try:
+            return (self.geometry_gfc_result or {}).get("data", [])
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_loss_by_year(self) -> List[Dict[str, Any]]:
+        """Tree loss rows filtered to Year_Code > 0, sorted by year."""
+        try:
+            records = [
+                r for r in (self.geometry_gfc_result or {}).get("tree_loss_data", [])
+                if r.get("Year_Code", 0) > 0
+            ]
+            return sorted(records, key=lambda r: r["Year_Code"])
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_gain_summary(self) -> List[Dict[str, Any]]:
+        """All tree gain rows (Gain_Code 0 and 1) for the gain table."""
+        try:
+            return (self.geometry_gfc_result or {}).get("tree_gain_data", [])
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_cover_categories(self) -> List[Dict[str, Any]]:
+        """Tree cover 2000 bucketed into 5 categories matching the Streamlit display."""
+        try:
+            cover_data = (self.geometry_gfc_result or {}).get("tree_cover_data", [])
+            if not cover_data:
+                return []
+            total_ha = sum(r["Area_ha"] for r in cover_data)
+            buckets: Dict[str, float] = {
+                "No Tree Cover (0%)": 0.0,
+                "Low Cover (1–25%)": 0.0,
+                "Medium Cover (26–50%)": 0.0,
+                "High Cover (51–75%)": 0.0,
+                "Very High Cover (76–100%)": 0.0,
+            }
+            for r in cover_data:
+                pct = r.get("Percent_Cover", 0)
+                ha = r.get("Area_ha", 0.0)
+                if pct == 0:
+                    buckets["No Tree Cover (0%)"] += ha
+                elif pct <= 25:
+                    buckets["Low Cover (1–25%)"] += ha
+                elif pct <= 50:
+                    buckets["Medium Cover (26–50%)"] += ha
+                elif pct <= 75:
+                    buckets["High Cover (51–75%)"] += ha
+                else:
+                    buckets["Very High Cover (76–100%)"] += ha
+            return [
+                {
+                    "Category": cat,
+                    "Area_ha": round(ha, 1),
+                    "Percentage": f"{ha / total_ha * 100:.1f}%" if total_ha > 0 else "0%",
+                }
+                for cat, ha in buckets.items()
+                if ha > 0
+            ]
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_bar_chart(self) -> Optional[Figure]:
+        try:
+            if not self.geometry_gfc_result:
+                return None
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.geometry_gfc_result, chart_type="bar") or None
+        except Exception as e:
+            logger.error(f"GFC bar chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
+    def gfc_loss_chart(self) -> Optional[Figure]:
+        """Bar chart of tree loss area by year."""
+        try:
+            rows = self.gfc_loss_by_year
+            if not rows:
+                return None
+            import plotly.graph_objects as go
+            years = [r["Year"] for r in rows]
+            areas = [r["Area_ha"] for r in rows]
+            fig = go.Figure(data=[
+                go.Bar(
+                    x=years, y=areas,
+                    marker_color="#e74c3c",
+                    text=[f"{a:,.0f} ha" for a in areas],
+                    textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+                )
+            ])
+            fig.update_layout(
+                title="Annual Tree Loss (2001–2023)",
+                xaxis_title="Year", yaxis_title="Loss Area (ha)",
+                template="plotly_white", height=350, showlegend=False,
+            )
+            return fig
+        except Exception as e:
+            logger.error(f"GFC loss chart error: {e}")
+            return None
+
+    # ---- GLAD-specific computed vars (read from geometry_glad_result) ---
+
+    @rx.var(auto_deps=False, deps=["geometry_glad_result"])
+    def glad_bar_chart(self) -> Optional[Figure]:
+        try:
+            if not self.geometry_glad_result:
+                return None
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.geometry_glad_result, chart_type="bar") or None
+        except Exception as e:
+            logger.error(f"GLAD bar chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["geometry_glad_result"])
+    def glad_table_data(self) -> List[Dict[str, Any]]:
+        try:
+            return (self.geometry_glad_result or {}).get("data", [])
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["geometry_glad_result"])
+    def glad_summary_area(self) -> str:
+        try:
+            val = (self.geometry_glad_result or {}).get("summary", {}).get("total_area_ha", 0)
+            return f"{val:,.0f} ha" if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_glad_result"])
+    def glad_summary_classes(self) -> str:
+        try:
+            val = (self.geometry_glad_result or {}).get("summary", {}).get("num_classes", 0)
+            return str(val) if val else "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["geometry_glad_result"])
+    def glad_summary_year(self) -> str:
+        try:
+            val = (self.geometry_glad_result or {}).get("summary", {}).get("year", "")
+            return str(val) if val else "N/A"
+        except Exception:
+            return "N/A"
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
     def hansen_balance_chart(self) -> Optional[Figure]:

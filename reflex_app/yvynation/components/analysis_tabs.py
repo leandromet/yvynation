@@ -228,52 +228,121 @@ def mapbiomas_tab() -> rx.Component:
 # Tab 2: Hansen/GLAD Analysis
 # -----------------------------------------------------------------------
 
+def _glad_table(data) -> rx.Component:
+    """Render GLAD class distribution as a Radix table (dynamic-column-safe)."""
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Class"),
+                rx.table.column_header_cell("Class ID"),
+                rx.table.column_header_cell("Area (ha)"),
+                rx.table.column_header_cell("Pixels"),
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                data,
+                lambda row: rx.table.row(
+                    rx.table.cell(row.get("Class", "")),
+                    rx.table.cell(row.get("Class_ID", "").to(str)),
+                    rx.table.cell(row.get("Area_ha", "").to(str)),
+                    rx.table.cell(row.get("Pixels", "").to(str)),
+                ),
+            )
+        ),
+        width="100%",
+        variant="surface",
+        size="1",
+    )
+
+
 def hansen_tab() -> rx.Component:
-    """Hansen/GLAD forest change analysis tab. Displays hansen_analysis_result or generic analysis_results."""
+    """Hansen/GLAD forest cover analysis tab.
+    Shows geometry_glad_result for geometry GLAD analysis,
+    or hansen_analysis_result for territory Hansen analysis.
+    """
+    has_glad = AppState.geometry_glad_result != None
+    has_territory = AppState.hansen_analysis_result != None
+    has_data = has_glad | has_territory
+
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
         rx.cond(
-            (AppState.hansen_analysis_result != None) | (AppState.analysis_results.get("source") == "Hansen GLAD") | (AppState.analysis_results.get("source") == "Hansen GFC"),
+            has_data,
             rx.box(
                 rx.text(
                     rx.cond(
-                        AppState.hansen_analysis_result != None,
-                        rx.cond(
-                            AppState.selected_territory != "",
-                            f"📍 {AppState.selected_territory} • Hansen {AppState.hansen_current_year}",
-                            "Hansen Analysis Ready"
-                        ),
-                        # For geometry analysis
-                        f"🔍 {AppState.analysis_results.get('geometry_name', 'Geometry')} • {AppState.analysis_results.get('source', 'Hansen')} {AppState.analysis_results.get('year', 'N/A')}",
+                        has_territory,
+                        f"📍 {AppState.selected_territory} • Hansen {AppState.hansen_current_year}",
+                        f"🔍 {AppState.geometry_glad_result.get('geometry_name', 'Geometry')} • Hansen GLAD {AppState.glad_summary_year}",
                     ),
-                    font_size="sm", color="gray"
+                    font_size="sm", color="gray",
                 ),
-                padding="1rem",
+                padding="0.75rem 1rem",
                 bg="gray.50",
                 border_radius="md",
                 border_left="4px solid #ed8936",
+                width="100%",
             ),
             rx.box(),
         ),
         rx.cond(
-            (AppState.hansen_analysis_result != None) | (AppState.analysis_results.get("source") == "Hansen GLAD") | (AppState.analysis_results.get("source") == "Hansen GFC"),
+            has_data,
             rx.vstack(
-                _hansen_summary_metrics(),
+                # ---- Summary metrics row --------------------------------
+                rx.hstack(
+                    rx.box(
+                        rx.vstack(
+                            rx.text("Total Area", font_size="xs", color="gray"),
+                            rx.text(AppState.glad_summary_area, font_weight="bold", font_size="lg", color="blue"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("Classes", font_size="xs", color="gray"),
+                            rx.text(AppState.glad_summary_classes, font_weight="bold", font_size="lg", color="orange"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem", bg="orange.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("Year", font_size="xs", color="gray"),
+                            rx.text(AppState.glad_summary_year, font_weight="bold", font_size="lg", color="purple"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem", bg="purple.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    width="100%", spacing="2",
+                ),
                 rx.divider(),
+                # ---- Area distribution chart ----------------------------
                 rx.box(
-                    rx.plotly(data=AppState.hansen_balance_chart, use_resize_handler=True),
+                    rx.cond(
+                        has_glad,
+                        rx.plotly(data=AppState.glad_bar_chart, use_resize_handler=True),
+                        rx.plotly(data=AppState.hansen_balance_chart, use_resize_handler=True),
+                    ),
                     width="100%",
                 ),
                 rx.divider(),
-                rx.box(
-                    rx.data_table(
-                        data=AppState.hansen_table_data,
-                        columns=AppState.hansen_table_columns,
-                        pagination=True,
-                        search=True,
+                # ---- Class table (dynamic — use rx.table not data_table) -
+                rx.heading("🌿 Class Distribution", size="4"),
+                rx.cond(
+                    has_glad,
+                    _glad_table(AppState.glad_table_data),
+                    rx.box(
+                        rx.data_table(
+                            data=AppState.hansen_table_data,
+                            columns=AppState.hansen_table_columns,
+                            pagination=True,
+                            search=True,
+                        ),
+                        width="100%",
+                        overflow_x="auto",
                     ),
-                    width="100%",
-                    overflow_x="auto",
                 ),
                 rx.divider(),
                 rx.button(
@@ -282,17 +351,6 @@ def hansen_tab() -> rx.Component:
                     color_scheme="blue",
                     size="2",
                     variant="outline",
-                ),
-                rx.cond(
-                    (AppState.mapbiomas_analysis_result != None) | (AppState.analysis_results.get("type") == "mapbiomas"),
-                    rx.button(
-                        "→ View MapBiomas Results",
-                        on_click=AppState.set_active_tab("mapbiomas"),
-                        size="1",
-                        color_scheme="green",
-                        variant="solid",
-                    ),
-                    rx.box(),
                 ),
                 spacing="3",
                 width="100%",
@@ -309,38 +367,266 @@ def hansen_tab() -> rx.Component:
 # Tab 3: Hansen GFC
 # -----------------------------------------------------------------------
 
+def _gfc_simple_table(data, cols) -> rx.Component:
+    """Render a simple GFC result table using rx.table (column-safe)."""
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(cols, lambda c: rx.table.column_header_cell(c))
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                data,
+                lambda row: rx.table.row(
+                    rx.foreach(cols, lambda c: rx.table.cell(row.get(c, "").to(str)))
+                ),
+            )
+        ),
+        width="100%",
+        variant="surface",
+        size="1",
+    )
+
+
 def hansen_gfc_tab() -> rx.Component:
-    """Hansen GFC (Global Forest Change - tree cover 2000, tree loss, tree gain) tab."""
+    """Hansen GFC (Global Forest Change) tab: cover 2000, loss 2000-2023, gain 2000-2012."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_gfc_label"], size="3"),
         rx.text(
-            "Tree Cover 2000 (baseline) | Tree Loss | Tree Gain",
+            "Tree Cover 2000 (baseline) | Tree Loss 2000–2023 | Tree Gain 2000–2012",
             font_size="sm", color="gray",
         ),
         rx.divider(),
         rx.cond(
-            (AppState.analysis_results.get("type") == "hansen_gfc") | (AppState.analysis_results.get("source") == "Hansen GFC"),
+            AppState.geometry_gfc_result != None,
             rx.vstack(
+                # Info bar
                 rx.box(
                     rx.text(
-                        f"🔍 {AppState.analysis_results.get('geometry_name', 'Geometry')} • Hansen GFC",
-                        font_size="sm", color="gray", padding="1rem",
+                        f"🔍 {AppState.geometry_gfc_result.get('geometry_name', 'Geometry')} • Hansen GFC",
+                        font_size="sm", color="gray",
                     ),
-                    padding="0.5rem",
+                    padding="0.75rem 1rem",
                     bg="gray.50",
                     border_radius="md",
+                    border_left="4px solid #ed8936",
+                    width="100%",
                 ),
-                rx.plotly(data=AppState.hansen_balance_chart, use_resize_handler=True),
-                rx.divider(),
-                rx.box(
-                    rx.data_table(
-                        data=AppState.hansen_table_data,
-                        columns=AppState.hansen_table_columns,
-                        pagination=True,
-                        search=True,
+                # 4 summary metrics
+                rx.hstack(
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🌳 Tree Cover 2000", font_size="xs", color="gray"),
+                            rx.text(AppState.gfc_summary_cover, font_weight="bold", font_size="lg", color="green"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem",
+                        bg="green.50",
+                        border_radius="md",
+                        flex="1",
+                        text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("📉 Forest Loss", font_size="xs", color="gray"),
+                            rx.text(AppState.gfc_summary_loss, font_weight="bold", font_size="lg", color="red"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem",
+                        bg="red.50",
+                        border_radius="md",
+                        flex="1",
+                        text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("📈 Forest Gain", font_size="xs", color="gray"),
+                            rx.text(AppState.gfc_summary_gain, font_weight="bold", font_size="lg", color="teal"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem",
+                        bg="teal.50",
+                        border_radius="md",
+                        flex="1",
+                        text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("⚖️ Net Change", font_size="xs", color="gray"),
+                            rx.text(AppState.gfc_summary_net, font_weight="bold", font_size="lg", color="purple"),
+                            spacing="0", align="center",
+                        ),
+                        padding="0.75rem",
+                        bg="purple.50",
+                        border_radius="md",
+                        flex="1",
+                        text_align="center",
                     ),
                     width="100%",
-                    overflow_x="auto",
+                    spacing="2",
+                ),
+                rx.divider(),
+                # ---- Summary bar chart (Cover / Loss / Gain) ------------
+                rx.box(
+                    rx.plotly(data=AppState.gfc_bar_chart, use_resize_handler=True),
+                    width="100%",
+                ),
+                rx.divider(),
+                # ---- Summary table (Metric / Area_ha / Percent / Desc) --
+                rx.heading("📊 Summary", size="4"),
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Metric"),
+                            rx.table.column_header_cell("Area (ha)"),
+                            rx.table.column_header_cell("Percent"),
+                            rx.table.column_header_cell("Description"),
+                        )
+                    ),
+                    rx.table.body(
+                        rx.foreach(
+                            AppState.gfc_table_data,
+                            lambda row: rx.table.row(
+                                rx.table.cell(row.get("Metric", "")),
+                                rx.table.cell(row.get("Area_ha", "").to(str)),
+                                rx.table.cell(row.get("Percent", "")),
+                                rx.table.cell(row.get("Description", "")),
+                            ),
+                        )
+                    ),
+                    width="100%", variant="surface", size="1",
+                ),
+                rx.divider(),
+                # ---- Tree Cover 2000 Categories -------------------------
+                rx.cond(
+                    AppState.gfc_cover_categories.length() > 0,
+                    rx.vstack(
+                        rx.heading("🌳 Tree Cover 2000 — Distribution", size="4"),
+                        rx.text("Canopy cover grouped into 5 categories", font_size="xs", color="gray"),
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Category"),
+                                    rx.table.column_header_cell("Area (ha)"),
+                                    rx.table.column_header_cell("% of Total"),
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(
+                                    AppState.gfc_cover_categories,
+                                    lambda row: rx.table.row(
+                                        rx.table.cell(row.get("Category", "")),
+                                        rx.table.cell(row.get("Area_ha", "").to(str)),
+                                        rx.table.cell(row.get("Percentage", "")),
+                                    ),
+                                )
+                            ),
+                            width="100%", variant="surface", size="1",
+                        ),
+                        spacing="2", width="100%",
+                    ),
+                    rx.box(),
+                ),
+                rx.divider(),
+                # ---- Tree Loss by Year ----------------------------------
+                rx.cond(
+                    AppState.gfc_loss_by_year.length() > 0,
+                    rx.vstack(
+                        rx.heading("🔥 Forest Loss by Year", size="4"),
+                        # Metrics row
+                        rx.hstack(
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Total Loss", font_size="xs", color="gray"),
+                                    rx.text(AppState.gfc_summary_loss, font_weight="bold", color="red"),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="red.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Years with Loss", font_size="xs", color="gray"),
+                                    rx.text(AppState.gfc_loss_by_year.length().to(str), font_weight="bold", color="orange"),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="orange.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            width="100%", spacing="2",
+                        ),
+                        # Loss by year bar chart
+                        rx.box(
+                            rx.plotly(data=AppState.gfc_loss_chart, use_resize_handler=True),
+                            width="100%",
+                        ),
+                        # Loss by year table
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Year"),
+                                    rx.table.column_header_cell("Area (ha)"),
+                                    rx.table.column_header_cell("Pixels"),
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(
+                                    AppState.gfc_loss_by_year,
+                                    lambda row: rx.table.row(
+                                        rx.table.cell(row.get("Year", "")),
+                                        rx.table.cell(row.get("Area_ha", "").to(str)),
+                                        rx.table.cell(row.get("Pixels", "").to(str)),
+                                    ),
+                                )
+                            ),
+                            width="100%", variant="surface", size="1",
+                        ),
+                        spacing="2", width="100%",
+                    ),
+                    rx.box(
+                        rx.text("✅ No tree loss detected in this area.", font_size="sm", color="green"),
+                        padding="0.5rem",
+                    ),
+                ),
+                rx.divider(),
+                # ---- Tree Gain 2000–2012 --------------------------------
+                rx.cond(
+                    AppState.gfc_gain_summary.length() > 0,
+                    rx.vstack(
+                        rx.heading("🌲 Tree Gain (2000–2012)", size="4"),
+                        rx.hstack(
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Area with Gain", font_size="xs", color="gray"),
+                                    rx.text(AppState.gfc_summary_gain, font_weight="bold", color="teal"),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="teal.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            width="100%", spacing="2",
+                        ),
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Status"),
+                                    rx.table.column_header_cell("Area (ha)"),
+                                    rx.table.column_header_cell("Pixels"),
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(
+                                    AppState.gfc_gain_summary,
+                                    lambda row: rx.table.row(
+                                        rx.table.cell(row.get("Status", "")),
+                                        rx.table.cell(row.get("Area_ha", "").to(str)),
+                                        rx.table.cell(row.get("Pixels", "").to(str)),
+                                    ),
+                                )
+                            ),
+                            width="100%", variant="surface", size="1",
+                        ),
+                        spacing="2", width="100%",
+                    ),
+                    rx.box(),
                 ),
                 spacing="3",
                 width="100%",
@@ -732,7 +1018,8 @@ def analysis_tabs() -> rx.Component:
             rx.tabs.content(aafc_tab(), value="aafc"),
             rx.tabs.content(comparison_tab(), value="comparison"),
             rx.tabs.content(about_tab(), value="about"),
-            default_value="mapbiomas",
+            value=AppState.active_analysis_tab,
+            on_change=AppState.set_active_analysis_tab,
         ),
         width="100%",
         border="1px solid #e0e0e0",

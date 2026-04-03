@@ -255,90 +255,137 @@ class HansenAnalyzer:
         scale: int = 30
     ) -> Dict[str, Any]:
         """
-        Comprehensive Hansen GFC (Global Forest Change) analysis combining:
-        - Tree cover 2000 (baseline)
-        - Tree loss (2000-2023)
-        - Tree gain (2000-2012)
-        
-        Args:
-            geometry: Area of interest
-            scale: Analysis scale (default 30m Landsat pixels)
-        
-        Returns:
-            Dictionary with GFC analysis results including tree cover, loss, and gain metrics
+        Hansen GFC analysis using frequencyHistogram (3 EE calls).
+        Bands: treecover2000 (0-100%), lossyear (0=no loss, 1-24=year offset),
+        gain (0=no gain, 1=gain 2000-2012).
+        Ported from the working streamlit gfc_analysis.py approach.
         """
         try:
-            if not self.is_available():
-                return {
-                    "error": "Hansen dataset not available",
-                    "table": [],
-                    "summary": {}
-                }
-            
-            # Get tree cover 2000
-            cover_data = self.get_tree_cover_2000(geometry, scale)
-            cover_area = cover_data.get("tree_cover_area_ha", 0)
-            cover_percent = cover_data.get("tree_cover_percent", 0)
-            
-            # Get forest loss summary (2000-2023)
-            loss_by_year = self.get_forest_loss(geometry, start_year=2000, end_year=2023, scale=scale)
-            total_loss_area = sum(year_data.get("loss_area_ha", 0) for year_data in loss_by_year.values())
-            loss_percent = (total_loss_area / cover_area * 100) if cover_area > 0 else 0
-            
-            # Get forest gain summary (2000-2012)
-            gain_data = self.get_forest_gain(geometry, period='12')
-            gain_area = gain_data.get("gain_area_ha", 0)
-            gain_percent = (gain_area / cover_area * 100) if cover_area > 0 else 0
-            
-            # Combine into GFC results table
+            from ..config.config import HANSEN_GFC_DATASET
+            dataset = ee.Image(HANSEN_GFC_DATASET)
+
+            # ---- Tree Cover 2000 (band: treecover2000) --------------------
+            cover_histogram: dict = {}
+            try:
+                stats = dataset.select(["treecover2000"]).reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=scale,
+                    maxPixels=int(1e9),
+                ).getInfo()
+                cover_histogram = stats.get("treecover2000") or {}
+                logger.info(f"GFC cover histogram: {len(cover_histogram)} buckets")
+            except Exception as e:
+                logger.error(f"GFC cover histogram failed: {e}")
+
+            cover_records = []
+            for pct_str, cnt in cover_histogram.items():
+                pct = int(pct_str)
+                cover_records.append({
+                    "Percent_Cover": pct,
+                    "Pixels": int(cnt),
+                    "Area_ha": round(int(cnt) * 0.09, 2),
+                })
+            df_cover = pd.DataFrame(cover_records).sort_values("Percent_Cover") if cover_records else pd.DataFrame()
+
+            # ---- Tree Loss Year (band: lossyear) --------------------------
+            loss_histogram: dict = {}
+            try:
+                stats = dataset.select(["lossyear"]).reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=scale,
+                    maxPixels=int(1e9),
+                ).getInfo()
+                loss_histogram = stats.get("lossyear") or {}
+                logger.info(f"GFC loss histogram: {len(loss_histogram)} buckets")
+            except Exception as e:
+                logger.error(f"GFC loss histogram failed: {e}")
+
+            loss_records = []
+            for code_str, cnt in loss_histogram.items():
+                code = int(code_str)
+                loss_records.append({
+                    "Year_Code": code,
+                    "Year": "No Loss" if code == 0 else str(2000 + code),
+                    "Pixels": int(cnt),
+                    "Area_ha": round(int(cnt) * 0.09, 2),
+                })
+            df_loss = pd.DataFrame(loss_records).sort_values("Year_Code") if loss_records else pd.DataFrame()
+
+            # ---- Tree Gain (band: gain) ------------------------------------
+            gain_histogram: dict = {}
+            try:
+                stats = dataset.select(["gain"]).reduceRegion(
+                    reducer=ee.Reducer.frequencyHistogram(),
+                    geometry=geometry,
+                    scale=scale,
+                    maxPixels=int(1e9),
+                ).getInfo()
+                gain_histogram = stats.get("gain") or {}
+                logger.info(f"GFC gain histogram: {len(gain_histogram)} buckets")
+            except Exception as e:
+                logger.error(f"GFC gain histogram failed: {e}")
+
+            gain_records = []
+            for code_str, cnt in gain_histogram.items():
+                code = int(code_str)
+                gain_records.append({
+                    "Gain_Code": code,
+                    "Status": "Gain (2000-2012)" if code == 1 else "No Gain",
+                    "Pixels": int(cnt),
+                    "Area_ha": round(int(cnt) * 0.09, 2),
+                })
+            df_gain = pd.DataFrame(gain_records).sort_values("Gain_Code") if gain_records else pd.DataFrame()
+
+            if df_cover.empty and df_loss.empty and df_gain.empty:
+                return {"error": "No GFC data found in this area", "type": "hansen_gfc", "table": [], "summary": {}, "data": []}
+
+            # ---- Derive summary metrics ------------------------------------
+            total_area_ha = df_cover["Area_ha"].sum() if not df_cover.empty else 0
+            tree_cover_ha = df_cover[df_cover["Percent_Cover"] > 0]["Area_ha"].sum() if not df_cover.empty else 0
+            loss_ha = df_loss[df_loss["Year_Code"] > 0]["Area_ha"].sum() if not df_loss.empty else 0
+            gain_ha = df_gain[df_gain["Gain_Code"] == 1]["Area_ha"].sum() if not df_gain.empty else 0
+            net_ha = gain_ha - loss_ha
+
+            cover_pct = (tree_cover_ha / total_area_ha * 100) if total_area_ha > 0 else 0
+            loss_pct = (loss_ha / tree_cover_ha * 100) if tree_cover_ha > 0 else 0
+            gain_pct = (gain_ha / tree_cover_ha * 100) if tree_cover_ha > 0 else 0
+
             gfc_records = [
-                {
-                    "Metric": "Tree Cover 2000",
-                    "Area_ha": round(cover_area, 0),
-                    "Percent": f"{cover_percent:.1f}%",
-                    "Description": "Baseline tree cover from 2000"
-                },
-                {
-                    "Metric": "Forest Loss",
-                    "Area_ha": round(total_loss_area, 0),
-                    "Percent": f"{loss_percent:.1f}%",
-                    "Description": "Forest loss 2000-2023"
-                },
-                {
-                    "Metric": "Forest Gain",
-                    "Area_ha": round(gain_area, 0),
-                    "Percent": f"{gain_percent:.1f}%",
-                    "Description": "Forest gain 2000-2012"
-                }
+                {"Metric": "Tree Cover 2000", "Area_ha": round(tree_cover_ha),
+                 "Percent": f"{cover_pct:.1f}%", "Description": "Baseline canopy cover (>0%)"},
+                {"Metric": "Forest Loss",     "Area_ha": round(loss_ha),
+                 "Percent": f"{loss_pct:.1f}%", "Description": "Forest loss 2001-2023"},
+                {"Metric": "Forest Gain",     "Area_ha": round(gain_ha),
+                 "Percent": f"{gain_pct:.1f}%", "Description": "Forest gain 2000-2012"},
             ]
-            
-            net_change = gain_area - total_loss_area
-            
-            result = {
+
+            logger.info(
+                f"GFC complete: cover={tree_cover_ha:.0f}ha ({cover_pct:.1f}%), "
+                f"loss={loss_ha:.0f}ha, gain={gain_ha:.0f}ha, net={net_ha:.0f}ha"
+            )
+
+            return {
                 "type": "hansen_gfc",
                 "source": "Hansen GFC",
+                "data": gfc_records,
                 "table": gfc_records,
                 "summary": {
-                    "tree_cover_2000_ha": round(cover_area, 0),
-                    "forest_loss_ha": round(total_loss_area, 0),
-                    "forest_gain_ha": round(gain_area, 0),
-                    "net_change_ha": round(net_change, 0)
+                    "tree_cover_2000_ha": round(tree_cover_ha),
+                    "forest_loss_ha":     round(loss_ha),
+                    "forest_gain_ha":     round(gain_ha),
+                    "net_change_ha":      round(net_ha),
                 },
-                "data": gfc_records  # For compatibility with result storage
+                # Detailed distributions for richer UI
+                "tree_cover_data": df_cover.to_dict("records") if not df_cover.empty else [],
+                "tree_loss_data":  df_loss.to_dict("records")  if not df_loss.empty  else [],
+                "tree_gain_data":  df_gain.to_dict("records")  if not df_gain.empty  else [],
             }
-            
-            logger.info(f"GFC analysis complete: Cover={cover_area:.0f}ha, Loss={total_loss_area:.0f}ha, Gain={gain_area:.0f}ha, Net={net_change:.0f}ha")
-            return result
-            
+
         except Exception as e:
-            logger.error(f"Error in GFC analysis: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "error": str(e),
-                "table": [],
-                "summary": {}
-            }
+            logger.error(f"GFC analysis failed: {e}", exc_info=True)
+            return {"error": str(e), "type": "hansen_gfc", "table": [], "summary": {}, "data": []}
     
     def get_area_distribution(
         self,
@@ -384,12 +431,27 @@ class HansenAnalyzer:
                 maxPixels=int(1e13)
             ).getInfo()
 
-            if not histogram or 'b1' not in histogram:
+            if not histogram:
                 logger.warning(f"No Hansen histogram data for year {year}")
                 return None
 
+            # Discover the band key — try known names then fall back to first dict value
+            histogram_data: dict = {}
+            for candidate in ("b1", "classification", "VV", "lossyear", "treecover2000"):
+                if candidate in histogram and isinstance(histogram[candidate], dict):
+                    histogram_data = histogram[candidate]
+                    break
+            if not histogram_data:
+                for v in histogram.values():
+                    if isinstance(v, dict) and v:
+                        histogram_data = v
+                        break
+            if not histogram_data:
+                logger.warning(f"Hansen {year}: histogram exists but no band data found; keys={list(histogram.keys())}")
+                return None
+
             # Convert histogram to DataFrame
-            data = histogram.get('b1', {})
+            data = histogram_data
             if not data:
                 return None
 

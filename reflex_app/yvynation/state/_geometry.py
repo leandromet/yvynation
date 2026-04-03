@@ -44,8 +44,14 @@ class GeometryMixin(rx.State, mixin=True):
     # ---- Drawn feature CRUD ---------------------------------------------
 
     def set_selected_geometry(self, idx: int):
-        """Select a drawn geometry by its list index."""
+        """Select a drawn geometry by its list index.
+        Clears per-type geometry analysis results so stale data doesn't leak across geometries.
+        """
         if 0 <= idx < len(self.drawn_features):
+            if self.selected_geometry_idx != idx:
+                # Different geometry selected — clear type-specific results
+                self.geometry_glad_result = None
+                self.geometry_gfc_result = None
             self.selected_geometry_idx = idx
             logger.info(f"Selected geometry {idx}: {self.drawn_features[idx].get('type', 'Unknown')}")
 
