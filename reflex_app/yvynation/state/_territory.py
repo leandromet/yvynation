@@ -14,19 +14,55 @@ logger = logging.getLogger(__name__)
 class TerritoryMixin(rx.State, mixin=True):
     """Event handlers for territory selection and management."""
 
-    # ---- Initialization -------------------------------------------------
+    # ---- Initialization & Reset -------------------------------------------------
+
+    def clear_all_state(self):
+        """Clear all analysis data and geometries, restart fresh."""
+        # Clear territories and selections
+        self.selected_territory = None
+        self.pending_territory = None
+        self.territory_name = ""
+        self.territory_geojson_features = []
+
+        # Clear drawn features
+        self.drawn_features = []
+
+        # Clear all analysis results
+        self.territory_result = None
+        self.territory_result_year2 = None
+        self.analysis_results = {}
+        self.mapbiomas_comparison_result = None
+        self.territory_transitions = None
+
+        # Clear GLAD/GFC results
+        self.geometry_glad_result = None
+        self.geometry_gfc_result = None
+
+        # Clear all UI state
+        self.error_message = ""
+        self.mapbiomas_bar_chart = None
+        self.mapbiomas_pie_chart = None
+        self.glad_bar_chart = None
+        self.gfc_bar_chart = None
+        self.gfc_loss_chart = None
+        self.hansen_balance_chart = None
+        self.gains_losses_chart = None
+        self.change_pct_chart = None
+        self.sankey_chart = None
+        self.sunburst_transitions_chart = None
+        self.transition_matrix_chart = None
+
+        # Reset geometry tracking
+        self.geometry_version += 1
+        self.territory_geometry_displayed = False
+        self.map_zoom_bounds = {}
+
+        logger.info("Application state cleared and reset")
 
     def initialize_app(self):
         """Show UI immediately then load EE data in the background."""
         if self.ee_initialized:
             return
-        # Clear any stale state from previous sessions
-        self.drawn_features = []
-        self.selected_territory = None
-        self.pending_territory = None
-        self.territory_geojson_features = []
-        self.territory_result = None
-        self.territory_result_year2 = None
         self.data_loaded = True
         self.ee_initialized = True
         self._load_territories_background()
@@ -274,18 +310,40 @@ class TerritoryMixin(rx.State, mixin=True):
             coords = geom.get("coordinates")
             if coords:
                 try:
-                    if geom_type == "Polygon":
-                        return ee.Geometry.Polygon(coords)
-                    elif geom_type == "MultiPolygon":
-                        return ee.Geometry.MultiPolygon(coords)
+                    # For MultiPolygon, validate each ring has at least 3 points
+                    if geom_type == "MultiPolygon":
+                        # Filter out invalid rings (< 3 points)
+                        valid_polygons = []
+                        for polygon in coords:
+                            valid_rings = []
+                            for ring in polygon:
+                                if len(ring) >= 3:
+                                    valid_rings.append(ring)
+                            if valid_rings:
+                                valid_polygons.append(valid_rings)
+                        if valid_polygons:
+                            return ee.Geometry.MultiPolygon(valid_polygons)
+                        else:
+                            logger.warning("[TERRITORY_GEOM] All rings filtered out, falling back to EE service")
+                    elif geom_type == "Polygon":
+                        # Validate polygon rings
+                        valid_rings = []
+                        for ring in coords:
+                            if len(ring) >= 3:
+                                valid_rings.append(ring)
+                        if valid_rings:
+                            return ee.Geometry.Polygon(valid_rings)
+                        else:
+                            logger.warning("[TERRITORY_GEOM] Polygon has no valid rings, falling back to EE service")
                     elif geom_type == "Point":
                         return ee.Geometry.Point(coords)
                     elif geom_type == "LineString":
-                        return ee.Geometry.LineString(coords)
+                        if len(coords) >= 2:
+                            return ee.Geometry.LineString(coords)
                 except Exception as e:
                     logger.warning(f"[TERRITORY_GEOM] Failed to reconstruct from cache: {e}")
 
-        # Slow path: re-fetch from EE service
+        # Slow path: re-fetch from EE service (more reliable)
         if not self.selected_territory:
             return None
         try:

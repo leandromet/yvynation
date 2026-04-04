@@ -110,7 +110,7 @@ def navbar() -> rx.Component:
         ),
         # Center spacer
         rx.spacer(),
-        # Right side - back button and analysis indicator
+        # Right side - back button, clear button, and analysis indicator
         rx.hstack(
             rx.button(
                 "← Back to Portal",
@@ -118,6 +118,14 @@ def navbar() -> rx.Component:
                 size="1",
                 variant="outline",
                 color_scheme="green",
+            ),
+            rx.button(
+                "🔄 Clear",
+                on_click=AppState.clear_all_state(),
+                size="1",
+                variant="outline",
+                color_scheme="red",
+                title="Clear all analysis data and start fresh",
             ),
             rx.cond(
                 (AppState.analysis_results != {}) & (AppState.analysis_results != None),
