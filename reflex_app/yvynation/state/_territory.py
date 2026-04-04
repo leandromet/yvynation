@@ -19,8 +19,8 @@ class TerritoryMixin(rx.State, mixin=True):
     def clear_all_state(self):
         """Clear all analysis data and geometries, restart fresh."""
         # Clear territories and selections
-        self.selected_territory = None
-        self.pending_territory = None
+        self.selected_territory = ""
+        self.pending_territory = ""
         self.territory_name = ""
         self.territory_geojson_features = []
 
@@ -28,29 +28,29 @@ class TerritoryMixin(rx.State, mixin=True):
         self.drawn_features = []
 
         # Clear all analysis results
-        self.territory_result = None
-        self.territory_result_year2 = None
+        self.territory_result = {}
+        self.territory_result_year2 = {}
         self.analysis_results = {}
-        self.mapbiomas_comparison_result = None
-        self.territory_transitions = None
+        self.mapbiomas_comparison_result = {}
+        self.territory_transitions = {}
 
         # Clear GLAD/GFC results
-        self.geometry_glad_result = None
-        self.geometry_gfc_result = None
+        self.geometry_glad_result = {}
+        self.geometry_gfc_result = {}
 
         # Clear all UI state
         self.error_message = ""
-        self.mapbiomas_bar_chart = None
-        self.mapbiomas_pie_chart = None
-        self.glad_bar_chart = None
-        self.gfc_bar_chart = None
-        self.gfc_loss_chart = None
-        self.hansen_balance_chart = None
-        self.gains_losses_chart = None
-        self.change_pct_chart = None
-        self.sankey_chart = None
-        self.sunburst_transitions_chart = None
-        self.transition_matrix_chart = None
+        self.mapbiomas_bar_chart = {}
+        self.mapbiomas_pie_chart = {}
+        self.glad_bar_chart = {}
+        self.gfc_bar_chart = {}
+        self.gfc_loss_chart = {}
+        self.hansen_balance_chart = {}
+        self.gains_losses_chart = {}
+        self.change_pct_chart = {}
+        self.sankey_chart = {}
+        self.sunburst_transitions_chart = {}
+        self.transition_matrix_chart = {}
 
         # Reset geometry tracking
         self.geometry_version += 1
