@@ -233,8 +233,7 @@ class AnalysisMixin(rx.State, mixin=True):
             self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
             self.error_message = ""
 
-            ee_service = get_ee_service()
-            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            ee_geom = self.get_territory_ee_geom()
 
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
@@ -242,6 +241,8 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.loading_type = ""
                 self.loading_message = ""
                 return
+
+            ee_service = get_ee_service()
 
             self.loading_type = "processing"
             self.loading_message = f"Processing MapBiomas {self.mapbiomas_current_year} data..."
@@ -310,8 +311,7 @@ class AnalysisMixin(rx.State, mixin=True):
             self.loading_message = f"Fetching {self.selected_territory} from Earth Engine..."
             self.error_message = ""
 
-            ee_service = get_ee_service()
-            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            ee_geom = self.get_territory_ee_geom()
 
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
@@ -319,6 +319,8 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.loading_type = ""
                 self.loading_message = ""
                 return
+
+            ee_service = get_ee_service()
 
             self.loading_type = "processing"
             self.loading_message = f"Processing Hansen {self.hansen_current_year} data..."
@@ -376,6 +378,101 @@ class AnalysisMixin(rx.State, mixin=True):
             self.hansen_analysis_pending = False
             self.clear_loading()
             logger.error(f"Hansen territory analysis error: {e}", exc_info=True)
+
+    async def run_hansen_glad_analysis_on_territory(self):
+        """Run Hansen GLAD (forest cover snapshot) analysis on selected territory."""
+        try:
+            from ..utils.hansen_analysis import get_hansen_analyzer
+
+            if not self.selected_territory:
+                self.error_message = "Please select a territory first"
+                return
+
+            ee_geom = self.get_territory_ee_geom()
+            if not ee_geom:
+                self.error_message = f"Territory geometry not found: {self.selected_territory}"
+                return
+
+            self.hansen_analysis_pending = True
+            self.loading_message = f"Analyzing Hansen GLAD {self.hansen_current_year}..."
+            self.error_message = ""
+
+            analyzer = get_hansen_analyzer()
+            if not analyzer.is_available():
+                self.error_message = "Hansen dataset not available"
+                self.hansen_analysis_pending = False
+                return
+
+            result_df = analyzer.get_area_distribution(ee_geom, year=int(self.hansen_current_year), scale=30)
+
+            if result_df is None or result_df.empty:
+                self.error_message = f"No Hansen GLAD data for {self.selected_territory} in {self.hansen_current_year}"
+            else:
+                result_dict = {
+                    "type": "hansen_glad",
+                    "source": "Hansen GLAD",
+                    "geometry_name": self.selected_territory,
+                    "data": result_df.to_dict("records"),
+                    "summary": {
+                        "year": int(self.hansen_current_year),
+                        "num_classes": len(result_df),
+                        "total_area_ha": float(result_df["Area_ha"].sum()),
+                    },
+                }
+                self.geometry_glad_result = result_dict
+                self.set_active_tab("analysis")
+                self.active_analysis_tab = "hansen"
+                self.loading_message = ""
+                logger.info(f"✓ Hansen GLAD territory: {len(result_df)} classes")
+
+            self.hansen_analysis_pending = False
+            self.clear_loading()
+
+        except Exception as e:
+            self.error_message = f"Hansen GLAD analysis failed: {e}"
+            self.hansen_analysis_pending = False
+            self.clear_loading()
+            logger.error(f"Hansen GLAD territory error: {e}", exc_info=True)
+
+    async def run_hansen_gfc_analysis_on_territory(self):
+        """Run Hansen GFC (cover 2000 + loss + gain) analysis on selected territory."""
+        try:
+            from ..utils.hansen_analysis import get_hansen_analyzer
+
+            if not self.selected_territory:
+                self.error_message = "Please select a territory first"
+                return
+
+            ee_geom = self.get_territory_ee_geom()
+            if not ee_geom:
+                self.error_message = f"Territory geometry not found: {self.selected_territory}"
+                return
+
+            self.geometry_analysis_pending = True
+            self.loading_message = f"Running Hansen GFC for {self.selected_territory}..."
+            self.error_message = ""
+
+            analyzer = get_hansen_analyzer()
+            result_dict = analyzer.analyze_gfc(ee_geom)
+
+            if result_dict and "error" not in result_dict:
+                result_dict["geometry_name"] = self.selected_territory
+                self.geometry_gfc_result = result_dict
+                self.set_active_tab("analysis")
+                self.active_analysis_tab = "gfc"
+                self.loading_message = ""
+                logger.info("✓ Hansen GFC territory: completed")
+            elif result_dict and "error" in result_dict:
+                self.error_message = result_dict["error"]
+
+            self.geometry_analysis_pending = False
+            self.clear_loading()
+
+        except Exception as e:
+            self.error_message = f"Hansen GFC analysis failed: {e}"
+            self.geometry_analysis_pending = False
+            self.clear_loading()
+            logger.error(f"Hansen GFC territory error: {e}", exc_info=True)
 
     # ====================================================================
     # Geometry-level analysis (drawn features)
@@ -770,7 +867,6 @@ class AnalysisMixin(rx.State, mixin=True):
         """Compare MapBiomas land cover between two years for selected territory."""
         try:
             from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
-            from ..utils.ee_service_extended import get_ee_service
             from ..utils.visualization import calculate_gains_losses
 
             if not self.selected_territory:
@@ -781,8 +877,7 @@ class AnalysisMixin(rx.State, mixin=True):
             y1, y2 = self.comparison_year1, self.comparison_year2
             self.loading_message = f"Comparing {self.selected_territory}: {y1} vs {y2}..."
 
-            ee_service = get_ee_service()
-            ee_geom = ee_service.get_territory_geometry(self.selected_territory)
+            ee_geom = self.get_territory_ee_geom()
             if not ee_geom:
                 self.error_message = f"Territory geometry not found: {self.selected_territory}"
                 self.mapbiomas_analysis_pending = False
@@ -828,16 +923,24 @@ class AnalysisMixin(rx.State, mixin=True):
             # Pixel-level transitions for Sankey / transition matrix
             self.loading_message = f"Computing transitions {y1} → {y2}..."
             transitions = analyzer.compute_transitions(ee_geom, y1, y2, scale=30)
-            self.territory_transitions = transitions if transitions else None
+            logger.info(f"Territory comparison - transitions computed: {len(transitions) if transitions else 0} source classes")
+            if transitions:
+                total_trans = sum(len(targets) for targets in transitions.values())
+                logger.info(f"  Total transitions: {total_trans}")
+                for src, tgts in list(transitions.items())[:3]:  # Log first 3 sources
+                    logger.info(f"  Source {src}: {len(tgts)} targets")
+            # Store transitions even if empty (empty dict means no transitions found, not an error)
+            self.territory_transitions = transitions
 
             comparison_dict = {
                 "year_start": y1,
                 "year_end": y2,
                 "territory": self.selected_territory,
                 "data": comparison_df.to_dict("records"),
-                "transitions": transitions if transitions else None,
+                "transitions": transitions,
             }
             self.mapbiomas_comparison_result = comparison_dict
+            logger.info(f"Territory comparison stored: {len(comparison_dict.get('transitions', {}))} transition sources")
 
             name_col = "Class_Name" if "Class_Name" in df2.columns else "Class"
             result_dict = {

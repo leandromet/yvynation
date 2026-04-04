@@ -4,7 +4,7 @@ Handles map-click selection, EE geometry loading, zoom bounds, and GeoJSON overl
 """
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import reflex as rx
 
@@ -20,6 +20,13 @@ class TerritoryMixin(rx.State, mixin=True):
         """Show UI immediately then load EE data in the background."""
         if self.ee_initialized:
             return
+        # Clear any stale state from previous sessions
+        self.drawn_features = []
+        self.selected_territory = None
+        self.pending_territory = None
+        self.territory_geojson_features = []
+        self.territory_result = None
+        self.territory_result_year2 = None
         self.data_loaded = True
         self.ee_initialized = True
         self._load_territories_background()
@@ -38,6 +45,18 @@ class TerritoryMixin(rx.State, mixin=True):
                     "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
                     "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
                 ]
+
+            # DEBUG: Log all territories and their properties
+            try:
+                all_terrs = ee_service.debug_all_territories()
+                logger.info(f"=== DEBUG: All EE Territories ({len(all_terrs)} total) ===")
+                for i, terr in enumerate(all_terrs):
+                    logger.info(f"Territory {i}: {terr['all_properties']}")
+                logger.info(f"=== Loaded as available_territories ===")
+                for t in self.available_territories:
+                    logger.info(f"  - {t}")
+            except Exception as debug_err:
+                logger.warning(f"Could not debug territories: {debug_err}")
 
             try:
                 tile_url = ee_service.get_indigenous_lands_tile_url()
@@ -133,22 +152,13 @@ class TerritoryMixin(rx.State, mixin=True):
 
                 ee_service = get_ee_service()
 
-                # Handle territory names that embed IDs like "Balaio (5301)"
-                territory_for_geometry = territory
-                if "(" in territory and ")" in territory:
+                # Try exact match first (preserves IDs like "Balaio (5301)" vs "Balaio (5302)")
+                geom = ee_service.get_territory_geometry(territory)
+
+                # Fallback: try base name if exact match fails and territory has an ID
+                if not geom and "(" in territory and ")" in territory:
                     base_name = territory.split("(")[0].strip()
-                    if base_name in self.available_territories:
-                        territory_for_geometry = base_name
-                    else:
-                        for available_t in self.available_territories:
-                            if base_name in available_t or available_t in base_name:
-                                territory_for_geometry = available_t
-                                break
-
-                geom = ee_service.get_territory_geometry(territory_for_geometry)
-
-                if not geom and territory_for_geometry != territory:
-                    geom = ee_service.get_territory_geometry(territory)
+                    geom = ee_service.get_territory_geometry(base_name)
 
                 if not geom:
                     self.error_message = f"Could not load geometry for: {territory}"
@@ -244,3 +254,47 @@ class TerritoryMixin(rx.State, mixin=True):
         except Exception as e:
             logger.error(f"Error adding territory geometry: {e}")
             self.error_message = f"Error loading territory: {e}"
+
+    # ---- EE geometry helper (mirrors get_selected_geometry_ee) ----------
+
+    def get_territory_ee_geom(self) -> Optional[Any]:
+        """Return an EE geometry for the selected territory.
+
+        Reconstructs from the cached GeoJSON in ``territory_geojson_features``
+        first (fast, no extra EE round-trip), then falls back to re-fetching
+        from the EE service if the cache is empty.
+        """
+        import ee
+
+        # Fast path: reconstruct from cached GeoJSON
+        if self.territory_geojson_features:
+            feat = self.territory_geojson_features[0]
+            geom = feat.get("geometry") or {}
+            geom_type = geom.get("type", "")
+            coords = geom.get("coordinates")
+            if coords:
+                try:
+                    if geom_type == "Polygon":
+                        return ee.Geometry.Polygon(coords)
+                    elif geom_type == "MultiPolygon":
+                        return ee.Geometry.MultiPolygon(coords)
+                    elif geom_type == "Point":
+                        return ee.Geometry.Point(coords)
+                    elif geom_type == "LineString":
+                        return ee.Geometry.LineString(coords)
+                except Exception as e:
+                    logger.warning(f"[TERRITORY_GEOM] Failed to reconstruct from cache: {e}")
+
+        # Slow path: re-fetch from EE service
+        if not self.selected_territory:
+            return None
+        try:
+            from ..utils.ee_service_extended import get_ee_service
+            ee_service = get_ee_service()
+            geom = ee_service.get_territory_geometry(self.selected_territory)
+            if geom:
+                logger.info(f"[TERRITORY_GEOM] Re-fetched from EE service: {self.selected_territory}")
+            return geom
+        except Exception as e:
+            logger.error(f"[TERRITORY_GEOM] EE service fallback failed: {e}")
+            return None

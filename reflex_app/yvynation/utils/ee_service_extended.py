@@ -158,6 +158,28 @@ class ExtendedEarthEngineService:
         except Exception as e:
             logger.error(f"Error getting territory names: {e}")
             return []
+
+    def debug_all_territories(self) -> List[Dict]:
+        """Return detailed info about all territories for debugging."""
+        try:
+            if not self.territories_fc:
+                return []
+
+            # Get all features
+            features = self.territories_fc.getInfo()['features']
+            result = []
+
+            for feat in features:
+                props = feat.get('properties', {})
+                result.append({
+                    'all_properties': props,
+                    'geometry_type': feat.get('geometry', {}).get('type'),
+                })
+
+            return result
+        except Exception as e:
+            logger.error(f"Error in debug_all_territories: {e}")
+            return []
     
     def get_territory_geometry(self, territory_name: str) -> Optional[ee.Geometry]:
         """Get geometry for a specific territory."""

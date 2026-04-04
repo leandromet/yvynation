@@ -1,7 +1,7 @@
 """
 Sidebar component for territory-focused analysis.
 Select indigenous territories by map click or list, run analysis,
-buffer, MapBiomas/Hansen/AAFC layers.
+buffer, MapBiomas/Hansen layers.
 """
 
 import reflex as rx
@@ -35,10 +35,34 @@ def _region_selector() -> rx.Component:
     )
 
 
-def _territory_selector_section() -> rx.Component:
+def _territory_tools_section() -> rx.Component:
     """Indigenous lands toggle, search, and territory list."""
     return rx.vstack(
-        # Show/hide all indigenous lands overlay + click-to-select hint
+        # Show/hide overlay + click hint
+        rx.box(
+            rx.vstack(
+                rx.heading("🗺️ Select Territory", size="4"),
+                rx.text(
+                    "Click a territory on the map or search the list below.",
+                    font_size="xs",
+                    color="gray.600",
+                ),
+                rx.text(
+                    "🎯 Tip: Toggle the indigenous lands layer to see all territories on the map.",
+                    font_size="9px",
+                    color="blue.600",
+                    font_weight="500",
+                ),
+                spacing="2",
+            ),
+            padding="0.75rem",
+            bg="blue.50",
+            border="1px solid #bfdbfe",
+            border_radius="md",
+            width="100%",
+        ),
+
+        # Show/hide indigenous lands overlay
         rx.hstack(
             rx.button(
                 rx.cond(
@@ -104,7 +128,7 @@ def _territory_selector_section() -> rx.Component:
                             width="100%",
                             spacing="2",
                         ),
-                        on_click=lambda t=territory: AppState.set_selected_territory(t),
+                        on_click=AppState.set_selected_territory(territory),
                         size="1",
                         variant=rx.cond(AppState.selected_territory == territory, "solid", "ghost"),
                         color_scheme=rx.cond(AppState.selected_territory == territory, "green", "gray"),
@@ -139,120 +163,245 @@ def _territory_selector_section() -> rx.Component:
 
 
 def _territory_analysis_section() -> rx.Component:
-    """Individual MapBiomas/Hansen analysis + year comparison for selected territory."""
-    return rx.vstack(
-        rx.cond(
-            AppState.selected_territory != None,
+    """Analysis: Year comparison + MapBiomas + Hansen GLAD + Hansen GFC for selected territory."""
+    return rx.cond(
+        AppState.selected_territory != None,
+        rx.box(
             rx.vstack(
+                # Selected territory badge
                 rx.badge(AppState.selected_territory, color_scheme="green", variant="solid", size="1"),
 
-                # MapBiomas single-year analysis
-                rx.hstack(
-                    rx.select(
-                        [str(y) for y in range(1985, 2024)],
-                        value=AppState.mapbiomas_current_year_str,
-                        on_change=AppState.set_mapbiomas_year,
-                        size="1",
-                        flex="1",
+                # ---- Year comparison ----------------------------------------
+                rx.vstack(
+                    rx.heading("📅 Year Comparison", size="4"),
+                    rx.text(
+                        "Compare MapBiomas land cover changes between two years.",
+                        font_size="xs",
+                        color="gray.600",
+                    ),
+                    rx.hstack(
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year1_str,
+                            on_change=AppState.set_comparison_year1,
+                            size="1",
+                            flex="1",
+                        ),
+                        rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
+                        rx.select(
+                            [str(y) for y in range(1985, 2024)],
+                            value=AppState.comparison_year2_str,
+                            on_change=AppState.set_comparison_year2,
+                            size="1",
+                            flex="1",
+                        ),
+                        width="100%",
+                        spacing="1",
+                        align_items="center",
                     ),
                     rx.cond(
                         AppState.mapbiomas_analysis_pending,
-                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="green", flex="0 1 auto"),
                         rx.button(
-                            "MapBiomas",
-                            on_click=AppState.run_mapbiomas_analysis_on_territory,
+                            rx.hstack(rx.spinner(size="1"), rx.text("Comparing..."), spacing="1"),
+                            is_disabled=True,
+                            width="100%",
+                            color_scheme="purple",
                             size="1",
-                            color_scheme="green",
-                            flex="0 1 auto",
+                        ),
+                        rx.button(
+                            "🔄 Compare MapBiomas Years",
+                            on_click=AppState.run_territory_comparison,
+                            width="100%",
+                            color_scheme="purple",
+                            size="1",
                         ),
                     ),
-                    spacing="1",
-                ),
-
-                # Hansen single-year analysis
-                rx.hstack(
-                    rx.select(
-                        HANSEN_YEARS,
-                        value=AppState.hansen_current_year,
-                        on_change=AppState.set_hansen_year,
-                        size="1",
-                        flex="1",
-                    ),
-                    rx.cond(
-                        AppState.hansen_analysis_pending,
-                        rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="blue", flex="0 1 auto"),
-                        rx.button(
-                            "Hansen",
-                            on_click=AppState.run_hansen_analysis_on_territory,
-                            size="1",
-                            color_scheme="blue",
-                            flex="0 1 auto",
-                        ),
-                    ),
-                    spacing="1",
+                    spacing="2",
+                    width="100%",
                 ),
 
                 rx.divider(),
 
-                # Year comparison
-                rx.text(AppState.tr["compare_years"], font_size="xs", font_weight="600", color="gray"),
-                rx.hstack(
-                    rx.select(
-                        [str(y) for y in range(1985, 2024)],
-                        value=AppState.comparison_year1_str,
-                        on_change=AppState.set_comparison_year1,
-                        size="1",
-                        flex="1",
+                # ---- Single layer analysis ----------------------------------
+                rx.vstack(
+                    rx.heading("🔍 Single Layer Analysis", size="4"),
+                    rx.text(
+                        "Analyze individual data layers for quick insights.",
+                        font_size="xs",
+                        color="gray.600",
                     ),
-                    rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
-                    rx.select(
-                        [str(y) for y in range(1985, 2024)],
-                        value=AppState.comparison_year2_str,
-                        on_change=AppState.set_comparison_year2,
-                        size="1",
-                        flex="1",
+
+                    # MapBiomas
+                    rx.vstack(
+                        rx.text("MapBiomas Year:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.hstack(
+                            rx.select(
+                                [str(y) for y in range(1985, 2024)],
+                                value=AppState.mapbiomas_current_year_str,
+                                on_change=AppState.set_mapbiomas_year,
+                                size="1",
+                                flex="1",
+                            ),
+                            rx.cond(
+                                AppState.mapbiomas_analysis_pending,
+                                rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="green", flex="0 1 auto"),
+                                rx.button(
+                                    "🌱 MapBiomas",
+                                    on_click=AppState.run_mapbiomas_analysis_on_territory,
+                                    size="1",
+                                    color_scheme="green",
+                                    flex="0 1 auto",
+                                ),
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        spacing="2",
+                        width="100%",
                     ),
-                    spacing="1",
-                    align_items="center",
+
+                    # Hansen GLAD
+                    rx.vstack(
+                        rx.text("Hansen GLAD — Forest Cover:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.text(
+                            "Annual forest cover: 2000, 2005, 2010, 2015, 2020",
+                            font_size="9px",
+                            color="gray.500",
+                        ),
+                        rx.hstack(
+                            rx.select(
+                                HANSEN_YEARS,
+                                value=AppState.hansen_current_year,
+                                on_change=AppState.set_hansen_year,
+                                size="1",
+                                flex="1",
+                            ),
+                            rx.cond(
+                                AppState.hansen_analysis_pending,
+                                rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="blue", flex="0 1 auto"),
+                                rx.button(
+                                    "Analyze",
+                                    on_click=AppState.run_hansen_glad_analysis_on_territory,
+                                    size="1",
+                                    color_scheme="blue",
+                                    flex="0 1 auto",
+                                ),
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+
+                    # Hansen GFC
+                    rx.vstack(
+                        rx.text("Hansen GFC — Global Forest Change:", font_size="xs", color="gray.600", font_weight="600"),
+                        rx.text(
+                            "Tree cover 2000 baseline · loss · gain layers",
+                            font_size="9px",
+                            color="gray.500",
+                        ),
+                        rx.cond(
+                            AppState.geometry_analysis_pending,
+                            rx.button(rx.spinner(size="1"), is_disabled=True, size="1", color_scheme="purple", width="100%"),
+                            rx.button(
+                                "🌲 Analyze GFC (area stats)",
+                                on_click=AppState.run_hansen_gfc_analysis_on_territory,
+                                size="1",
+                                color_scheme="purple",
+                                width="100%",
+                            ),
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+
+                    spacing="2",
                     width="100%",
                 ),
-                rx.cond(
-                    AppState.mapbiomas_analysis_pending,
-                    rx.button(
-                        rx.hstack(rx.spinner(size="1"), rx.text(AppState.tr["comparing_label"]), spacing="1"),
-                        is_disabled=True,
-                        size="1",
-                        color_scheme="purple",
-                        width="100%",
-                    ),
-                    rx.button(
-                        AppState.tr["compare_mapbiomas_years"],
-                        on_click=AppState.run_territory_comparison,
-                        size="1",
-                        color_scheme="purple",
-                        width="100%",
-                    ),
-                ),
 
+                spacing="3",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="1px solid #e5e7eb",
+            border_radius="md",
+            width="100%",
+        ),
+        rx.box(
+            rx.text(
+                "👆 Select a territory above to analyze",
+                font_size="xs",
+                color="gray.600",
+                text_align="center",
+            ),
+            padding="1rem",
+            bg="gray.50",
+            border_radius="md",
+            width="100%",
+        ),
+    )
+
+
+def _buffer_section() -> rx.Component:
+    """Create buffer zone around the selected territory."""
+    return rx.cond(
+        AppState.selected_territory != None,
+        rx.box(
+            rx.vstack(
+                rx.heading("🔵 Buffer Zone", size="4"),
+                rx.text(
+                    "Create an expanded analysis boundary around the selected territory.",
+                    font_size="xs",
+                    color="gray.600",
+                ),
+                rx.hstack(
+                    rx.input(
+                        value=AppState.buffer_distance_input,
+                        on_change=AppState.set_buffer_distance_input,
+                        type_="number",
+                        placeholder="Distance (m)",
+                        size="1",
+                        flex="1",
+                    ),
+                    rx.text("m", font_size="sm", color="gray"),
+                    rx.button(
+                        "Create",
+                        on_click=AppState.handle_create_buffer,
+                        size="1",
+                        color_scheme="green",
+                    ),
+                    width="100%",
+                    spacing="1",
+                ),
                 spacing="2",
                 width="100%",
             ),
-            rx.text(AppState.tr["select_territory_above"], font_size="xs", color="gray"),
+            padding="0.75rem",
+            border="1px solid #e5e7eb",
+            border_radius="md",
+            width="100%",
         ),
-        spacing="2",
-        width="100%",
+        rx.box(),
     )
 
 
 def _mapbiomas_layers_section() -> rx.Component:
     """MapBiomas year grid with add/clear and active badges with per-year removal."""
     return rx.vstack(
+        rx.text(
+            "Selected for map display:",
+            font_size="xs",
+            color="gray.600",
+            font_weight="600",
+        ),
         rx.flex(
             rx.foreach(
                 MAPBIOMAS_YEARS,
                 lambda year: rx.button(
                     year.to(str),
-                    on_click=lambda *a, y=year: AppState.set_mapbiomas_year(y),
+                    on_click=AppState.set_mapbiomas_year(year),
                     size="1",
                     padding="4px 6px",
                     font_size="10px",
@@ -295,7 +444,7 @@ def _mapbiomas_layers_section() -> rx.Component:
                                 "x",
                                 font_size="xs",
                                 cursor="pointer",
-                                on_click=lambda *a, y=year: AppState.remove_mapbiomas_layer(y),
+                                on_click=AppState.remove_mapbiomas_layer(year),
                                 color="red",
                                 _hover={"font_weight": "bold"},
                             ),
@@ -310,7 +459,7 @@ def _mapbiomas_layers_section() -> rx.Component:
                 flex_wrap="wrap",
                 gap="1",
             ),
-            rx.box(),
+            rx.text("(None selected)", font_size="xs", color="gray.500"),
         ),
         spacing="2",
         width="100%",
@@ -378,7 +527,7 @@ def _hansen_layers_section() -> rx.Component:
                                 "x",
                                 font_size="xs",
                                 cursor="pointer",
-                                on_click=lambda *a, l=lyr: AppState.remove_hansen_layer(l),
+                                on_click=AppState.remove_hansen_layer(lyr),
                                 color="red",
                                 _hover={"font_weight": "bold"},
                             ),
@@ -443,10 +592,10 @@ def territory_sidebar() -> rx.Component:
 
         rx.divider(),
 
-        # Territory selection (with indigenous lands toggle + search + list)
+        # Territory selection (toggle + country + search + list)
         _section(
             "territory_selection",
-            _territory_selector_section(),
+            _territory_tools_section(),
             AppState.sidebar_territory_expanded,
             lambda: AppState.toggle_sidebar_section("territory"),
             rx.cond(
@@ -456,54 +605,20 @@ def territory_sidebar() -> rx.Component:
             ),
         ),
 
-        # Analysis settings (MapBiomas, Hansen, year comparison)
+        # Buffer controls
+        _section(
+            "buffer_controls",
+            _buffer_section(),
+            AppState.sidebar_geometry_expanded,
+            lambda: AppState.toggle_sidebar_section("geometry"),
+        ),
+
+        # Analysis (year comparison + MapBiomas + Hansen GLAD + Hansen GFC)
         _section(
             "analysis_settings",
             _territory_analysis_section(),
             AppState.sidebar_mapbiomas_expanded,
             lambda: AppState.toggle_sidebar_section("mapbiomas"),
-        ),
-
-        # Buffer controls
-        _section(
-            "buffer_controls",
-            rx.vstack(
-                rx.box(
-                    rx.vstack(
-                        rx.text(AppState.tr["buffer_distance"], font_size="sm", font_weight="600"),
-                        rx.hstack(
-                            rx.input(
-                                value=AppState.buffer_distance_input,
-                                on_change=AppState.set_buffer_distance_input,
-                                type_="number",
-                                placeholder=AppState.tr["enter_distance"],
-                                size="1",
-                                flex="1",
-                            ),
-                            rx.text("m", font_size="sm", color="gray"),
-                            width="100%",
-                            spacing="1",
-                        ),
-                        width="100%",
-                    ),
-                    border="1px solid #d0d0d0",
-                    padding="0.75rem",
-                    border_radius="md",
-                    width="100%",
-                ),
-                rx.button(
-                    AppState.tr["create_buffer"],
-                    on_click=AppState.handle_create_buffer,
-                    size="1",
-                    color_scheme="green",
-                    variant="solid",
-                    width="100%",
-                ),
-                spacing="3",
-                width="100%",
-            ),
-            AppState.sidebar_geometry_expanded,
-            lambda: AppState.toggle_sidebar_section("geometry"),
         ),
 
         # MapBiomas layers

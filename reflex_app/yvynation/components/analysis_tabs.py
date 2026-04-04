@@ -267,6 +267,32 @@ def hansen_tab() -> rx.Component:
 
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
+        # ---- Visual help for GLAD ----
+        rx.box(
+            rx.hstack(
+                rx.box(
+                    rx.icon("info", size=20, color="#ed8936"),
+                    width="auto",
+                ),
+                rx.vstack(
+                    rx.text("Hansen GLAD / Forest Cover Snapshots", font_weight="bold", font_size="sm"),
+                    rx.text(
+                        "Data shows land cover classification for specific years (2000, 2005, 2010, 2015, 2020). "
+                        "Numbers represent mapped forest cover (%) for each class.",
+                        font_size="xs", color="gray", line_height="1.5",
+                    ),
+                    spacing="1",
+                ),
+                spacing="3",
+                align_items="flex_start",
+            ),
+            padding="1rem",
+            bg="orange.50",
+            border_radius="md",
+            border_left="4px solid #ed8936",
+            width="100%",
+            margin_bottom="1rem",
+        ),
         rx.cond(
             has_data,
             rx.box(
@@ -319,6 +345,7 @@ def hansen_tab() -> rx.Component:
                 ),
                 rx.divider(),
                 # ---- Area distribution chart ----------------------------
+                rx.heading("📊 Class Distribution by Area", size="4"),
                 rx.box(
                     rx.cond(
                         has_glad,
@@ -329,7 +356,7 @@ def hansen_tab() -> rx.Component:
                 ),
                 rx.divider(),
                 # ---- Class table (dynamic — use rx.table not data_table) -
-                rx.heading("🌿 Class Distribution", size="4"),
+                rx.heading("🌿 Detailed Class Data", size="4"),
                 rx.cond(
                     has_glad,
                     _glad_table(AppState.glad_table_data),
@@ -393,6 +420,33 @@ def hansen_gfc_tab() -> rx.Component:
     """Hansen GFC (Global Forest Change) tab: cover 2000, loss 2000-2023, gain 2000-2012."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_gfc_label"], size="3"),
+        # ---- Visual help for GFC ----
+        rx.box(
+            rx.hstack(
+                rx.box(
+                    rx.icon("info", size=20, color="#ed8936"),
+                    width="auto",
+                ),
+                rx.vstack(
+                    rx.text("Hansen GFC / Global Forest Change", font_weight="bold", font_size="sm"),
+                    rx.text(
+                        "Tracks continuous forest dynamics using three layers: "
+                        "(1) Tree Cover 2000 baseline, (2) Annual tree loss (2000–2023 by year), (3) Forest gain (2000–2012). "
+                        "Captures detailed year-by-year loss patterns and regrowth.",
+                        font_size="xs", color="gray", line_height="1.5",
+                    ),
+                    spacing="1",
+                ),
+                spacing="3",
+                align_items="flex_start",
+            ),
+            padding="1rem",
+            bg="orange.50",
+            border_radius="md",
+            border_left="4px solid #ed8936",
+            width="100%",
+            margin_bottom="1rem",
+        ),
         rx.text(
             "Tree Cover 2000 (baseline) | Tree Loss 2000–2023 | Tree Gain 2000–2012",
             font_size="sm", color="gray",
@@ -754,6 +808,31 @@ def comparison_tab() -> rx.Component:
                             rx.icon("info", size=20, color="gray"),
                             rx.text(
                                 "No transition data available. Transition data is computed during comparison analysis.",
+                                font_size="xs", color="gray",
+                            ),
+                            align="center",
+                            padding="1rem",
+                        ),
+                    ),
+                    width="100%",
+                ),
+                rx.divider(),
+                # Sunburst Chart - Rings visualization of transitions
+                rx.box(
+                    rx.hstack(
+                        rx.icon("pie-chart", size=16, color="purple"),
+                        rx.text("Class Transitions (Sunburst)", font_weight="bold", font_size="sm"),
+                        spacing="2",
+                        align_items="center",
+                    ),
+                    rx.cond(
+                        AppState.sunburst_transitions_chart != None,
+                        rx.plotly(data=AppState.sunburst_transitions_chart, use_resize_handler=True),
+                        rx.vstack(
+                            rx.icon("info", size=20, color="gray"),
+                            rx.text(
+                                "Sunburst chart shows how each class in the first year transitions to classes in the second year. "
+                                "Run comparison analysis to generate this visualization.",
                                 font_size="xs", color="gray",
                             ),
                             align="center",

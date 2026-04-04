@@ -873,9 +873,12 @@ class AppState(
     def sankey_chart(self) -> Optional[Figure]:
         try:
             transitions = self.territory_transitions
+            logger.info(f"sankey_chart: territory_transitions has {len(transitions) if transitions else 0} sources")
             if not transitions and self.mapbiomas_comparison_result:
                 transitions = self.mapbiomas_comparison_result.get("transitions")
+                logger.info(f"sankey_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
             if not transitions:
+                logger.warning(f"sankey_chart: no transitions found in either territory or comparison")
                 return None
 
             year1 = self.mapbiomas_comparison_result.get("year_start", self.comparison_year1) \
@@ -883,20 +886,54 @@ class AppState(
             year2 = self.mapbiomas_comparison_result.get("year_end", self.comparison_year2) \
                 if self.mapbiomas_comparison_result else self.comparison_year2
 
+            logger.info(f"sankey_chart: calling create_sankey_transitions({len(transitions)} sources, {year1}->{year2})")
             from ..utils.visualization import create_sankey_transitions
 
-            return create_sankey_transitions(transitions, year1, year2) or None
+            result = create_sankey_transitions(transitions, year1, year2)
+            logger.info(f"sankey_chart: create_sankey_transitions returned {type(result).__name__}")
+            return result or None
         except Exception as e:
-            logger.error(f"Sankey chart error: {e}")
+            logger.error(f"Sankey chart error: {e}", exc_info=True)
+            return None
+
+    @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
+    def sunburst_transitions_chart(self) -> Optional[Figure]:
+        """Sunburst (rings) chart showing class transitions between years."""
+        try:
+            transitions = self.territory_transitions
+            logger.info(f"sunburst_transitions_chart: territory_transitions has {len(transitions) if transitions else 0} sources")
+            if not transitions and self.mapbiomas_comparison_result:
+                transitions = self.mapbiomas_comparison_result.get("transitions")
+                logger.info(f"sunburst_transitions_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
+            if not transitions:
+                logger.warning(f"sunburst_transitions_chart: no transitions found in either territory or comparison")
+                return None
+
+            year1 = self.mapbiomas_comparison_result.get("year_start", self.comparison_year1) \
+                if self.mapbiomas_comparison_result else self.comparison_year1
+            year2 = self.mapbiomas_comparison_result.get("year_end", self.comparison_year2) \
+                if self.mapbiomas_comparison_result else self.comparison_year2
+
+            logger.info(f"sunburst_transitions_chart: calling create_sunburst_transitions({len(transitions)} sources, {year1}->{year2})")
+            from ..utils.visualization import create_sunburst_transitions
+
+            result = create_sunburst_transitions(transitions, year1, year2)
+            logger.info(f"sunburst_transitions_chart: create_sunburst_transitions returned {type(result).__name__}")
+            return result or None
+        except Exception as e:
+            logger.error(f"Sunburst chart error: {e}", exc_info=True)
             return None
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
     def transition_matrix_chart(self) -> Optional[Figure]:
         try:
             transitions = self.territory_transitions
+            logger.info(f"transition_matrix_chart: territory_transitions has {len(transitions) if transitions else 0} sources")
             if not transitions and self.mapbiomas_comparison_result:
                 transitions = self.mapbiomas_comparison_result.get("transitions")
+                logger.info(f"transition_matrix_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
             if not transitions:
+                logger.warning(f"transition_matrix_chart: no transitions found")
                 return None
 
             import plotly.graph_objects as pgo
@@ -907,7 +944,9 @@ class AppState(
                     all_classes.add(str(src))
                     all_classes.update(str(t) for t in tgt_dict)
             classes = sorted(all_classes)
+            logger.info(f"transition_matrix_chart: found {len(classes)} classes: {classes[:5]}...")
             if not classes:
+                logger.warning(f"transition_matrix_chart: no valid classes after processing")
                 return None
 
             try:
@@ -961,7 +1000,8 @@ class AppState(
                 height=600,
                 template="plotly_white",
             )
+            logger.info(f"transition_matrix_chart: successfully created matrix with {len(classes)}x{len(classes)} cells")
             return fig
         except Exception as e:
-            logger.error(f"Transition matrix error: {e}")
+            logger.error(f"Transition matrix error: {e}", exc_info=True)
             return None

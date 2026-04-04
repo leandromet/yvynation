@@ -106,6 +106,9 @@ def create_export_zip(
     transitions: Optional[Dict] = None,
     territory_result: Optional[List[Dict]] = None,
     territory_result_year2: Optional[List[Dict]] = None,
+    territory_geojson_cached: Optional[Dict] = None,
+    glad_result: Optional[Dict[str, Any]] = None,
+    gfc_result: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     """
     Create a ZIP file containing all analysis data, figures, and metadata.
@@ -150,9 +153,9 @@ def create_export_zip(
             geojson = _geojson_from_features(drawn_features)
             zf.writestr("geometries.geojson", json.dumps(geojson, indent=2, default=str))
 
-        # Try to add territory boundary
+        # Try to add territory boundary (use cached GeoJSON to avoid EE re-fetch)
         if territory_name:
-            terr_geojson = _territory_geojson(territory_name)
+            terr_geojson = territory_geojson_cached or _territory_geojson(territory_name)
             if terr_geojson:
                 zf.writestr(
                     f"territory/{territory_name}/boundary.geojson",
@@ -200,6 +203,42 @@ def create_export_zip(
                 else:
                     path = f"analysis/comparison_{y1}_vs_{y2}.csv"
                 zf.writestr(path, _df_to_csv_bytes(df_comp))
+
+        # === 5b. Hansen GLAD data ===
+        if glad_result:
+            glad_data = glad_result.get("data", [])
+            if glad_data:
+                df_glad = pd.DataFrame(glad_data)
+                glad_year = glad_result.get("summary", {}).get("year", "")
+                name_slug = territory_name or glad_result.get("geometry_name", "area")
+                path = f"territory/{name_slug}/hansen_glad_{glad_year}_data.csv" if territory_name \
+                    else f"analysis/hansen_glad_{glad_year}_data.csv"
+                zf.writestr(path, _df_to_csv_bytes(df_glad))
+
+        # === 5c. Hansen GFC data ===
+        if gfc_result:
+            name_slug = territory_name or gfc_result.get("geometry_name", "area")
+            # Summary metrics table
+            gfc_data = gfc_result.get("data", [])
+            if gfc_data:
+                df_gfc = pd.DataFrame(gfc_data)
+                path = f"territory/{name_slug}/hansen_gfc_summary.csv" if territory_name \
+                    else "analysis/hansen_gfc_summary.csv"
+                zf.writestr(path, _df_to_csv_bytes(df_gfc))
+            # Tree loss by year
+            loss_data = gfc_result.get("tree_loss_data", [])
+            if loss_data:
+                df_loss = pd.DataFrame(loss_data)
+                path = f"territory/{name_slug}/hansen_gfc_loss_by_year.csv" if territory_name \
+                    else "analysis/hansen_gfc_loss_by_year.csv"
+                zf.writestr(path, _df_to_csv_bytes(df_loss))
+            # Tree gain
+            gain_data = gfc_result.get("tree_gain_data", [])
+            if gain_data:
+                df_gain = pd.DataFrame(gain_data)
+                path = f"territory/{name_slug}/hansen_gfc_gain.csv" if territory_name \
+                    else "analysis/hansen_gfc_gain.csv"
+                zf.writestr(path, _df_to_csv_bytes(df_gain))
 
         # === 6. Transitions JSON ===
         if transitions:
@@ -267,25 +306,61 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
 
     Returns dict with keys matching create_export_zip() parameters.
     """
-    # Collect Plotly figure JSONs from computed properties
+    # Collect all available Plotly figures
     plotly_figs = {}
     try:
-        if state.analysis_results.get("type") == "mapbiomas":
-            if state.mapbiomas_bar_chart:
-                plotly_figs["mapbiomas_distribution"] = state.mapbiomas_bar_chart
-            if state.mapbiomas_pie_chart:
-                plotly_figs["mapbiomas_composition"] = state.mapbiomas_pie_chart
-        elif state.analysis_results.get("type") == "hansen":
-            if state.hansen_balance_chart:
-                plotly_figs["hansen_balance"] = state.hansen_balance_chart
+        # MapBiomas single-year
+        if state.mapbiomas_bar_chart:
+            plotly_figs["mapbiomas_distribution"] = state.mapbiomas_bar_chart
+        if state.mapbiomas_pie_chart:
+            plotly_figs["mapbiomas_composition"] = state.mapbiomas_pie_chart
 
-        if state.comparison_available:
-            if state.gains_losses_chart:
-                plotly_figs["gains_losses"] = state.gains_losses_chart
-            if state.change_pct_chart:
-                plotly_figs["change_percentage"] = state.change_pct_chart
+        # Hansen GLAD
+        if state.glad_bar_chart:
+            plotly_figs["hansen_glad_distribution"] = state.glad_bar_chart
+
+        # Hansen GFC
+        if state.gfc_bar_chart:
+            plotly_figs["hansen_gfc_summary"] = state.gfc_bar_chart
+        if state.gfc_loss_chart:
+            plotly_figs["hansen_gfc_loss_by_year"] = state.gfc_loss_chart
+
+        # Hansen territory balance (old-style territory analysis)
+        if state.hansen_balance_chart:
+            plotly_figs["hansen_balance"] = state.hansen_balance_chart
+
+        # Year comparison charts
+        if state.gains_losses_chart:
+            plotly_figs["gains_losses"] = state.gains_losses_chart
+        if state.change_pct_chart:
+            plotly_figs["change_percentage"] = state.change_pct_chart
+
+        # Transition charts (Sankey, Sunburst, Matrix)
+        if state.sankey_chart:
+            plotly_figs["transitions_sankey"] = state.sankey_chart
+        if state.sunburst_transitions_chart:
+            plotly_figs["transitions_sunburst"] = state.sunburst_transitions_chart
+        if state.transition_matrix_chart:
+            plotly_figs["transitions_matrix"] = state.transition_matrix_chart
+
     except Exception as e:
         logger.warning(f"Error collecting plotly figures: {e}")
+
+    # territory_result / territory_result_year2 are dicts with "data" and "summary"
+    # keys — extract just the records list for pd.DataFrame()
+    t_result = state.territory_result
+    t_result_year2 = state.territory_result_year2
+    t_result_data = t_result.get("data", []) if isinstance(t_result, dict) else (t_result or [])
+    t_result_year2_data = t_result_year2.get("data", []) if isinstance(t_result_year2, dict) else (t_result_year2 or [])
+
+    # Use cached territory GeoJSON to avoid re-fetching from EE
+    cached_geojson = None
+    try:
+        feats = state.territory_geojson_features
+        if feats:
+            cached_geojson = feats[0].get("geometry")
+    except Exception:
+        pass
 
     return {
         "analysis_results": state.analysis_results,
@@ -297,6 +372,9 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
         "drawn_features": state.drawn_features,
         "plotly_figures": plotly_figs if plotly_figs else None,
         "transitions": state.territory_transitions,
-        "territory_result": state.territory_result,
-        "territory_result_year2": state.territory_result_year2,
+        "territory_result": t_result_data or None,
+        "territory_result_year2": t_result_year2_data or None,
+        "territory_geojson_cached": cached_geojson,
+        "glad_result": state.geometry_glad_result or None,
+        "gfc_result": state.geometry_gfc_result or None,
     }

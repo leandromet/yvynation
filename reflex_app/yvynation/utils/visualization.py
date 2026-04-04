@@ -297,7 +297,10 @@ def create_sankey_transitions(transitions_dict: Dict,
         class_names: class_id -> display name
     """
     if not transitions_dict:
+        logger.warning(f"Sankey: empty transitions dict received")
         return None
+    
+    logger.info(f"Sankey: Processing {len(transitions_dict)} sources, {year_start}->{year_end}")
 
     if class_colors is None:
         class_colors = _get_mapbiomas_colors()
@@ -326,7 +329,10 @@ def create_sankey_transitions(transitions_dict: Dict,
                 link_colors.append(class_colors.get(src_id, '#cccccc'))
 
     if not sources:
+        logger.warning(f"Sankey: No valid transitions found after processing")
         return None
+    
+    logger.info(f"Sankey: Generated {len(sources)} transitions")
 
     all_nodes = list(dict.fromkeys(sources + targets))  # ordered unique
     node_flow = {}
@@ -477,6 +483,109 @@ class HansenVisualizer:
         except Exception as e:
             logger.error(f"Hansen distribution chart error: {e}")
             return go.Figure().add_annotation(text=f"Error: {str(e)}")
+
+
+def create_sunburst_transitions(transitions_dict: Dict,
+                               year_start: int = 2018,
+                               year_end: int = 2023,
+                               class_colors: Dict = None,
+                               class_names: Dict = None) -> Optional[go.Figure]:
+    """
+    Create a sunburst chart showing land cover transitions between two years.
+    Each segment shows how classes change from year1 to year2.
+    
+    Args:
+        transitions_dict: Dict of {class_id_year1: {class_id_year2: area_ha, ...}, ...}
+        year_start: First year
+        year_end: Second year
+        class_colors: Color map for classes
+        class_names: Name map for classes
+    
+    Returns:
+        Plotly Figure with sunburst chart
+    """
+    if not transitions_dict:
+        logger.warning(f"Sunburst: empty transitions dict received")
+        return None
+    
+    logger.info(f"Sunburst: Processing {len(transitions_dict)} sources, {year_start}->{year_end}")
+
+    if class_colors is None:
+        class_colors = _get_mapbiomas_colors()
+    if class_names is None:
+        class_names = _get_mapbiomas_labels()
+
+    labels = []
+    parents = []
+    values = []
+    colors = []
+    
+    # Root
+    labels.append(f"Land Cover\n{year_start}→{year_end}")
+    parents.append("")
+    values.append(0)
+    colors.append("#ffffff")
+    
+    # By source class
+    for src_id, tgt_dict in transitions_dict.items():
+        if not isinstance(tgt_dict, dict):
+            continue
+        
+        total_area = sum(a for a in tgt_dict.values() if isinstance(a, (int, float)))
+        if total_area <= 0:
+            continue
+        
+        # Source class label
+        src_label = class_names.get(src_id, f"Class {src_id}") if not isinstance(src_id, str) else src_id
+        full_src_label = f"{src_label}\n({year_start})"
+        
+        labels.append(full_src_label)
+        parents.append(f"Land Cover\n{year_start}→{year_end}")
+        values.append(total_area)
+        src_color = class_colors.get(src_id, '#cccccc') if not isinstance(src_id, str) else class_colors.get(int(src_id) if isinstance(src_id, str) else src_id, '#cccccc')
+        colors.append(src_color)
+        
+        # Target classes
+        for tgt_id, area in tgt_dict.items():
+            if not isinstance(area, (int, float)) or area <= 0:
+                continue
+            
+            tgt_label = class_names.get(tgt_id, f"Class {tgt_id}") if not isinstance(tgt_id, str) else tgt_id
+            full_tgt_label = f"{tgt_label}\n({year_end}, {area:,.0f} ha)"
+            
+            labels.append(full_tgt_label)
+            parents.append(full_src_label)
+            values.append(area)
+            colors.append(src_color)
+    
+    if len(labels) < 2:
+        logger.warning(f"Sunburst: No valid transitions found after processing")
+        return None
+    
+    logger.info(f"Sunburst: Generated {len(labels)} labels")
+    
+    fig = go.Figure(go.Sunburst(
+        labels=labels,
+        parents=parents,
+        values=values,
+        marker=dict(
+            colors=colors,
+            line=dict(color='white', width=2),
+        ),
+        hovertemplate='<b>%{label}</b><br>Area: %{value:,.0f} ha<extra></extra>',
+        textfont=dict(size=11),
+    ))
+    
+    fig.update_layout(
+        title=f'Land Cover Transitions ({year_start}→{year_end}) - Sunburst View',
+        height=700,
+        font=dict(size=10),
+        template='plotly_white',
+        margin=dict(t=80, l=0, r=0, b=0),
+    )
+    
+    logger.info(f"Sunburst: Successfully created figure with {len(labels)} labels")
+    return fig
 
 
 # ---------------------------------------------------------------------------

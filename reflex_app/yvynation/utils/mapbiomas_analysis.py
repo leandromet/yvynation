@@ -198,14 +198,22 @@ class MapBiomasAnalyzer:
         """
         try:
             if not self.is_available():
+                logger.warning("MapBiomas dataset not available for transitions")
                 return {}
 
             band1 = f'classification_{year_start}'
             band2 = f'classification_{year_end}'
-            img1 = self.mapbiomas_dataset.select(band1)
-            img2 = self.mapbiomas_dataset.select(band2)
+            
+            try:
+                img1 = self.mapbiomas_dataset.select(band1)
+                img2 = self.mapbiomas_dataset.select(band2)
+            except Exception as e:
+                logger.error(f"Could not select bands {band1}, {band2}: {e}")
+                return {}
 
             combined = img1.multiply(1000).add(img2)
+            logger.info(f"Computing transitions {year_start}->{year_end} with scale={scale}")
+            
             hist = combined.reduceRegion(
                 reducer=ee.Reducer.frequencyHistogram(),
                 geometry=geometry,
@@ -214,32 +222,43 @@ class MapBiomasAnalyzer:
             ).getInfo()
 
             if not hist:
+                logger.warning(f"Empty histogram for transitions {year_start}->{year_end}")
                 return {}
 
             trans_key = list(hist.keys())[0]
             raw = hist.get(trans_key, {})
             if not raw:
+                logger.warning(f"No transition data in histogram for {year_start}->{year_end}")
                 return {}
 
+            logger.info(f"Histogram has {len(raw)} transition entries")
+
             transitions: Dict[int, Dict[int, float]] = {}
+            valid_transitions = 0
             for combined_str, count in raw.items():
                 combined_val = int(combined_str)
                 src = combined_val // 1000
                 tgt = combined_val % 1000
                 area_ha = count * 0.09  # 30m pixel = 900 m² = 0.09 ha
-                if src > 0 and tgt > 0 and area_ha > 0:
+                
+                # Include transitions if area is significant (at least one pixel)
+                # Allow class 0 on one side (nodata conversions) but not both
+                if area_ha > 0 and src != tgt and not(src == 0 and tgt == 0):
                     if src not in transitions:
                         transitions[src] = {}
                     transitions[src][tgt] = transitions[src].get(tgt, 0) + area_ha
+                    valid_transitions += 1
 
             logger.info(
                 f"Computed transitions {year_start}->{year_end}: "
-                f"{len(transitions)} source classes"
+                f"{len(transitions)} source classes, "
+                f"{valid_transitions} valid transition entries, "
+                f"{sum(len(v) for v in transitions.values())} total targets"
             )
             return transitions
 
         except Exception as e:
-            logger.error(f"Error computing transitions {year_start}-{year_end}: {e}")
+            logger.error(f"Error computing transitions {year_start}-{year_end}: {e}", exc_info=True)
             return {}
 
     def get_change_timeline(
