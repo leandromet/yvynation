@@ -10,7 +10,7 @@ WORKDIR /app
 
 # ── System dependencies ──────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git ca-certificates build-essential \
+    curl git ca-certificates build-essential unzip \
     gdal-bin libgdal-dev libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
