@@ -19,43 +19,54 @@ class TerritoryMixin(rx.State, mixin=True):
     def clear_all_state(self):
         """Clear all analysis data and geometries, restart fresh."""
         # Clear territories and selections
-        self.selected_territory = ""
-        self.pending_territory = ""
+        self.selected_territory = None
+        self.pending_territory = None
         self.territory_name = ""
         self.territory_geojson_features = []
 
-        # Clear drawn features
+        # Clear drawn features and geometry selections
         self.drawn_features = []
+        self.selected_geometry_idx = None
+        self.selected_geometry_is_territory = False
+        self.show_geometry_popup = False
+        self.geometry_popup_info = {}
 
-        # Clear all analysis results
-        self.territory_result = {}
-        self.territory_result_year2 = {}
+        # Clear territory-level analysis results (back to Optional defaults)
+        self.territory_result = None
+        self.territory_result_year2 = None
+        self.territory_transitions = None
+
+        # Clear general analysis results
         self.analysis_results = {}
-        self.mapbiomas_comparison_result = {}
-        self.territory_transitions = {}
+        self.mapbiomas_analysis_result = None
+        self.hansen_analysis_result = None
+        self.mapbiomas_comparison_result = None
+        self.hansen_comparison_result = None
+        self.all_analysis_results = {}
+        self.analysis_figures = {}
+        self.active_result_key = ""
+        self.result_keys_list = []
 
-        # Clear GLAD/GFC results
-        self.geometry_glad_result = {}
-        self.geometry_gfc_result = {}
+        # Clear geometry-level analysis results (back to Optional defaults)
+        self.geometry_analysis_results = {}
+        self.geometry_glad_result = None
+        self.geometry_gfc_result = None
+        self.geometry_analysis_pending = False
 
-        # Clear all UI state
+        # Clear analysis pending flags
+        self.mapbiomas_analysis_pending = False
+        self.hansen_analysis_pending = False
+
+        # Clear UI state
         self.error_message = ""
-        self.mapbiomas_bar_chart = {}
-        self.mapbiomas_pie_chart = {}
-        self.glad_bar_chart = {}
-        self.gfc_bar_chart = {}
-        self.gfc_loss_chart = {}
-        self.hansen_balance_chart = {}
-        self.gains_losses_chart = {}
-        self.change_pct_chart = {}
-        self.sankey_chart = {}
-        self.sunburst_transitions_chart = {}
-        self.transition_matrix_chart = {}
+        self.loading_message = ""
+        self.loading_type = ""
 
         # Reset geometry tracking
         self.geometry_version += 1
         self.territory_geometry_displayed = False
         self.map_zoom_bounds = {}
+        self.analysis_tile_layers = []
 
         logger.info("Application state cleared and reset")
 
