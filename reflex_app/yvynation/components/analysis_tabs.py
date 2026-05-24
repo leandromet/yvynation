@@ -134,83 +134,138 @@ def _hansen_summary_metrics() -> rx.Component:
 
 
 # -----------------------------------------------------------------------
-# Buffer comparison helper
+# Shared buffer comparison header / badge
+# -----------------------------------------------------------------------
+
+def _buffer_header(title: str, badge_text: rx.Var) -> rx.Component:
+    """Reusable header row for every buffer comparison box."""
+    return rx.vstack(
+        rx.hstack(
+            rx.icon("circle", color="#3B82F6", size=14),
+            rx.heading(title, size="3", color="#1D4ED8"),
+            rx.badge(badge_text, color_scheme="blue", variant="surface", size="1"),
+            spacing="2",
+            align_items="center",
+        ),
+        rx.text(
+            "🟠 Territory (inside boundary)  vs  🔵 Buffer zone (external ring)",
+            font_size="xs",
+            color="gray.600",
+        ),
+        spacing="1",
+        width="100%",
+    )
+
+
+def _territory_card(area: rx.Var, classes: rx.Var) -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500"),
+            rx.text(area, font_weight="bold", font_size="lg"),
+            rx.text(classes, font_size="xs", color="gray"),
+            spacing="1", align="center",
+        ),
+        flex="1", padding="0.75rem", bg="orange.50",
+        border_radius="md", border="1px solid #FF4500", text_align="center",
+    )
+
+
+def _buffer_card(area: rx.Var, extra: rx.Var) -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8"),
+            rx.text(area, font_weight="bold", font_size="lg"),
+            rx.text(extra, font_size="xs", color="gray"),
+            spacing="1", align="center",
+        ),
+        flex="1", padding="0.75rem", bg="blue.50",
+        border_radius="md", border="1px solid #1D4ED8", text_align="center",
+    )
+
+
+def _plotly_safe(chart_var: rx.Var, min_height: str = "180px") -> rx.Component:
+    """Render rx.plotly only when the chart var is not null.
+
+    rx.plotly crashes with 'WeakMap key null' if its data prop is null/None.
+    This wrapper guards against that by rendering a placeholder instead.
+    """
+    return rx.cond(
+        chart_var != None,
+        rx.plotly(data=chart_var, use_resize_handler=True),
+        rx.box(
+            rx.text("No data", font_size="xs", color="gray"),
+            min_height=min_height,
+            display="flex",
+            align_items="center",
+            justify_content="center",
+        ),
+    )
+
+
+def _side_by_side_charts(left_chart: rx.Var, right_chart: rx.Var,
+                          left_label: str = "Territory",
+                          right_label: str = "Buffer") -> rx.Component:
+    return rx.hstack(
+        rx.box(
+            rx.text(left_label, font_size="xs", color="gray", text_align="center"),
+            _plotly_safe(left_chart),
+            flex="1",
+        ),
+        rx.box(
+            rx.text(right_label, font_size="xs", color="gray", text_align="center"),
+            _plotly_safe(right_chart),
+            flex="1",
+        ),
+        width="100%",
+        spacing="2",
+        align_items="flex-start",
+    )
+
+
+def _buffer_box(content: rx.Component) -> rx.Component:
+    return rx.box(
+        content,
+        padding="0.75rem",
+        border="2px solid #93C5FD",
+        border_radius="md",
+        bg="blue.50",
+        width="100%",
+    )
+
+
+# -----------------------------------------------------------------------
+# Buffer comparison helpers — one per tab
 # -----------------------------------------------------------------------
 
 def _buffer_comparison_mapbiomas() -> rx.Component:
-    """Side-by-side MapBiomas territory vs buffer comparison (shown when buffer results exist)."""
+    """Side-by-side MapBiomas territory vs buffer comparison."""
     return rx.cond(
         AppState.buffer_mapbiomas_result != None,
-        rx.box(
+        _buffer_box(
             rx.vstack(
-                rx.hstack(
-                    rx.icon("circle", color="#3B82F6", size=14),
-                    rx.heading("Buffer Zone Comparison", size="3", color="#1D4ED8"),
-                    rx.badge(
-                        AppState.buffer_mapbiomas_summary.get("name", "Buffer"),
-                        color_scheme="blue", variant="surface", size="1",
-                    ),
-                    spacing="2",
-                    align_items="center",
+                _buffer_header(
+                    "Buffer Zone — MapBiomas Comparison",
+                    AppState.buffer_mapbiomas_summary.get("name", "Buffer"),
                 ),
-                rx.text(
-                    "Territory result (orange) vs external buffer ring (blue)",
-                    font_size="xs",
-                    color="gray.600",
-                ),
-                # Side-by-side metric cards
                 rx.hstack(
-                    # Territory side
-                    rx.box(
-                        rx.vstack(
-                            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500"),
-                            rx.text(AppState.analysis_summary_total_area, font_weight="bold", font_size="lg"),
-                            rx.text(AppState.analysis_summary_classes + " classes", font_size="xs", color="gray"),
-                            spacing="1", align="center",
-                        ),
-                        flex="1", padding="0.75rem", bg="orange.50",
-                        border_radius="md", border="1px solid #FF4500", text_align="center",
+                    _territory_card(
+                        AppState.analysis_summary_total_area,
+                        AppState.analysis_summary_classes + " classes",
                     ),
                     rx.text("vs", font_size="md", color="gray", font_weight="bold"),
-                    # Buffer side
-                    rx.box(
-                        rx.vstack(
-                            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8"),
-                            rx.text(AppState.buffer_mapbiomas_summary.get("area", "…"), font_weight="bold", font_size="lg"),
-                            rx.text(AppState.buffer_mapbiomas_summary.get("classes", "0") + " classes", font_size="xs", color="gray"),
-                            spacing="1", align="center",
-                        ),
-                        flex="1", padding="0.75rem", bg="blue.50",
-                        border_radius="md", border="1px solid #1D4ED8", text_align="center",
+                    _buffer_card(
+                        AppState.buffer_mapbiomas_summary.get("area", "…"),
+                        AppState.buffer_mapbiomas_summary.get("classes", "0") + " classes",
                     ),
-                    width="100%",
-                    spacing="2",
-                    align_items="center",
+                    width="100%", spacing="2", align_items="center",
                 ),
-                # Side-by-side charts
-                rx.hstack(
-                    rx.box(
-                        rx.text("Territory", font_size="xs", color="gray", text_align="center"),
-                        rx.plotly(data=AppState.mapbiomas_bar_chart, use_resize_handler=True),
-                        flex="1",
-                    ),
-                    rx.box(
-                        rx.text("Buffer", font_size="xs", color="gray", text_align="center"),
-                        rx.plotly(data=AppState.buffer_mapbiomas_bar_chart, use_resize_handler=True),
-                        flex="1",
-                    ),
-                    width="100%",
-                    spacing="2",
-                    align_items="flex-start",
+                _side_by_side_charts(
+                    AppState.mapbiomas_bar_chart,
+                    AppState.buffer_mapbiomas_bar_chart,
                 ),
                 spacing="3",
                 width="100%",
-            ),
-            padding="0.75rem",
-            border="2px solid #93C5FD",
-            border_radius="md",
-            bg="blue.50",
-            width="100%",
+            )
         ),
         rx.box(),
     )
@@ -220,63 +275,178 @@ def _buffer_comparison_hansen() -> rx.Component:
     """Side-by-side Hansen GLAD territory vs buffer comparison."""
     return rx.cond(
         AppState.buffer_hansen_result != None,
-        rx.box(
+        _buffer_box(
             rx.vstack(
-                rx.hstack(
-                    rx.icon("circle", color="#3B82F6", size=14),
-                    rx.heading("Buffer Zone — Hansen Comparison", size="3", color="#1D4ED8"),
-                    rx.badge(
-                        AppState.buffer_hansen_summary.get("name", "Buffer"),
-                        color_scheme="blue", variant="surface", size="1",
-                    ),
-                    spacing="2",
-                    align_items="center",
+                _buffer_header(
+                    "Buffer Zone — Hansen/GLAD Comparison",
+                    AppState.buffer_hansen_summary.get("name", "Buffer"),
                 ),
                 rx.hstack(
-                    rx.box(
-                        rx.vstack(
-                            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500"),
-                            rx.text(AppState.glad_summary_area, font_weight="bold", font_size="lg"),
-                            rx.text(AppState.glad_summary_classes + " classes", font_size="xs", color="gray"),
-                            spacing="1", align="center",
-                        ),
-                        flex="1", padding="0.75rem", bg="orange.50",
-                        border_radius="md", border="1px solid #FF4500", text_align="center",
+                    _territory_card(
+                        AppState.glad_summary_area,
+                        AppState.glad_summary_classes + " classes",
                     ),
                     rx.text("vs", font_size="md", color="gray", font_weight="bold"),
-                    rx.box(
-                        rx.vstack(
-                            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8"),
-                            rx.text(AppState.buffer_hansen_summary.get("area", "…"), font_weight="bold", font_size="lg"),
-                            rx.text(AppState.buffer_hansen_summary.get("classes", "0") + " classes", font_size="xs", color="gray"),
-                            spacing="1", align="center",
-                        ),
-                        flex="1", padding="0.75rem", bg="blue.50",
-                        border_radius="md", border="1px solid #1D4ED8", text_align="center",
+                    _buffer_card(
+                        AppState.buffer_hansen_summary.get("area", "…"),
+                        AppState.buffer_hansen_summary.get("classes", "0") + " classes",
                     ),
                     width="100%", spacing="2", align_items="center",
                 ),
-                rx.hstack(
-                    rx.box(
-                        rx.text("Territory", font_size="xs", color="gray", text_align="center"),
-                        rx.plotly(data=AppState.glad_bar_chart, use_resize_handler=True),
-                        flex="1",
-                    ),
-                    rx.box(
-                        rx.text("Buffer", font_size="xs", color="gray", text_align="center"),
-                        rx.plotly(data=AppState.buffer_hansen_bar_chart, use_resize_handler=True),
-                        flex="1",
-                    ),
-                    width="100%", spacing="2", align_items="flex-start",
+                _side_by_side_charts(
+                    AppState.glad_bar_chart,
+                    AppState.buffer_hansen_bar_chart,
                 ),
                 spacing="3",
                 width="100%",
+            )
+        ),
+        rx.box(),
+    )
+
+
+def _buffer_comparison_gfc() -> rx.Component:
+    """Side-by-side Hansen GFC territory vs buffer comparison."""
+    return rx.cond(
+        AppState.buffer_gfc_result != None,
+        _buffer_box(
+            rx.vstack(
+                _buffer_header(
+                    "Buffer Zone — Hansen GFC Comparison",
+                    AppState.buffer_gfc_summary.get("name", "Buffer"),
+                ),
+                # Three-metric row for GFC (Cover / Loss / Gain)
+                rx.hstack(
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🌳 Tree Cover 2000", font_size="xs", color="gray"),
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text("Territory", font_size="xs", color="#FF4500"),
+                                    rx.text(AppState.gfc_summary_cover, font_weight="bold", color="green"),
+                                    spacing="0", align="center",
+                                ),
+                                rx.text("vs", font_size="xs", color="gray"),
+                                rx.vstack(
+                                    rx.text("Buffer", font_size="xs", color="#1D4ED8"),
+                                    rx.text(AppState.buffer_gfc_summary.get("cover", "…"), font_weight="bold", color="teal"),
+                                    spacing="0", align="center",
+                                ),
+                                spacing="2", align_items="center",
+                            ),
+                            spacing="1", align="center",
+                        ),
+                        padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("📉 Forest Loss", font_size="xs", color="gray"),
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text("Territory", font_size="xs", color="#FF4500"),
+                                    rx.text(AppState.gfc_summary_loss, font_weight="bold", color="red"),
+                                    spacing="0", align="center",
+                                ),
+                                rx.text("vs", font_size="xs", color="gray"),
+                                rx.vstack(
+                                    rx.text("Buffer", font_size="xs", color="#1D4ED8"),
+                                    rx.text(AppState.buffer_gfc_summary.get("loss", "…"), font_weight="bold", color="orange"),
+                                    spacing="0", align="center",
+                                ),
+                                spacing="2", align_items="center",
+                            ),
+                            spacing="1", align="center",
+                        ),
+                        padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("📈 Forest Gain", font_size="xs", color="gray"),
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text("Territory", font_size="xs", color="#FF4500"),
+                                    rx.text(AppState.gfc_summary_gain, font_weight="bold", color="teal"),
+                                    spacing="0", align="center",
+                                ),
+                                rx.text("vs", font_size="xs", color="gray"),
+                                rx.vstack(
+                                    rx.text("Buffer", font_size="xs", color="#1D4ED8"),
+                                    rx.text(AppState.buffer_gfc_summary.get("gain", "…"), font_weight="bold", color="purple"),
+                                    spacing="0", align="center",
+                                ),
+                                spacing="2", align_items="center",
+                            ),
+                            spacing="1", align="center",
+                        ),
+                        padding="0.75rem", bg="teal.50", border_radius="md", flex="1", text_align="center",
+                    ),
+                    width="100%", spacing="2",
+                ),
+                _side_by_side_charts(
+                    AppState.gfc_bar_chart,
+                    AppState.buffer_gfc_bar_chart,
+                ),
+                spacing="3",
+                width="100%",
+            )
+        ),
+        # No buffer GFC data yet — show helpful hint
+        rx.box(
+            rx.hstack(
+                rx.icon("info", size=14, color="#93C5FD"),
+                rx.text(
+                    "Buffer zone GFC comparison will appear here after running "
+                    "Territory Analysis → Hansen GFC with an active buffer.",
+                    font_size="xs", color="#1D4ED8",
+                ),
+                spacing="2", align_items="center",
             ),
-            padding="0.75rem",
-            border="2px solid #93C5FD",
+            padding="0.5rem 0.75rem",
+            border="1px dashed #93C5FD",
             border_radius="md",
             bg="blue.50",
             width="100%",
+        ),
+    )
+
+
+def _buffer_comparison_compare() -> rx.Component:
+    """Side-by-side comparison year-2 territory vs buffer for the Compare tab."""
+    return rx.cond(
+        AppState.buffer_compare_result != None,
+        _buffer_box(
+            rx.vstack(
+                _buffer_header(
+                    "Buffer Zone — Year Comparison",
+                    AppState.buffer_compare_summary.get("name", "Buffer"),
+                ),
+                rx.text(
+                    "Land cover in the external buffer ring — year " +
+                    AppState.buffer_compare_summary.get("year", ""),
+                    font_size="xs", color="gray.600",
+                ),
+                rx.hstack(
+                    # Territory card — uses pre-computed vars (no chained .get())
+                    _territory_card(
+                        AppState.territory_year2_area,
+                        AppState.territory_year2_classes,
+                    ),
+                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
+                    _buffer_card(
+                        AppState.buffer_compare_summary.get("area", "…"),
+                        AppState.buffer_compare_summary.get("classes", "0") + " classes",
+                    ),
+                    width="100%", spacing="2", align_items="center",
+                ),
+                _side_by_side_charts(
+                    AppState.mapbiomas_bar_chart,
+                    AppState.buffer_compare_bar_chart,
+                    left_label="Territory (year 2)",
+                    right_label="Buffer (year 2)",
+                ),
+                spacing="3",
+                width="100%",
+            )
         ),
         rx.box(),
     )
@@ -302,7 +472,6 @@ def mapbiomas_tab() -> rx.Component:
                             f"📍 {AppState.selected_territory} • MapBiomas {AppState.territory_analysis_year}",
                             "MapBiomas Analysis Ready"
                         ),
-                        # For geometry analysis
                         f"🔍 {AppState.analysis_results.get('geometry', 'Geometry')} • MapBiomas {AppState.analysis_results.get('year', 'N/A')}",
                     ),
                     font_size="sm", color="gray"
@@ -324,12 +493,12 @@ def mapbiomas_tab() -> rx.Component:
                 ),
                 rx.divider(),
                 rx.box(
-                    rx.plotly(data=AppState.mapbiomas_bar_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.mapbiomas_bar_chart),
                     width="100%",
                 ),
                 rx.divider(),
                 rx.box(
-                    rx.plotly(data=AppState.mapbiomas_pie_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.mapbiomas_pie_chart),
                     width="100%",
                 ),
                 rx.divider(),
@@ -408,23 +577,16 @@ def _glad_table(data) -> rx.Component:
 
 
 def hansen_tab() -> rx.Component:
-    """Hansen/GLAD forest cover analysis tab.
-    Shows geometry_glad_result for geometry GLAD analysis,
-    or hansen_analysis_result for territory Hansen analysis.
-    """
+    """Hansen/GLAD forest cover analysis tab."""
     has_glad = AppState.geometry_glad_result != None
     has_territory = AppState.hansen_analysis_result != None
     has_data = has_glad | has_territory
 
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
-        # ---- Visual help for GLAD ----
         rx.box(
             rx.hstack(
-                rx.box(
-                    rx.icon("info", size=20, color="#ed8936"),
-                    width="auto",
-                ),
+                rx.box(rx.icon("info", size=20, color="#ed8936"), width="auto"),
                 rx.vstack(
                     rx.text("Hansen GLAD / Forest Cover Snapshots", font_weight="bold", font_size="sm"),
                     rx.text(
@@ -466,7 +628,6 @@ def hansen_tab() -> rx.Component:
         rx.cond(
             has_data,
             rx.vstack(
-                # ---- Summary metrics row --------------------------------
                 rx.hstack(
                     rx.box(
                         rx.vstack(
@@ -495,18 +656,16 @@ def hansen_tab() -> rx.Component:
                     width="100%", spacing="2",
                 ),
                 rx.divider(),
-                # ---- Area distribution chart ----------------------------
                 rx.heading("📊 Class Distribution by Area", size="4"),
                 rx.box(
                     rx.cond(
                         has_glad,
-                        rx.plotly(data=AppState.glad_bar_chart, use_resize_handler=True),
-                        rx.plotly(data=AppState.hansen_balance_chart, use_resize_handler=True),
+                        _plotly_safe(AppState.glad_bar_chart),
+                        _plotly_safe(AppState.hansen_balance_chart),
                     ),
                     width="100%",
                 ),
                 rx.divider(),
-                # ---- Class table (dynamic — use rx.table not data_table) -
                 rx.heading("🌿 Detailed Class Data", size="4"),
                 rx.cond(
                     has_glad,
@@ -535,7 +694,7 @@ def hansen_tab() -> rx.Component:
             ),
             _no_data_placeholder(AppState.tr["hansen_no_data"]),
         ),
-        # Buffer comparison (shown below when buffer analysis has run)
+        # Buffer comparison
         _buffer_comparison_hansen(),
         width="100%",
         spacing="3",
@@ -548,7 +707,6 @@ def hansen_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def _gfc_simple_table(data, cols) -> rx.Component:
-    """Render a simple GFC result table using rx.table (column-safe)."""
     return rx.table.root(
         rx.table.header(
             rx.table.row(
@@ -573,13 +731,9 @@ def hansen_gfc_tab() -> rx.Component:
     """Hansen GFC (Global Forest Change) tab: cover 2000, loss 2000-2023, gain 2000-2012."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_gfc_label"], size="3"),
-        # ---- Visual help for GFC ----
         rx.box(
             rx.hstack(
-                rx.box(
-                    rx.icon("info", size=20, color="#ed8936"),
-                    width="auto",
-                ),
+                rx.box(rx.icon("info", size=20, color="#ed8936"), width="auto"),
                 rx.vstack(
                     rx.text("Hansen GFC / Global Forest Change", font_weight="bold", font_size="sm"),
                     rx.text(
@@ -608,7 +762,6 @@ def hansen_gfc_tab() -> rx.Component:
         rx.cond(
             AppState.geometry_gfc_result != None,
             rx.vstack(
-                # Info bar
                 rx.box(
                     rx.text(
                         f"🔍 {AppState.geometry_gfc_result.get('geometry_name', 'Geometry')} • Hansen GFC",
@@ -620,7 +773,6 @@ def hansen_gfc_tab() -> rx.Component:
                     border_left="4px solid #ed8936",
                     width="100%",
                 ),
-                # 4 summary metrics
                 rx.hstack(
                     rx.box(
                         rx.vstack(
@@ -628,11 +780,7 @@ def hansen_gfc_tab() -> rx.Component:
                             rx.text(AppState.gfc_summary_cover, font_weight="bold", font_size="lg", color="green"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem",
-                        bg="green.50",
-                        border_radius="md",
-                        flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
                     ),
                     rx.box(
                         rx.vstack(
@@ -640,11 +788,7 @@ def hansen_gfc_tab() -> rx.Component:
                             rx.text(AppState.gfc_summary_loss, font_weight="bold", font_size="lg", color="red"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem",
-                        bg="red.50",
-                        border_radius="md",
-                        flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
                     ),
                     rx.box(
                         rx.vstack(
@@ -652,11 +796,7 @@ def hansen_gfc_tab() -> rx.Component:
                             rx.text(AppState.gfc_summary_gain, font_weight="bold", font_size="lg", color="teal"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem",
-                        bg="teal.50",
-                        border_radius="md",
-                        flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="teal.50", border_radius="md", flex="1", text_align="center",
                     ),
                     rx.box(
                         rx.vstack(
@@ -664,23 +804,16 @@ def hansen_gfc_tab() -> rx.Component:
                             rx.text(AppState.gfc_summary_net, font_weight="bold", font_size="lg", color="purple"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem",
-                        bg="purple.50",
-                        border_radius="md",
-                        flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="purple.50", border_radius="md", flex="1", text_align="center",
                     ),
-                    width="100%",
-                    spacing="2",
+                    width="100%", spacing="2",
                 ),
                 rx.divider(),
-                # ---- Summary bar chart (Cover / Loss / Gain) ------------
                 rx.box(
-                    rx.plotly(data=AppState.gfc_bar_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.gfc_bar_chart),
                     width="100%",
                 ),
                 rx.divider(),
-                # ---- Summary table (Metric / Area_ha / Percent / Desc) --
                 rx.heading("📊 Summary", size="4"),
                 rx.table.root(
                     rx.table.header(
@@ -705,7 +838,6 @@ def hansen_gfc_tab() -> rx.Component:
                     width="100%", variant="surface", size="1",
                 ),
                 rx.divider(),
-                # ---- Tree Cover 2000 Categories -------------------------
                 rx.cond(
                     AppState.gfc_cover_categories.length() > 0,
                     rx.vstack(
@@ -736,12 +868,10 @@ def hansen_gfc_tab() -> rx.Component:
                     rx.box(),
                 ),
                 rx.divider(),
-                # ---- Tree Loss by Year ----------------------------------
                 rx.cond(
                     AppState.gfc_loss_by_year.length() > 0,
                     rx.vstack(
                         rx.heading("🔥 Forest Loss by Year", size="4"),
-                        # Metrics row
                         rx.hstack(
                             rx.box(
                                 rx.vstack(
@@ -761,12 +891,10 @@ def hansen_gfc_tab() -> rx.Component:
                             ),
                             width="100%", spacing="2",
                         ),
-                        # Loss by year bar chart
                         rx.box(
-                            rx.plotly(data=AppState.gfc_loss_chart, use_resize_handler=True),
+                            _plotly_safe(AppState.gfc_loss_chart),
                             width="100%",
                         ),
-                        # Loss by year table
                         rx.table.root(
                             rx.table.header(
                                 rx.table.row(
@@ -795,7 +923,6 @@ def hansen_gfc_tab() -> rx.Component:
                     ),
                 ),
                 rx.divider(),
-                # ---- Tree Gain 2000–2012 --------------------------------
                 rx.cond(
                     AppState.gfc_gain_summary.length() > 0,
                     rx.vstack(
@@ -840,6 +967,8 @@ def hansen_gfc_tab() -> rx.Component:
             ),
             _no_data_placeholder(AppState.tr["hansen_no_data"]),
         ),
+        # Buffer comparison
+        _buffer_comparison_gfc(),
         width="100%",
         spacing="3",
         padding="1rem",
@@ -868,6 +997,23 @@ def aafc_tab() -> rx.Component:
                 padding="2rem",
             ),
         ),
+        # Buffer note for AAFC (Canada-only, territories in Brazil)
+        rx.box(
+            rx.hstack(
+                rx.icon("info", size=14, color="#93C5FD"),
+                rx.text(
+                    "Buffer zone comparison for AAFC is not applicable to Brazilian indigenous territories. "
+                    "Buffer analysis uses MapBiomas (Brazil) and Hansen (global) datasets.",
+                    font_size="xs", color="#1D4ED8",
+                ),
+                spacing="2", align_items="center",
+            ),
+            padding="0.5rem 0.75rem",
+            border="1px dashed #93C5FD",
+            border_radius="md",
+            bg="blue.50",
+            width="100%",
+        ),
         width="100%",
         spacing="3",
         padding="1rem",
@@ -885,68 +1031,50 @@ def comparison_tab() -> rx.Component:
         rx.cond(
             AppState.comparison_available,
             rx.vstack(
-                # Side-by-side comparison chart
                 rx.box(
-                    rx.plotly(data=AppState.comparison_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.comparison_chart),
                     width="100%",
                 ),
                 rx.divider(),
-                # Gains/Losses
                 rx.box(
                     rx.text(AppState.tr["total_gains"] + " / " + AppState.tr["total_losses"], font_weight="bold", font_size="sm"),
-                    rx.plotly(data=AppState.gains_losses_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.gains_losses_chart),
                     width="100%",
                 ),
                 rx.divider(),
-                # Change percentage
                 rx.box(
-                    rx.plotly(data=AppState.change_pct_chart, use_resize_handler=True),
+                    _plotly_safe(AppState.change_pct_chart),
                     width="100%",
                 ),
                 rx.divider(),
-                # Summary stats
                 rx.hstack(
                     rx.box(
                         rx.vstack(
                             rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
-                            rx.text(
-                                AppState.comparison_total_gains,
-                                font_weight="bold", color="green",
-                            ),
+                            rx.text(AppState.comparison_total_gains, font_weight="bold", color="green"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem", bg="green.50", border_radius="md", flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
                     ),
                     rx.box(
                         rx.vstack(
                             rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
-                            rx.text(
-                                AppState.comparison_total_losses,
-                                font_weight="bold", color="red",
-                            ),
+                            rx.text(AppState.comparison_total_losses, font_weight="bold", color="red"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem", bg="red.50", border_radius="md", flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
                     ),
                     rx.box(
                         rx.vstack(
                             rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
-                            rx.text(
-                                AppState.comparison_net_change,
-                                font_weight="bold",
-                            ),
+                            rx.text(AppState.comparison_net_change, font_weight="bold"),
                             spacing="0", align="center",
                         ),
-                        padding="0.75rem", bg="blue.50", border_radius="md", flex="1",
-                        text_align="center",
+                        padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
                     ),
-                    width="100%",
-                    spacing="2",
+                    width="100%", spacing="2",
                 ),
                 rx.divider(),
-                # Sankey Diagram
                 rx.box(
                     rx.hstack(
                         rx.icon("git-branch", size=16, color="purple"),
@@ -956,7 +1084,7 @@ def comparison_tab() -> rx.Component:
                     ),
                     rx.cond(
                         AppState.sankey_chart != None,
-                        rx.plotly(data=AppState.sankey_chart, use_resize_handler=True),
+                        _plotly_safe(AppState.sankey_chart),
                         rx.vstack(
                             rx.icon("info", size=20, color="gray"),
                             rx.text(
@@ -970,7 +1098,6 @@ def comparison_tab() -> rx.Component:
                     width="100%",
                 ),
                 rx.divider(),
-                # Sunburst Chart - Rings visualization of transitions
                 rx.box(
                     rx.hstack(
                         rx.icon("pie-chart", size=16, color="purple"),
@@ -980,7 +1107,7 @@ def comparison_tab() -> rx.Component:
                     ),
                     rx.cond(
                         AppState.sunburst_transitions_chart != None,
-                        rx.plotly(data=AppState.sunburst_transitions_chart, use_resize_handler=True),
+                        _plotly_safe(AppState.sunburst_transitions_chart),
                         rx.vstack(
                             rx.icon("info", size=20, color="gray"),
                             rx.text(
@@ -995,7 +1122,6 @@ def comparison_tab() -> rx.Component:
                     width="100%",
                 ),
                 rx.divider(),
-                # Transition Matrix Heatmap
                 rx.box(
                     rx.hstack(
                         rx.icon("grid-3x3", size=16, color="orange"),
@@ -1005,7 +1131,7 @@ def comparison_tab() -> rx.Component:
                     ),
                     rx.cond(
                         AppState.transition_matrix_chart != None,
-                        rx.plotly(data=AppState.transition_matrix_chart, use_resize_handler=True),
+                        _plotly_safe(AppState.transition_matrix_chart),
                         rx.text(
                             "No transition data available.",
                             font_size="xs", color="gray", padding="1rem",
@@ -1013,7 +1139,6 @@ def comparison_tab() -> rx.Component:
                     ),
                     width="100%",
                 ),
-                # CSV download
                 rx.button(
                     AppState.tr["download_comparison_csv"],
                     on_click=AppState.download_comparison_csv,
@@ -1033,6 +1158,8 @@ def comparison_tab() -> rx.Component:
                 width="100%",
             ),
         ),
+        # Buffer comparison for compare tab
+        _buffer_comparison_compare(),
         width="100%",
         spacing="3",
         padding="1rem",
@@ -1044,7 +1171,7 @@ def comparison_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def about_tab() -> rx.Component:
-    """About tab: territory info + full project context, etymology, data sources."""
+    """About tab: territory info + full project context, etymology, data sources, buffer guide."""
     return rx.vstack(
         # --- Territory Info Section ---
         rx.cond(
@@ -1070,18 +1197,18 @@ def about_tab() -> rx.Component:
                 rx.text(AppState.tr["data_sources_title"], font_weight="bold", font_size="sm"),
                 rx.vstack(
                     rx.hstack(
-                        rx.badge("MapBiomas", color_scheme="green"),
-                        rx.text("Land cover 1985-2023 (Brazil)", font_size="xs"),
+                        rx.badge("MapBiomas 10.1", color_scheme="green"),
+                        rx.text("Land cover 1985–2024 (Brazil)", font_size="xs"),
                         spacing="2",
                     ),
                     rx.hstack(
                         rx.badge("Hansen", color_scheme="blue"),
-                        rx.text("Forest change 2000-2023 (Global)", font_size="xs"),
+                        rx.text("Forest change 2000–2023 (Global)", font_size="xs"),
                         spacing="2",
                     ),
                     rx.hstack(
                         rx.badge("AAFC", color_scheme="orange"),
-                        rx.text("Crop inventory 2009-2023 (Canada)", font_size="xs"),
+                        rx.text("Crop inventory 2009–2023 (Canada)", font_size="xs"),
                         spacing="2",
                     ),
                     spacing="2",
@@ -1096,11 +1223,7 @@ def about_tab() -> rx.Component:
         # --- Project Overview Section ---
         rx.vstack(
             rx.heading(AppState.tr["about_overview"], size="3"),
-            rx.text(
-                AppState.tr["about_desc"],
-                font_size="sm",
-                line_height="1.6",
-            ),
+            rx.text(AppState.tr["about_desc"], font_size="sm", line_height="1.6"),
             spacing="2",
             width="100%",
         ),
@@ -1118,39 +1241,20 @@ def about_tab() -> rx.Component:
                 AppState.tr["about_role"] + " - " + AppState.tr["about_university"],
                 font_size="xs", color="gray",
             ),
-            rx.text(
-                AppState.tr["about_supervisor"],
-                font_size="xs", color="gray",
-            ),
+            rx.text(AppState.tr["about_supervisor"], font_size="xs", color="gray"),
             rx.divider(),
             rx.hstack(
                 rx.icon("globe", size=16, color="teal"),
-                rx.text(
-                    AppState.tr["about_app_name"],
-                    font_weight="bold", font_size="sm",
-                ),
-                rx.text(
-                    AppState.tr["about_app_note"],
-                    font_size="xs", color="gray",
-                ),
+                rx.text(AppState.tr["about_app_name"], font_weight="bold", font_size="sm"),
+                rx.text(AppState.tr["about_app_note"], font_size="xs", color="gray"),
                 spacing="2",
                 align_items="center",
                 flex_wrap="wrap",
             ),
             rx.box(
                 rx.vstack(
-                    rx.text(
-                        AppState.tr["yvynation_meaning"],
-                        font_size="xs",
-                        font_style="italic",
-                        line_height="1.5",
-                    ),
-                    rx.text(
-                        AppState.tr["nation_meaning"],
-                        font_size="xs",
-                        font_style="italic",
-                        line_height="1.5",
-                    ),
+                    rx.text(AppState.tr["yvynation_meaning"], font_size="xs", font_style="italic", line_height="1.5"),
+                    rx.text(AppState.tr["nation_meaning"], font_size="xs", font_style="italic", line_height="1.5"),
                     spacing="2",
                 ),
                 padding="0.75rem",
@@ -1168,34 +1272,132 @@ def about_tab() -> rx.Component:
             rx.heading(AppState.tr["data_sources_title"], size="3"),
             rx.vstack(
                 rx.hstack(
-                    rx.badge("MapBiomas", color_scheme="green", variant="solid"),
-                    rx.text(AppState.tr["mapbiomas_desc"], font_size="xs"),
+                    rx.badge("MapBiomas 10.1", color_scheme="green", variant="solid"),
+                    rx.vstack(
+                        rx.text(AppState.tr["mapbiomas_desc"], font_size="xs"),
+                        rx.text(
+                            "Collection 10.1 · Resolution: 30 m · Period: 1985–2024 · Brazil coverage · "
+                            "Asset: mapbiomas-public/assets/brazil/lulc/collection10_1/…coverage_v1",
+                            font_size="xs", color="gray",
+                        ),
+                        spacing="0",
+                    ),
                     spacing="2",
                     align_items="start",
                     flex_wrap="wrap",
                 ),
                 rx.hstack(
                     rx.badge("Hansen/GLAD", color_scheme="blue", variant="solid"),
-                    rx.text("Global Forest Change - Resolution: 30m, Period: 2000-2024, Global coverage", font_size="xs"),
+                    rx.vstack(
+                        rx.text("Global Forest Change — forest cover snapshots", font_size="xs"),
+                        rx.text(
+                            "GLCLU2020 v2 · Resolution: 30 m · Snapshots: 2000, 2005, 2010, 2015, 2020 · Global coverage",
+                            font_size="xs", color="gray",
+                        ),
+                        spacing="0",
+                    ),
+                    spacing="2",
+                    align_items="start",
+                    flex_wrap="wrap",
+                ),
+                rx.hstack(
+                    rx.badge("Hansen GFC", color_scheme="teal", variant="solid"),
+                    rx.vstack(
+                        rx.text("Global Forest Change — continuous loss/gain tracking", font_size="xs"),
+                        rx.text(
+                            "UMD/hansen/global_forest_change_2025_v1_13 · Resolution: 30 m · "
+                            "Cover 2000 | Loss 2001–2024 (annual) | Gain 2000–2012 · Global coverage",
+                            font_size="xs", color="gray",
+                        ),
+                        spacing="0",
+                    ),
                     spacing="2",
                     align_items="start",
                     flex_wrap="wrap",
                 ),
                 rx.hstack(
                     rx.badge("AAFC", color_scheme="orange", variant="solid"),
-                    rx.text("Annual Crop Inventory - Resolution: 30m, Period: 2009-2023, Canada coverage", font_size="xs"),
+                    rx.vstack(
+                        rx.text("Annual Crop Inventory — Canada land cover", font_size="xs"),
+                        rx.text(
+                            "Resolution: 30 m · Period: 2009–2023 · Canada coverage only",
+                            font_size="xs", color="gray",
+                        ),
+                        spacing="0",
+                    ),
                     spacing="2",
                     align_items="start",
                     flex_wrap="wrap",
                 ),
                 rx.hstack(
                     rx.badge("Territories", color_scheme="purple", variant="solid"),
-                    rx.text(AppState.tr["territories_desc"], font_size="xs"),
+                    rx.vstack(
+                        rx.text(AppState.tr["territories_desc"], font_size="xs"),
+                        rx.text(
+                            "FUNAI indigenous territories · "
+                            "Asset: mapbiomas-workspace/AUXILIAR/territories/indigenous_territories_funai",
+                            font_size="xs", color="gray",
+                        ),
+                        spacing="0",
+                    ),
                     spacing="2",
                     align_items="start",
                     flex_wrap="wrap",
                 ),
                 spacing="3",
+            ),
+            spacing="2",
+            width="100%",
+        ),
+        rx.divider(),
+
+        # --- Buffer Zone Analysis Guide ---
+        rx.vstack(
+            rx.hstack(
+                rx.icon("circle-dashed", size=16, color="#3B82F6"),
+                rx.heading("Buffer Zone Analysis", size="3"),
+                spacing="2",
+                align_items="center",
+            ),
+            rx.text(
+                "Yvynation automatically creates a configurable buffer ring around every selected territory "
+                "and runs the same analyses in parallel, enabling direct comparison of land cover dynamics "
+                "inside the territory vs its immediate surroundings.",
+                font_size="sm", line_height="1.6",
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.badge("MapBiomas", color_scheme="green", variant="surface"),
+                        rx.text("Buffer land cover for selected year — auto-runs alongside territory", font_size="xs"),
+                        spacing="2",
+                    ),
+                    rx.hstack(
+                        rx.badge("Hansen/GLAD", color_scheme="blue", variant="surface"),
+                        rx.text("Buffer forest cover snapshot — auto-runs alongside territory", font_size="xs"),
+                        spacing="2",
+                    ),
+                    rx.hstack(
+                        rx.badge("Hansen GFC", color_scheme="teal", variant="surface"),
+                        rx.text("Buffer tree cover/loss/gain — runs when Territory → Hansen GFC is executed", font_size="xs"),
+                        spacing="2",
+                    ),
+                    rx.hstack(
+                        rx.badge("Compare", color_scheme="orange", variant="surface"),
+                        rx.text("Buffer land cover for comparison year 2 — auto-runs during year-to-year comparison", font_size="xs"),
+                        spacing="2",
+                    ),
+                    spacing="2",
+                ),
+                padding="0.75rem",
+                bg="blue.50",
+                border_radius="md",
+                border_left="3px solid #3B82F6",
+            ),
+            rx.text(
+                "Buffer distance (default: 10 km) is configurable in the sidebar under Buffer Controls. "
+                "The buffer ring excludes the territory itself — it represents the external influence zone.",
+                font_size="xs", color="gray",
             ),
             spacing="2",
             width="100%",
@@ -1208,10 +1410,11 @@ def about_tab() -> rx.Component:
             rx.flex(
                 rx.badge("Python 3.8+", color_scheme="blue", variant="surface"),
                 rx.badge("Google Earth Engine", color_scheme="green", variant="surface"),
-                rx.badge("Reflex", color_scheme="purple", variant="surface"),
+                rx.badge("Reflex 0.8", color_scheme="purple", variant="surface"),
                 rx.badge("Plotly", color_scheme="red", variant="surface"),
                 rx.badge("Folium / Leaflet", color_scheme="teal", variant="surface"),
                 rx.badge("Pandas", color_scheme="orange", variant="surface"),
+                rx.badge("MapBiomas Collection 10.1", color_scheme="green", variant="surface"),
                 flex_wrap="wrap",
                 gap="2",
             ),

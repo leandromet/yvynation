@@ -31,59 +31,15 @@ class ExtendedEarthEngineService:
     
     @staticmethod
     def _load_mapbiomas_labels() -> Dict[int, str]:
-        """Load MapBiomas classification labels."""
-        return {
-            0: "Não classificado",
-            1: "Floresta",
-            3: "Floresta Plantada",
-            4: "Savana",
-            5: "Savana Plantada",
-            6: "Hidrófila",
-            7: "Herbácea",
-            8: "Semente",
-            9: "Cana-de-Açúcar",
-            10: "Soja",
-            11: "Milho",
-            12: "Algodão",
-            13: "Outras Lavouras",
-            14: "Pastagem",
-            15: "Infraestrutura Urbana",
-            16: "Outras Áreas não Vegetadas",
-            17: "Corpos d'Água",
-            18: "Nuvens e Sombras",
-            19: "Mineração",
-            20: "Aquicultura",
-            21: "Mangue",
-            22: "Praia e Duna",
-            23: "Afloramento rochoso",
-            24: "Gleba não classificada",
-            25: "Restinga",
-            26: "Parque eólico",
-            27: "Citrus",
-            28: "Arrozal",
-            29: "Coqueiro",
-            30: "Datura",
-            31: "Dendê",
-            32: "Framboesa",
-            33: "Fumo",
-            34: "Guaraná",
-            35: "Juta",
-            36: "Malva",
-            37: "Girassol",
-        }
-    
+        """Load MapBiomas classification labels (English, from central config)."""
+        from ..config.config import MAPBIOMAS_LABELS
+        return MAPBIOMAS_LABELS
+
     @staticmethod
     def _load_hansen_labels() -> Dict[int, str]:
-        """Load Hansen label mappings."""
-        return {
-            1: "Tree Cover",
-            2: "Tree Loss",
-            3: "Tree Gain",
-            4: "Non-forest",
-            5: "Non-forest to Forest",
-            6: "Degradation",
-            7: "Deforestation to Non-forest",
-        }
+        """Load Hansen GLCLU label mappings (English, from central config)."""
+        from ..config.config import HANSEN_LABELS
+        return HANSEN_LABELS
     
     def load_territories(self) -> Tuple[bool, List[str]]:
         """

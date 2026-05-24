@@ -50,7 +50,7 @@ HANSEN_OCEAN_MASK = 'projects/glad/OceanMask'
 # ==============================================================================
 # HANSEN GLOBAL FOREST CHANGE CONFIGURATION
 # ==============================================================================
-HANSEN_GFC_DATASET = 'UMD/hansen/global_forest_change_2024_v1_12'
+HANSEN_GFC_DATASET = 'UMD/hansen/global_forest_change_2025_v1_13'
 
 HANSEN_GFC_TREE_COVER_VIS = {
     'bands': ['treecover2000'],

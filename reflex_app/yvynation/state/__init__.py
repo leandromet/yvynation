@@ -19,6 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import reflex as rx
+import plotly.graph_objects as pgo
 from plotly.graph_objs import Figure
 
 # BufferGeometry lives in _geometry.py so it's available without circular imports
@@ -146,6 +147,10 @@ class AppState(
     #: Analysis run on the active buffer (shown side-by-side with territory results)
     buffer_mapbiomas_result: Optional[Dict[str, Any]] = None
     buffer_hansen_result: Optional[Dict[str, Any]] = None
+    #: Buffer result for comparison year2 (populated by run_territory_comparison_bg)
+    buffer_compare_result: Optional[Dict[str, Any]] = None
+    #: Buffer result from Hansen GFC analysis
+    buffer_gfc_result: Optional[Dict[str, Any]] = None
 
     # Multi-result store  key → bundle
     # Key format: "territory::Xingu" or "geometry::0"
@@ -487,26 +492,26 @@ class AppState(
     # ---- Charts --------------------------------------------------------
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
-    def mapbiomas_bar_chart(self) -> Optional[Figure]:
+    def mapbiomas_bar_chart(self) -> Figure:
         try:
             from ..utils.visualization import get_chart_for_analysis
 
             result = self.mapbiomas_analysis_result or self.analysis_results
-            return get_chart_for_analysis(result, chart_type="bar") or None
+            return get_chart_for_analysis(result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"MapBiomas bar chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
-    def mapbiomas_pie_chart(self) -> Optional[Figure]:
+    def mapbiomas_pie_chart(self) -> Figure:
         try:
             from ..utils.visualization import get_chart_for_analysis
 
             result = self.mapbiomas_analysis_result or self.analysis_results
-            return get_chart_for_analysis(result, chart_type="pie") or None
+            return get_chart_for_analysis(result, chart_type="pie") or pgo.Figure()
         except Exception as e:
             logger.error(f"MapBiomas pie chart error: {e}")
-            return None
+            return pgo.Figure()
 
     # ---- GFC-specific computed vars (read from geometry_gfc_result) ----
 
@@ -613,28 +618,27 @@ class AppState(
             return []
 
     @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
-    def gfc_bar_chart(self) -> Optional[Figure]:
+    def gfc_bar_chart(self) -> Figure:
         try:
             if not self.geometry_gfc_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import get_chart_for_analysis
-            return get_chart_for_analysis(self.geometry_gfc_result, chart_type="bar") or None
+            return get_chart_for_analysis(self.geometry_gfc_result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"GFC bar chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["geometry_gfc_result"])
-    def gfc_loss_chart(self) -> Optional[Figure]:
+    def gfc_loss_chart(self) -> Figure:
         """Bar chart of tree loss area by year."""
         try:
             rows = self.gfc_loss_by_year
             if not rows:
-                return None
-            import plotly.graph_objects as go
+                return pgo.Figure()
             years = [r["Year"] for r in rows]
             areas = [r["Area_ha"] for r in rows]
-            fig = go.Figure(data=[
-                go.Bar(
+            fig = pgo.Figure(data=[
+                pgo.Bar(
                     x=years, y=areas,
                     marker_color="#e74c3c",
                     text=[f"{a:,.0f} ha" for a in areas],
@@ -650,20 +654,20 @@ class AppState(
             return fig
         except Exception as e:
             logger.error(f"GFC loss chart error: {e}")
-            return None
+            return pgo.Figure()
 
     # ---- GLAD-specific computed vars (read from geometry_glad_result) ---
 
     @rx.var(auto_deps=False, deps=["geometry_glad_result"])
-    def glad_bar_chart(self) -> Optional[Figure]:
+    def glad_bar_chart(self) -> Figure:
         try:
             if not self.geometry_glad_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import get_chart_for_analysis
-            return get_chart_for_analysis(self.geometry_glad_result, chart_type="bar") or None
+            return get_chart_for_analysis(self.geometry_glad_result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"GLAD bar chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["geometry_glad_result"])
     def glad_table_data(self) -> List[Dict[str, Any]]:
@@ -697,15 +701,15 @@ class AppState(
             return "N/A"
 
     @rx.var(auto_deps=False, deps=["analysis_results"])
-    def hansen_balance_chart(self) -> Optional[Figure]:
+    def hansen_balance_chart(self) -> Figure:
         try:
             from ..utils.visualization import get_chart_for_analysis
 
             result = self.hansen_analysis_result or self.analysis_results
-            return get_chart_for_analysis(result, chart_type="bar") or None
+            return get_chart_for_analysis(result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"Hansen chart error: {e}")
-            return None
+            return pgo.Figure()
 
     # ---- Analysis info text --------------------------------------------
 
@@ -760,46 +764,45 @@ class AppState(
     # ---- Comparison charts ---------------------------------------------
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
-    def comparison_chart(self) -> Optional[Figure]:
+    def comparison_chart(self) -> Figure:
         try:
             if not self.mapbiomas_comparison_result:
-                return None
+                return pgo.Figure()
             import pandas as pd
-            import plotly.graph_objects as go
 
             data = self.mapbiomas_comparison_result.get("data", [])
             if not data:
-                return None
+                return pgo.Figure()
             df = pd.DataFrame(data)
             year1 = self.mapbiomas_comparison_result.get("year_start", 0)
             year2 = self.mapbiomas_comparison_result.get("year_end", 0)
             if "Area_Year1" in df.columns and "Area_Year2" in df.columns:
                 name_col = next((c for c in ["Class_Name", "Class"] if c in df.columns), "Class_ID")
-                fig = go.Figure(data=[
-                    go.Bar(name=str(year1), x=df[name_col], y=df["Area_Year1"]),
-                    go.Bar(name=str(year2), x=df[name_col], y=df["Area_Year2"]),
+                fig = pgo.Figure(data=[
+                    pgo.Bar(name=str(year1), x=df[name_col], y=df["Area_Year1"]),
+                    pgo.Bar(name=str(year2), x=df[name_col], y=df["Area_Year2"]),
                 ])
                 fig.update_layout(
                     title=f"Comparison: {year1} vs {year2}",
                     barmode="group", template="plotly_white", height=400,
                 )
                 return fig
-            return None
+            return pgo.Figure()
         except Exception as e:
             logger.error(f"Comparison chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
-    def gains_losses_chart(self) -> Optional[Figure]:
+    def gains_losses_chart(self) -> Figure:
         try:
             if not self.mapbiomas_comparison_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import create_gains_losses_chart
             import pandas as pd
 
             data = self.mapbiomas_comparison_result.get("data", [])
             if not data:
-                return None
+                return pgo.Figure()
             df = pd.DataFrame(data)
             year1 = self.mapbiomas_comparison_result.get("year_start", 0)
             year2 = self.mapbiomas_comparison_result.get("year_end", 0)
@@ -807,31 +810,31 @@ class AppState(
                 df["Change_km2"] = df["Change_ha"] / 100
             if "Abs_Change" not in df.columns:
                 df["Abs_Change"] = df.get("Change_ha", df.get("Change_km2", 0)).abs()
-            return create_gains_losses_chart(df, year1, year2) or None
+            return create_gains_losses_chart(df, year1, year2) or pgo.Figure()
         except Exception as e:
             logger.error(f"Gains/losses chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
-    def change_pct_chart(self) -> Optional[Figure]:
+    def change_pct_chart(self) -> Figure:
         try:
             if not self.mapbiomas_comparison_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import create_change_percentage_chart
             import pandas as pd
 
             data = self.mapbiomas_comparison_result.get("data", [])
             if not data:
-                return None
+                return pgo.Figure()
             df = pd.DataFrame(data)
             year1 = self.mapbiomas_comparison_result.get("year_start", 0)
             year2 = self.mapbiomas_comparison_result.get("year_end", 0)
             if "Abs_Change" not in df.columns:
                 df["Abs_Change"] = df.get("Change_ha", df.get("Change_km2", 0)).abs()
-            return create_change_percentage_chart(df, year1, year2) or None
+            return create_change_percentage_chart(df, year1, year2) or pgo.Figure()
         except Exception as e:
             logger.error(f"Change pct chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["mapbiomas_comparison_result"])
     def comparison_total_gains(self) -> str:
@@ -878,10 +881,34 @@ class AppState(
         except Exception:
             return "N/A"
 
+    # ---- Territory year-2 summary (used by Compare tab buffer panel) ----
+
+    @rx.var(auto_deps=False, deps=["territory_result_year2"])
+    def territory_year2_area(self) -> str:
+        """Formatted area string for territory analysis year 2."""
+        try:
+            if not self.territory_result_year2:
+                return "…"
+            ha = self.territory_result_year2.get("summary", {}).get("total_area_ha", 0)
+            return f"{float(ha):,.0f} ha"
+        except Exception:
+            return "…"
+
+    @rx.var(auto_deps=False, deps=["territory_result_year2"])
+    def territory_year2_classes(self) -> str:
+        """Number of classes for territory analysis year 2."""
+        try:
+            if not self.territory_result_year2:
+                return "0"
+            n = self.territory_result_year2.get("summary", {}).get("num_classes", 0)
+            return str(n) + " classes"
+        except Exception:
+            return "0 classes"
+
     # ---- Transition charts ---------------------------------------------
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
-    def sankey_chart(self) -> Optional[Figure]:
+    def sankey_chart(self) -> Figure:
         try:
             transitions = self.territory_transitions
             logger.info(f"sankey_chart: territory_transitions has {len(transitions) if transitions else 0} sources")
@@ -890,7 +917,7 @@ class AppState(
                 logger.info(f"sankey_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
             if not transitions:
                 logger.warning(f"sankey_chart: no transitions found in either territory or comparison")
-                return None
+                return pgo.Figure()
 
             year1 = self.mapbiomas_comparison_result.get("year_start", self.comparison_year1) \
                 if self.mapbiomas_comparison_result else self.comparison_year1
@@ -902,13 +929,13 @@ class AppState(
 
             result = create_sankey_transitions(transitions, year1, year2)
             logger.info(f"sankey_chart: create_sankey_transitions returned {type(result).__name__}")
-            return result or None
+            return result or pgo.Figure()
         except Exception as e:
             logger.error(f"Sankey chart error: {e}", exc_info=True)
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
-    def sunburst_transitions_chart(self) -> Optional[Figure]:
+    def sunburst_transitions_chart(self) -> Figure:
         """Sunburst (rings) chart showing class transitions between years."""
         try:
             transitions = self.territory_transitions
@@ -918,7 +945,7 @@ class AppState(
                 logger.info(f"sunburst_transitions_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
             if not transitions:
                 logger.warning(f"sunburst_transitions_chart: no transitions found in either territory or comparison")
-                return None
+                return pgo.Figure()
 
             year1 = self.mapbiomas_comparison_result.get("year_start", self.comparison_year1) \
                 if self.mapbiomas_comparison_result else self.comparison_year1
@@ -930,13 +957,13 @@ class AppState(
 
             result = create_sunburst_transitions(transitions, year1, year2)
             logger.info(f"sunburst_transitions_chart: create_sunburst_transitions returned {type(result).__name__}")
-            return result or None
+            return result or pgo.Figure()
         except Exception as e:
             logger.error(f"Sunburst chart error: {e}", exc_info=True)
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
-    def transition_matrix_chart(self) -> Optional[Figure]:
+    def transition_matrix_chart(self) -> Figure:
         try:
             transitions = self.territory_transitions
             logger.info(f"transition_matrix_chart: territory_transitions has {len(transitions) if transitions else 0} sources")
@@ -945,9 +972,7 @@ class AppState(
                 logger.info(f"transition_matrix_chart: got transitions from comparison_result, {len(transitions) if transitions else 0} sources")
             if not transitions:
                 logger.warning(f"transition_matrix_chart: no transitions found")
-                return None
-
-            import plotly.graph_objects as pgo
+                return pgo.Figure()
 
             all_classes: set = set()
             for src, tgt_dict in transitions.items():
@@ -958,7 +983,7 @@ class AppState(
             logger.info(f"transition_matrix_chart: found {len(classes)} classes: {classes[:5]}...")
             if not classes:
                 logger.warning(f"transition_matrix_chart: no valid classes after processing")
-                return None
+                return pgo.Figure()
 
             try:
                 from ..utils.visualization import _get_mapbiomas_labels
@@ -1015,21 +1040,21 @@ class AppState(
             return fig
         except Exception as e:
             logger.error(f"Transition matrix error: {e}", exc_info=True)
-            return None
+            return pgo.Figure()
 
     # ---- Buffer comparison computed vars --------------------------------
 
     @rx.var(auto_deps=False, deps=["buffer_mapbiomas_result"])
-    def buffer_mapbiomas_bar_chart(self) -> Optional[Figure]:
+    def buffer_mapbiomas_bar_chart(self) -> Figure:
         """Bar chart for the buffer MapBiomas result."""
         try:
             if not self.buffer_mapbiomas_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import get_chart_for_analysis
-            return get_chart_for_analysis(self.buffer_mapbiomas_result, chart_type="bar") or None
+            return get_chart_for_analysis(self.buffer_mapbiomas_result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"Buffer MapBiomas bar chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["buffer_mapbiomas_result"])
     def buffer_mapbiomas_summary(self) -> Dict[str, str]:
@@ -1048,16 +1073,16 @@ class AppState(
             return {}
 
     @rx.var(auto_deps=False, deps=["buffer_hansen_result"])
-    def buffer_hansen_bar_chart(self) -> Optional[Figure]:
+    def buffer_hansen_bar_chart(self) -> Figure:
         """Bar chart for the buffer Hansen GLAD result."""
         try:
             if not self.buffer_hansen_result:
-                return None
+                return pgo.Figure()
             from ..utils.visualization import get_chart_for_analysis
-            return get_chart_for_analysis(self.buffer_hansen_result, chart_type="bar") or None
+            return get_chart_for_analysis(self.buffer_hansen_result, chart_type="bar") or pgo.Figure()
         except Exception as e:
             logger.error(f"Buffer Hansen bar chart error: {e}")
-            return None
+            return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["buffer_hansen_result"])
     def buffer_hansen_summary(self) -> Dict[str, str]:
@@ -1071,6 +1096,69 @@ class AppState(
                 "classes": str(s.get("num_classes", 0)),
                 "year": str(s.get("year", "")),
                 "name": self.buffer_hansen_result.get("geometry_name", "Buffer"),
+            }
+        except Exception:
+            return {}
+
+    # ── Buffer Comparison (year-over-year Compare tab) ─────────────────────
+
+    @rx.var(auto_deps=False, deps=["buffer_compare_result"])
+    def buffer_compare_bar_chart(self) -> Figure:
+        """Bar chart for the buffer comparison year-2 result."""
+        try:
+            if not self.buffer_compare_result:
+                return pgo.Figure()
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.buffer_compare_result, chart_type="bar") or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer compare bar chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_compare_result"])
+    def buffer_compare_summary(self) -> Dict[str, str]:
+        """Summary stats for the buffer comparison result."""
+        try:
+            if not self.buffer_compare_result:
+                return {}
+            s = self.buffer_compare_result.get("summary", {})
+            return {
+                "area": f"{s.get('total_area_ha', 0):,.0f} ha",
+                "classes": str(s.get("classes", 0)),
+                "year": str(self.buffer_compare_result.get("year", "")),
+                "name": self.buffer_compare_result.get("territory", "Buffer"),
+            }
+        except Exception:
+            return {}
+
+    # ── Buffer GFC ─────────────────────────────────────────────────────────
+
+    @rx.var(auto_deps=False, deps=["buffer_gfc_result"])
+    def buffer_gfc_bar_chart(self) -> Figure:
+        """Bar chart for the buffer Hansen GFC result."""
+        try:
+            if not self.buffer_gfc_result:
+                return pgo.Figure()
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.buffer_gfc_result, chart_type="bar") or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer GFC bar chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_gfc_result"])
+    def buffer_gfc_summary(self) -> Dict[str, str]:
+        """Summary stats for the buffer GFC analysis."""
+        try:
+            if not self.buffer_gfc_result:
+                return {}
+            s = self.buffer_gfc_result.get("summary", {})
+            cover = s.get("tree_cover_2000_ha", 0)
+            loss = s.get("forest_loss_ha", 0)
+            gain = s.get("forest_gain_ha", 0)
+            return {
+                "cover": f"{cover:,.0f} ha",
+                "loss": f"{loss:,.0f} ha",
+                "gain": f"{gain:,.0f} ha",
+                "name": self.buffer_gfc_result.get("geometry_name", "Buffer"),
             }
         except Exception:
             return {}

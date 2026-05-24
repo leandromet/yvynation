@@ -513,6 +513,25 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.active_analysis_tab = "gfc"
                 self.loading_message = ""
                 logger.info("✓ Hansen GFC territory: completed")
+
+                # ── Buffer GFC analysis (non-fatal) ─────────────────────────
+                if self.buffer_geojson_features:
+                    try:
+                        self.loading_message = "Analyzing buffer zone (GFC)…"
+                        from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                        buf_feat = self.buffer_geojson_features[0]
+                        buf_ee_geom = convert_geojson_to_ee_geometry(buf_feat)
+                        if buf_ee_geom:
+                            buf_gfc = analyzer.analyze_gfc(buf_ee_geom)
+                            if buf_gfc and "error" not in buf_gfc:
+                                buf_gfc["geometry_name"] = self.current_buffer_for_analysis or "Buffer"
+                                self.buffer_gfc_result = buf_gfc
+                                logger.info("✓ Buffer GFC analysis complete")
+                        self.loading_message = ""
+                    except Exception as bg_err:
+                        logger.warning(f"Buffer GFC analysis failed (non-fatal): {bg_err}")
+                        self.loading_message = ""
+
             elif result_dict and "error" in result_dict:
                 self.error_message = result_dict["error"]
 
@@ -1087,6 +1106,33 @@ class AnalysisMixin(rx.State, mixin=True):
                 total_trans = sum(len(v) for v in transitions.values())
                 logger.info(f"[COMPARISON] str-keyed transitions: {total_trans} pairs")
 
+            # ── Step 7a: buffer analysis for year2 (non-fatal) ───────────────
+            buf_compare_result = None
+            if geojson_features:
+                async with self:
+                    self.loading_message = f"Analyzing buffer zone — {y2}…"
+                try:
+                    from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                    buf_ee_geom = convert_geojson_to_ee_geometry(geojson_features[0])
+                    if buf_ee_geom:
+                        buf_df2 = await asyncio.get_event_loop().run_in_executor(
+                            None, analyzer.analyze_single_year, buf_ee_geom, y2, 30
+                        )
+                        if not buf_df2.empty:
+                            buf_compare_result = {
+                                "type": "mapbiomas",
+                                "territory": f"Buffer ({territory})",
+                                "year": y2,
+                                "data": buf_df2.to_dict("records"),
+                                "summary": {
+                                    "total_area_ha": buf_df2["Area_ha"].sum(),
+                                    "classes": len(buf_df2),
+                                },
+                            }
+                            logger.info(f"[COMPARISON] Buffer year2 ({y2}): {len(buf_df2)} classes")
+                except Exception as be:
+                    logger.warning(f"[COMPARISON] Buffer year2 analysis failed (non-fatal): {be}")
+
             # ── Step 7: commit all results in one lock ───────────────────────
             comparison_dict = {
                 "year_start": y1,
@@ -1131,6 +1177,8 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.territory_source = "MapBiomas"
                 self.territory_transitions = transitions or None
                 self.mapbiomas_comparison_result = comparison_dict
+                if buf_compare_result is not None:
+                    self.buffer_compare_result = buf_compare_result
                 key = f"territory::{territory}"
                 bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
                 self.all_analysis_results[key] = bundle

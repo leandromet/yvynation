@@ -37,6 +37,8 @@ class TerritoryMixin(rx.State, mixin=True):
         self.current_buffer_for_analysis = None
         self.buffer_mapbiomas_result = None
         self.buffer_hansen_result = None
+        self.buffer_compare_result = None
+        self.buffer_gfc_result = None
 
         # Clear territory-level analysis results (back to Optional defaults)
         self.territory_result = None
@@ -208,7 +210,7 @@ class TerritoryMixin(rx.State, mixin=True):
                         break
 
             if matched:
-                self.set_selected_territory(matched)
+                return self.set_selected_territory(matched)
             else:
                 self.error_message = f"Territory '{territory_name}' not found"
                 logger.warning(f"[MAP_SELECTION #{call_num}] Not found: {territory_name}")
@@ -218,96 +220,214 @@ class TerritoryMixin(rx.State, mixin=True):
             self.error_message = f"Error selecting territory from map: {e}"
 
     def set_selected_territory(self, territory: str):
-        """Select a territory: update state, load EE geometry, cache GeoJSON, zoom."""
+        """Select a territory: clear stale state immediately, then dispatch async geometry load.
+
+        All blocking Earth Engine calls (getInfo, bounds, buffer GeoJSON) are
+        moved to ``load_territory_geometry_bg`` so the event loop is never
+        stalled and the sidebar stays fully interactive during the load.
+        """
+        if not territory:
+            return
+
+        logger.info(f"[TERRITORY_SET] Dispatching background load for: {territory}")
+
+        # Clear stale results instantly so the UI reflects the new selection
+        self.territory_result = None
+        self.territory_result_year2 = None
+        self.selected_territory = territory
+        self.pending_territory = None
+        self.territory_name = territory
+        self.territory_geojson_features = []
+        self.map_zoom_bounds = {}
+        self.territory_geometry_displayed = False
+        self.buffer_geojson_features = []
+        self.buffer_geometries = {}
+        self.current_buffer_for_analysis = None
+        self.error_message = ""
+        self.loading_message = f"Loading {territory}…"
+        self.loading_type = "territory"
+
+        # Dispatch background task — all blocking EE calls happen there
+        return type(self).load_territory_geometry_bg()
+
+    @rx.event(background=True)
+    async def load_territory_geometry_bg(self):
+        """Load territory GeoJSON, bounds, and auto-buffer without blocking the event loop.
+
+        All ``.getInfo()`` / EE network calls run in a thread pool via
+        ``run_in_executor``.  State is mutated only inside ``async with self``
+        blocks so Reflex batches the updates correctly.
+        """
+        import asyncio
+        import datetime
+
+        # --- Read the vars we need under lock (snapshot) ---------------------
+        async with self:
+            territory = self.selected_territory
+            buffer_km = float(self.auto_buffer_km)
+            buffer_enabled = bool(self.auto_buffer_enabled)
+
+        if not territory:
+            return
+
+        # ------------------------------------------------------------------
+        # Phase 1 – load territory geometry (contains size().getInfo() call)
+        # ------------------------------------------------------------------
+        def _load_geom():
+            from ..utils.ee_service_extended import get_ee_service
+            ee_service = get_ee_service()
+            geom = ee_service.get_territory_geometry(territory)
+            if not geom and "(" in territory and ")" in territory:
+                base_name = territory.split("(")[0].strip()
+                geom = ee_service.get_territory_geometry(base_name)
+            return geom
+
         try:
-            logger.info(f"[TERRITORY_SET] Starting: {territory}")
+            geom = await asyncio.get_event_loop().run_in_executor(None, _load_geom)
+        except Exception as load_err:
+            logger.error(f"[TERRITORY_BG] Geometry load error: {load_err}", exc_info=True)
+            async with self:
+                self.error_message = f"Error loading territory: {load_err}"
+                self.loading_message = ""
+                self.loading_type = ""
+            return
 
-            if not territory:
-                return
+        if not geom:
+            async with self:
+                self.error_message = f"Could not load geometry for: {territory}"
+                self.loading_message = ""
+                self.loading_type = ""
+            return
 
-            self.territory_result = None
-            self.territory_result_year2 = None
-            self.selected_territory = territory
-            self.pending_territory = None
-            self.territory_name = territory
+        # ------------------------------------------------------------------
+        # Phase 2 – GeoJSON + bounds (two blocking getInfo() calls)
+        # ------------------------------------------------------------------
+        def _fetch_geojson_and_bounds():
+            raw_geojson = geom.getInfo()
+            bounds_info = geom.bounds().getInfo()
+            return raw_geojson, bounds_info
 
+        try:
+            raw_geojson, bounds_info = await asyncio.get_event_loop().run_in_executor(
+                None, _fetch_geojson_and_bounds
+            )
+        except Exception as fetch_err:
+            logger.warning(f"[TERRITORY_BG] getInfo failed: {fetch_err}")
+            raw_geojson, bounds_info = None, None
+
+        # Build territory GeoJSON feature
+        territory_geojson_features = []
+        if raw_geojson:
+            clean_geom = {
+                "type": raw_geojson.get("type", "Polygon"),
+                "coordinates": raw_geojson.get("coordinates", []),
+            }
+            territory_feature = {
+                "type": "Feature",
+                "geometry": clean_geom,
+                "properties": {"name": territory, "NAME": territory},
+                "name": territory,
+                "_source": "territory",
+            }
+            territory_geojson_features = [territory_feature]
+            logger.info(
+                f"[TERRITORY_BG] GeoJSON ready: {clean_geom['type']} "
+                f"with {len(clean_geom.get('coordinates', []))} coord groups"
+            )
+
+        # Build zoom-bounds dict
+        map_zoom_bounds = {}
+        if bounds_info and "coordinates" in bounds_info:
+            coords = bounds_info["coordinates"][0]
+            if coords:
+                min_lat = min(c[1] for c in coords)
+                max_lat = max(c[1] for c in coords)
+                min_lon = min(c[0] for c in coords)
+                max_lon = max(c[0] for c in coords)
+                map_zoom_bounds = {
+                    "min_lat": min_lat, "max_lat": max_lat,
+                    "min_lon": min_lon, "max_lon": max_lon,
+                    "center_lat": (min_lat + max_lat) / 2,
+                    "center_lon": (min_lon + max_lon) / 2,
+                }
+
+        # Commit territory geometry data
+        async with self:
+            self.territory_geojson_features = territory_geojson_features
+            self.map_zoom_bounds = map_zoom_bounds
+            self.territory_geometry_displayed = bool(map_zoom_bounds)
+            self.geometry_version += 1
+            if not territory_geojson_features:
+                self.error_message = f"Could not load geometry for: {territory}"
+
+        # ------------------------------------------------------------------
+        # Phase 3 – Auto-buffer (optional, non-fatal)
+        # ------------------------------------------------------------------
+        if buffer_enabled and territory_geojson_features:
             try:
-                from ..utils.ee_service_extended import get_ee_service
+                from ..utils.buffer_utils import (
+                    create_external_buffer,
+                    create_buffer_geometry_dict,
+                    convert_geojson_to_ee_geometry,
+                )
 
-                ee_service = get_ee_service()
+                # Build EE geometry from cached GeoJSON — no extra network call
+                ee_geom = convert_geojson_to_ee_geometry(territory_geojson_features[0])
+                if ee_geom:
+                    # create_external_buffer is pure EE construction (no network)
+                    buffer_geom = create_external_buffer(ee_geom, buffer_km)
+                    if buffer_geom:
+                        buffer_name = f"Buffer {buffer_km}km - {territory}"
+                        buffer_dict = create_buffer_geometry_dict(
+                            name=buffer_name,
+                            ee_geometry=buffer_geom,
+                            buffer_size_km=buffer_km,
+                            source_name=territory,
+                            created_at=datetime.datetime.now().isoformat(),
+                        )
 
-                # Try exact match first (preserves IDs like "Balaio (5301)" vs "Balaio (5302)")
-                geom = ee_service.get_territory_geometry(territory)
+                        # getInfo() for buffer GeoJSON map overlay (blocking)
+                        def _get_buffer_geojson():
+                            return buffer_geom.getInfo()
 
-                # Fallback: try base name if exact match fails and territory has an ID
-                if not geom and "(" in territory and ")" in territory:
-                    base_name = territory.split("(")[0].strip()
-                    geom = ee_service.get_territory_geometry(base_name)
-
-                if not geom:
-                    self.error_message = f"Could not load geometry for: {territory}"
-                    return
-
-                # Cache GeoJSON for map overlay
-                try:
-                    raw_geojson = geom.getInfo()
-                    clean_geom = {
-                        "type": raw_geojson.get("type", "Polygon"),
-                        "coordinates": raw_geojson.get("coordinates", []),
-                    }
-                    territory_feature = {
-                        "type": "Feature",
-                        "geometry": clean_geom,
-                        "properties": {"name": territory, "NAME": territory},
-                        "name": territory,
-                        "_source": "territory",
-                    }
-                    self.territory_geojson_features = [territory_feature]
-                    self.geometry_version += 1
-                    logger.info(
-                        f"[TERRITORY_SET] GeoJSON cached: {clean_geom['type']} "
-                        f"with {len(clean_geom.get('coordinates', []))} coord groups"
-                    )
-                except Exception as geojson_err:
-                    logger.warning(f"[TERRITORY_SET] GeoJSON conversion failed: {geojson_err}")
-                    self.territory_geojson_features = []
-
-                # Compute bounds for auto-zoom
-                try:
-                    bounds = geom.bounds().getInfo()
-                    if bounds and "coordinates" in bounds:
-                        coords = bounds["coordinates"][0]
-                        if coords:
-                            min_lat = min(c[1] for c in coords)
-                            max_lat = max(c[1] for c in coords)
-                            min_lon = min(c[0] for c in coords)
-                            max_lon = max(c[0] for c in coords)
-                            self.map_zoom_bounds = {
-                                "min_lat": min_lat, "max_lat": max_lat,
-                                "min_lon": min_lon, "max_lon": max_lon,
-                                "center_lat": (min_lat + max_lat) / 2,
-                                "center_lon": (min_lon + max_lon) / 2,
+                        buffer_geojson_feat = None
+                        try:
+                            buffer_info = await asyncio.get_event_loop().run_in_executor(
+                                None, _get_buffer_geojson
+                            )
+                            buffer_geojson_feat = {
+                                "type": "Feature",
+                                "geometry": buffer_info,
+                                "properties": {
+                                    "name": buffer_name,
+                                    "source": territory,
+                                    "buffer_km": buffer_km,
+                                },
+                                "name": buffer_name,
+                                "_source": "buffer",
                             }
-                            self.territory_geometry_displayed = True
-                except Exception as bounds_err:
-                    logger.warning(f"[TERRITORY_SET] Bounds calculation failed: {bounds_err}")
+                        except Exception as bgi_err:
+                            logger.warning(f"[TERRITORY_BG] Buffer GeoJSON failed: {bgi_err}")
 
-            except Exception as e:
-                logger.error(f"[TERRITORY_SET] Error loading geometry: {e}", exc_info=True)
-                self.error_message = f"Error loading territory: {e}"
+                        async with self:
+                            self.add_buffer_geometry(buffer_name, buffer_dict)
+                            self.current_buffer_for_analysis = buffer_name
+                            if buffer_geojson_feat:
+                                self.buffer_geojson_features = [buffer_geojson_feat]
+                                self.geometry_version += 1
+                            self.error_message = f"✅ Buffer ({buffer_km} km) created around {territory}"
+                            logger.info(f"[TERRITORY_BG] Auto-buffer ready: {buffer_name}")
 
-            # Auto-buffer: create default buffer using the cached GeoJSON (no extra EE round-trip)
-            if getattr(self, "auto_buffer_enabled", True) and self.territory_geojson_features:
-                try:
-                    self.create_territory_auto_buffer(getattr(self, "auto_buffer_km", 10.0))
-                except Exception as buf_err:
-                    logger.warning(f"[TERRITORY_SET] Auto-buffer failed (non-fatal): {buf_err}")
+            except Exception as buf_err:
+                logger.warning(f"[TERRITORY_BG] Auto-buffer failed (non-fatal): {buf_err}")
 
-            logger.info(f"[TERRITORY_SET] Completed: {territory}")
-
-        except Exception as outer_e:
-            logger.error(f"[TERRITORY_SET] Unexpected error: {outer_e}", exc_info=True)
-            self.error_message = f"Unexpected error setting territory: {outer_e}"
+        # ------------------------------------------------------------------
+        # Done
+        # ------------------------------------------------------------------
+        async with self:
+            self.loading_message = ""
+            self.loading_type = ""
+            logger.info(f"[TERRITORY_BG] Completed for {territory}")
 
     def set_pending_territory(self, territory: Optional[str]):
         """Stage a territory pending user confirmation."""
