@@ -457,6 +457,28 @@ class GeometryMixin(rx.State, mixin=True):
             )
             self.add_buffer_geometry(buffer_name, buffer_dict)
             self.current_buffer_for_analysis = buffer_name
+
+            # Fetch GeoJSON for map display (one EE round-trip for the donut shape)
+            try:
+                buffer_info = buffer_geom.getInfo()
+                buffer_geojson_feat = {
+                    "type": "Feature",
+                    "geometry": buffer_info,
+                    "properties": {
+                        "name": buffer_name,
+                        "source": geometry_name,
+                        "buffer_km": buffer_distance_km,
+                    },
+                    "name": buffer_name,
+                    "_source": "buffer",
+                }
+                # Replace any previous buffer overlay (keep only the active one)
+                self.buffer_geojson_features = [buffer_geojson_feat]
+                self.geometry_version += 1
+                logger.info(f"[BUFFER] GeoJSON overlay added for {buffer_name}")
+            except Exception as gjson_err:
+                logger.warning(f"[BUFFER] Could not get buffer GeoJSON for map: {gjson_err}")
+
             self.error_message = f"✅ Buffer ({buffer_distance_km} km) created around {geometry_name}"
             logger.info(f"[BUFFER] Created {buffer_name}")
             return True

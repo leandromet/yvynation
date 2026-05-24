@@ -31,6 +31,13 @@ class TerritoryMixin(rx.State, mixin=True):
         self.show_geometry_popup = False
         self.geometry_popup_info = {}
 
+        # Clear buffer overlays and results
+        self.buffer_geojson_features = []
+        self.buffer_geometries = {}
+        self.current_buffer_for_analysis = None
+        self.buffer_mapbiomas_result = None
+        self.buffer_hansen_result = None
+
         # Clear territory-level analysis results (back to Optional defaults)
         self.territory_result = None
         self.territory_result_year2 = None

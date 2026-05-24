@@ -84,7 +84,7 @@ class AppState(
     # Layer configuration
     # ====================================================================
     mapbiomas_years_enabled: Dict[int, bool] = {}
-    mapbiomas_current_year: int = 2023
+    mapbiomas_current_year: int = 2024  # Collection 10.1 adds 2024
     mapbiomas_displayed_years: List[int] = []
 
     hansen_years_enabled: Dict[str, bool] = {}
@@ -120,6 +120,8 @@ class AppState(
     buffer_geometries: Dict[str, BufferGeometry] = {}
     current_buffer_for_analysis: Optional[str] = None
     buffer_compare_mode: bool = False
+    #: GeoJSON features for active buffer overlays on the map
+    buffer_geojson_features: List[Dict[str, Any]] = []
 
     # Per-geometry analysis cache
     geometry_analysis_results: Dict[int, Dict[str, Any]] = {}
@@ -141,6 +143,9 @@ class AppState(
     mapbiomas_comparison_result: Optional[Dict[str, Any]] = None
     hansen_comparison_result: Optional[Dict[str, Any]] = None
     analysis_figures: Dict[str, Any] = {}
+    #: Analysis run on the active buffer (shown side-by-side with territory results)
+    buffer_mapbiomas_result: Optional[Dict[str, Any]] = None
+    buffer_hansen_result: Optional[Dict[str, Any]] = None
 
     # Multi-result store  key → bundle
     # Key format: "territory::Xingu" or "geometry::0"
@@ -149,7 +154,7 @@ class AppState(
     result_keys_list: List[str] = []
 
     # Territory display info
-    territory_analysis_year: int = 2023
+    territory_analysis_year: int = 2024
     territory_geometry_displayed: bool = False
     territory_geojson_features: List[Dict[str, Any]] = []
 
@@ -159,14 +164,14 @@ class AppState(
     territory_name_property: str = "name"
 
     # Comparison year selection
-    comparison_year1: int = 2018
-    comparison_year2: int = 2023
+    comparison_year1: int = 2019
+    comparison_year2: int = 2024  # Collection 10.1 includes 2024
 
     # Territory analysis storage
     territory_result: Optional[Dict[str, Any]] = None
     territory_result_year2: Optional[Dict[str, Any]] = None
     territory_name: str = ""
-    territory_year: int = 2023
+    territory_year: int = 2024
     territory_year2: Optional[int] = None
     territory_source: str = "MapBiomas"
     territory_transitions: Optional[Dict[str, Any]] = None
@@ -177,7 +182,7 @@ class AppState(
     show_geometries_on_map: bool = True
     show_change_mask: bool = False
     change_mask_year1: int = 2018
-    change_mask_year2: int = 2023
+    change_mask_year2: int = 2024
     #: Incremented to force map HTML rebuild
     geometry_version: int = 0
     analysis_tile_layers: List[Dict[str, str]] = []
@@ -254,6 +259,7 @@ class AppState(
             "show_indigenous_lands", "analysis_tile_layers",
             "show_hansen_gfc_tree_cover", "show_hansen_gfc_tree_loss",
             "show_hansen_gfc_tree_gain",
+            "buffer_geojson_features",
         ],
     )
     def map_html(self) -> str:
@@ -295,6 +301,7 @@ class AppState(
                 show_gfc_tree_cover=self.show_hansen_gfc_tree_cover,
                 show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,
                 show_gfc_tree_gain=self.show_hansen_gfc_tree_gain,
+                buffer_features=self.buffer_geojson_features or [],
             )
 
         except Exception as e:
@@ -744,11 +751,11 @@ class AppState(
 
     @rx.var(auto_deps=False, deps=["mapbiomas_current_year"])
     def mapbiomas_current_year_str(self) -> str:
-        return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else "2023"
+        return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else "2024"
 
     @rx.var(auto_deps=False, deps=["geometry_analysis_year"])
     def geometry_analysis_year_str(self) -> str:
-        return str(self.geometry_analysis_year) if self.geometry_analysis_year else "2023"
+        return str(self.geometry_analysis_year) if self.geometry_analysis_year else "2024"
 
     # ---- Comparison charts ---------------------------------------------
 
@@ -1009,3 +1016,61 @@ class AppState(
         except Exception as e:
             logger.error(f"Transition matrix error: {e}", exc_info=True)
             return None
+
+    # ---- Buffer comparison computed vars --------------------------------
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_result"])
+    def buffer_mapbiomas_bar_chart(self) -> Optional[Figure]:
+        """Bar chart for the buffer MapBiomas result."""
+        try:
+            if not self.buffer_mapbiomas_result:
+                return None
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.buffer_mapbiomas_result, chart_type="bar") or None
+        except Exception as e:
+            logger.error(f"Buffer MapBiomas bar chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_result"])
+    def buffer_mapbiomas_summary(self) -> Dict[str, str]:
+        """Summary stats for the buffer MapBiomas analysis."""
+        try:
+            if not self.buffer_mapbiomas_result:
+                return {}
+            s = self.buffer_mapbiomas_result.get("summary", {})
+            return {
+                "area": f"{s.get('total_area_ha', 0):,.0f} ha",
+                "classes": str(s.get("classes", 0)),
+                "year": str(self.buffer_mapbiomas_result.get("year", "")),
+                "name": self.buffer_mapbiomas_result.get("territory", "Buffer"),
+            }
+        except Exception:
+            return {}
+
+    @rx.var(auto_deps=False, deps=["buffer_hansen_result"])
+    def buffer_hansen_bar_chart(self) -> Optional[Figure]:
+        """Bar chart for the buffer Hansen GLAD result."""
+        try:
+            if not self.buffer_hansen_result:
+                return None
+            from ..utils.visualization import get_chart_for_analysis
+            return get_chart_for_analysis(self.buffer_hansen_result, chart_type="bar") or None
+        except Exception as e:
+            logger.error(f"Buffer Hansen bar chart error: {e}")
+            return None
+
+    @rx.var(auto_deps=False, deps=["buffer_hansen_result"])
+    def buffer_hansen_summary(self) -> Dict[str, str]:
+        """Summary stats for the buffer Hansen GLAD analysis."""
+        try:
+            if not self.buffer_hansen_result:
+                return {}
+            s = self.buffer_hansen_result.get("summary", {})
+            return {
+                "area": f"{s.get('total_area_ha', 0):,.0f} ha",
+                "classes": str(s.get("num_classes", 0)),
+                "year": str(s.get("year", "")),
+                "name": self.buffer_hansen_result.get("geometry_name", "Buffer"),
+            }
+        except Exception:
+            return {}

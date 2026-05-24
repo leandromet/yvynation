@@ -23,9 +23,15 @@ OUTPUT_SCALE = 30  # Export resolution in meters
 # MAPBIOMAS CONFIGURATION
 # ==============================================================================
 MAPBIOMAS_COLLECTIONS = {
+    # Collection 10.1 — latest (2024 data, Brazil LULC)
+    'v10_1': 'projects/mapbiomas-public/assets/brazil/lulc/collection10_1/mapbiomas_brazil_collection10_1_coverage_v1',
+    # Collection 9 — kept for backward compatibility
     'v9': 'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1',
-    'v8': 'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1'
+    'v8': 'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1',
 }
+
+# Key of the collection to use everywhere by default
+MAPBIOMAS_DEFAULT_COLLECTION = 'v10_1'
 
 # ==============================================================================
 # HANSEN/GLAD GLOBAL LAND COVER CONFIGURATION
@@ -118,7 +124,7 @@ FOREST_NDVI_THRESHOLD = 0.5
 URBAN_NDVI_THRESHOLD = 0.2
 
 # ==============================================================================
-# LAND COVER CLASSIFICATION LABELS & COLORS (MapBiomas Collection 9)
+# LAND COVER CLASSIFICATION LABELS & COLORS (MapBiomas Collection 10.1)
 # ==============================================================================
 MAPBIOMAS_LABELS = {
     0: "No data", 1: "Forest", 2: "Natural Forest", 3: "Forest Formation", 4: "Savanna Formation",
@@ -240,8 +246,8 @@ AAFC_LABELS = {
 DEFAULT_LANGUAGE = "en"
 SUPPORTED_LANGUAGES = ["en", "pt", "es"]
 
-# Territory years available for MapBiomas analysis
-MAPBIOMAS_YEARS = list(range(1985, 2024))  # 1985-2023
+# Territory years available for MapBiomas analysis (Collection 10.1 adds 2024)
+MAPBIOMAS_YEARS = list(range(1985, 2025))  # 1985-2024
 
 # Hansen years
 HANSEN_YEARS = ['2000', '2005', '2010', '2015', '2020']

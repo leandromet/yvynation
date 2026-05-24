@@ -287,6 +287,30 @@ class AnalysisMixin(rx.State, mixin=True):
                 except Exception as tile_e:
                     logger.warning(f"Could not generate MapBiomas tile layer: {tile_e}")
 
+                # ── Buffer analysis (runs in parallel with territory, same year) ──
+                if self.current_buffer_for_analysis and self.buffer_geojson_features:
+                    try:
+                        self.loading_message = f"Processing buffer analysis ({self.mapbiomas_current_year})…"
+                        from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                        buf_feat = self.buffer_geojson_features[0]
+                        buf_ee_geom = convert_geojson_to_ee_geometry(buf_feat)
+                        if buf_ee_geom:
+                            buf_df = ee_service.analyze_mapbiomas(buf_ee_geom, self.mapbiomas_current_year)
+                            if not buf_df.empty:
+                                self.buffer_mapbiomas_result = {
+                                    "type": "mapbiomas",
+                                    "territory": self.current_buffer_for_analysis,
+                                    "year": self.mapbiomas_current_year,
+                                    "data": buf_df.to_dict("records"),
+                                    "summary": {
+                                        "total_area_ha": buf_df["Area_ha"].sum(),
+                                        "classes": len(buf_df),
+                                    },
+                                }
+                                logger.info(f"✓ Buffer MapBiomas: {len(buf_df)} classes")
+                    except Exception as buf_e:
+                        logger.warning(f"Buffer MapBiomas analysis failed (non-fatal): {buf_e}")
+
             self.mapbiomas_analysis_pending = False
             self.clear_loading()
 
@@ -424,6 +448,33 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.active_analysis_tab = "hansen"
                 self.loading_message = ""
                 logger.info(f"✓ Hansen GLAD territory: {len(result_df)} classes")
+
+                # ── Buffer GLAD analysis ──
+                if self.current_buffer_for_analysis and self.buffer_geojson_features:
+                    try:
+                        self.loading_message = "Processing buffer Hansen GLAD…"
+                        from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                        buf_feat = self.buffer_geojson_features[0]
+                        buf_ee_geom = convert_geojson_to_ee_geometry(buf_feat)
+                        if buf_ee_geom:
+                            buf_df = analyzer.get_area_distribution(
+                                buf_ee_geom, year=int(self.hansen_current_year), scale=30
+                            )
+                            if buf_df is not None and not buf_df.empty:
+                                self.buffer_hansen_result = {
+                                    "type": "hansen_glad",
+                                    "source": "Hansen GLAD",
+                                    "geometry_name": self.current_buffer_for_analysis,
+                                    "data": buf_df.to_dict("records"),
+                                    "summary": {
+                                        "year": int(self.hansen_current_year),
+                                        "num_classes": len(buf_df),
+                                        "total_area_ha": float(buf_df["Area_ha"].sum()),
+                                    },
+                                }
+                                logger.info(f"✓ Buffer Hansen GLAD: {len(buf_df)} classes")
+                    except Exception as buf_e:
+                        logger.warning(f"Buffer Hansen GLAD failed (non-fatal): {buf_e}")
 
             self.hansen_analysis_pending = False
             self.clear_loading()
@@ -863,89 +914,191 @@ class AnalysisMixin(rx.State, mixin=True):
     # Territory comparison (two-year MapBiomas with transitions)
     # ====================================================================
 
-    async def run_territory_comparison(self):
-        """Compare MapBiomas land cover between two years for selected territory."""
+    def run_territory_comparison(self):
+        """Kick off the background territory comparison task."""
+        if not self.selected_territory:
+            self.error_message = "Please select a territory first"
+            return
+        self.mapbiomas_analysis_pending = True
+        self.error_message = ""
+        self.loading_message = f"Queuing comparison for {self.selected_territory}…"
+        return type(self).run_territory_comparison_bg()
+
+    @rx.event(background=True)
+    async def run_territory_comparison_bg(self):
+        """Compare MapBiomas land cover between two years for selected territory.
+
+        Runs as a background task so blocking EE `.getInfo()` calls don't freeze
+        the Reflex event loop.  Uses asyncio.run_in_executor to keep the async
+        loop free between EE round-trips.
+        """
+        import asyncio
+
+        def _str_keys(d):
+            """Recursively convert all dict keys to strings (Reflex requires str keys)."""
+            if not isinstance(d, dict):
+                return d
+            return {str(k): _str_keys(v) for k, v in d.items()}
+
         try:
             from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
             from ..utils.visualization import calculate_gains_losses
 
-            if not self.selected_territory:
-                self.error_message = "Please select a territory first"
+            # Read volatile state vars once under lock
+            async with self:
+                territory = self.selected_territory
+                y1 = self.comparison_year1
+                y2 = self.comparison_year2
+                geojson_features = list(self.territory_geojson_features)
+
+            if not territory:
+                async with self:
+                    self.error_message = "Please select a territory first"
+                    self.mapbiomas_analysis_pending = False
                 return
 
-            self.mapbiomas_analysis_pending = True
-            y1, y2 = self.comparison_year1, self.comparison_year2
-            self.loading_message = f"Comparing {self.selected_territory}: {y1} vs {y2}..."
+            # ── Step 1: resolve EE geometry (fast, no network) ──────────────
+            async with self:
+                self.loading_message = f"Resolving geometry for {territory}…"
 
-            ee_geom = self.get_territory_ee_geom()
-            if not ee_geom:
-                self.error_message = f"Territory geometry not found: {self.selected_territory}"
-                self.mapbiomas_analysis_pending = False
+            import ee
+            ee_geom = None
+            if geojson_features:
+                feat = geojson_features[0]
+                geom = feat.get("geometry") or {}
+                geom_type = geom.get("type", "")
+                coords = geom.get("coordinates")
+                if coords:
+                    try:
+                        if geom_type == "MultiPolygon":
+                            valid = [[r for r in poly if len(r) >= 3] for poly in coords]
+                            valid = [p for p in valid if p]
+                            if valid:
+                                ee_geom = ee.Geometry.MultiPolygon(valid)
+                        elif geom_type == "Polygon":
+                            valid = [r for r in coords if len(r) >= 3]
+                            if valid:
+                                ee_geom = ee.Geometry.Polygon(valid)
+                    except Exception as geom_err:
+                        logger.warning(f"[COMPARISON] Geometry rebuild failed: {geom_err}")
+
+            if ee_geom is None:
+                # Slow fallback: re-fetch from EE service
+                logger.info("[COMPARISON] Falling back to EE service for geometry")
+                try:
+                    from ..utils.ee_service_extended import get_ee_service
+                    ee_service = get_ee_service()
+                    ee_geom = await asyncio.get_event_loop().run_in_executor(
+                        None, ee_service.get_territory_geometry, territory
+                    )
+                except Exception as fe:
+                    logger.error(f"[COMPARISON] EE geometry fetch failed: {fe}")
+
+            if ee_geom is None:
+                async with self:
+                    self.error_message = f"Territory geometry not found: {territory}"
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
                 return
 
+            # ── Step 2: check analyzer ───────────────────────────────────────
             analyzer = get_mapbiomas_analyzer()
             if not analyzer.is_available():
-                self.error_message = "MapBiomas dataset not available"
-                self.mapbiomas_analysis_pending = False
+                async with self:
+                    self.error_message = "MapBiomas dataset not available"
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
                 return
 
-            df1 = analyzer.analyze_single_year(ee_geom, y1, scale=30)
-            df2 = analyzer.analyze_single_year(ee_geom, y2, scale=30)
+            # ── Step 3: analyze year 1 (blocking → thread pool) ─────────────
+            async with self:
+                self.loading_message = f"Analyzing {territory} — {y1}…"
 
-            if df1.empty or df2.empty:
-                self.error_message = "Could not get data for one or both years"
-                self.mapbiomas_analysis_pending = False
+            try:
+                df1 = await asyncio.get_event_loop().run_in_executor(
+                    None, analyzer.analyze_single_year, ee_geom, y1, 30
+                )
+            except Exception as e1:
+                logger.error(f"[COMPARISON] analyze year {y1} exception: {e1}", exc_info=True)
+                async with self:
+                    self.error_message = f"Year {y1} analysis failed: {e1}"
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
                 return
 
+            if df1.empty:
+                async with self:
+                    self.error_message = (
+                        f"No data for {territory} in {y1}. "
+                        "Check terminal logs for details."
+                    )
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
+                return
+
+            # ── Step 4: analyze year 2 ───────────────────────────────────────
+            async with self:
+                self.loading_message = f"Analyzing {territory} — {y2}…"
+
+            try:
+                df2 = await asyncio.get_event_loop().run_in_executor(
+                    None, analyzer.analyze_single_year, ee_geom, y2, 30
+                )
+            except Exception as e2:
+                logger.error(f"[COMPARISON] analyze year {y2} exception: {e2}", exc_info=True)
+                async with self:
+                    self.error_message = f"Year {y2} analysis failed: {e2}"
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
+                return
+
+            if df2.empty:
+                async with self:
+                    self.error_message = (
+                        f"No data for {territory} in {y2}. "
+                        "Check terminal logs for details."
+                    )
+                    self.mapbiomas_analysis_pending = False
+                    self.loading_message = ""
+                return
+
+            # ── Step 5: gains/losses comparison ─────────────────────────────
             comparison_df = calculate_gains_losses(df1, df2)
 
-            self.territory_result = {
-                "data": df1.to_dict("records"),
-                "summary": {
-                    "year": y1,
-                    "num_classes": len(df1),
-                    "total_area_ha": df1["Area_ha"].sum() if "Area_ha" in df1.columns else 0,
-                },
-            }
-            self.territory_result_year2 = {
-                "data": df2.to_dict("records"),
-                "summary": {
-                    "year": y2,
-                    "num_classes": len(df2),
-                    "total_area_ha": df2["Area_ha"].sum() if "Area_ha" in df2.columns else 0,
-                },
-            }
-            self.territory_name = self.selected_territory
-            self.territory_year = y1
-            self.territory_year2 = y2
-            self.territory_source = "MapBiomas"
+            # ── Step 6: transitions (blocking) ──────────────────────────────
+            async with self:
+                self.loading_message = f"Computing transitions {y1} → {y2}…"
 
-            # Pixel-level transitions for Sankey / transition matrix
-            self.loading_message = f"Computing transitions {y1} → {y2}..."
-            transitions = analyzer.compute_transitions(ee_geom, y1, y2, scale=30)
-            logger.info(f"Territory comparison - transitions computed: {len(transitions) if transitions else 0} source classes")
+            try:
+                raw_transitions = await asyncio.get_event_loop().run_in_executor(
+                    None, analyzer.compute_transitions, ee_geom, y1, y2, 30
+                )
+            except Exception as et:
+                logger.warning(f"[COMPARISON] Transitions failed (non-fatal): {et}")
+                raw_transitions = {}
+
+            logger.info(
+                f"[COMPARISON] transitions computed: "
+                f"{len(raw_transitions) if raw_transitions else 0} source classes"
+            )
+            transitions = _str_keys(raw_transitions) if raw_transitions else {}
+
             if transitions:
-                total_trans = sum(len(targets) for targets in transitions.values())
-                logger.info(f"  Total transitions: {total_trans}")
-                for src, tgts in list(transitions.items())[:3]:  # Log first 3 sources
-                    logger.info(f"  Source {src}: {len(tgts)} targets")
-            # Store transitions even if empty (empty dict means no transitions found, not an error)
-            self.territory_transitions = transitions
+                total_trans = sum(len(v) for v in transitions.values())
+                logger.info(f"[COMPARISON] str-keyed transitions: {total_trans} pairs")
 
+            # ── Step 7: commit all results in one lock ───────────────────────
             comparison_dict = {
                 "year_start": y1,
                 "year_end": y2,
-                "territory": self.selected_territory,
+                "territory": territory,
                 "data": comparison_df.to_dict("records"),
                 "transitions": transitions,
             }
-            self.mapbiomas_comparison_result = comparison_dict
-            logger.info(f"Territory comparison stored: {len(comparison_dict.get('transitions', {}))} transition sources")
-
             name_col = "Class_Name" if "Class_Name" in df2.columns else "Class"
             result_dict = {
                 "type": "mapbiomas",
-                "geometry": self.selected_territory,
+                "geometry": territory,
                 "year": y2,
                 "data": df2.to_dict("records"),
                 "summary": {
@@ -955,17 +1108,47 @@ class AnalysisMixin(rx.State, mixin=True):
                 },
             }
 
-            key = f"territory::{self.selected_territory}"
-            geojson_feat = self.territory_geojson_features[0] if self.territory_geojson_features else None
-            self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=geojson_feat)
+            async with self:
+                self.territory_result = {
+                    "data": df1.to_dict("records"),
+                    "summary": {
+                        "year": y1,
+                        "num_classes": len(df1),
+                        "total_area_ha": df1["Area_ha"].sum() if "Area_ha" in df1.columns else 0,
+                    },
+                }
+                self.territory_result_year2 = {
+                    "data": df2.to_dict("records"),
+                    "summary": {
+                        "year": y2,
+                        "num_classes": len(df2),
+                        "total_area_ha": df2["Area_ha"].sum() if "Area_ha" in df2.columns else 0,
+                    },
+                }
+                self.territory_name = territory
+                self.territory_year = y1
+                self.territory_year2 = y2
+                self.territory_source = "MapBiomas"
+                self.territory_transitions = transitions or None
+                self.mapbiomas_comparison_result = comparison_dict
+                key = f"territory::{territory}"
+                bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
+                self.all_analysis_results[key] = bundle
+                self.active_result_key = key
+                self.loading_message = f"✓ Comparison {y1}→{y2} complete ({len(df1)} / {len(df2)} classes)"
+                self.mapbiomas_analysis_pending = False
 
-            self.loading_message = ""
-            self.mapbiomas_analysis_pending = False
+            logger.info(
+                f"[COMPARISON] Done: {territory} {y1}→{y2}, "
+                f"transitions={len(transitions)} sources"
+            )
 
         except Exception as e:
-            self.error_message = f"Comparison failed: {e}"
-            self.mapbiomas_analysis_pending = False
-            logger.error(f"Territory comparison error: {e}")
+            logger.error(f"[COMPARISON] Unexpected error: {e}", exc_info=True)
+            async with self:
+                self.error_message = f"Comparison failed: {e}"
+                self.mapbiomas_analysis_pending = False
+                self.loading_message = ""
 
     async def run_mapbiomas_comparison(self):
         """Compare MapBiomas years for a drawn/uploaded geometry (legacy path)."""

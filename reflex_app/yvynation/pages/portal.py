@@ -162,7 +162,7 @@ def analysis_choice_section() -> rx.Component:
                         rx.unordered_list(
                             rx.list_item("Select from 700+ territories"),
                             rx.list_item("Search by name"),
-                            rx.list_item("Track forest changes (1985-2023)"),
+                            rx.list_item("Track forest changes (1985-2024)"),
                             rx.list_item("Compare multiple years"),
                             font_size="sm",
                             color="#333",

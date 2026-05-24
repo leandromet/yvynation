@@ -15,7 +15,7 @@ from .analysis import (
     calculate_class_specific_change,
     compare_areas,
 )
-from ..config.config import MAPBIOMAS_LABELS, MAPBIOMAS_YEARS, MAPBIOMAS_COLLECTIONS
+from ..config.config import MAPBIOMAS_LABELS, MAPBIOMAS_YEARS, MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION
 from ..utils.ee_service import get_ee
 
 logger = logging.getLogger(__name__)
@@ -27,10 +27,11 @@ class MapBiomasAnalyzer:
     Handles multi-year analysis and comparisons.
     """
 
-    # MapBiomas dataset - use correct path from config
-    # v9 is the latest collection (Collection 9)
-    MAPBIOMAS_COLLECTION_ID = MAPBIOMAS_COLLECTIONS.get('v9',
-        'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+    # MapBiomas dataset — always read from config so changing MAPBIOMAS_DEFAULT_COLLECTION is enough
+    MAPBIOMAS_COLLECTION_ID = MAPBIOMAS_COLLECTIONS.get(
+        MAPBIOMAS_DEFAULT_COLLECTION,
+        MAPBIOMAS_COLLECTIONS['v10_1'],
+    )
 
     def __init__(self):
         """Initialize analyzer."""
@@ -63,7 +64,7 @@ class MapBiomasAnalyzer:
         
         Args:
             geometry: Area of interest
-            year: Year to analyze (1985-2023)
+            year: Year to analyze (1985-2024)
             scale: Analysis scale in meters
         
         Returns:
@@ -74,8 +75,8 @@ class MapBiomasAnalyzer:
                 logger.error("MapBiomas dataset not available")
                 return pd.DataFrame()
             
-            if year < 1985 or year > 2023:
-                logger.error(f"Year {year} out of range (1985-2023)")
+            if year < 1985 or year > 2024:
+                logger.error(f"Year {year} out of range (1985-2024)")
                 return pd.DataFrame()
             
             # Extract band for year
@@ -95,7 +96,7 @@ class MapBiomasAnalyzer:
             return df
         
         except Exception as e:
-            logger.error(f"Error analyzing single year {year}: {e}")
+            logger.error(f"Error analyzing single year {year}: {e}", exc_info=True)
             return pd.DataFrame()
     
     def analyze_year_range(

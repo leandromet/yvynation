@@ -134,6 +134,155 @@ def _hansen_summary_metrics() -> rx.Component:
 
 
 # -----------------------------------------------------------------------
+# Buffer comparison helper
+# -----------------------------------------------------------------------
+
+def _buffer_comparison_mapbiomas() -> rx.Component:
+    """Side-by-side MapBiomas territory vs buffer comparison (shown when buffer results exist)."""
+    return rx.cond(
+        AppState.buffer_mapbiomas_result != None,
+        rx.box(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("circle", color="#3B82F6", size=14),
+                    rx.heading("Buffer Zone Comparison", size="3", color="#1D4ED8"),
+                    rx.badge(
+                        AppState.buffer_mapbiomas_summary.get("name", "Buffer"),
+                        color_scheme="blue", variant="surface", size="1",
+                    ),
+                    spacing="2",
+                    align_items="center",
+                ),
+                rx.text(
+                    "Territory result (orange) vs external buffer ring (blue)",
+                    font_size="xs",
+                    color="gray.600",
+                ),
+                # Side-by-side metric cards
+                rx.hstack(
+                    # Territory side
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500"),
+                            rx.text(AppState.analysis_summary_total_area, font_weight="bold", font_size="lg"),
+                            rx.text(AppState.analysis_summary_classes + " classes", font_size="xs", color="gray"),
+                            spacing="1", align="center",
+                        ),
+                        flex="1", padding="0.75rem", bg="orange.50",
+                        border_radius="md", border="1px solid #FF4500", text_align="center",
+                    ),
+                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
+                    # Buffer side
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8"),
+                            rx.text(AppState.buffer_mapbiomas_summary.get("area", "…"), font_weight="bold", font_size="lg"),
+                            rx.text(AppState.buffer_mapbiomas_summary.get("classes", "0") + " classes", font_size="xs", color="gray"),
+                            spacing="1", align="center",
+                        ),
+                        flex="1", padding="0.75rem", bg="blue.50",
+                        border_radius="md", border="1px solid #1D4ED8", text_align="center",
+                    ),
+                    width="100%",
+                    spacing="2",
+                    align_items="center",
+                ),
+                # Side-by-side charts
+                rx.hstack(
+                    rx.box(
+                        rx.text("Territory", font_size="xs", color="gray", text_align="center"),
+                        rx.plotly(data=AppState.mapbiomas_bar_chart, use_resize_handler=True),
+                        flex="1",
+                    ),
+                    rx.box(
+                        rx.text("Buffer", font_size="xs", color="gray", text_align="center"),
+                        rx.plotly(data=AppState.buffer_mapbiomas_bar_chart, use_resize_handler=True),
+                        flex="1",
+                    ),
+                    width="100%",
+                    spacing="2",
+                    align_items="flex-start",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="2px solid #93C5FD",
+            border_radius="md",
+            bg="blue.50",
+            width="100%",
+        ),
+        rx.box(),
+    )
+
+
+def _buffer_comparison_hansen() -> rx.Component:
+    """Side-by-side Hansen GLAD territory vs buffer comparison."""
+    return rx.cond(
+        AppState.buffer_hansen_result != None,
+        rx.box(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("circle", color="#3B82F6", size=14),
+                    rx.heading("Buffer Zone — Hansen Comparison", size="3", color="#1D4ED8"),
+                    rx.badge(
+                        AppState.buffer_hansen_summary.get("name", "Buffer"),
+                        color_scheme="blue", variant="surface", size="1",
+                    ),
+                    spacing="2",
+                    align_items="center",
+                ),
+                rx.hstack(
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500"),
+                            rx.text(AppState.glad_summary_area, font_weight="bold", font_size="lg"),
+                            rx.text(AppState.glad_summary_classes + " classes", font_size="xs", color="gray"),
+                            spacing="1", align="center",
+                        ),
+                        flex="1", padding="0.75rem", bg="orange.50",
+                        border_radius="md", border="1px solid #FF4500", text_align="center",
+                    ),
+                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
+                    rx.box(
+                        rx.vstack(
+                            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8"),
+                            rx.text(AppState.buffer_hansen_summary.get("area", "…"), font_weight="bold", font_size="lg"),
+                            rx.text(AppState.buffer_hansen_summary.get("classes", "0") + " classes", font_size="xs", color="gray"),
+                            spacing="1", align="center",
+                        ),
+                        flex="1", padding="0.75rem", bg="blue.50",
+                        border_radius="md", border="1px solid #1D4ED8", text_align="center",
+                    ),
+                    width="100%", spacing="2", align_items="center",
+                ),
+                rx.hstack(
+                    rx.box(
+                        rx.text("Territory", font_size="xs", color="gray", text_align="center"),
+                        rx.plotly(data=AppState.glad_bar_chart, use_resize_handler=True),
+                        flex="1",
+                    ),
+                    rx.box(
+                        rx.text("Buffer", font_size="xs", color="gray", text_align="center"),
+                        rx.plotly(data=AppState.buffer_hansen_bar_chart, use_resize_handler=True),
+                        flex="1",
+                    ),
+                    width="100%", spacing="2", align_items="flex-start",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            padding="0.75rem",
+            border="2px solid #93C5FD",
+            border_radius="md",
+            bg="blue.50",
+            width="100%",
+        ),
+        rx.box(),
+    )
+
+
+# -----------------------------------------------------------------------
 # Tab 1: MapBiomas Analysis
 # -----------------------------------------------------------------------
 
@@ -218,6 +367,8 @@ def mapbiomas_tab() -> rx.Component:
             ),
             _no_data_placeholder(AppState.tr["mapbiomas_no_data"]),
         ),
+        # Buffer comparison (shown below when buffer analysis has run)
+        _buffer_comparison_mapbiomas(),
         width="100%",
         spacing="3",
         padding="1rem",
@@ -384,6 +535,8 @@ def hansen_tab() -> rx.Component:
             ),
             _no_data_placeholder(AppState.tr["hansen_no_data"]),
         ),
+        # Buffer comparison (shown below when buffer analysis has run)
+        _buffer_comparison_hansen(),
         width="100%",
         spacing="3",
         padding="1rem",

@@ -215,7 +215,7 @@ Use the language buttons (EN / PT / ES) in the sidebar to switch languages. Your
 **Manual Region Selection**
 
 Use the region buttons (Brazil / Canada) in the sidebar to choose between:
-- **Brazil**: Full MapBiomas coverage (1985-2023) + Hansen/GLAD global data
+- **Brazil**: Full MapBiomas coverage (1985-2024) + Hansen/GLAD global data
 - **Canada**: AAFC crop inventory + Hansen/GLAD global data
 
 The map will center on your selected region.""",
@@ -255,7 +255,7 @@ The map will center on your selected region.""",
    - View territory metadata: area, location, recognition status
 
 2. **Territory Analysis Features**:
-   - Historical land cover changes (1985-2023)
+   - Historical land cover changes (1985-2024)
    - Area changes by land cover class
    - Deforestation and regeneration trends
    - Transition diagrams (Sankey charts) showing conversions between classes
@@ -614,7 +614,7 @@ Use os botoes de idioma (EN / PT / ES) na barra lateral para trocar o idioma. Su
 **Selecao Manual de Regiao**
 
 Use os botoes de regiao (Brasil / Canada) na barra lateral para escolher entre:
-- **Brasil**: Cobertura completa MapBiomas (1985-2023) + dados globais Hansen/GLAD
+- **Brasil**: Cobertura completa MapBiomas (1985-2024) + dados globais Hansen/GLAD
 - **Canada**: Inventario de cultivos AAFC + dados globais Hansen/GLAD
 
 O mapa sera centralizado na regiao selecionada.""",
@@ -654,7 +654,7 @@ O mapa sera centralizado na regiao selecionada.""",
    - Veja metadados do territorio: area, localizacao, status
 
 2. **Recursos de Analise de Territorio**:
-   - Mudancas historicas de cobertura do solo (1985-2023)
+   - Mudancas historicas de cobertura do solo (1985-2024)
    - Mudancas de area por classe de cobertura
    - Tendencias de desmatamento e regeneracao
    - Diagramas de transicao (Sankey) mostrando conversoes entre classes
@@ -1013,7 +1013,7 @@ Use los botones de idioma (EN / PT / ES) en la barra lateral. Su eleccion se gua
 **Seleccion Manual de Region**
 
 Use los botones de region (Brasil / Canada) en la barra lateral:
-- **Brasil**: Cobertura completa MapBiomas (1985-2023) + datos globales Hansen/GLAD
+- **Brasil**: Cobertura completa MapBiomas (1985-2024) + datos globales Hansen/GLAD
 - **Canada**: Inventario de cultivos AAFC + datos globales Hansen/GLAD""",
 
         "step_custom_polygon": "Paso 1: Analizar un Poligono Personalizado",
@@ -1038,7 +1038,7 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
    - Busque entre 400+ tierras indigenas reconocidas
    - Vea metadatos: area, ubicacion, estado
 
-2. **Caracteristicas del Analisis**: Cambios historicos (1985-2023), diagramas Sankey, exportacion
+2. **Caracteristicas del Analisis**: Cambios historicos (1985-2024), diagramas Sankey, exportacion
 
 3. **Zona de Amortiguamiento**: Cree zonas externas, compare uso del suelo dentro vs fuera""",
 

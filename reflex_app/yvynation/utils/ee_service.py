@@ -119,6 +119,7 @@ class EarthEngineService:
     """Service for Earth Engine operations."""
     
     _initialized: bool = False
+    _mapbiomas_v10_1: Optional[ee.Image] = None
     _mapbiomas_v9: Optional[ee.Image] = None
     _mapbiomas_v8: Optional[ee.Image] = None
     _territories: Optional[ee.FeatureCollection] = None
@@ -147,21 +148,40 @@ class EarthEngineService:
             return False
     
     @classmethod
-    def load_mapbiomas(cls, version: str = 'v9') -> Optional[ee.Image]:
-        """Load MapBiomas dataset."""
+    def load_mapbiomas(cls, version: str = None) -> Optional[ee.Image]:
+        """Load MapBiomas dataset.
+
+        ``version`` defaults to ``MAPBIOMAS_DEFAULT_COLLECTION`` (currently 'v10_1').
+        Pass 'v9' or 'v8' explicitly for older collections.
+        """
         if not cls._initialized:
             logger.error("Earth Engine not initialized")
             return None
-            
+
+        from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION
+        if version is None:
+            version = MAPBIOMAS_DEFAULT_COLLECTION
+
         try:
-            if version == 'v9':
+            if version == 'v10_1':
+                if cls._mapbiomas_v10_1 is None:
+                    cls._mapbiomas_v10_1 = ee.Image(MAPBIOMAS_COLLECTIONS['v10_1'])
+                return cls._mapbiomas_v10_1
+            elif version == 'v9':
                 if cls._mapbiomas_v9 is None:
-                    cls._mapbiomas_v9 = ee.Image('projects/mapbiomas-workspace/public/collection9/mapbiomas_collection90_integration_v1')
+                    cls._mapbiomas_v9 = ee.Image(MAPBIOMAS_COLLECTIONS['v9'])
                 return cls._mapbiomas_v9
             elif version == 'v8':
                 if cls._mapbiomas_v8 is None:
-                    cls._mapbiomas_v8 = ee.Image('projects/mapbiomas-workspace/public/collection8/mapbiomas_collection80_integration_v1')
+                    cls._mapbiomas_v8 = ee.Image(MAPBIOMAS_COLLECTIONS['v8'])
                 return cls._mapbiomas_v8
+            else:
+                # Arbitrary version key passed — look it up in config
+                asset = MAPBIOMAS_COLLECTIONS.get(version)
+                if asset:
+                    return ee.Image(asset)
+                logger.warning(f"Unknown MapBiomas version '{version}', falling back to default")
+                return cls.load_mapbiomas(MAPBIOMAS_DEFAULT_COLLECTION)
         except Exception as e:
             logger.error(f"Error loading MapBiomas {version}: {e}")
         return None
@@ -199,7 +219,7 @@ class EarthEngineService:
         try:
             from ..config import MAPBIOMAS_LABELS
             
-            mapbiomas = cls.load_mapbiomas('v9')
+            mapbiomas = cls.load_mapbiomas()  # uses MAPBIOMAS_DEFAULT_COLLECTION
             if mapbiomas is None:
                 return None
             

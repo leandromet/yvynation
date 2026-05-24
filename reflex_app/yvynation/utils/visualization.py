@@ -309,24 +309,35 @@ def create_sankey_transitions(transitions_dict: Dict,
 
     sources, targets, values, link_colors = [], [], [], []
 
+    def _resolve_label(class_id) -> str:
+        """Return a human-readable class name for an int or string class ID."""
+        # Try int key first (class_names is keyed by int)
+        try:
+            int_id = int(class_id)
+            if int_id in class_names:
+                return class_names[int_id]
+        except (ValueError, TypeError):
+            pass
+        # Fall back to direct string lookup, then the raw ID
+        return class_names.get(class_id, str(class_id))
+
+    def _resolve_color(class_id) -> str:
+        try:
+            return class_colors.get(int(class_id), class_colors.get(class_id, '#cccccc'))
+        except (ValueError, TypeError):
+            return class_colors.get(class_id, '#cccccc')
+
     for src_id, tgt_dict in transitions_dict.items():
         if not isinstance(tgt_dict, dict):
             continue
         for tgt_id, area in tgt_dict.items():
             if isinstance(area, (int, float)) and area > 0:
-                if isinstance(src_id, str):
-                    src_label = f"{src_id} ({year_start})"
-                else:
-                    src_label = f"{class_names.get(src_id, src_id)} ({year_start})"
-                if isinstance(tgt_id, str):
-                    tgt_label = f"{tgt_id} ({year_end})"
-                else:
-                    tgt_label = f"{class_names.get(tgt_id, tgt_id)} ({year_end})"
-
+                src_label = f"{_resolve_label(src_id)} ({year_start})"
+                tgt_label = f"{_resolve_label(tgt_id)} ({year_end})"
                 sources.append(src_label)
                 targets.append(tgt_label)
                 values.append(area)
-                link_colors.append(class_colors.get(src_id, '#cccccc'))
+                link_colors.append(_resolve_color(src_id))
 
     if not sources:
         logger.warning(f"Sankey: No valid transitions found after processing")
@@ -347,12 +358,7 @@ def create_sankey_transitions(transitions_dict: Dict,
     node_colors = []
     for node in sorted_nodes:
         raw = node.split(' (')[0] if '(' in node else node
-        color = class_colors.get(raw, None)
-        if color is None:
-            try:
-                color = class_colors.get(int(raw), '#cccccc')
-            except (ValueError, TypeError):
-                color = '#cccccc'
+        color = _resolve_color(raw)
         node_colors.append(color)
 
     fig = go.Figure(data=[go.Sankey(
@@ -526,33 +532,45 @@ def create_sunburst_transitions(transitions_dict: Dict,
     values.append(0)
     colors.append("#ffffff")
     
+    def _name(class_id) -> str:
+        """Resolve a class ID (str or int) to its human-readable name."""
+        try:
+            return class_names.get(int(class_id), class_names.get(class_id, f"Class {class_id}"))
+        except (ValueError, TypeError):
+            return class_names.get(class_id, f"Class {class_id}")
+
+    def _color(class_id) -> str:
+        try:
+            return class_colors.get(int(class_id), class_colors.get(class_id, '#cccccc'))
+        except (ValueError, TypeError):
+            return class_colors.get(class_id, '#cccccc')
+
     # By source class
     for src_id, tgt_dict in transitions_dict.items():
         if not isinstance(tgt_dict, dict):
             continue
-        
+
         total_area = sum(a for a in tgt_dict.values() if isinstance(a, (int, float)))
         if total_area <= 0:
             continue
-        
-        # Source class label
-        src_label = class_names.get(src_id, f"Class {src_id}") if not isinstance(src_id, str) else src_id
+
+        src_label = _name(src_id)
         full_src_label = f"{src_label}\n({year_start})"
-        
+        src_color = _color(src_id)
+
         labels.append(full_src_label)
         parents.append(f"Land Cover\n{year_start}→{year_end}")
         values.append(total_area)
-        src_color = class_colors.get(src_id, '#cccccc') if not isinstance(src_id, str) else class_colors.get(int(src_id) if isinstance(src_id, str) else src_id, '#cccccc')
         colors.append(src_color)
-        
+
         # Target classes
         for tgt_id, area in tgt_dict.items():
             if not isinstance(area, (int, float)) or area <= 0:
                 continue
-            
-            tgt_label = class_names.get(tgt_id, f"Class {tgt_id}") if not isinstance(tgt_id, str) else tgt_id
+
+            tgt_label = _name(tgt_id)
             full_tgt_label = f"{tgt_label}\n({year_end}, {area:,.0f} ha)"
-            
+
             labels.append(full_tgt_label)
             parents.append(full_src_label)
             values.append(area)

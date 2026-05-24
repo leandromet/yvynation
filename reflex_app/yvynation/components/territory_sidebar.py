@@ -181,7 +181,7 @@ def _territory_analysis_section() -> rx.Component:
                     ),
                     rx.hstack(
                         rx.select(
-                            [str(y) for y in range(1985, 2024)],
+                            [str(y) for y in range(1985, 2025)],
                             value=AppState.comparison_year1_str,
                             on_change=AppState.set_comparison_year1,
                             size="1",
@@ -189,7 +189,7 @@ def _territory_analysis_section() -> rx.Component:
                         ),
                         rx.text("vs", font_size="xs", color="gray", flex="0 0 auto"),
                         rx.select(
-                            [str(y) for y in range(1985, 2024)],
+                            [str(y) for y in range(1985, 2025)],
                             value=AppState.comparison_year2_str,
                             on_change=AppState.set_comparison_year2,
                             size="1",
@@ -236,7 +236,7 @@ def _territory_analysis_section() -> rx.Component:
                         rx.text("MapBiomas Year:", font_size="xs", color="gray.600", font_weight="600"),
                         rx.hstack(
                             rx.select(
-                                [str(y) for y in range(1985, 2024)],
+                                [str(y) for y in range(1985, 2025)],
                                 value=AppState.mapbiomas_current_year_str,
                                 on_change=AppState.set_mapbiomas_year,
                                 size="1",

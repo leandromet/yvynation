@@ -129,7 +129,7 @@ def calculate_area_by_class(
         return df
     
     except Exception as e:
-        logger.error(f"Error calculating areas: {e}")
+        logger.error(f"Error calculating areas (year={year}): {e}", exc_info=True)
         return pd.DataFrame()
 
 

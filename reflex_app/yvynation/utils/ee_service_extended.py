@@ -237,10 +237,14 @@ class ExtendedEarthEngineService:
             return None
 
     def get_mapbiomas(self) -> ee.Image:
-        """Get or load MapBiomas Image."""
+        """Get or load MapBiomas Image (default: Collection 10.1)."""
         if self.mapbiomas is None:
-            # MapBiomas v9 is an Image, not an ImageCollection
-            self.mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+            from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION
+            asset = MAPBIOMAS_COLLECTIONS.get(
+                MAPBIOMAS_DEFAULT_COLLECTION,
+                MAPBIOMAS_COLLECTIONS['v10_1'],
+            )
+            self.mapbiomas = ee.Image(asset)
         return self.mapbiomas
     
     def analyze_mapbiomas(self, geometry: ee.Geometry, year: int) -> pd.DataFrame:
@@ -255,7 +259,7 @@ class ExtendedEarthEngineService:
             DataFrame with land cover breakdown
         """
         try:
-            # MapBiomas v9 is an Image with bands like 'classification_2023', 'classification_2022', etc
+            # MapBiomas Collection 10.1 is a single multi-band Image with bands like 'classification_2024', 'classification_2023', etc
             mapbiomas = self.get_mapbiomas()
 
             # Select the specific year band

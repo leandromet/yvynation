@@ -29,11 +29,13 @@ class EETileManager:
             if cache_key in self._tile_cache:
                 return self._tile_cache[cache_key]
 
-            # Load MapBiomas v9 (it's an Image, not ImageCollection)
-            from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_PALETTE
+            # Load MapBiomas — uses the configured default collection (Collection 10.1)
+            from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_PALETTE
 
-            mapbiomas_asset = MAPBIOMAS_COLLECTIONS.get('v9',
-                'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1')
+            mapbiomas_asset = MAPBIOMAS_COLLECTIONS.get(
+                MAPBIOMAS_DEFAULT_COLLECTION,
+                MAPBIOMAS_COLLECTIONS['v10_1'],
+            )
 
             image = ee.Image(mapbiomas_asset)
 

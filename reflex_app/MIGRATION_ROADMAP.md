@@ -72,7 +72,7 @@ The old Streamlit app has **7 architectural layers**. We're porting them in orde
 | Module | Purpose | Location | Functions | Status |
 |--------|---------|----------|-----------|--------|
 | `analysis.py` | Generic EE calculations | `/reflex_app/utils/analysis.py` | 10+ utility functions | ✅ Done |
-| `mapbiomas_analysis.py` | Brazil land cover (1985-2023) | `/reflex_app/utils/mapbiomas_analysis.py` | MapBiomasAnalyzer class | ✅ Done |
+| `mapbiomas_analysis.py` | Brazil land cover (1985-2024) | `/reflex_app/utils/mapbiomas_analysis.py` | MapBiomasAnalyzer class | ✅ Done |
 | `hansen_analysis.py` | Global forest loss/gain | `/reflex_app/utils/hansen_analysis.py` | HansenAnalyzer class | ✅ Done |
 | `AppState` methods | Analysis triggers | `/reflex_app/state.py` | 2 async handlers | ✅ Done |
 | `Drawing tool` | Map-based geometry drawing | Folium/Leaflet Draw | Draw toolbar | ✅ Done |
@@ -88,7 +88,7 @@ The old Streamlit app has **7 architectural layers**. We're porting them in orde
 **Phase 3B: MapBiomas Analysis** (Complete)
 - `MapBiomasAnalyzer` class with methods:
   - `analyze_single_year()` - Single year land cover
-  - `analyze_year_range()` - Multi-year analysis (1985-2023)
+  - `analyze_year_range()` - Multi-year analysis (1985-2024)
   - `compare_years()` - Temporal comparison
   - `get_change_timeline()` - Class-specific time series
   - `identify_forest_change()` - Natural forest loss/gain

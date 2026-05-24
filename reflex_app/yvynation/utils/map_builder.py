@@ -40,6 +40,7 @@ def build_map(
     show_gfc_tree_cover: bool = False,
     show_gfc_tree_loss: bool = False,
     show_gfc_tree_gain: bool = False,
+    buffer_features: List[dict] = None,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -453,6 +454,45 @@ def build_map(
                 logger.error(f"Error adding geometry overlays: {e}")
                 import traceback
                 traceback.print_exc()
+
+        # ADD BUFFER OVERLAYS – drawn as a blue dashed ring distinct from territory
+        if buffer_features:
+            try:
+                for buf_feat in buffer_features:
+                    geom = buf_feat.get("geometry") or buf_feat
+                    if not geom or not geom.get("coordinates"):
+                        continue
+                    name = buf_feat.get("name", "Buffer")
+                    buf_km = buf_feat.get("properties", {}).get("buffer_km", "?")
+                    buf_fg = folium.FeatureGroup(name=f"Buffer: {name}", show=True)
+                    folium.GeoJson(
+                        {"type": "Feature", "geometry": geom, "properties": {"name": name}},
+                        style_function=lambda x: {
+                            "fillColor": "#3B82F6",
+                            "color": "#1D4ED8",
+                            "weight": 2,
+                            "opacity": 0.85,
+                            "fillOpacity": 0.12,
+                            "dashArray": "6 4",
+                        },
+                        highlight_function=lambda x: {
+                            "fillColor": "#60A5FA",
+                            "color": "#2563EB",
+                            "weight": 3,
+                            "opacity": 1.0,
+                            "fillOpacity": 0.22,
+                        },
+                        tooltip=folium.GeoJsonTooltip(
+                            fields=["name"],
+                            aliases=[f"Buffer ({buf_km} km):"],
+                            sticky=True,
+                        ),
+                    ).add_to(buf_fg)
+                    buf_fg.add_to(display_map)
+                    layers_added += 1
+                    logger.info(f"Added buffer overlay: {name}")
+            except Exception as buf_err:
+                logger.error(f"Error adding buffer overlays: {buf_err}")
 
         # ADD CHANGE MASK LAYER - difference between two MapBiomas years
         if change_mask_years and len(change_mask_years) == 2:

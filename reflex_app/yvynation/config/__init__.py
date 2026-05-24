@@ -6,6 +6,7 @@ Imports all configuration constants from config.py
 from .config import (
     PROJECT_ID,
     MAPBIOMAS_COLLECTIONS,
+    MAPBIOMAS_DEFAULT_COLLECTION,
     HANSEN_DATASETS,
     HANSEN_OCEAN_MASK,
     HANSEN_GFC_DATASET,
@@ -29,6 +30,7 @@ from .config import (
 __all__ = [
     "PROJECT_ID",
     "MAPBIOMAS_COLLECTIONS",
+    "MAPBIOMAS_DEFAULT_COLLECTION",
     "HANSEN_DATASETS",
     "HANSEN_OCEAN_MASK",
     "HANSEN_GFC_DATASET",

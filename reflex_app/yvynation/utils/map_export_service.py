@@ -139,8 +139,8 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
         scale = max(10, int(lon_span * 111000 / max_px_width))
 
         if layer_type == 'mapbiomas':
-            from ..config.config import MAPBIOMAS_PALETTE
-            asset = 'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1'
+            from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_PALETTE
+            asset = MAPBIOMAS_COLLECTIONS.get(MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_COLLECTIONS['v10_1'])
             image = ee.Image(asset).select(f'classification_{year}')
             if vis_params is None:
                 vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
