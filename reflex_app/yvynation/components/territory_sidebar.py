@@ -350,22 +350,48 @@ def _buffer_section() -> rx.Component:
         AppState.selected_territory != None,
         rx.box(
             rx.vstack(
-                rx.heading("🔵 Buffer Zone", size="4"),
+                rx.hstack(
+                    rx.heading("🔵 Buffer Zone", size="4"),
+                    rx.spacer(),
+                    # Active buffer badge
+                    rx.cond(
+                        AppState.current_buffer_for_analysis != None,
+                        rx.badge("Active", color_scheme="blue", size="1", variant="solid"),
+                        rx.box(),
+                    ),
+                    width="100%",
+                    align_items="center",
+                ),
                 rx.text(
-                    "Create an expanded analysis boundary around the selected territory.",
+                    "External ring buffer around the territory for comparative analysis.",
                     font_size="xs",
                     color="gray.600",
                 ),
+                # Auto-buffer note
+                rx.cond(
+                    AppState.auto_buffer_enabled,
+                    rx.text(
+                        rx.text.span("⚡ Auto-buffer ", font_weight="600"),
+                        AppState.auto_buffer_km.to(str),
+                        " km created automatically on territory select.",
+                        font_size="9px",
+                        color="blue.600",
+                    ),
+                    rx.box(),
+                ),
+                # Manual buffer controls
                 rx.hstack(
                     rx.input(
                         value=AppState.buffer_distance_input,
                         on_change=AppState.set_buffer_distance_input,
                         type_="number",
-                        placeholder="Distance (m)",
+                        placeholder="10",
                         size="1",
                         flex="1",
+                        min_="1",
+                        step="1",
                     ),
-                    rx.text("m", font_size="sm", color="gray"),
+                    rx.text("km", font_size="sm", color="gray", flex="0 0 auto"),
                     rx.button(
                         "Create",
                         on_click=AppState.handle_create_buffer,
@@ -374,6 +400,19 @@ def _buffer_section() -> rx.Component:
                     ),
                     width="100%",
                     spacing="1",
+                    align_items="center",
+                ),
+                # Active buffer name
+                rx.cond(
+                    AppState.current_buffer_for_analysis != None,
+                    rx.text(
+                        "📍 ",
+                        AppState.current_buffer_for_analysis,
+                        font_size="9px",
+                        color="blue.700",
+                        word_break="break-all",
+                    ),
+                    rx.box(),
                 ),
                 spacing="2",
                 width="100%",

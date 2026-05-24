@@ -392,26 +392,30 @@ class GeometryMixin(rx.State, mixin=True):
         self.buffer_compare_mode = not self.buffer_compare_mode
 
     def create_buffer_from_geometry(self, geometry_name: str, buffer_distance_km: float) -> bool:
-        """Create an external buffer around the named geometry."""
+        """Create an external buffer around the named geometry.
+
+        Lookup order (fastest first):
+        1. Territory GeoJSON cache (``territory_geojson_features``) – no EE round-trip.
+        2. Drawn-feature list.
+        3. EE service re-fetch (slowest, last resort).
+        """
         try:
             from ..utils.buffer_utils import (
                 create_external_buffer,
                 create_buffer_geometry_dict,
                 convert_geojson_to_ee_geometry,
             )
-            from ..utils.ee_service_extended import get_ee_service
             import datetime
 
             ee_geom = None
 
-            # 1. Try EE territory geometry
-            try:
-                ee_service = get_ee_service()
-                territory_geom = ee_service.get_territory_geometry(geometry_name)
-                if territory_geom:
-                    ee_geom = territory_geom
-            except Exception:
-                pass
+            # 1. Territory GeoJSON cache (fast – reconstructed from local state)
+            for feat in self.territory_geojson_features:
+                if feat.get("name") == geometry_name:
+                    ee_geom = convert_geojson_to_ee_geometry(feat)
+                    if ee_geom:
+                        logger.info(f"[BUFFER] Using cached territory GeoJSON for {geometry_name}")
+                        break
 
             # 2. Search drawn features
             if not ee_geom:
@@ -419,14 +423,20 @@ class GeometryMixin(rx.State, mixin=True):
                     name = feat.get("name") or feat.get("properties", {}).get("name", "")
                     if name == geometry_name:
                         ee_geom = convert_geojson_to_ee_geometry(feat)
-                        break
+                        if ee_geom:
+                            break
 
-            # 3. Territory GeoJSON cache
+            # 3. EE service re-fetch (blocking – only if cache missed)
             if not ee_geom:
-                for feat in self.territory_geojson_features:
-                    if feat.get("name") == geometry_name:
-                        ee_geom = convert_geojson_to_ee_geometry(feat)
-                        break
+                try:
+                    from ..utils.ee_service_extended import get_ee_service
+                    ee_service = get_ee_service()
+                    territory_geom = ee_service.get_territory_geometry(geometry_name)
+                    if territory_geom:
+                        ee_geom = territory_geom
+                        logger.info(f"[BUFFER] Re-fetched from EE service: {geometry_name}")
+                except Exception:
+                    pass
 
             if not ee_geom:
                 self.error_message = f"Geometry '{geometry_name}' not found"
@@ -447,33 +457,63 @@ class GeometryMixin(rx.State, mixin=True):
             )
             self.add_buffer_geometry(buffer_name, buffer_dict)
             self.current_buffer_for_analysis = buffer_name
-            self.error_message = ""
+            self.error_message = f"✅ Buffer ({buffer_distance_km} km) created around {geometry_name}"
+            logger.info(f"[BUFFER] Created {buffer_name}")
             return True
 
         except Exception as e:
             self.error_message = f"Error creating buffer: {e}"
+            logger.error(f"[BUFFER] Error: {e}", exc_info=True)
             return False
 
     def handle_create_buffer(self):
-        """Handle buffer creation from UI input (gets distance from state)."""
+        """Handle buffer creation from UI input (reads distance from state).
+
+        Works with:
+        - A selected drawn feature (geometry mode)
+        - The selected territory (territory mode, uses cached GeoJSON — no EE round-trip)
+        - Defaults to 10 km when the input is empty.
+        """
         try:
-            distance_km = float(self.buffer_distance_input)
+            dist_raw = (self.buffer_distance_input or "").strip()
+            distance_km = float(dist_raw) if dist_raw else 10.0
             if distance_km <= 0:
                 self.error_message = "Buffer distance must be greater than 0"
                 return
-            if self.selected_geometry_idx is None or self.selected_geometry_idx >= len(self.drawn_features):
-                self.error_message = "Select a geometry first"
+
+            # Determine source: prefer selected drawn feature, then selected territory
+            if (
+                self.selected_geometry_idx is not None
+                and self.selected_geometry_idx < len(self.drawn_features)
+            ):
+                feature = self.drawn_features[self.selected_geometry_idx]
+                geometry_name = (
+                    feature.get("name")
+                    or feature.get("properties", {}).get("name")
+                    or f"geometry_{self.selected_geometry_idx}"
+                )
+            elif self.selected_territory:
+                geometry_name = self.selected_territory
+            else:
+                self.error_message = "Select a territory or draw a geometry first"
                 return
-            
-            # Get the geometry name/identifier from the selected feature
-            feature = self.drawn_features[self.selected_geometry_idx]
-            geometry_name = feature.get("name") or feature.get("properties", {}).get("name") or f"geometry_{self.selected_geometry_idx}"
-            
+
             self.create_buffer_from_geometry(geometry_name, distance_km)
         except ValueError:
             self.error_message = "Invalid buffer distance. Enter a number."
         except Exception as e:
             self.error_message = f"Buffer error: {e}"
+
+    def create_territory_auto_buffer(self, distance_km: float = 10.0):
+        """Auto-create a buffer around the currently selected territory.
+
+        Called from ``set_selected_territory`` after the GeoJSON is cached,
+        so this uses the fast cache path (no extra EE round-trip).
+        """
+        if not self.selected_territory or not self.territory_geojson_features:
+            return
+        self.create_buffer_from_geometry(self.selected_territory, distance_km)
+        logger.info(f"[BUFFER] Auto-buffer {distance_km}km created for {self.selected_territory}")
 
     # ---- Geometry analysis type / year ----------------------------------
 

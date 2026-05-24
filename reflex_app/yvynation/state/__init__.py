@@ -203,6 +203,10 @@ class AppState(
     show_layer_reference: bool = False
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""
+    #: Default buffer distance used by the auto-buffer feature (km)
+    auto_buffer_km: float = 10.0
+    #: Whether to automatically create a buffer when a territory is selected
+    auto_buffer_enabled: bool = True
 
     # Sidebar section expansion
     sidebar_mapbiomas_expanded: bool = False

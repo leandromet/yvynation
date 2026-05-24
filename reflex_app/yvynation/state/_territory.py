@@ -289,6 +289,13 @@ class TerritoryMixin(rx.State, mixin=True):
                 logger.error(f"[TERRITORY_SET] Error loading geometry: {e}", exc_info=True)
                 self.error_message = f"Error loading territory: {e}"
 
+            # Auto-buffer: create default buffer using the cached GeoJSON (no extra EE round-trip)
+            if getattr(self, "auto_buffer_enabled", True) and self.territory_geojson_features:
+                try:
+                    self.create_territory_auto_buffer(getattr(self, "auto_buffer_km", 10.0))
+                except Exception as buf_err:
+                    logger.warning(f"[TERRITORY_SET] Auto-buffer failed (non-fatal): {buf_err}")
+
             logger.info(f"[TERRITORY_SET] Completed: {territory}")
 
         except Exception as outer_e:

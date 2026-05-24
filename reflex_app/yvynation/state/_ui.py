@@ -149,3 +149,16 @@ class UIMixin(rx.State, mixin=True):
     def set_buffer_distance_input(self, value: str):
         """Update buffer distance input field."""
         self.buffer_distance_input = value
+
+    def set_auto_buffer_km(self, value: str):
+        """Update the default auto-buffer distance (km)."""
+        try:
+            km = float(value)
+            if km > 0:
+                self.auto_buffer_km = km
+        except (ValueError, TypeError):
+            pass
+
+    def toggle_auto_buffer(self):
+        """Toggle automatic buffer creation on territory selection."""
+        self.auto_buffer_enabled = not self.auto_buffer_enabled
