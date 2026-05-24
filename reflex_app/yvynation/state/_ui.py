@@ -107,16 +107,26 @@ class UIMixin(rx.State, mixin=True):
     # ---- Navigation (analysis mode) ------------------------------------------
 
     def go_to_geometry_analysis(self):
-        """Navigate to geometry analysis page."""
-        self.initialize_app()  # Initialize EE data when navigating away from portal
+        """Navigate to geometry analysis page, then kick off background EE load.
+
+        Using a generator (yield) ensures the state mutation (analysis_mode) is
+        sent to the frontend *before* the background task is dispatched, so the
+        UI switches pages immediately and remains fully interactive while EE data
+        loads in the background.
+        """
         self.analysis_mode = "geometry"
-        self.show_indigenous_lands = False  # Hide indigenous lands for geometry analysis
+        self.show_indigenous_lands = False
+        bg_task = self.initialize_app()
+        if bg_task is not None:
+            yield bg_task
 
     def go_to_territory_analysis(self):
-        """Navigate to territory analysis page."""
-        self.initialize_app()  # Initialize EE data when navigating away from portal
+        """Navigate to territory analysis page, then kick off background EE load."""
         self.analysis_mode = "territory"
-        self.show_indigenous_lands = True  # Show indigenous lands for territory analysis
+        self.show_indigenous_lands = True
+        bg_task = self.initialize_app()
+        if bg_task is not None:
+            yield bg_task
 
     def go_to_portal(self):
         """Navigate back to the portal/introduction page."""

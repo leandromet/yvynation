@@ -71,58 +71,88 @@ class TerritoryMixin(rx.State, mixin=True):
         logger.info("Application state cleared and reset")
 
     def initialize_app(self):
-        """Show UI immediately then load EE data in the background."""
+        """Show UI immediately, mark as initializing, then dispatch background load."""
         if self.ee_initialized:
             return
         self.data_loaded = True
         self.ee_initialized = True
-        self._load_territories_background()
+        self.loading_message = "Loading territory data…"
+        self.loading_type = "ee"
+        # Return an EventSpec so the caller can yield/return it to Reflex,
+        # which then dispatches the background task without blocking.
+        return type(self).load_territories_background()
 
-    def _load_territories_background(self):
-        """Load territory list and indigenous lands tile URL (non-blocking)."""
+    @rx.event(background=True)
+    async def load_territories_background(self):
+        """Load territory list and indigenous lands tile URL without blocking the event loop.
+
+        Uses ``@rx.background`` so all EE network calls happen in a worker thread
+        while the frontend stays fully interactive.  State mutations are batched
+        inside ``async with self`` blocks to minimise the number of map rebuilds.
+        """
+        import asyncio
+
         try:
             from ..utils.ee_service_extended import get_ee_service
 
+            # ------------------------------------------------------------------
+            # Phase 1 – territory list (one EE round-trip)
+            # ------------------------------------------------------------------
             ee_service = get_ee_service()
-            success, territories = ee_service.load_territories()
-            if success and territories:
-                self.available_territories = list(territories)
-            else:
+            try:
+                success, territories = await asyncio.get_event_loop().run_in_executor(
+                    None, ee_service.load_territories
+                )
+            except Exception:
+                success, territories = False, []
+
+            fallback = [
+                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
+                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
+            ]
+            territory_list = list(territories) if (success and territories) else fallback
+
+            async with self:
+                self.available_territories = territory_list
+                logger.info(f"[INIT] Territory list ready: {len(territory_list)} entries")
+
+            # ------------------------------------------------------------------
+            # Phase 2 – indigenous lands tile URL (second EE round-trip)
+            # ------------------------------------------------------------------
+            tile_url = ""
+            name_property = "name"
+            try:
+                tile_url = await asyncio.get_event_loop().run_in_executor(
+                    None, ee_service.get_indigenous_lands_tile_url
+                )
+                name_property = await asyncio.get_event_loop().run_in_executor(
+                    None, ee_service.get_name_property
+                )
+            except Exception as tile_err:
+                logger.warning(f"[INIT] Could not load indigenous lands tiles: {tile_err}")
+
+            # ------------------------------------------------------------------
+            # Phase 3 – commit tile URL + bump geometry_version exactly once
+            # ------------------------------------------------------------------
+            async with self:
+                if tile_url:
+                    self.indigenous_lands_tile_url = tile_url
+                    logger.info("[INIT] Indigenous lands tile layer cached")
+                self.territory_name_property = name_property
+                self.geometry_version += 1
+                self.loading_message = ""
+                self.loading_type = ""
+                logger.info(f"[INIT] App initialised with {len(self.available_territories)} territories")
+
+        except Exception as e:
+            logger.error(f"[INIT] Failed to load territory data: {e}", exc_info=True)
+            async with self:
                 self.available_territories = [
                     "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
                     "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
                 ]
-
-            # DEBUG: Log all territories and their properties
-            try:
-                all_terrs = ee_service.debug_all_territories()
-                logger.info(f"=== DEBUG: All EE Territories ({len(all_terrs)} total) ===")
-                for i, terr in enumerate(all_terrs):
-                    logger.info(f"Territory {i}: {terr['all_properties']}")
-                logger.info(f"=== Loaded as available_territories ===")
-                for t in self.available_territories:
-                    logger.info(f"  - {t}")
-            except Exception as debug_err:
-                logger.warning(f"Could not debug territories: {debug_err}")
-
-            try:
-                tile_url = ee_service.get_indigenous_lands_tile_url()
-                if tile_url:
-                    self.indigenous_lands_tile_url = tile_url
-                    logger.info("Indigenous lands tile layer cached")
-                self.territory_name_property = ee_service.get_name_property()
-            except Exception as tile_err:
-                logger.warning(f"Could not load indigenous lands tiles: {tile_err}")
-
-            self.geometry_version += 1
-            logger.info(f"App initialised with {len(self.available_territories)} territories")
-
-        except Exception as e:
-            logger.error(f"Failed to load territory data: {e}")
-            self.available_territories = [
-                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
-                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
-            ]
+                self.loading_message = ""
+                self.loading_type = ""
 
     # ---- Search / filter ------------------------------------------------
 
