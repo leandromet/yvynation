@@ -45,7 +45,7 @@ _batch_zip_bytes: Optional[bytes] = None
 # the territory and buffer ZIP folders.
 # ---------------------------------------------------------------------------
 
-SPLIT_THRESHOLD_HA = 2_000_000  # split territories larger than this
+SPLIT_THRESHOLD_HA = 1_000_000  # split territories larger than this
 
 
 def _compute_quadrant_bboxes(minx, miny, maxx, maxy):
