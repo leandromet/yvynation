@@ -335,8 +335,8 @@ class BatchMixin(rx.State, mixin=True):
     # Stored as strings so they bind cleanly to ``rx.select(value=...)``.
     # ``int_var.to(str)`` does not reactively update the displayed dropdown
     # value in Reflex 0.8.27 — use a direct string var instead.
-    batch_year: str = "2024"      # single-year MapBiomas
-    batch_year2: str = "2019"     # comparison year
+    batch_year: str = "1985"      # single-year MapBiomas
+    batch_year2: str = "2024"     # comparison year
     batch_hansen_year: str = "2020"
     batch_buffer_km: float = 10.0
     batch_buffer_enabled: bool = True

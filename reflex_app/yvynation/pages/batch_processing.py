@@ -152,7 +152,7 @@ def config_panel() -> rx.Component:
             _label("MapBiomas years"),
             rx.hstack(
                 rx.vstack(
-                    rx.text("Single-year snapshot", font_size="xs", color="#6B7280"),
+                    rx.text("Single-year snapshot or Initial", font_size="xs", color="#6B7280"),
                     rx.select(
                         [str(y) for y in range(2024, 1984, -1)],
                         value=AppState.batch_year,
@@ -163,7 +163,7 @@ def config_panel() -> rx.Component:
                 ),
                 rx.text("↔", font_size="lg", color="#9CA3AF", padding_top="1.2rem"),
                 rx.vstack(
-                    rx.text("Comparison year", font_size="xs", color="#6B7280"),
+                    rx.text("Comparison final year", font_size="xs", color="#6B7280"),
                     rx.select(
                         [str(y) for y in range(2024, 1984, -1)],
                         value=AppState.batch_year2,
