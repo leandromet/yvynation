@@ -332,7 +332,7 @@ class TerritoryMixin(rx.State, mixin=True):
                     # create_external_buffer is pure EE construction (no network)
                     buffer_geom = create_external_buffer(ee_geom, buffer_km)
                     if buffer_geom:
-                        buffer_name = f"Buffer {buffer_km}km - {territory}"
+                        buffer_name = f"{territory} - Buffer {buffer_km:g}km"
                         buffer_dict = create_buffer_geometry_dict(
                             name=buffer_name,
                             ee_geometry=buffer_geom,

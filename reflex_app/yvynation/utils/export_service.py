@@ -39,7 +39,7 @@ single directory without name collisions:
   │               └── {slug}_hansen_gfc_loss_by_year.png + .html
   │
   └── buffer/
-      └── {buffer_slug}/      (e.g. buffer_10km_{territory_slug})
+      └── {buffer_slug}/      (e.g. {territory_slug}_Buffer_10km)
           └── [same sub-structure as territory/]
 """
 
@@ -65,7 +65,7 @@ def _slug(name: str) -> str:
 
     Examples:
         "Terra Indígena Xingu (PA)"  → "Terra_Indigena_Xingu_PA"
-        "Buffer (10 km) — Xingu"     → "Buffer_10km_Xingu"
+        "Xingu - Buffer 10km"        → "Xingu_Buffer_10km"
     """
     import unicodedata
     # Normalize unicode (remove accents)
@@ -361,7 +361,7 @@ def create_export_zip(
     buffer_figures = buffer_figures or {}
 
     t_slug = _slug(territory_name) if territory_name else "territory"
-    b_slug = _slug(buffer_name) if buffer_name else (f"buffer_{t_slug}" if t_slug else "buffer")
+    b_slug = _slug(buffer_name) if buffer_name else (f"{t_slug}_buffer" if t_slug else "buffer")
     timestamp = datetime.now().isoformat()
 
     y1 = (comparison_result or {}).get("year_start", territory_year or "")
@@ -613,7 +613,7 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
             state.buffer_hansen_result,
         ]):
             t = state.territory_name or state.selected_territory or ""
-            buffer_name = f"Buffer ({state.auto_buffer_km:.0f} km) — {t}" if t else "Buffer"
+            buffer_name = f"{t} - Buffer {state.auto_buffer_km:g}km" if t else "Buffer"
     except Exception:
         pass
 

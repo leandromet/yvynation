@@ -370,6 +370,127 @@ def status_panel() -> rx.Component:
 
 
 # ---------------------------------------------------------------------------
+# How-to / explanation panel
+# ---------------------------------------------------------------------------
+
+def _howto_step(n: int, title: str, body: str) -> rx.Component:
+    return rx.hstack(
+        rx.box(
+            rx.text(str(n), font_size="sm", font_weight="700", color="white"),
+            bg=ORANGE,
+            border_radius="full",
+            min_width="1.6rem", height="1.6rem",
+            display="flex", align_items="center", justify_content="center",
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.text(title, font_size="sm", font_weight="600", color="#111827"),
+            rx.text(body, font_size="xs", color="#4B5563", line_height="1.5"),
+            spacing="1", align_items="flex-start",
+        ),
+        spacing="3", align_items="flex-start", width="100%",
+    )
+
+
+def howto_panel() -> rx.Component:
+    """Explanation of the batch module and a step-by-step usage guide."""
+    return _section_card(
+        rx.hstack(
+            rx.heading("📖 About Batch Processing", size="3", color="#1a472a"),
+            width="100%", align_items="center",
+        ),
+        rx.text(
+            "Run the full Yvynation analysis pipeline (MapBiomas land cover, "
+            "year-over-year change, Hansen GLAD forest cover, and Hansen GFC "
+            "loss/gain) across many indigenous territories in one unattended "
+            "run. Each territory — and its optional external buffer — is "
+            "processed via Google Earth Engine and packaged into a single ZIP "
+            "archive containing CSV tables, transition matrices, and chart "
+            "figures (HTML + PNG) per territory.",
+            font_size="sm", color="#374151", line_height="1.6",
+        ),
+        rx.divider(border_color="#F3F4F6"),
+
+        rx.hstack(
+            rx.icon("clock", size=14, color=ORANGE),
+            rx.text(
+                "Expect 2–10 minutes per territory depending on which analyses "
+                "are enabled. The tab can stay open in the background.",
+                font_size="xs", color="#6B7280", line_height="1.5",
+            ),
+            spacing="2", align_items="flex-start",
+        ),
+        rx.divider(border_color="#F3F4F6"),
+
+        rx.accordion.root(
+            rx.accordion.item(
+                header=rx.text(
+                    "How to use",
+                    font_size="xs", font_weight="600", color="#374151",
+                    text_transform="uppercase", letter_spacing="0.05em",
+                ),
+                content=rx.vstack(
+                    _howto_step(
+                        1,
+                        "Select territories",
+                        "Use the search box on the left, then tick the territories you "
+                        "want to include. “Select all filtered” adds every match of the "
+                        "current search; “Clear all” starts over.",
+                    ),
+                    _howto_step(
+                        2,
+                        "Pick MapBiomas years",
+                        "Set the initial year (single snapshot) and the final year "
+                        "(for the year-over-year comparison). Range: 1985–2024.",
+                    ),
+                    _howto_step(
+                        3,
+                        "Pick the Hansen GLAD year",
+                        "Reference year (2000/2005/2010/2015/2020) used for the Hansen "
+                        "GLAD forest-cover snapshot.",
+                    ),
+                    _howto_step(
+                        4,
+                        "Choose analysis types",
+                        "Enable any combination of MapBiomas single-year, year-over-"
+                        "year comparison, Hansen GLAD, and Hansen GFC loss/gain.",
+                    ),
+                    _howto_step(
+                        5,
+                        "Optional buffer zone",
+                        "Toggle on to also analyse an external ring (default 10 km) "
+                        "around each territory. Buffer outputs are written to "
+                        "buffer/{territory}_Buffer_{km}km/ inside the ZIP.",
+                    ),
+                    _howto_step(
+                        6,
+                        "Start the batch",
+                        "Click “Start Batch Processing”. The configuration panel is "
+                        "replaced by the live progress view; you can stop after the "
+                        "current territory at any time.",
+                    ),
+                    _howto_step(
+                        7,
+                        "Download the ZIP",
+                        "When the run finishes, hit “Download ZIP” to grab all "
+                        "tables, transitions, and figures for every territory in one "
+                        "self-describing archive.",
+                    ),
+                    spacing="3", width="100%", padding_top="0.75rem",
+                ),
+                value="howto",
+            ),
+            type="single",
+            collapsible=True,
+            default_value="howto",
+            variant="ghost",
+            width="100%",
+            color_scheme="orange",
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Action buttons panel
 # ---------------------------------------------------------------------------
 
@@ -574,29 +695,9 @@ def batch_processing_page() -> rx.Component:
                         # Action buttons
                         action_panel(),
 
-                        # Estimated time note
-                        rx.cond(
-                            ~AppState.batch_running & ~AppState.batch_done,
-                            rx.box(
-                                rx.hstack(
-                                    rx.icon("info", size=14, color="#9CA3AF"),
-                                    rx.text(
-                                        "Each territory takes 2–10 minutes depending on analysis options. "
-                                        "You can safely leave this tab open while processing.",
-                                        font_size="xs",
-                                        color="#6B7280",
-                                        line_height="1.5",
-                                    ),
-                                    spacing="2",
-                                    align_items="flex-start",
-                                ),
-                                padding="0.75rem",
-                                bg="#F9FAFB",
-                                border="1px solid #E5E7EB",
-                                border_radius="lg",
-                            ),
-                            rx.box(),
-                        ),
+                        # How-to / explanation (always visible — fills the
+                        # empty space below the ~1/3-height progress area)
+                        howto_panel(),
 
                         spacing="4",
                         width="100%",

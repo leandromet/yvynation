@@ -181,7 +181,7 @@ class ExportMixin(rx.State, mixin=True):
             buf_territory = (
                 buf_cmp.get("territory")
                 or self.current_buffer_for_analysis
-                or f"Buffer_{t_slug}"
+                or f"{t_slug}_Buffer"
             )
             b_slug = _export_slug(buf_territory)
 

@@ -787,7 +787,7 @@ class BatchMixin(rx.State, mixin=True):
                                 if bdf is not None and not bdf.empty:
                                     buf_mb_result = {
                                         "type": "mapbiomas",
-                                        "territory": f"Buffer {buf_km}km - {territory}",
+                                        "territory": f"{territory} - Buffer {buf_km:g}km",
                                         "year": year1,
                                         "data": bdf.to_dict("records"),
                                     }
@@ -829,7 +829,7 @@ class BatchMixin(rx.State, mixin=True):
                                         rows.append({"Class": cls, f"Area_{y1}_ha": a1,
                                                      f"Area_{y2}_ha": a2, "Change_ha": a2 - a1})
                                     return {
-                                        "territory": f"Buffer {buf_km}km - {territory}",
+                                        "territory": f"{territory} - Buffer {buf_km:g}km",
                                         "year_start": y1, "year_end": y2,
                                         "data": rows,
                                         "gains_ha": gains_ha,
@@ -860,7 +860,7 @@ class BatchMixin(rx.State, mixin=True):
                                 if bgdf is not None and not bgdf.empty:
                                     buf_glad_result = {
                                         "type": "hansen_glad",
-                                        "territory": f"Buffer {buf_km}km - {territory}",
+                                        "territory": f"{territory} - Buffer {buf_km:g}km",
                                         "year": hansen_year,
                                         "data": bgdf.to_dict("records"),
                                     }
@@ -880,7 +880,7 @@ class BatchMixin(rx.State, mixin=True):
                                     loop, _buf_gfc, f"Buffer Hansen GFC{rsuffix} ({territory})"
                                 )
                                 if buf_gfc_result:
-                                    buf_gfc_result["territory"] = f"Buffer {buf_km}km - {territory}"
+                                    buf_gfc_result["territory"] = f"{territory} - Buffer {buf_km:g}km"
                                 else:
                                     async with self:
                                         self._batch_append_log(f"  ⚠ skipped buffer Hansen GFC{rsuffix}")
@@ -966,7 +966,7 @@ class BatchMixin(rx.State, mixin=True):
 
                             # Buffer section for this region
                             if ben:
-                                b_slug = _slug(f"Buffer_{bkm}km_{terr}")
+                                b_slug = _slug(f"{terr}_Buffer_{bkm:g}km")
                                 b_dir = f"buffer/{b_slug}{rsub}"
 
                                 b_y1_records = bmb.get("data") if bmb else (bcmp.get("_raw_y1") if bcmp else None)

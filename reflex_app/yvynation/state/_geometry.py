@@ -447,7 +447,7 @@ class GeometryMixin(rx.State, mixin=True):
                 self.error_message = "Failed to create buffer"
                 return False
 
-            buffer_name = f"Buffer {buffer_distance_km}km - {geometry_name}"
+            buffer_name = f"{geometry_name} - Buffer {buffer_distance_km:g}km"
             buffer_dict = create_buffer_geometry_dict(
                 name=buffer_name,
                 ee_geometry=buffer_geom,
