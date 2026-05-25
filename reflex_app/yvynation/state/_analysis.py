@@ -969,6 +969,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 y1 = self.comparison_year1
                 y2 = self.comparison_year2
                 geojson_features = list(self.territory_geojson_features)
+                buffer_geojson_features = list(self.buffer_geojson_features)
 
             if not territory:
                 async with self:
@@ -1106,18 +1107,32 @@ class AnalysisMixin(rx.State, mixin=True):
                 total_trans = sum(len(v) for v in transitions.values())
                 logger.info(f"[COMPARISON] str-keyed transitions: {total_trans} pairs")
 
-            # ── Step 7a: buffer analysis for year2 (non-fatal) ───────────────
+            # ── Step 7a: buffer ring analysis for year1 + year2 (non-fatal) ──
+            # NOTE: we use buffer_geojson_features (the external ring), NOT
+            #       territory geojson, so results are for the surrounding buffer zone.
             buf_compare_result = None
-            if geojson_features:
+            buf_mapbiomas_comparison_result = None
+            buf_feat = buffer_geojson_features[0] if buffer_geojson_features else None
+
+            if buf_feat:
                 async with self:
-                    self.loading_message = f"Analyzing buffer zone — {y2}…"
+                    self.loading_message = f"Analyzing buffer zone — {y1} / {y2}…"
                 try:
                     from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                    buf_ee_geom = convert_geojson_to_ee_geometry(geojson_features[0])
+                    buf_ee_geom = convert_geojson_to_ee_geometry(buf_feat)
                     if buf_ee_geom:
+                        # year1
+                        buf_df1 = await asyncio.get_event_loop().run_in_executor(
+                            None, analyzer.analyze_single_year, buf_ee_geom, y1, 30
+                        )
+                        logger.info(f"[COMPARISON] Buffer year1 ({y1}): {len(buf_df1)} classes")
+
+                        # year2
                         buf_df2 = await asyncio.get_event_loop().run_in_executor(
                             None, analyzer.analyze_single_year, buf_ee_geom, y2, 30
                         )
+                        logger.info(f"[COMPARISON] Buffer year2 ({y2}): {len(buf_df2)} classes")
+
                         if not buf_df2.empty:
                             buf_compare_result = {
                                 "type": "mapbiomas",
@@ -1129,9 +1144,19 @@ class AnalysisMixin(rx.State, mixin=True):
                                     "classes": len(buf_df2),
                                 },
                             }
-                            logger.info(f"[COMPARISON] Buffer year2 ({y2}): {len(buf_df2)} classes")
+
+                        # gains/losses comparison for buffer
+                        if not buf_df1.empty and not buf_df2.empty:
+                            buf_cmp_df = calculate_gains_losses(buf_df1, buf_df2)
+                            buf_mapbiomas_comparison_result = {
+                                "year_start": y1,
+                                "year_end": y2,
+                                "territory": f"Buffer ({territory})",
+                                "data": buf_cmp_df.to_dict("records"),
+                            }
+                            logger.info(f"[COMPARISON] Buffer gains/losses: {len(buf_cmp_df)} classes")
                 except Exception as be:
-                    logger.warning(f"[COMPARISON] Buffer year2 analysis failed (non-fatal): {be}")
+                    logger.warning(f"[COMPARISON] Buffer analysis failed (non-fatal): {be}")
 
             # ── Step 7: commit all results in one lock ───────────────────────
             comparison_dict = {
@@ -1179,6 +1204,8 @@ class AnalysisMixin(rx.State, mixin=True):
                 self.mapbiomas_comparison_result = comparison_dict
                 if buf_compare_result is not None:
                     self.buffer_compare_result = buf_compare_result
+                if buf_mapbiomas_comparison_result is not None:
+                    self.buffer_mapbiomas_comparison_result = buf_mapbiomas_comparison_result
                 key = f"territory::{territory}"
                 bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
                 self.all_analysis_results[key] = bundle

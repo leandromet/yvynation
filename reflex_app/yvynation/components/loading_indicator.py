@@ -113,36 +113,64 @@ def loading_indicator() -> rx.Component:
                             border_radius="md",
                             align_items="start",
                         ),
-                        # Default - gray
-                        rx.hstack(
-                            rx.spinner(
-                                color="gray",
-                                size="2",
-                            ),
-                            rx.vstack(
-                                rx.text(
-                                    "Loading",
-                                    font_size="xs",
-                                    font_weight="bold",
-                                    color="gray",
+                        rx.cond(
+                            AppState.loading_type == "territory",
+                            # Territory loading - green, map-pin symbol
+                            rx.hstack(
+                                rx.spinner(color="rgb(22, 163, 74)", size="2"),
+                                rx.vstack(
+                                    rx.text(
+                                        "Territory",
+                                        font_size="xs",
+                                        font_weight="bold",
+                                        color="rgb(22, 163, 74)",
+                                    ),
+                                    rx.text(
+                                        AppState.loading_message,
+                                        font_size="2xs",
+                                        color="gray",
+                                        max_width="180px",
+                                        overflow="hidden",
+                                        text_overflow="ellipsis",
+                                        white_space="nowrap",
+                                    ),
+                                    spacing="0",
                                 ),
-                                rx.text(
-                                    AppState.loading_message,
-                                    font_size="2xs",
-                                    color="gray",
-                                    max_width="180px",
-                                    overflow="hidden",
-                                    text_overflow="ellipsis",
-                                    white_space="nowrap",
-                                ),
-                                spacing="0",
+                                spacing="2",
+                                padding="0.75rem 1rem",
+                                bg="rgb(220, 252, 231)",  # light green
+                                border="1px solid rgb(22, 163, 74)",
+                                border_radius="md",
+                                align_items="start",
                             ),
-                            spacing="2",
-                            padding="0.75rem 1rem",
-                            bg="rgb(243, 244, 246)",  # light gray
-                            border="1px solid rgb(209, 213, 219)",
-                            border_radius="md",
-                            align_items="start",
+                            # Default - gray
+                            rx.hstack(
+                                rx.spinner(color="gray", size="2"),
+                                rx.vstack(
+                                    rx.text(
+                                        "Loading",
+                                        font_size="xs",
+                                        font_weight="bold",
+                                        color="gray",
+                                    ),
+                                    rx.text(
+                                        AppState.loading_message,
+                                        font_size="2xs",
+                                        color="gray",
+                                        max_width="180px",
+                                        overflow="hidden",
+                                        text_overflow="ellipsis",
+                                        white_space="nowrap",
+                                    ),
+                                    spacing="0",
+                                ),
+                                spacing="2",
+                                padding="0.75rem 1rem",
+                                bg="rgb(243, 244, 246)",  # light gray
+                                border="1px solid rgb(209, 213, 219)",
+                                border_radius="md",
+                                align_items="start",
+                            ),
                         ),
                     ),
                 ),

@@ -10,7 +10,8 @@ config = rx.Config(
     db_url=os.environ.get("REFLEX_DB_URL", "sqlite:///reflex.db"),
     log_level=os.environ.get("REFLEX_LOG_LEVEL", "info"),
     disable_plugins=["reflex.plugins.sitemap.SitemapPlugin"],
-    # Ports: overridable via env so Cloud Run's $PORT is respected.
-    backend_port=int(os.environ.get("PORT", 8000)),
+    # Ports: frontend uses $PORT (Cloud Run's injected port), backend uses $BACKEND_PORT.
+    # Keeping them separate prevents both from binding to the same port on Cloud Run.
     frontend_port=int(os.environ.get("PORT", 3000)),
+    backend_port=int(os.environ.get("BACKEND_PORT", 8000)),
 )

@@ -149,6 +149,8 @@ class AppState(
     buffer_hansen_result: Optional[Dict[str, Any]] = None
     #: Buffer result for comparison year2 (populated by run_territory_comparison_bg)
     buffer_compare_result: Optional[Dict[str, Any]] = None
+    #: Buffer gains/losses comparison (year1 vs year2 in the buffer ring)
+    buffer_mapbiomas_comparison_result: Optional[Dict[str, Any]] = None
     #: Buffer result from Hansen GFC analysis
     buffer_gfc_result: Optional[Dict[str, Any]] = None
 
@@ -1162,3 +1164,140 @@ class AppState(
             }
         except Exception:
             return {}
+
+    # ── Buffer MapBiomas comparison charts (year1 vs year2 in the buffer ring) ─
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_compare_gains_losses_chart(self) -> Figure:
+        """Gains/losses chart for the buffer ring (year1 → year2)."""
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return pgo.Figure()
+            from ..utils.visualization import create_gains_losses_chart
+            import pandas as pd
+            data = self.buffer_mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return pgo.Figure()
+            df = pd.DataFrame(data)
+            y1 = self.buffer_mapbiomas_comparison_result.get("year_start", 0)
+            y2 = self.buffer_mapbiomas_comparison_result.get("year_end", 0)
+            if "Change_km2" not in df.columns and "Change_ha" in df.columns:
+                df["Change_km2"] = df["Change_ha"] / 100
+            if "Abs_Change" not in df.columns:
+                df["Abs_Change"] = df.get("Change_ha", df.get("Change_km2", 0)).abs()
+            return create_gains_losses_chart(df, y1, y2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer compare gains/losses chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_compare_change_pct_chart(self) -> Figure:
+        """Percentage-change chart for the buffer ring (year1 → year2)."""
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return pgo.Figure()
+            from ..utils.visualization import create_change_percentage_chart
+            import pandas as pd
+            data = self.buffer_mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return pgo.Figure()
+            df = pd.DataFrame(data)
+            y1 = self.buffer_mapbiomas_comparison_result.get("year_start", 0)
+            y2 = self.buffer_mapbiomas_comparison_result.get("year_end", 0)
+            if "Abs_Change" not in df.columns:
+                df["Abs_Change"] = df.get("Change_ha", df.get("Change_km2", 0)).abs()
+            return create_change_percentage_chart(df, y1, y2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer compare pct chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_compare_total_gains(self) -> str:
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.buffer_mapbiomas_comparison_result.get("data", []))
+            if "Change_km2" in df.columns:
+                return f"{df[df['Change_km2'] > 0]['Change_km2'].sum():,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_compare_total_losses(self) -> str:
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.buffer_mapbiomas_comparison_result.get("data", []))
+            if "Change_km2" in df.columns:
+                return f"{abs(df[df['Change_km2'] < 0]['Change_km2'].sum()):,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_compare_net_change(self) -> str:
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return "N/A"
+            import pandas as pd
+            df = pd.DataFrame(self.buffer_mapbiomas_comparison_result.get("data", []))
+            if "Change_km2" in df.columns:
+                return f"{df['Change_km2'].sum():+,.1f} km²"
+            return "N/A"
+        except Exception:
+            return "N/A"
+
+    # ── Buffer GFC — loss-by-year chart and table ───────────────────────────
+
+    @rx.var(auto_deps=False, deps=["buffer_gfc_result"])
+    def buffer_gfc_loss_by_year(self) -> List[Dict[str, Any]]:
+        """Tree-loss rows for the buffer ring, sorted by year."""
+        try:
+            records = [
+                r for r in (self.buffer_gfc_result or {}).get("tree_loss_data", [])
+                if r.get("Year_Code", 0) > 0
+            ]
+            return sorted(records, key=lambda r: r["Year_Code"])
+        except Exception:
+            return []
+
+    @rx.var(auto_deps=False, deps=["buffer_gfc_result"])
+    def buffer_gfc_loss_chart(self) -> Figure:
+        """Annual tree-loss bar chart for the buffer ring."""
+        try:
+            rows = self.buffer_gfc_loss_by_year
+            if not rows:
+                return pgo.Figure()
+            years = [r["Year"] for r in rows]
+            areas = [r["Area_ha"] for r in rows]
+            fig = pgo.Figure(data=[
+                pgo.Bar(
+                    x=years, y=areas,
+                    marker_color="#3B82F6",
+                    text=[f"{a:,.0f} ha" for a in areas],
+                    textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>%{y:,.0f} ha<extra></extra>",
+                )
+            ])
+            fig.update_layout(
+                title="Buffer: Annual Tree Loss",
+                xaxis_title="Year", yaxis_title="Loss Area (ha)",
+                template="plotly_white", height=350, showlegend=False,
+            )
+            return fig
+        except Exception as e:
+            logger.error(f"Buffer GFC loss chart error: {e}")
+            return pgo.Figure()
+
+    # ── Buffer Hansen GLAD — class distribution table ───────────────────────
+
+    @rx.var(auto_deps=False, deps=["buffer_hansen_result"])
+    def buffer_glad_table_data(self) -> List[Dict[str, Any]]:
+        """Class distribution rows for the buffer Hansen GLAD result."""
+        try:
+            return (self.buffer_hansen_result or {}).get("data", [])
+        except Exception:
+            return []

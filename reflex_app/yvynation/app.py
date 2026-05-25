@@ -12,8 +12,21 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Reflex app
-app = rx.App()
+# ---------------------------------------------------------------------------
+# HydrateFallback loading overlay
+# Addresses the React Router 7 "💿 Hey developer" hint by loading an external
+# JS file from /assets/yvy-loading.js.
+#
+# Using src= (external file) instead of an inline text child is critical:
+# React HTML-escapes text children of <script> tags, so an inline string
+# would never execute — and can even break JSX compilation.
+# The external file is served by Reflex from the assets/ directory.
+# ---------------------------------------------------------------------------
+app = rx.App(
+    head_components=[
+        rx.el.script(src="/assets/yvy-loading.js"),
+    ],
+)
 
 # Main index page
 app.add_page(

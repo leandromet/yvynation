@@ -238,68 +238,231 @@ def _buffer_box(content: rx.Component) -> rx.Component:
 # -----------------------------------------------------------------------
 
 def _buffer_comparison_mapbiomas() -> rx.Component:
-    """Side-by-side MapBiomas territory vs buffer comparison."""
+    """MapBiomas buffer zone section — bar chart + gains/losses + % change, all side-by-side."""
     return rx.cond(
         AppState.buffer_mapbiomas_result != None,
-        _buffer_box(
-            rx.vstack(
+        rx.vstack(
+            # ── Header ──────────────────────────────────────────────────
+            rx.box(
                 _buffer_header(
                     "Buffer Zone — MapBiomas Comparison",
                     AppState.buffer_mapbiomas_summary.get("name", "Buffer"),
                 ),
-                rx.hstack(
-                    _territory_card(
-                        AppState.analysis_summary_total_area,
-                        AppState.analysis_summary_classes + " classes",
-                    ),
-                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
-                    _buffer_card(
-                        AppState.buffer_mapbiomas_summary.get("area", "…"),
-                        AppState.buffer_mapbiomas_summary.get("classes", "0") + " classes",
-                    ),
-                    width="100%", spacing="2", align_items="center",
-                ),
-                _side_by_side_charts(
-                    AppState.mapbiomas_bar_chart,
-                    AppState.buffer_mapbiomas_bar_chart,
-                ),
-                spacing="3",
+                padding="0.75rem",
+                border="2px solid #93C5FD",
+                border_radius="md",
+                bg="blue.50",
                 width="100%",
-            )
+            ),
+            # ── Class distribution side-by-side ─────────────────────────
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        _territory_card(
+                            AppState.analysis_summary_total_area,
+                            AppState.analysis_summary_classes + " classes",
+                        ),
+                        rx.text("vs", font_size="md", color="gray", font_weight="bold"),
+                        _buffer_card(
+                            AppState.buffer_mapbiomas_summary.get("area", "…"),
+                            AppState.buffer_mapbiomas_summary.get("classes", "0") + " classes",
+                        ),
+                        width="100%", spacing="2", align_items="center",
+                    ),
+                    _side_by_side_charts(
+                        AppState.mapbiomas_bar_chart,
+                        AppState.buffer_mapbiomas_bar_chart,
+                        left_label="🟠 Territory — class distribution",
+                        right_label="🔵 Buffer — class distribution",
+                    ),
+                    spacing="3", width="100%",
+                ),
+                padding="0.75rem",
+                border="1px solid #93C5FD",
+                border_radius="md",
+                bg="white",
+                width="100%",
+            ),
+            # ── Gains / Losses (requires comparison run) ─────────────────
+            rx.cond(
+                AppState.buffer_mapbiomas_comparison_result != None,
+                rx.box(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.icon("trending-up", size=14, color="#22C55E"),
+                            rx.text(
+                                "Gains & Losses — Territory vs Buffer",
+                                font_size="sm", font_weight="700",
+                            ),
+                            spacing="2", align_items="center",
+                        ),
+                        # Metrics row
+                        rx.hstack(
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Gains", font_size="xs", color="gray"),
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_total_gains, color="teal", font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="green.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Losses", font_size="xs", color="gray"),
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_total_losses, color="orange", font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="red.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            rx.box(
+                                rx.vstack(
+                                    rx.text("Net Change", font_size="xs", color="gray"),
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_net_change, font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_net_change, font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    spacing="0", align="center",
+                                ),
+                                padding="0.5rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
+                            ),
+                            width="100%", spacing="2",
+                        ),
+                        # Gains/losses charts side-by-side
+                        _side_by_side_charts(
+                            AppState.gains_losses_chart,
+                            AppState.buffer_compare_gains_losses_chart,
+                            left_label="🟠 Territory — class gains & losses",
+                            right_label="🔵 Buffer — class gains & losses",
+                        ),
+                        # % change charts side-by-side
+                        _side_by_side_charts(
+                            AppState.change_pct_chart,
+                            AppState.buffer_compare_change_pct_chart,
+                            left_label="🟠 Territory — % change per class",
+                            right_label="🔵 Buffer — % change per class",
+                        ),
+                        spacing="3", width="100%",
+                    ),
+                    padding="0.75rem",
+                    border="1px solid #86EFAC",
+                    border_radius="md",
+                    bg="white",
+                    width="100%",
+                ),
+                rx.box(
+                    rx.hstack(
+                        rx.icon("info", size=14, color="#93C5FD"),
+                        rx.text(
+                            "Run '📅 Compare Years' to see gains & losses side-by-side with the buffer zone.",
+                            font_size="xs", color="#1D4ED8",
+                        ),
+                        spacing="2", align_items="center",
+                    ),
+                    padding="0.5rem 0.75rem",
+                    border="1px dashed #93C5FD",
+                    border_radius="md",
+                    bg="blue.50",
+                    width="100%",
+                ),
+            ),
+            spacing="3",
+            width="100%",
         ),
         rx.box(),
     )
 
 
+def _glad_table_compact(data) -> rx.Component:
+    """Compact GLAD class table (for side-by-side display)."""
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Class"),
+                rx.table.column_header_cell("Area (ha)"),
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                data,
+                lambda row: rx.table.row(
+                    rx.table.cell(row.get("Class", ""), font_size="xs"),
+                    rx.table.cell(row.get("Area_ha", "").to(str), font_size="xs"),
+                ),
+            )
+        ),
+        width="100%",
+        variant="surface",
+        size="1",
+    )
+
+
 def _buffer_comparison_hansen() -> rx.Component:
-    """Side-by-side Hansen GLAD territory vs buffer comparison."""
+    """Hansen/GLAD buffer zone section — chart and table side-by-side."""
     return rx.cond(
         AppState.buffer_hansen_result != None,
-        _buffer_box(
-            rx.vstack(
+        rx.vstack(
+            rx.box(
                 _buffer_header(
                     "Buffer Zone — Hansen/GLAD Comparison",
                     AppState.buffer_hansen_summary.get("name", "Buffer"),
                 ),
-                rx.hstack(
-                    _territory_card(
-                        AppState.glad_summary_area,
-                        AppState.glad_summary_classes + " classes",
-                    ),
-                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
-                    _buffer_card(
-                        AppState.buffer_hansen_summary.get("area", "…"),
-                        AppState.buffer_hansen_summary.get("classes", "0") + " classes",
-                    ),
-                    width="100%", spacing="2", align_items="center",
-                ),
-                _side_by_side_charts(
-                    AppState.glad_bar_chart,
-                    AppState.buffer_hansen_bar_chart,
-                ),
-                spacing="3",
+                padding="0.75rem",
+                border="2px solid #93C5FD",
+                border_radius="md",
+                bg="blue.50",
                 width="100%",
-            )
+            ),
+            # Metrics
+            rx.hstack(
+                _territory_card(
+                    AppState.glad_summary_area,
+                    AppState.glad_summary_classes + " classes",
+                ),
+                rx.text("vs", font_size="md", color="gray", font_weight="bold"),
+                _buffer_card(
+                    AppState.buffer_hansen_summary.get("area", "…"),
+                    AppState.buffer_hansen_summary.get("classes", "0") + " classes",
+                ),
+                width="100%", spacing="2", align_items="center",
+            ),
+            # Charts side-by-side
+            _side_by_side_charts(
+                AppState.glad_bar_chart,
+                AppState.buffer_hansen_bar_chart,
+                left_label="🟠 Territory — class distribution",
+                right_label="🔵 Buffer — class distribution",
+            ),
+            # Tables side-by-side
+            rx.hstack(
+                rx.box(
+                    rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500", margin_bottom="0.25rem"),
+                    _glad_table_compact(AppState.glad_table_data),
+                    flex="1", overflow_x="auto",
+                ),
+                rx.box(
+                    rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8", margin_bottom="0.25rem"),
+                    _glad_table_compact(AppState.buffer_glad_table_data),
+                    flex="1", overflow_x="auto",
+                ),
+                width="100%", spacing="2", align_items="flex-start",
+            ),
+            spacing="3",
+            width="100%",
+            padding="0.75rem",
+            border="1px solid #93C5FD",
+            border_radius="md",
         ),
         rx.box(),
     )
@@ -382,9 +545,72 @@ def _buffer_comparison_gfc() -> rx.Component:
                     ),
                     width="100%", spacing="2",
                 ),
+                # Summary metrics + bar chart side-by-side
                 _side_by_side_charts(
                     AppState.gfc_bar_chart,
                     AppState.buffer_gfc_bar_chart,
+                    left_label="🟠 Territory — GFC summary",
+                    right_label="🔵 Buffer — GFC summary",
+                ),
+                # Forest Loss by Year — chart + table side-by-side
+                rx.cond(
+                    AppState.buffer_gfc_loss_by_year.length() > 0,
+                    rx.vstack(
+                        rx.divider(),
+                        rx.hstack(
+                            rx.icon("trending-down", size=14, color="#e74c3c"),
+                            rx.text("Forest Loss by Year — Territory vs Buffer", font_size="sm", font_weight="700"),
+                            spacing="2", align_items="center",
+                        ),
+                        _side_by_side_charts(
+                            AppState.gfc_loss_chart,
+                            AppState.buffer_gfc_loss_chart,
+                            left_label="🟠 Territory — annual loss",
+                            right_label="🔵 Buffer — annual loss",
+                        ),
+                        # Loss tables side-by-side
+                        rx.hstack(
+                            rx.box(
+                                rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500", margin_bottom="0.25rem"),
+                                rx.table.root(
+                                    rx.table.header(rx.table.row(
+                                        rx.table.column_header_cell("Year"),
+                                        rx.table.column_header_cell("Area (ha)"),
+                                    )),
+                                    rx.table.body(rx.foreach(
+                                        AppState.gfc_loss_by_year,
+                                        lambda row: rx.table.row(
+                                            rx.table.cell(row.get("Year", ""), font_size="xs"),
+                                            rx.table.cell(row.get("Area_ha", "").to(str), font_size="xs"),
+                                        ),
+                                    )),
+                                    width="100%", variant="surface", size="1",
+                                ),
+                                flex="1", overflow_x="auto",
+                            ),
+                            rx.box(
+                                rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8", margin_bottom="0.25rem"),
+                                rx.table.root(
+                                    rx.table.header(rx.table.row(
+                                        rx.table.column_header_cell("Year"),
+                                        rx.table.column_header_cell("Area (ha)"),
+                                    )),
+                                    rx.table.body(rx.foreach(
+                                        AppState.buffer_gfc_loss_by_year,
+                                        lambda row: rx.table.row(
+                                            rx.table.cell(row.get("Year", ""), font_size="xs"),
+                                            rx.table.cell(row.get("Area_ha", "").to(str), font_size="xs"),
+                                        ),
+                                    )),
+                                    width="100%", variant="surface", size="1",
+                                ),
+                                flex="1", overflow_x="auto",
+                            ),
+                            width="100%", spacing="2", align_items="flex-start",
+                        ),
+                        spacing="3", width="100%",
+                    ),
+                    rx.box(),
                 ),
                 spacing="3",
                 width="100%",
@@ -410,45 +636,19 @@ def _buffer_comparison_gfc() -> rx.Component:
     )
 
 
-def _buffer_comparison_compare() -> rx.Component:
-    """Side-by-side comparison year-2 territory vs buffer for the Compare tab."""
-    return rx.cond(
-        AppState.buffer_compare_result != None,
-        _buffer_box(
-            rx.vstack(
-                _buffer_header(
-                    "Buffer Zone — Year Comparison",
-                    AppState.buffer_compare_summary.get("name", "Buffer"),
-                ),
-                rx.text(
-                    "Land cover in the external buffer ring — year " +
-                    AppState.buffer_compare_summary.get("year", ""),
-                    font_size="xs", color="gray.600",
-                ),
-                rx.hstack(
-                    # Territory card — uses pre-computed vars (no chained .get())
-                    _territory_card(
-                        AppState.territory_year2_area,
-                        AppState.territory_year2_classes,
-                    ),
-                    rx.text("vs", font_size="md", color="gray", font_weight="bold"),
-                    _buffer_card(
-                        AppState.buffer_compare_summary.get("area", "…"),
-                        AppState.buffer_compare_summary.get("classes", "0") + " classes",
-                    ),
-                    width="100%", spacing="2", align_items="center",
-                ),
-                _side_by_side_charts(
-                    AppState.mapbiomas_bar_chart,
-                    AppState.buffer_compare_bar_chart,
-                    left_label="Territory (year 2)",
-                    right_label="Buffer (year 2)",
-                ),
-                spacing="3",
-                width="100%",
-            )
+def _buffer_compare_label() -> rx.Component:
+    """Inline buffer comparison label strip used in the Compare tab."""
+    return rx.hstack(
+        rx.badge("🟠 Territory", color_scheme="orange", variant="surface", size="1"),
+        rx.text("vs", font_size="xs", color="gray"),
+        rx.badge("🔵 Buffer zone", color_scheme="blue", variant="surface", size="1"),
+        rx.badge(
+            AppState.buffer_compare_summary.get("name", "Buffer"),
+            color_scheme="gray", variant="outline", size="1",
         ),
-        rx.box(),
+        spacing="2",
+        align_items="center",
+        padding="0.25rem 0",
     )
 
 
@@ -657,28 +857,67 @@ def hansen_tab() -> rx.Component:
                 ),
                 rx.divider(),
                 rx.heading("📊 Class Distribution by Area", size="4"),
-                rx.box(
-                    rx.cond(
-                        has_glad,
-                        _plotly_safe(AppState.glad_bar_chart),
-                        _plotly_safe(AppState.hansen_balance_chart),
+                # Show side-by-side when buffer data available
+                rx.cond(
+                    AppState.buffer_hansen_result != None,
+                    _side_by_side_charts(
+                        rx.cond(has_glad, AppState.glad_bar_chart, AppState.hansen_balance_chart),
+                        AppState.buffer_hansen_bar_chart,
+                        left_label="🟠 Territory",
+                        right_label="🔵 Buffer",
                     ),
-                    width="100%",
+                    rx.box(
+                        rx.cond(
+                            has_glad,
+                            _plotly_safe(AppState.glad_bar_chart),
+                            _plotly_safe(AppState.hansen_balance_chart),
+                        ),
+                        width="100%",
+                    ),
                 ),
                 rx.divider(),
                 rx.heading("🌿 Detailed Class Data", size="4"),
                 rx.cond(
-                    has_glad,
-                    _glad_table(AppState.glad_table_data),
-                    rx.box(
-                        rx.data_table(
-                            data=AppState.hansen_table_data,
-                            columns=AppState.hansen_table_columns,
-                            pagination=True,
-                            search=True,
+                    AppState.buffer_hansen_result != None,
+                    # Side-by-side tables when buffer available
+                    rx.hstack(
+                        rx.box(
+                            rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500", margin_bottom="0.25rem"),
+                            rx.cond(
+                                has_glad,
+                                _glad_table(AppState.glad_table_data),
+                                rx.box(
+                                    rx.data_table(
+                                        data=AppState.hansen_table_data,
+                                        columns=AppState.hansen_table_columns,
+                                        pagination=True,
+                                        search=True,
+                                    ),
+                                    width="100%", overflow_x="auto",
+                                ),
+                            ),
+                            flex="1", overflow_x="auto",
                         ),
-                        width="100%",
-                        overflow_x="auto",
+                        rx.box(
+                            rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8", margin_bottom="0.25rem"),
+                            _glad_table(AppState.buffer_glad_table_data),
+                            flex="1", overflow_x="auto",
+                        ),
+                        width="100%", spacing="2", align_items="flex-start",
+                    ),
+                    rx.cond(
+                        has_glad,
+                        _glad_table(AppState.glad_table_data),
+                        rx.box(
+                            rx.data_table(
+                                data=AppState.hansen_table_data,
+                                columns=AppState.hansen_table_columns,
+                                pagination=True,
+                                search=True,
+                            ),
+                            width="100%",
+                            overflow_x="auto",
+                        ),
                     ),
                 ),
                 rx.divider(),
@@ -872,11 +1111,21 @@ def hansen_gfc_tab() -> rx.Component:
                     AppState.gfc_loss_by_year.length() > 0,
                     rx.vstack(
                         rx.heading("🔥 Forest Loss by Year", size="4"),
+                        # Metrics row — show buffer total if available
                         rx.hstack(
                             rx.box(
                                 rx.vstack(
                                     rx.text("Total Loss", font_size="xs", color="gray"),
-                                    rx.text(AppState.gfc_summary_loss, font_weight="bold", color="red"),
+                                    rx.cond(
+                                        AppState.buffer_gfc_result != None,
+                                        rx.hstack(
+                                            rx.text(AppState.gfc_summary_loss, color="red", font_weight="bold"),
+                                            rx.text("vs", font_size="xs", color="gray"),
+                                            rx.text(AppState.buffer_gfc_summary.get("loss", "…"), color="orange", font_weight="bold"),
+                                            spacing="1",
+                                        ),
+                                        rx.text(AppState.gfc_summary_loss, font_weight="bold", color="red"),
+                                    ),
                                     spacing="0", align="center",
                                 ),
                                 padding="0.5rem", bg="red.50", border_radius="md", flex="1", text_align="center",
@@ -884,36 +1133,99 @@ def hansen_gfc_tab() -> rx.Component:
                             rx.box(
                                 rx.vstack(
                                     rx.text("Years with Loss", font_size="xs", color="gray"),
-                                    rx.text(AppState.gfc_loss_by_year.length().to(str), font_weight="bold", color="orange"),
+                                    rx.cond(
+                                        AppState.buffer_gfc_result != None,
+                                        rx.hstack(
+                                            rx.text(AppState.gfc_loss_by_year.length().to(str), color="orange", font_weight="bold"),
+                                            rx.text("vs", font_size="xs", color="gray"),
+                                            rx.text(AppState.buffer_gfc_loss_by_year.length().to(str), color="blue", font_weight="bold"),
+                                            spacing="1",
+                                        ),
+                                        rx.text(AppState.gfc_loss_by_year.length().to(str), font_weight="bold", color="orange"),
+                                    ),
                                     spacing="0", align="center",
                                 ),
                                 padding="0.5rem", bg="orange.50", border_radius="md", flex="1", text_align="center",
                             ),
                             width="100%", spacing="2",
                         ),
-                        rx.box(
-                            _plotly_safe(AppState.gfc_loss_chart),
-                            width="100%",
+                        # Charts — side-by-side if buffer available
+                        rx.cond(
+                            AppState.buffer_gfc_result != None,
+                            _side_by_side_charts(
+                                AppState.gfc_loss_chart,
+                                AppState.buffer_gfc_loss_chart,
+                                left_label="🟠 Territory — annual loss",
+                                right_label="🔵 Buffer — annual loss",
+                            ),
+                            rx.box(_plotly_safe(AppState.gfc_loss_chart), width="100%"),
                         ),
-                        rx.table.root(
-                            rx.table.header(
-                                rx.table.row(
-                                    rx.table.column_header_cell("Year"),
-                                    rx.table.column_header_cell("Area (ha)"),
-                                    rx.table.column_header_cell("Pixels"),
-                                )
-                            ),
-                            rx.table.body(
-                                rx.foreach(
-                                    AppState.gfc_loss_by_year,
-                                    lambda row: rx.table.row(
-                                        rx.table.cell(row.get("Year", "")),
-                                        rx.table.cell(row.get("Area_ha", "").to(str)),
-                                        rx.table.cell(row.get("Pixels", "").to(str)),
+                        # Tables — side-by-side if buffer available
+                        rx.cond(
+                            AppState.buffer_gfc_result != None,
+                            rx.hstack(
+                                rx.box(
+                                    rx.text("🟠 Territory", font_size="xs", font_weight="700", color="#FF4500", margin_bottom="0.25rem"),
+                                    rx.table.root(
+                                        rx.table.header(rx.table.row(
+                                            rx.table.column_header_cell("Year"),
+                                            rx.table.column_header_cell("Area (ha)"),
+                                            rx.table.column_header_cell("Pixels"),
+                                        )),
+                                        rx.table.body(rx.foreach(
+                                            AppState.gfc_loss_by_year,
+                                            lambda row: rx.table.row(
+                                                rx.table.cell(row.get("Year", "")),
+                                                rx.table.cell(row.get("Area_ha", "").to(str)),
+                                                rx.table.cell(row.get("Pixels", "").to(str)),
+                                            ),
+                                        )),
+                                        width="100%", variant="surface", size="1",
                                     ),
-                                )
+                                    flex="1", overflow_x="auto",
+                                ),
+                                rx.box(
+                                    rx.text("🔵 Buffer", font_size="xs", font_weight="700", color="#1D4ED8", margin_bottom="0.25rem"),
+                                    rx.table.root(
+                                        rx.table.header(rx.table.row(
+                                            rx.table.column_header_cell("Year"),
+                                            rx.table.column_header_cell("Area (ha)"),
+                                            rx.table.column_header_cell("Pixels"),
+                                        )),
+                                        rx.table.body(rx.foreach(
+                                            AppState.buffer_gfc_loss_by_year,
+                                            lambda row: rx.table.row(
+                                                rx.table.cell(row.get("Year", "")),
+                                                rx.table.cell(row.get("Area_ha", "").to(str)),
+                                                rx.table.cell(row.get("Pixels", "").to(str)),
+                                            ),
+                                        )),
+                                        width="100%", variant="surface", size="1",
+                                    ),
+                                    flex="1", overflow_x="auto",
+                                ),
+                                width="100%", spacing="2", align_items="flex-start",
                             ),
-                            width="100%", variant="surface", size="1",
+                            rx.table.root(
+                                rx.table.header(
+                                    rx.table.row(
+                                        rx.table.column_header_cell("Year"),
+                                        rx.table.column_header_cell("Area (ha)"),
+                                        rx.table.column_header_cell("Pixels"),
+                                    )
+                                ),
+                                rx.table.body(
+                                    rx.foreach(
+                                        AppState.gfc_loss_by_year,
+                                        lambda row: rx.table.row(
+                                            rx.table.cell(row.get("Year", "")),
+                                            rx.table.cell(row.get("Area_ha", "").to(str)),
+                                            rx.table.cell(row.get("Pixels", "").to(str)),
+                                        ),
+                                    )
+                                ),
+                                width="100%", variant="surface", size="1",
+                            ),
                         ),
                         spacing="2", width="100%",
                     ),
@@ -1025,62 +1337,126 @@ def aafc_tab() -> rx.Component:
 # -----------------------------------------------------------------------
 
 def comparison_tab() -> rx.Component:
-    """Year-to-year comparison tab with gains/losses, Sankey, and transition matrix."""
+    """Year-to-year comparison tab — each chart paired with its buffer equivalent."""
+    has_buffer = AppState.buffer_compare_result != None
+
     return rx.vstack(
         rx.heading(AppState.tr["year_comparison_results"], size="3"),
         rx.cond(
             AppState.comparison_available,
             rx.vstack(
-                rx.box(
-                    _plotly_safe(AppState.comparison_chart),
-                    width="100%",
-                ),
-                rx.divider(),
-                rx.box(
-                    rx.text(AppState.tr["total_gains"] + " / " + AppState.tr["total_losses"], font_weight="bold", font_size="sm"),
-                    _plotly_safe(AppState.gains_losses_chart),
-                    width="100%",
-                ),
-                rx.divider(),
-                rx.box(
-                    _plotly_safe(AppState.change_pct_chart),
-                    width="100%",
-                ),
-                rx.divider(),
-                rx.hstack(
-                    rx.box(
-                        rx.vstack(
-                            rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
-                            rx.text(AppState.comparison_total_gains, font_weight="bold", color="green"),
-                            spacing="0", align="center",
-                        ),
-                        padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
+                # ── Land cover distribution (year2) ──────────────────────
+                rx.vstack(
+                    rx.cond(
+                        has_buffer,
+                        _buffer_compare_label(),
+                        rx.box(),
                     ),
-                    rx.box(
-                        rx.vstack(
-                            rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
-                            rx.text(AppState.comparison_total_losses, font_weight="bold", color="red"),
-                            spacing="0", align="center",
+                    rx.cond(
+                        has_buffer,
+                        _side_by_side_charts(
+                            AppState.comparison_chart,
+                            AppState.buffer_compare_bar_chart,
+                            left_label="🟠 Territory — land cover",
+                            right_label="🔵 Buffer — land cover",
                         ),
-                        padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
-                    ),
-                    rx.box(
-                        rx.vstack(
-                            rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
-                            rx.text(AppState.comparison_net_change, font_weight="bold"),
-                            spacing="0", align="center",
+                        rx.box(
+                            _plotly_safe(AppState.comparison_chart),
+                            width="100%",
                         ),
-                        padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
                     ),
                     width="100%", spacing="2",
                 ),
                 rx.divider(),
+                # ── Gains / Losses ───────────────────────────────────────
+                rx.vstack(
+                    rx.text(AppState.tr["total_gains"] + " / " + AppState.tr["total_losses"], font_weight="bold", font_size="sm"),
+                    # Metrics row
+                    rx.hstack(
+                        rx.box(
+                            rx.vstack(
+                                rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
+                                rx.cond(
+                                    has_buffer,
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_total_gains, color="teal", font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
+                                ),
+                                spacing="0", align="center",
+                            ),
+                            padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
+                        ),
+                        rx.box(
+                            rx.vstack(
+                                rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
+                                rx.cond(
+                                    has_buffer,
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_total_losses, color="orange", font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
+                                ),
+                                spacing="0", align="center",
+                            ),
+                            padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
+                        ),
+                        rx.box(
+                            rx.vstack(
+                                rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
+                                rx.cond(
+                                    has_buffer,
+                                    rx.hstack(
+                                        rx.text(AppState.comparison_net_change, font_weight="bold"),
+                                        rx.text("vs", font_size="xs", color="gray"),
+                                        rx.text(AppState.buffer_compare_net_change, font_weight="bold"),
+                                        spacing="1",
+                                    ),
+                                    rx.text(AppState.comparison_net_change, font_weight="bold"),
+                                ),
+                                spacing="0", align="center",
+                            ),
+                            padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
+                        ),
+                        width="100%", spacing="2",
+                    ),
+                    rx.cond(
+                        has_buffer,
+                        _side_by_side_charts(
+                            AppState.gains_losses_chart,
+                            AppState.buffer_compare_gains_losses_chart,
+                            left_label="🟠 Territory — gains & losses",
+                            right_label="🔵 Buffer — gains & losses",
+                        ),
+                        rx.box(_plotly_safe(AppState.gains_losses_chart), width="100%"),
+                    ),
+                    width="100%", spacing="3",
+                ),
+                rx.divider(),
+                # ── % Change per class ───────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _side_by_side_charts(
+                        AppState.change_pct_chart,
+                        AppState.buffer_compare_change_pct_chart,
+                        left_label="🟠 Territory — % change per class",
+                        right_label="🔵 Buffer — % change per class",
+                    ),
+                    rx.box(_plotly_safe(AppState.change_pct_chart), width="100%"),
+                ),
+                rx.divider(),
+                # ── Transitions (Sankey / Sunburst / Matrix) — territory only
                 rx.box(
                     rx.hstack(
                         rx.icon("git-branch", size=16, color="purple"),
                         rx.text("Land Cover Transitions (Sankey)", font_weight="bold", font_size="sm"),
-                        spacing="2",
-                        align_items="center",
+                        spacing="2", align_items="center",
                     ),
                     rx.cond(
                         AppState.sankey_chart != None,
@@ -1091,8 +1467,7 @@ def comparison_tab() -> rx.Component:
                                 "No transition data available. Transition data is computed during comparison analysis.",
                                 font_size="xs", color="gray",
                             ),
-                            align="center",
-                            padding="1rem",
+                            align="center", padding="1rem",
                         ),
                     ),
                     width="100%",
@@ -1102,8 +1477,7 @@ def comparison_tab() -> rx.Component:
                     rx.hstack(
                         rx.icon("pie-chart", size=16, color="purple"),
                         rx.text("Class Transitions (Sunburst)", font_weight="bold", font_size="sm"),
-                        spacing="2",
-                        align_items="center",
+                        spacing="2", align_items="center",
                     ),
                     rx.cond(
                         AppState.sunburst_transitions_chart != None,
@@ -1115,8 +1489,7 @@ def comparison_tab() -> rx.Component:
                                 "Run comparison analysis to generate this visualization.",
                                 font_size="xs", color="gray",
                             ),
-                            align="center",
-                            padding="1rem",
+                            align="center", padding="1rem",
                         ),
                     ),
                     width="100%",
@@ -1126,16 +1499,12 @@ def comparison_tab() -> rx.Component:
                     rx.hstack(
                         rx.icon("grid-3x3", size=16, color="orange"),
                         rx.text("Transition Matrix (Heatmap)", font_weight="bold", font_size="sm"),
-                        spacing="2",
-                        align_items="center",
+                        spacing="2", align_items="center",
                     ),
                     rx.cond(
                         AppState.transition_matrix_chart != None,
                         _plotly_safe(AppState.transition_matrix_chart),
-                        rx.text(
-                            "No transition data available.",
-                            font_size="xs", color="gray", padding="1rem",
-                        ),
+                        rx.text("No transition data available.", font_size="xs", color="gray", padding="1rem"),
                     ),
                     width="100%",
                 ),
@@ -1158,8 +1527,6 @@ def comparison_tab() -> rx.Component:
                 width="100%",
             ),
         ),
-        # Buffer comparison for compare tab
-        _buffer_comparison_compare(),
         width="100%",
         spacing="3",
         padding="1rem",
