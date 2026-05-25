@@ -14,6 +14,7 @@ collects data from *all* selected territories into one file:
       mapbiomas/  …
       hansen_glad/  …
       hansen_gfc/  …
+      maps/        ← PDF maps (satellite, MapBiomas y1/y2, Hansen)
     buffer/{buffer_slug}/
       …
     batch_summary.json
@@ -331,6 +332,7 @@ STEPS = {
     "buf_cmp":      "🔵 Buffer comparison {year1} → {year2}…",
     "buf_glad":     "🔵 Buffer Hansen GLAD…",
     "buf_gfc":      "🔵 Buffer Hansen GFC…",
+    "maps":         "🗺️  Rendering PDF maps…",
     "export":       "📦 Packaging data…",
     "done":         "✅ Done",
 }
@@ -353,6 +355,7 @@ class BatchMixin(rx.State, mixin=True):
     batch_run_comparison: bool = True
     batch_run_glad: bool = True
     batch_run_gfc: bool = True
+    batch_run_pdf_maps: bool = True
     batch_territory_search: str = ""
 
     # ---- Runtime status ------------------------------------------------------
@@ -455,6 +458,9 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_run_gfc(self, val: bool):
         self.batch_run_gfc = val
 
+    def batch_toggle_run_pdf_maps(self, val: bool):
+        self.batch_run_pdf_maps = val
+
     def batch_toggle_buffer_enabled(self, val: bool):
         self.batch_buffer_enabled = val
 
@@ -525,6 +531,7 @@ class BatchMixin(rx.State, mixin=True):
             run_cmp = bool(self.batch_run_comparison)
             run_glad = bool(self.batch_run_glad)
             run_gfc = bool(self.batch_run_gfc)
+            run_maps = bool(self.batch_run_pdf_maps)
 
             if not territories:
                 self.error_message = "No territories selected for batch processing."
@@ -1070,6 +1077,67 @@ class BatchMixin(rx.State, mixin=True):
                                         "properties": {"name": terr}}).encode(),
                         )
                     await loop.run_in_executor(None, _write_boundary)
+
+                    # ─── PDF maps (satellite + MapBiomas y1/y2, per territory) ──
+                    if run_maps:
+                        async with self:
+                            self.batch_current_step = STEPS["maps"]
+
+                        def _write_pdf_maps(
+                            zf=master_zf,
+                            terr=territory,
+                            geojson=raw_geojson,
+                            ee_g=ee_geom,
+                            buf_ee=buf_ee_geom,
+                            y1=year1, y2=year2, hy=hansen_year,
+                            do_mb=(run_mb or run_cmp),
+                            do_glad=run_glad,
+                        ):
+                            try:
+                                from ..utils.export_service import _slug
+                                from ..utils.map_export_service import create_map_set
+                                t_slug = _slug(terr)
+                                # Buffer outline (single EE round-trip if available)
+                                buf_gj = None
+                                if buf_ee is not None:
+                                    try:
+                                        buf_gj = buf_ee.getInfo()
+                                    except Exception as be:
+                                        logger.warning(f"buffer geojson for {terr} failed: {be}")
+
+                                mb_years: List[int] = []
+                                if do_mb:
+                                    if y1 == y2:
+                                        mb_years = [int(y1)]
+                                    else:
+                                        mb_years = [int(y1), int(y2)]
+                                glad_layers = [str(hy)] if do_glad else None
+
+                                maps = create_map_set(
+                                    drawn_features=[],
+                                    territory_name=terr,
+                                    active_mapbiomas_years=mb_years,
+                                    active_hansen_layers=glad_layers,
+                                    ee_geometry=ee_g,
+                                    territory_geojson=geojson,
+                                    buffer_geojson=buf_gj,
+                                )
+                                for name, pdf_bytes in (maps or {}).items():
+                                    zf.writestr(
+                                        f"territory/{t_slug}/maps/{t_slug}_{name}.pdf",
+                                        pdf_bytes,
+                                    )
+                            except Exception as me:
+                                logger.warning(
+                                    f"PDF maps for {terr} failed (non-fatal): {me}",
+                                    exc_info=True,
+                                )
+
+                        try:
+                            await loop.run_in_executor(None, _write_pdf_maps)
+                        except Exception as me:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ PDF maps skipped: {me}")
 
                     # ── Mark as completed ────────────────────────────────────
                     total_area = (
