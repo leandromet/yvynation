@@ -155,7 +155,7 @@ def config_panel() -> rx.Component:
                     rx.text("Single-year snapshot", font_size="xs", color="#6B7280"),
                     rx.select(
                         [str(y) for y in range(2024, 1984, -1)],
-                        value=AppState.batch_year.to(str),
+                        value=AppState.batch_year,
                         on_change=AppState.batch_set_year,
                         size="2", width="110px",
                     ),
@@ -166,7 +166,7 @@ def config_panel() -> rx.Component:
                     rx.text("Comparison year", font_size="xs", color="#6B7280"),
                     rx.select(
                         [str(y) for y in range(2024, 1984, -1)],
-                        value=AppState.batch_year2.to(str),
+                        value=AppState.batch_year2,
                         on_change=AppState.batch_set_year2,
                         size="2", width="110px",
                     ),

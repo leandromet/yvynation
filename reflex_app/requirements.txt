@@ -20,6 +20,11 @@ numpy>=2.0.0
 plotly>=5.18.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
+# PNG export for plotly figures (batch ZIP). Pin to 0.2.1 — it bundles its
+# own headless renderer and needs no external Chrome.  Kaleido 1.x delegates
+# to system Chrome/Chromium which fails on snap-sandboxed installs and on
+# minimal container images.
+kaleido==0.2.1
 
 # Mapping
 folium>=0.15.0

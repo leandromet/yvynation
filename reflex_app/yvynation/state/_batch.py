@@ -37,8 +37,67 @@ _batch_zip_bytes: Optional[bytes] = None
 
 
 # ---------------------------------------------------------------------------
+# EE call helper — retry-with-backoff for "Computation timed out" etc.
+# ---------------------------------------------------------------------------
+
+_TRANSIENT_PATTERNS = ("timed out", "timeout", "deadline", "internal error",
+                       "503", "502", "504", "rate limit", "quota")
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    """Heuristic: is this EE error worth retrying?"""
+    msg = str(exc).lower()
+    return any(p in msg for p in _TRANSIENT_PATTERNS)
+
+
+async def _ee_with_retry(loop, fn, label: str, retries: int = 3, base_delay: float = 4.0):
+    """
+    Run *fn* in an executor with up to *retries* attempts on transient EE errors.
+
+    Returns the result on success, ``None`` on persistent failure.  Logs
+    progress between attempts so the batch task can keep going.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, retries + 1):
+        try:
+            return await loop.run_in_executor(None, fn)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            transient = _is_transient_error(exc)
+            if attempt < retries and transient:
+                wait = base_delay * (2 ** (attempt - 1))  # 4s, 8s, 16s
+                logger.warning(
+                    f"⚠ {label}: transient error '{exc}' on attempt "
+                    f"{attempt}/{retries} — retrying in {wait:.0f}s"
+                )
+                await asyncio.sleep(wait)
+                continue
+            break
+    logger.error(f"❌ {label}: gave up after {attempt} attempts — {last_exc}")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Figure builders — pure CPU, run inside the export thread
 # ---------------------------------------------------------------------------
+
+def _ensure_class_name(df):
+    """Make sure the DataFrame has a ``Class_Name`` column for chart functions.
+
+    ``ee_service.analyze_mapbiomas`` returns ``Class``; ``analyzer.analyze_single_year``
+    returns ``Class_Name``.  When the batch task mixes both sources, the chart
+    builders (which look for one or the other) can fail.  Normalising up-front
+    makes downstream code resilient regardless of which analyzer produced the DF.
+    """
+    if df is None or df.empty:
+        return df
+    if "Class_Name" in df.columns:
+        return df
+    if "Class" in df.columns:
+        return df.assign(Class_Name=df["Class"])
+    if "Class_ID" in df.columns:
+        return df.assign(Class_Name=df["Class_ID"].astype(str))
+    return df
 
 def _build_transition_matrix_fig(transitions, year1, year2):
     """Heatmap of land-cover transitions (replicates AppState.transition_matrix_chart)."""
@@ -126,6 +185,8 @@ def _build_territory_figures(
 
     df1 = pd.DataFrame(mb_y1_records) if mb_y1_records else pd.DataFrame()
     df2 = pd.DataFrame(mb_y2_records) if mb_y2_records else pd.DataFrame()
+    df1 = _ensure_class_name(df1)
+    df2 = _ensure_class_name(df2)
 
     # Single-year distribution (prefer year2 if available)
     df_single, single_year = (df2, y2) if not df2.empty else (df1, y1)
@@ -228,8 +289,11 @@ class BatchMixin(rx.State, mixin=True):
 
     # ---- Configuration -------------------------------------------------------
     batch_selected_territories: List[str] = []
-    batch_year: int = 2024        # single-year MapBiomas
-    batch_year2: int = 2019       # comparison year
+    # Stored as strings so they bind cleanly to ``rx.select(value=...)``.
+    # ``int_var.to(str)`` does not reactively update the displayed dropdown
+    # value in Reflex 0.8.27 — use a direct string var instead.
+    batch_year: str = "2024"      # single-year MapBiomas
+    batch_year2: str = "2019"     # comparison year
     batch_hansen_year: str = "2020"
     batch_buffer_km: float = 10.0
     batch_buffer_enabled: bool = True
@@ -304,13 +368,15 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_set_year(self, year: str):
         try:
-            self.batch_year = int(year)
+            int(year)  # validation
+            self.batch_year = year
         except (ValueError, TypeError):
             pass
 
     def batch_set_year2(self, year: str):
         try:
-            self.batch_year2 = int(year)
+            int(year)
+            self.batch_year2 = year
         except (ValueError, TypeError):
             pass
 
@@ -394,8 +460,12 @@ class BatchMixin(rx.State, mixin=True):
         # ── Snapshot configuration ──────────────────────────────────────────
         async with self:
             territories = list(self.batch_selected_territories)
-            year1 = int(self.batch_year)
-            year2 = int(self.batch_year2)
+            try:
+                year1 = int(self.batch_year)
+                year2 = int(self.batch_year2)
+            except (ValueError, TypeError):
+                self.error_message = "Invalid year selection."
+                return
             hansen_year = str(self.batch_hansen_year)
             buf_km = float(self.batch_buffer_km)
             buf_enabled = bool(self.batch_buffer_enabled)
@@ -481,17 +551,17 @@ class BatchMixin(rx.State, mixin=True):
                         def _mb_y1(geom=ee_geom, yr=year1):
                             from ..utils.ee_service_extended import get_ee_service
                             svc = get_ee_service()
-                            df = svc.analyze_mapbiomas(geom, yr)
-                            return df
-                        try:
-                            df1 = await loop.run_in_executor(None, _mb_y1)
-                            if df1 is not None and not df1.empty:
-                                mb_y1_result = {
-                                    "type": "mapbiomas", "territory": territory,
-                                    "year": year1, "data": df1.to_dict("records"),
-                                }
-                        except Exception as e:
-                            logger.warning(f"MapBiomas {year1} failed for {territory}: {e}")
+                            return svc.analyze_mapbiomas(geom, yr)
+                        df1 = await _ee_with_retry(loop, _mb_y1,
+                                                   f"MapBiomas {year1} ({territory})")
+                        if df1 is not None and not df1.empty:
+                            mb_y1_result = {
+                                "type": "mapbiomas", "territory": territory,
+                                "year": year1, "data": df1.to_dict("records"),
+                            }
+                        elif df1 is None:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ skipped MapBiomas {year1}")
 
                     # ─── Step 3: MapBiomas year2 ────────────────────────────
                     if run_mb or run_cmp:
@@ -501,15 +571,16 @@ class BatchMixin(rx.State, mixin=True):
                             from ..utils.ee_service_extended import get_ee_service
                             svc = get_ee_service()
                             return svc.analyze_mapbiomas(geom, yr)
-                        try:
-                            df2 = await loop.run_in_executor(None, _mb_y2)
-                            if df2 is not None and not df2.empty:
-                                mb_y2_result = {
-                                    "type": "mapbiomas", "territory": territory,
-                                    "year": year2, "data": df2.to_dict("records"),
-                                }
-                        except Exception as e:
-                            logger.warning(f"MapBiomas {year2} failed for {territory}: {e}")
+                        df2 = await _ee_with_retry(loop, _mb_y2,
+                                                   f"MapBiomas {year2} ({territory})")
+                        if df2 is not None and not df2.empty:
+                            mb_y2_result = {
+                                "type": "mapbiomas", "territory": territory,
+                                "year": year2, "data": df2.to_dict("records"),
+                            }
+                        elif df2 is None:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ skipped MapBiomas {year2}")
 
                     # ─── Step 4: Comparison ─────────────────────────────────
                     if run_cmp and mb_y1_result and mb_y2_result:
@@ -563,10 +634,12 @@ class BatchMixin(rx.State, mixin=True):
                                 "_raw_y1": df_y1.to_dict("records"),
                                 "_raw_y2": df_y2.to_dict("records"),
                             }
-                        try:
-                            cmp_result = await loop.run_in_executor(None, _cmp)
-                        except Exception as e:
-                            logger.warning(f"Comparison failed for {territory}: {e}")
+                        cmp_result = await _ee_with_retry(
+                            loop, _cmp, f"Comparison {year1}→{year2} ({territory})"
+                        )
+                        if cmp_result is None:
+                            async with self:
+                                self._batch_append_log("  ⚠ skipped comparison")
 
                     # ─── Step 5: Hansen GLAD ────────────────────────────────
                     if run_glad:
@@ -577,23 +650,24 @@ class BatchMixin(rx.State, mixin=True):
                         def _glad(geom=ee_geom, yr=hansen_year):
                             from ..utils.hansen_analysis import get_hansen_analyzer
                             analyzer = get_hansen_analyzer()
-                            df = analyzer.get_area_distribution(geom, year=int(yr), scale=30)
-                            return df
-                        try:
-                            glad_df = await loop.run_in_executor(None, _glad)
-                            if glad_df is not None and not glad_df.empty:
-                                glad_result = {
-                                    "type": "hansen_glad",
-                                    "territory": territory,
-                                    "year": hansen_year,
-                                    "data": glad_df.to_dict("records"),
-                                    "summary": {
-                                        "year": int(hansen_year),
-                                        "total_area_ha": float(glad_df["Area_ha"].sum()),
-                                    },
-                                }
-                        except Exception as e:
-                            logger.warning(f"Hansen GLAD failed for {territory}: {e}")
+                            return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
+                        glad_df = await _ee_with_retry(
+                            loop, _glad, f"Hansen GLAD {hansen_year} ({territory})"
+                        )
+                        if glad_df is not None and not glad_df.empty:
+                            glad_result = {
+                                "type": "hansen_glad",
+                                "territory": territory,
+                                "year": hansen_year,
+                                "data": glad_df.to_dict("records"),
+                                "summary": {
+                                    "year": int(hansen_year),
+                                    "total_area_ha": float(glad_df["Area_ha"].sum()),
+                                },
+                            }
+                        elif glad_df is None:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ skipped Hansen GLAD")
 
                     # ─── Step 6: Hansen GFC ─────────────────────────────────
                     if run_gfc:
@@ -603,14 +677,16 @@ class BatchMixin(rx.State, mixin=True):
                             from ..utils.hansen_analysis import get_hansen_analyzer
                             analyzer = get_hansen_analyzer()
                             return analyzer.analyze_gfc(geom)
-                        try:
-                            gfc_result = await loop.run_in_executor(None, _gfc)
-                            if gfc_result and "error" in gfc_result:
-                                gfc_result = None
-                            if gfc_result:
-                                gfc_result["territory"] = territory
-                        except Exception as e:
-                            logger.warning(f"Hansen GFC failed for {territory}: {e}")
+                        gfc_result = await _ee_with_retry(
+                            loop, _gfc, f"Hansen GFC ({territory})"
+                        )
+                        if gfc_result and "error" in gfc_result:
+                            gfc_result = None
+                        if gfc_result:
+                            gfc_result["territory"] = territory
+                        else:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ skipped Hansen GFC")
 
                     # ─── Steps 7–10: Buffer analyses ────────────────────────
                     if buf_enabled and buf_ee_geom is not None:
@@ -621,17 +697,19 @@ class BatchMixin(rx.State, mixin=True):
                                 from ..utils.ee_service_extended import get_ee_service
                                 svc = get_ee_service()
                                 return svc.analyze_mapbiomas(geom, yr)
-                            try:
-                                bdf = await loop.run_in_executor(None, _buf_mb)
-                                if bdf is not None and not bdf.empty:
-                                    buf_mb_result = {
-                                        "type": "mapbiomas",
-                                        "territory": f"Buffer {buf_km}km - {territory}",
-                                        "year": year1,
-                                        "data": bdf.to_dict("records"),
-                                    }
-                            except Exception as e:
-                                logger.warning(f"Buffer MapBiomas failed for {territory}: {e}")
+                            bdf = await _ee_with_retry(
+                                loop, _buf_mb, f"Buffer MapBiomas {year1} ({territory})"
+                            )
+                            if bdf is not None and not bdf.empty:
+                                buf_mb_result = {
+                                    "type": "mapbiomas",
+                                    "territory": f"Buffer {buf_km}km - {territory}",
+                                    "year": year1,
+                                    "data": bdf.to_dict("records"),
+                                }
+                            elif bdf is None:
+                                async with self:
+                                    self._batch_append_log(f"  ⚠ skipped buffer MapBiomas {year1}")
 
                         if run_cmp:
                             async with self:
@@ -678,10 +756,13 @@ class BatchMixin(rx.State, mixin=True):
                                     "_raw_y1": df1b.to_dict("records"),
                                     "_raw_y2": df2b.to_dict("records"),
                                 }
-                            try:
-                                buf_cmp_result = await loop.run_in_executor(None, _buf_cmp)
-                            except Exception as e:
-                                logger.warning(f"Buffer comparison failed for {territory}: {e}")
+                            buf_cmp_result = await _ee_with_retry(
+                                loop, _buf_cmp,
+                                f"Buffer comparison {year1}→{year2} ({territory})"
+                            )
+                            if buf_cmp_result is None:
+                                async with self:
+                                    self._batch_append_log(f"  ⚠ skipped buffer comparison")
 
                         if run_glad:
                             async with self:
@@ -690,17 +771,19 @@ class BatchMixin(rx.State, mixin=True):
                                 from ..utils.hansen_analysis import get_hansen_analyzer
                                 analyzer = get_hansen_analyzer()
                                 return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
-                            try:
-                                bgdf = await loop.run_in_executor(None, _buf_glad)
-                                if bgdf is not None and not bgdf.empty:
-                                    buf_glad_result = {
-                                        "type": "hansen_glad",
-                                        "territory": f"Buffer {buf_km}km - {territory}",
-                                        "year": hansen_year,
-                                        "data": bgdf.to_dict("records"),
-                                    }
-                            except Exception as e:
-                                logger.warning(f"Buffer GLAD failed for {territory}: {e}")
+                            bgdf = await _ee_with_retry(
+                                loop, _buf_glad, f"Buffer Hansen GLAD ({territory})"
+                            )
+                            if bgdf is not None and not bgdf.empty:
+                                buf_glad_result = {
+                                    "type": "hansen_glad",
+                                    "territory": f"Buffer {buf_km}km - {territory}",
+                                    "year": hansen_year,
+                                    "data": bgdf.to_dict("records"),
+                                }
+                            elif bgdf is None:
+                                async with self:
+                                    self._batch_append_log(f"  ⚠ skipped buffer Hansen GLAD")
 
                         if run_gfc:
                             async with self:
@@ -710,12 +793,14 @@ class BatchMixin(rx.State, mixin=True):
                                 analyzer = get_hansen_analyzer()
                                 r = analyzer.analyze_gfc(geom)
                                 return r if r and "error" not in r else None
-                            try:
-                                buf_gfc_result = await loop.run_in_executor(None, _buf_gfc)
-                                if buf_gfc_result:
-                                    buf_gfc_result["territory"] = f"Buffer {buf_km}km - {territory}"
-                            except Exception as e:
-                                logger.warning(f"Buffer GFC failed for {territory}: {e}")
+                            buf_gfc_result = await _ee_with_retry(
+                                loop, _buf_gfc, f"Buffer Hansen GFC ({territory})"
+                            )
+                            if buf_gfc_result:
+                                buf_gfc_result["territory"] = f"Buffer {buf_km}km - {territory}"
+                            else:
+                                async with self:
+                                    self._batch_append_log(f"  ⚠ skipped buffer Hansen GFC")
 
                     # ─── Step 11: Write to master ZIP ───────────────────────
                     async with self:
