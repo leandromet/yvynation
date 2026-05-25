@@ -40,6 +40,7 @@ class TerritoryMixin(rx.State, mixin=True):
         self.buffer_compare_result = None
         self.buffer_mapbiomas_comparison_result = None
         self.buffer_gfc_result = None
+        self.buffer_territory_transitions = None
 
         # Clear territory-level analysis results (back to Optional defaults)
         self.territory_result = None

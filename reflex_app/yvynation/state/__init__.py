@@ -153,6 +153,8 @@ class AppState(
     buffer_mapbiomas_comparison_result: Optional[Dict[str, Any]] = None
     #: Buffer result from Hansen GFC analysis
     buffer_gfc_result: Optional[Dict[str, Any]] = None
+    #: Transition table for the buffer ring (year1 → year2), populated by run_territory_comparison_bg
+    buffer_territory_transitions: Optional[Dict[str, Any]] = None
 
     # Multi-result store  key → bundle
     # Key format: "territory::Xingu" or "geometry::0"
@@ -1250,6 +1252,40 @@ class AppState(
         except Exception:
             return "N/A"
 
+    @rx.var(auto_deps=False, deps=["buffer_mapbiomas_comparison_result"])
+    def buffer_comparison_chart(self) -> Figure:
+        """Grouped bar chart (year1 vs year2) for the buffer ring — mirrors comparison_chart."""
+        try:
+            if not self.buffer_mapbiomas_comparison_result:
+                return pgo.Figure()
+            import pandas as pd
+
+            data = self.buffer_mapbiomas_comparison_result.get("data", [])
+            if not data:
+                return pgo.Figure()
+            df = pd.DataFrame(data)
+            y1 = self.buffer_mapbiomas_comparison_result.get("year_start", 0)
+            y2 = self.buffer_mapbiomas_comparison_result.get("year_end", 0)
+            if "Area_Year1" in df.columns and "Area_Year2" in df.columns:
+                name_col = next(
+                    (c for c in ["Class_Name", "Class"] if c in df.columns), "Class_ID"
+                )
+                fig = pgo.Figure(data=[
+                    pgo.Bar(name=str(y1), x=df[name_col], y=df["Area_Year1"],
+                            marker_color="#FB923C"),
+                    pgo.Bar(name=str(y2), x=df[name_col], y=df["Area_Year2"],
+                            marker_color="#3B82F6"),
+                ])
+                fig.update_layout(
+                    title=f"Buffer: {y1} vs {y2}",
+                    barmode="group", template="plotly_white", height=400,
+                )
+                return fig
+            return pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer comparison chart error: {e}")
+            return pgo.Figure()
+
     # ── Buffer GFC — loss-by-year chart and table ───────────────────────────
 
     @rx.var(auto_deps=False, deps=["buffer_gfc_result"])
@@ -1301,3 +1337,110 @@ class AppState(
             return (self.buffer_hansen_result or {}).get("data", [])
         except Exception:
             return []
+
+    # ── Buffer transition charts (Sankey / Sunburst / Matrix) ──────────────
+
+    @rx.var(auto_deps=False, deps=["buffer_territory_transitions", "buffer_mapbiomas_comparison_result"])
+    def buffer_sankey_chart(self) -> Figure:
+        """Sankey transition chart for the buffer ring — mirrors sankey_chart."""
+        try:
+            transitions = self.buffer_territory_transitions
+            if not transitions:
+                return pgo.Figure()
+            y1 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_start", self.comparison_year1
+            )
+            y2 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_end", self.comparison_year2
+            )
+            from ..utils.visualization import create_sankey_transitions
+            return create_sankey_transitions(transitions, y1, y2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer Sankey chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_territory_transitions", "buffer_mapbiomas_comparison_result"])
+    def buffer_sunburst_chart(self) -> Figure:
+        """Sunburst transition chart for the buffer ring — mirrors sunburst_transitions_chart."""
+        try:
+            transitions = self.buffer_territory_transitions
+            if not transitions:
+                return pgo.Figure()
+            y1 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_start", self.comparison_year1
+            )
+            y2 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_end", self.comparison_year2
+            )
+            from ..utils.visualization import create_sunburst_transitions
+            return create_sunburst_transitions(transitions, y1, y2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer Sunburst chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_territory_transitions", "buffer_mapbiomas_comparison_result"])
+    def buffer_transition_matrix_chart(self) -> Figure:
+        """Transition matrix heatmap for the buffer ring — mirrors transition_matrix_chart."""
+        try:
+            transitions = self.buffer_territory_transitions
+            if not transitions:
+                return pgo.Figure()
+            all_classes: set = set()
+            for src, tgt_dict in transitions.items():
+                if isinstance(tgt_dict, dict):
+                    all_classes.add(str(src))
+                    all_classes.update(str(t) for t in tgt_dict)
+            classes = sorted(all_classes)
+            if not classes:
+                return pgo.Figure()
+            try:
+                from ..utils.visualization import _get_mapbiomas_labels
+                labels = _get_mapbiomas_labels()
+            except Exception:
+                labels = {}
+            display_names = []
+            for c in classes:
+                try:
+                    display_names.append(labels.get(int(c), c))
+                except (ValueError, TypeError):
+                    display_names.append(labels.get(c, c))
+            matrix = []
+            for src in classes:
+                row = []
+                for tgt in classes:
+                    src_dict = transitions.get(
+                        src, transitions.get(int(src) if str(src).isdigit() else src, {})
+                    )
+                    if isinstance(src_dict, dict):
+                        val = src_dict.get(
+                            tgt, src_dict.get(int(tgt) if str(tgt).isdigit() else tgt, 0)
+                        )
+                    else:
+                        val = 0
+                    row.append(float(val) if isinstance(val, (int, float)) else 0)
+                matrix.append(row)
+            y1 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_start", self.comparison_year1
+            )
+            y2 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_end", self.comparison_year2
+            )
+            fig = pgo.Figure(
+                data=pgo.Heatmap(
+                    z=matrix, x=display_names, y=display_names,
+                    colorscale="Blues",
+                    text=[[f"{v:,.0f}" for v in row] for row in matrix],
+                    texttemplate="%{text}",
+                    hovertemplate="From: %{y}<br>To: %{x}<br>Area: %{z:,.0f} ha<extra></extra>",
+                )
+            )
+            fig.update_layout(
+                title=f"Buffer Transition Matrix ({y1} → {y2}) — Area (ha)",
+                xaxis_title=f"Class ({y2})",
+                yaxis_title=f"Class ({y1})",
+                height=600, template="plotly_white",
+            )
+            return fig
+        except Exception as e:
+            logger.error(f"Buffer transition matrix error: {e}")
+            return pgo.Figure()

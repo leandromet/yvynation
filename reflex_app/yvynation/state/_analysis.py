@@ -1155,6 +1155,25 @@ class AnalysisMixin(rx.State, mixin=True):
                                 "data": buf_cmp_df.to_dict("records"),
                             }
                             logger.info(f"[COMPARISON] Buffer gains/losses: {len(buf_cmp_df)} classes")
+
+                            # Buffer transitions (enables Sankey/Sunburst/Matrix for buffer)
+                            async with self:
+                                self.loading_message = f"Computing buffer transitions {y1} → {y2}…"
+                            try:
+                                buf_raw_trans = await asyncio.get_event_loop().run_in_executor(
+                                    None, analyzer.compute_transitions, buf_ee_geom, y1, y2, 30
+                                )
+                                buf_transitions = _str_keys(buf_raw_trans) if buf_raw_trans else {}
+                                if buf_transitions:
+                                    buf_mapbiomas_comparison_result["transitions"] = buf_transitions
+                                    logger.info(
+                                        f"[COMPARISON] Buffer transitions: "
+                                        f"{len(buf_transitions)} sources"
+                                    )
+                            except Exception as bt:
+                                logger.warning(
+                                    f"[COMPARISON] Buffer transitions failed (non-fatal): {bt}"
+                                )
                 except Exception as be:
                     logger.warning(f"[COMPARISON] Buffer analysis failed (non-fatal): {be}")
 
@@ -1206,6 +1225,9 @@ class AnalysisMixin(rx.State, mixin=True):
                     self.buffer_compare_result = buf_compare_result
                 if buf_mapbiomas_comparison_result is not None:
                     self.buffer_mapbiomas_comparison_result = buf_mapbiomas_comparison_result
+                    buf_trans = buf_mapbiomas_comparison_result.get("transitions")
+                    if buf_trans:
+                        self.buffer_territory_transitions = buf_trans
                 key = f"territory::{territory}"
                 bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
                 self.all_analysis_results[key] = bundle

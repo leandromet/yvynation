@@ -1336,8 +1336,130 @@ def aafc_tab() -> rx.Component:
 # Tab 5: Comparison
 # -----------------------------------------------------------------------
 
+def _compare_col_header(label: str, subtitle: rx.Var, bg: str, border: str) -> rx.Component:
+    """Sticky column header for the 2-column Compare layout."""
+    return rx.box(
+        rx.hstack(
+            rx.text(label, font_size="sm", font_weight="700", color=border),
+            rx.text(subtitle, font_size="xs", color="gray"),
+            spacing="2", align_items="center", flex_wrap="wrap",
+        ),
+        padding="0.4rem 0.75rem",
+        bg=bg,
+        border="1px solid " + border,
+        border_radius="md",
+        width="100%",
+    )
+
+
+def _compare_row(left: rx.Component, right: rx.Component) -> rx.Component:
+    """Half-width side-by-side row used throughout the Compare tab."""
+    return rx.hstack(
+        rx.box(left, flex="1", min_width="0"),
+        rx.box(right, flex="1", min_width="0"),
+        width="100%",
+        spacing="3",
+        align_items="flex-start",
+    )
+
+
+def _compare_chart_box(label: str, label_color: str, chart_var: rx.Var) -> rx.Component:
+    """Labeled chart block for one column of the Compare tab."""
+    return rx.vstack(
+        rx.text(label, font_size="xs", font_weight="600", color=label_color,
+                text_align="center", width="100%"),
+        _plotly_safe(chart_var),
+        width="100%", spacing="1",
+    )
+
+
+def _compare_transition_block(
+    icon_name: str, section_title: str, chart_var: rx.Var,
+    color: str = "purple",
+) -> rx.Component:
+    """Single transition chart block (territory OR buffer version)."""
+    return rx.vstack(
+        rx.hstack(
+            rx.icon(icon_name, size=14, color=color),
+            rx.text(section_title, font_weight="bold", font_size="sm"),
+            spacing="2", align_items="center",
+        ),
+        _plotly_safe(chart_var),
+        width="100%", spacing="2",
+    )
+
+
+def _compare_metrics_row(has_buffer: rx.Var) -> rx.Component:
+    """Summary metrics strip (gains / losses / net change) with optional buffer values."""
+    return rx.hstack(
+        rx.box(
+            rx.vstack(
+                rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
+                rx.cond(
+                    has_buffer,
+                    rx.hstack(
+                        rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
+                        rx.text("vs", font_size="2xs", color="gray"),
+                        rx.text(AppState.buffer_compare_total_gains, color="teal", font_weight="bold"),
+                        spacing="1",
+                    ),
+                    rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
+                ),
+                spacing="0", align="center",
+            ),
+            padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
+                rx.cond(
+                    has_buffer,
+                    rx.hstack(
+                        rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
+                        rx.text("vs", font_size="2xs", color="gray"),
+                        rx.text(AppState.buffer_compare_total_losses, color="orange", font_weight="bold"),
+                        spacing="1",
+                    ),
+                    rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
+                ),
+                spacing="0", align="center",
+            ),
+            padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
+                rx.cond(
+                    has_buffer,
+                    rx.hstack(
+                        rx.text(AppState.comparison_net_change, font_weight="bold"),
+                        rx.text("vs", font_size="2xs", color="gray"),
+                        rx.text(AppState.buffer_compare_net_change, font_weight="bold"),
+                        spacing="1",
+                    ),
+                    rx.text(AppState.comparison_net_change, font_weight="bold"),
+                ),
+                spacing="0", align="center",
+            ),
+            padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
+        ),
+        width="100%", spacing="2",
+    )
+
+
 def comparison_tab() -> rx.Component:
-    """Year-to-year comparison tab — each chart paired with its buffer equivalent."""
+    """Year-to-year comparison tab.
+
+    Layout when buffer available:
+      Persistent column headers (🟠 Territory | 🔵 Buffer Zone)
+      Row 1 – Year-over-year land cover bar chart
+      Row 2 – Metrics strip (gains / losses / net)
+      Row 3 – Gains & losses chart
+      Row 4 – % Change per class chart
+      Row 5 – Sankey transition diagram
+      Row 6 – Sunburst transition diagram
+      Row 7 – Transition matrix heatmap
+    """
     has_buffer = AppState.buffer_compare_result != None
 
     return rx.vstack(
@@ -1345,169 +1467,166 @@ def comparison_tab() -> rx.Component:
         rx.cond(
             AppState.comparison_available,
             rx.vstack(
-                # ── Land cover distribution (year2) ──────────────────────
-                rx.vstack(
-                    rx.cond(
-                        has_buffer,
-                        _buffer_compare_label(),
-                        rx.box(),
-                    ),
-                    rx.cond(
-                        has_buffer,
-                        _side_by_side_charts(
-                            AppState.comparison_chart,
-                            AppState.buffer_compare_bar_chart,
-                            left_label="🟠 Territory — land cover",
-                            right_label="🔵 Buffer — land cover",
-                        ),
-                        rx.box(
-                            _plotly_safe(AppState.comparison_chart),
-                            width="100%",
-                        ),
-                    ),
-                    width="100%", spacing="2",
-                ),
-                rx.divider(),
-                # ── Gains / Losses ───────────────────────────────────────
-                rx.vstack(
-                    rx.text(AppState.tr["total_gains"] + " / " + AppState.tr["total_losses"], font_weight="bold", font_size="sm"),
-                    # Metrics row
-                    rx.hstack(
-                        rx.box(
-                            rx.vstack(
-                                rx.text(AppState.tr["total_gains"], font_size="xs", color="gray"),
-                                rx.cond(
-                                    has_buffer,
-                                    rx.hstack(
-                                        rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
-                                        rx.text("vs", font_size="xs", color="gray"),
-                                        rx.text(AppState.buffer_compare_total_gains, color="teal", font_weight="bold"),
-                                        spacing="1",
-                                    ),
-                                    rx.text(AppState.comparison_total_gains, color="green", font_weight="bold"),
-                                ),
-                                spacing="0", align="center",
-                            ),
-                            padding="0.75rem", bg="green.50", border_radius="md", flex="1", text_align="center",
-                        ),
-                        rx.box(
-                            rx.vstack(
-                                rx.text(AppState.tr["total_losses"], font_size="xs", color="gray"),
-                                rx.cond(
-                                    has_buffer,
-                                    rx.hstack(
-                                        rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
-                                        rx.text("vs", font_size="xs", color="gray"),
-                                        rx.text(AppState.buffer_compare_total_losses, color="orange", font_weight="bold"),
-                                        spacing="1",
-                                    ),
-                                    rx.text(AppState.comparison_total_losses, color="red", font_weight="bold"),
-                                ),
-                                spacing="0", align="center",
-                            ),
-                            padding="0.75rem", bg="red.50", border_radius="md", flex="1", text_align="center",
-                        ),
-                        rx.box(
-                            rx.vstack(
-                                rx.text(AppState.tr["net_change"], font_size="xs", color="gray"),
-                                rx.cond(
-                                    has_buffer,
-                                    rx.hstack(
-                                        rx.text(AppState.comparison_net_change, font_weight="bold"),
-                                        rx.text("vs", font_size="xs", color="gray"),
-                                        rx.text(AppState.buffer_compare_net_change, font_weight="bold"),
-                                        spacing="1",
-                                    ),
-                                    rx.text(AppState.comparison_net_change, font_weight="bold"),
-                                ),
-                                spacing="0", align="center",
-                            ),
-                            padding="0.75rem", bg="blue.50", border_radius="md", flex="1", text_align="center",
-                        ),
-                        width="100%", spacing="2",
-                    ),
-                    rx.cond(
-                        has_buffer,
-                        _side_by_side_charts(
-                            AppState.gains_losses_chart,
-                            AppState.buffer_compare_gains_losses_chart,
-                            left_label="🟠 Territory — gains & losses",
-                            right_label="🔵 Buffer — gains & losses",
-                        ),
-                        rx.box(_plotly_safe(AppState.gains_losses_chart), width="100%"),
-                    ),
-                    width="100%", spacing="3",
-                ),
-                rx.divider(),
-                # ── % Change per class ───────────────────────────────────
+                # ── Column headers (only when buffer is available) ────────────
                 rx.cond(
                     has_buffer,
-                    _side_by_side_charts(
-                        AppState.change_pct_chart,
-                        AppState.buffer_compare_change_pct_chart,
-                        left_label="🟠 Territory — % change per class",
-                        right_label="🔵 Buffer — % change per class",
+                    _compare_row(
+                        _compare_col_header(
+                            "🟠 Territory",
+                            AppState.selected_territory,
+                            "#FFF7ED", "#FF4500",
+                        ),
+                        _compare_col_header(
+                            "🔵 Buffer Zone",
+                            AppState.buffer_compare_summary.get("name", "Buffer"),
+                            "#EFF6FF", "#1D4ED8",
+                        ),
+                    ),
+                    rx.box(),
+                ),
+
+                rx.divider(),
+
+                # ── Row 1: Year-over-year land cover ─────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_chart_box(
+                            "Year-over-year land cover",
+                            "#FF4500", AppState.comparison_chart,
+                        ),
+                        _compare_chart_box(
+                            "Year-over-year land cover",
+                            "#1D4ED8", AppState.buffer_comparison_chart,
+                        ),
+                    ),
+                    rx.box(_plotly_safe(AppState.comparison_chart), width="100%"),
+                ),
+
+                rx.divider(),
+
+                # ── Row 2: Metrics strip ──────────────────────────────────────
+                rx.text(
+                    AppState.tr["total_gains"] + " / " + AppState.tr["total_losses"],
+                    font_weight="bold", font_size="sm",
+                ),
+                _compare_metrics_row(has_buffer),
+
+                rx.divider(),
+
+                # ── Row 3: Gains & losses ─────────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_chart_box(
+                            "Class gains & losses",
+                            "#FF4500", AppState.gains_losses_chart,
+                        ),
+                        _compare_chart_box(
+                            "Class gains & losses",
+                            "#1D4ED8", AppState.buffer_compare_gains_losses_chart,
+                        ),
+                    ),
+                    rx.box(_plotly_safe(AppState.gains_losses_chart), width="100%"),
+                ),
+
+                # ── Row 4: % Change per class ─────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_chart_box(
+                            "% change per class",
+                            "#FF4500", AppState.change_pct_chart,
+                        ),
+                        _compare_chart_box(
+                            "% change per class",
+                            "#1D4ED8", AppState.buffer_compare_change_pct_chart,
+                        ),
                     ),
                     rx.box(_plotly_safe(AppState.change_pct_chart), width="100%"),
                 ),
+
                 rx.divider(),
-                # ── Transitions (Sankey / Sunburst / Matrix) — territory only
-                rx.box(
-                    rx.hstack(
-                        rx.icon("git-branch", size=16, color="purple"),
-                        rx.text("Land Cover Transitions (Sankey)", font_weight="bold", font_size="sm"),
-                        spacing="2", align_items="center",
-                    ),
-                    rx.cond(
-                        AppState.sankey_chart != None,
-                        _plotly_safe(AppState.sankey_chart),
-                        rx.vstack(
-                            rx.icon("info", size=20, color="gray"),
-                            rx.text(
-                                "No transition data available. Transition data is computed during comparison analysis.",
-                                font_size="xs", color="gray",
-                            ),
-                            align="center", padding="1rem",
+
+                # ── Row 5: Sankey ─────────────────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_transition_block(
+                            "git-branch",
+                            "Land Cover Transitions (Sankey)",
+                            AppState.sankey_chart,
+                            "purple",
+                        ),
+                        _compare_transition_block(
+                            "git-branch",
+                            "Land Cover Transitions (Sankey)",
+                            AppState.buffer_sankey_chart,
+                            "#1D4ED8",
                         ),
                     ),
-                    width="100%",
-                ),
-                rx.divider(),
-                rx.box(
-                    rx.hstack(
-                        rx.icon("pie-chart", size=16, color="purple"),
-                        rx.text("Class Transitions (Sunburst)", font_weight="bold", font_size="sm"),
-                        spacing="2", align_items="center",
+                    _compare_transition_block(
+                        "git-branch",
+                        "Land Cover Transitions (Sankey)",
+                        AppState.sankey_chart,
+                        "purple",
                     ),
-                    rx.cond(
-                        AppState.sunburst_transitions_chart != None,
-                        _plotly_safe(AppState.sunburst_transitions_chart),
-                        rx.vstack(
-                            rx.icon("info", size=20, color="gray"),
-                            rx.text(
-                                "Sunburst chart shows how each class in the first year transitions to classes in the second year. "
-                                "Run comparison analysis to generate this visualization.",
-                                font_size="xs", color="gray",
-                            ),
-                            align="center", padding="1rem",
+                ),
+
+                rx.divider(),
+
+                # ── Row 6: Sunburst ───────────────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_transition_block(
+                            "pie-chart",
+                            "Class Transitions (Sunburst)",
+                            AppState.sunburst_transitions_chart,
+                            "purple",
+                        ),
+                        _compare_transition_block(
+                            "pie-chart",
+                            "Class Transitions (Sunburst)",
+                            AppState.buffer_sunburst_chart,
+                            "#1D4ED8",
                         ),
                     ),
-                    width="100%",
+                    _compare_transition_block(
+                        "pie-chart",
+                        "Class Transitions (Sunburst)",
+                        AppState.sunburst_transitions_chart,
+                        "purple",
+                    ),
                 ),
+
                 rx.divider(),
-                rx.box(
-                    rx.hstack(
-                        rx.icon("grid-3x3", size=16, color="orange"),
-                        rx.text("Transition Matrix (Heatmap)", font_weight="bold", font_size="sm"),
-                        spacing="2", align_items="center",
+
+                # ── Row 7: Transition Matrix ──────────────────────────────────
+                rx.cond(
+                    has_buffer,
+                    _compare_row(
+                        _compare_transition_block(
+                            "grid-3x3",
+                            "Transition Matrix (Heatmap)",
+                            AppState.transition_matrix_chart,
+                            "#ed8936",
+                        ),
+                        _compare_transition_block(
+                            "grid-3x3",
+                            "Transition Matrix (Heatmap)",
+                            AppState.buffer_transition_matrix_chart,
+                            "#1D4ED8",
+                        ),
                     ),
-                    rx.cond(
-                        AppState.transition_matrix_chart != None,
-                        _plotly_safe(AppState.transition_matrix_chart),
-                        rx.text("No transition data available.", font_size="xs", color="gray", padding="1rem"),
+                    _compare_transition_block(
+                        "grid-3x3",
+                        "Transition Matrix (Heatmap)",
+                        AppState.transition_matrix_chart,
+                        "#ed8936",
                     ),
-                    width="100%",
                 ),
+
                 rx.button(
                     AppState.tr["download_comparison_csv"],
                     on_click=AppState.download_comparison_csv,
