@@ -264,8 +264,9 @@ class AppState(
             "mapbiomas_displayed_years", "hansen_displayed_layers",
             "geometry_version", "show_geometries_on_map",
             "show_change_mask", "change_mask_year1", "change_mask_year2",
-            "territory_geojson_features", "indigenous_lands_tile_url",
-            "show_indigenous_lands", "analysis_tile_layers",
+            "territory_geojson_features", "show_indigenous_lands",
+            "available_territories",
+            "analysis_tile_layers",
             "show_hansen_gfc_tree_cover", "show_hansen_gfc_tree_loss",
             "show_hansen_gfc_tree_gain",
             "buffer_geojson_features",
@@ -274,7 +275,16 @@ class AppState(
     def map_html(self) -> str:
         """
         Full Folium/Leaflet HTML for the map panel.
-        Rebuilt whenever layer selection, geometry overlays, or tile URLs change.
+        Rebuilt whenever layer selection, geometry overlays, or the
+        indigenous-lands toggle changes.  Territory boundaries are now
+        served from the local GeoPackage (no EE tile URL required).
+
+        IMPORTANT: the indigenous lands GeoJSON layer (all 657 territories) is
+        only injected AFTER ``available_territories`` is populated by
+        ``load_territories_background()``.  At startup the list is empty so no
+        territory GeoJSON ends up in the initial state / context.js — this keeps
+        the initial page payload small and prevents the module-parse errors that
+        occur when context.js exceeds ~5 MB.
         """
         try:
             from ..utils.map_builder import build_map
@@ -296,7 +306,12 @@ class AppState(
                 elif self.drawn_features:
                     change_geom = self.drawn_features[0].get("geometry")
 
-            il_tile_url = self.indigenous_lands_tile_url if self.show_indigenous_lands else None
+            # Gate territory GeoJSON on available_territories being populated.
+            # At startup this list is empty, so the initial map is small (< 1 MB).
+            # Once load_territories_background() finishes it bumps geometry_version,
+            # triggering a map rebuild that adds the interactive territory layer.
+            territories_ready = bool(self.available_territories)
+            show_il = self.show_indigenous_lands and territories_ready
 
             return build_map(
                 mapbiomas_years=self.mapbiomas_displayed_years or [],
@@ -304,8 +319,7 @@ class AppState(
                 geometry_features=geom_features,
                 change_mask_years=change_years,
                 change_mask_geometry=change_geom,
-                indigenous_lands_tile_url=il_tile_url,
-                territory_names=self.available_territories if il_tile_url else None,
+                show_indigenous_lands=show_il,
                 analysis_tile_layers=self.analysis_tile_layers or [],
                 show_gfc_tree_cover=self.show_hansen_gfc_tree_cover,
                 show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,

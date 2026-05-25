@@ -95,73 +95,55 @@ class TerritoryMixin(rx.State, mixin=True):
 
     @rx.event(background=True)
     async def load_territories_background(self):
-        """Load territory list and indigenous lands tile URL without blocking the event loop.
+        """Load territory list from the local GeoPackage (no EE round-trips).
 
-        Uses ``@rx.background`` so all EE network calls happen in a worker thread
-        while the frontend stays fully interactive.  State mutations are batched
-        inside ``async with self`` blocks to minimise the number of map rebuilds.
+        The GeoPackage singleton is loaded once on first access; subsequent calls
+        return instantly.  State mutations are batched inside ``async with self``
+        so the frontend stays fully interactive during the (fast) file read.
         """
         import asyncio
 
         try:
-            from ..utils.ee_service_extended import get_ee_service
+            # ------------------------------------------------------------------
+            # Load territory display-keys from local GeoPackage — instant after
+            # the first call (singleton loads the file ~20 MB once).
+            # ------------------------------------------------------------------
+            def _load_local():
+                from ..utils.territory_service import get_territory_service
+                svc = get_territory_service()
+                return svc.get_all_display_keys()
 
-            # ------------------------------------------------------------------
-            # Phase 1 – territory list (one EE round-trip)
-            # ------------------------------------------------------------------
-            ee_service = get_ee_service()
             try:
-                success, territories = await asyncio.get_event_loop().run_in_executor(
-                    None, ee_service.load_territories
+                territory_list = await asyncio.get_event_loop().run_in_executor(
+                    None, _load_local
                 )
-            except Exception:
-                success, territories = False, []
+            except Exception as load_err:
+                logger.warning(f"[INIT] GeoPackage load failed: {load_err}")
+                territory_list = []
 
-            fallback = [
-                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
-                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
-            ]
-            territory_list = list(territories) if (success and territories) else fallback
+            if not territory_list:
+                logger.warning("[INIT] Empty territory list from GeoPackage")
 
+            # ------------------------------------------------------------------
+            # Commit: update territory list + bump geometry_version so the map
+            # rebuilds its interactive indigenous-lands layer from local GeoJSON.
+            # ``indigenous_lands_tile_url`` is intentionally left empty — the
+            # map_builder now pulls GeoJSON directly from territory_service.
+            # ------------------------------------------------------------------
             async with self:
                 self.available_territories = territory_list
-                logger.info(f"[INIT] Territory list ready: {len(territory_list)} entries")
-
-            # ------------------------------------------------------------------
-            # Phase 2 – indigenous lands tile URL (second EE round-trip)
-            # ------------------------------------------------------------------
-            tile_url = ""
-            name_property = "name"
-            try:
-                tile_url = await asyncio.get_event_loop().run_in_executor(
-                    None, ee_service.get_indigenous_lands_tile_url
-                )
-                name_property = await asyncio.get_event_loop().run_in_executor(
-                    None, ee_service.get_name_property
-                )
-            except Exception as tile_err:
-                logger.warning(f"[INIT] Could not load indigenous lands tiles: {tile_err}")
-
-            # ------------------------------------------------------------------
-            # Phase 3 – commit tile URL + bump geometry_version exactly once
-            # ------------------------------------------------------------------
-            async with self:
-                if tile_url:
-                    self.indigenous_lands_tile_url = tile_url
-                    logger.info("[INIT] Indigenous lands tile layer cached")
-                self.territory_name_property = name_property
+                self.territory_name_property = "display_key"
                 self.geometry_version += 1
                 self.loading_message = ""
                 self.loading_type = ""
-                logger.info(f"[INIT] App initialised with {len(self.available_territories)} territories")
+                logger.info(
+                    f"[INIT] App initialised with {len(territory_list)} territories "
+                    f"from local GeoPackage"
+                )
 
         except Exception as e:
             logger.error(f"[INIT] Failed to load territory data: {e}", exc_info=True)
             async with self:
-                self.available_territories = [
-                    "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
-                    "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
-                ]
                 self.loading_message = ""
                 self.loading_type = ""
 
@@ -273,51 +255,35 @@ class TerritoryMixin(rx.State, mixin=True):
             return
 
         # ------------------------------------------------------------------
-        # Phase 1 – load territory geometry (contains size().getInfo() call)
+        # Phase 1+2 – GeoJSON + bounds from local GeoPackage (no EE calls)
         # ------------------------------------------------------------------
-        def _load_geom():
-            from ..utils.ee_service_extended import get_ee_service
-            ee_service = get_ee_service()
-            geom = ee_service.get_territory_geometry(territory)
-            if not geom and "(" in territory and ")" in territory:
-                base_name = territory.split("(")[0].strip()
-                geom = ee_service.get_territory_geometry(base_name)
-            return geom
+        def _load_local_geom_data():
+            from ..utils.territory_service import get_territory_service
+            svc = get_territory_service()
+            geojson = svc.get_geojson_for_key(territory)
+            bounds = svc.get_bounds_for_key(territory)
+            return geojson, bounds
 
         try:
-            geom = await asyncio.get_event_loop().run_in_executor(None, _load_geom)
+            raw_geojson, map_zoom_bounds_local = await asyncio.get_event_loop().run_in_executor(
+                None, _load_local_geom_data
+            )
         except Exception as load_err:
-            logger.error(f"[TERRITORY_BG] Geometry load error: {load_err}", exc_info=True)
+            logger.error(f"[TERRITORY_BG] Local geometry load error: {load_err}", exc_info=True)
             async with self:
                 self.error_message = f"Error loading territory: {load_err}"
                 self.loading_message = ""
                 self.loading_type = ""
             return
 
-        if not geom:
+        if not raw_geojson:
             async with self:
                 self.error_message = f"Could not load geometry for: {territory}"
                 self.loading_message = ""
                 self.loading_type = ""
             return
 
-        # ------------------------------------------------------------------
-        # Phase 2 – GeoJSON + bounds (two blocking getInfo() calls)
-        # ------------------------------------------------------------------
-        def _fetch_geojson_and_bounds():
-            raw_geojson = geom.getInfo()
-            bounds_info = geom.bounds().getInfo()
-            return raw_geojson, bounds_info
-
-        try:
-            raw_geojson, bounds_info = await asyncio.get_event_loop().run_in_executor(
-                None, _fetch_geojson_and_bounds
-            )
-        except Exception as fetch_err:
-            logger.warning(f"[TERRITORY_BG] getInfo failed: {fetch_err}")
-            raw_geojson, bounds_info = None, None
-
-        # Build territory GeoJSON feature
+        # Build territory GeoJSON feature from local data
         territory_geojson_features = []
         if raw_geojson:
             clean_geom = {
@@ -333,25 +299,12 @@ class TerritoryMixin(rx.State, mixin=True):
             }
             territory_geojson_features = [territory_feature]
             logger.info(
-                f"[TERRITORY_BG] GeoJSON ready: {clean_geom['type']} "
+                f"[TERRITORY_BG] GeoJSON ready from local GeoPackage: {clean_geom['type']} "
                 f"with {len(clean_geom.get('coordinates', []))} coord groups"
             )
 
-        # Build zoom-bounds dict
-        map_zoom_bounds = {}
-        if bounds_info and "coordinates" in bounds_info:
-            coords = bounds_info["coordinates"][0]
-            if coords:
-                min_lat = min(c[1] for c in coords)
-                max_lat = max(c[1] for c in coords)
-                min_lon = min(c[0] for c in coords)
-                max_lon = max(c[0] for c in coords)
-                map_zoom_bounds = {
-                    "min_lat": min_lat, "max_lat": max_lat,
-                    "min_lon": min_lon, "max_lon": max_lon,
-                    "center_lat": (min_lat + max_lat) / 2,
-                    "center_lon": (min_lon + max_lon) / 2,
-                }
+        # Build zoom-bounds dict from local bounds
+        map_zoom_bounds = map_zoom_bounds_local or {}
 
         # Commit territory geometry data
         async with self:

@@ -34,13 +34,14 @@ def build_map(
     geometry_features: List[dict] = None,
     change_mask_years: Optional[tuple] = None,
     change_mask_geometry: Optional[dict] = None,
-    indigenous_lands_tile_url: Optional[str] = None,
-    territory_names: Optional[List[str]] = None,
+    indigenous_lands_tile_url: Optional[str] = None,  # Deprecated: kept for backwards-compat
+    territory_names: Optional[List[str]] = None,      # Deprecated: kept for backwards-compat
     analysis_tile_layers: List[dict] = None,
     show_gfc_tree_cover: bool = False,
     show_gfc_tree_loss: bool = False,
     show_gfc_tree_gain: bool = False,
     buffer_features: List[dict] = None,
+    show_indigenous_lands: bool = False,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -97,137 +98,97 @@ def build_map(
             control=True
         ).add_to(display_map)
         
-        # ADD INDIGENOUS LANDS BASE LAYER - all territories as EE tiles
-        if indigenous_lands_tile_url:
-            folium.TileLayer(
-                tiles=indigenous_lands_tile_url,
-                attr='Indigenous Lands (FUNAI)',
-                name='Indigenous Lands (all)',
-                overlay=True,
-                control=True,
-                show=True,
-                opacity=0.7,
-            ).add_to(display_map)
-            logger.info("Added indigenous lands tile layer")
+        # ADD INDIGENOUS LANDS LAYER — local GeoPackage, no EE round-trip
+        if show_indigenous_lands or indigenous_lands_tile_url:
+            try:
+                from .territory_service import get_territory_service
+                svc = get_territory_service()
+                territories_geojson = svc.get_all_geojson_fc()  # cached after first call
+                territory_count = len(territories_geojson.get("features", []))
+                logger.info(f"Building interactive indigenous lands layer: {territory_count} features")
 
-            # Add interactive GeoJSON layer for territory boundaries with hover/click
-            if territory_names:
-                try:
-                    from .ee_service_extended import get_ee_service
-                    ee_svc = get_ee_service()
-                    
-                    # Ensure territories are loaded
-                    if not ee_svc.territories_fc:
-                        logger.info("Territories not yet loaded, loading now...")
-                        success, names = ee_svc.load_territories()
-                        logger.info(f"Territory loading result: success={success}, count={len(names)}")
-                    
-                    if ee_svc.territories_fc:
-                        name_prop = ee_svc.get_name_property()
-                        logger.info(f"Creating interactive GeoJSON layer with name property: {name_prop}")
-                        
-                        # Get all territory boundaries as GeoJSON
+                if territories_geojson.get("features"):
+                    interactive_fg = folium.FeatureGroup(
+                        name="Indigenous Lands (Interactive)",
+                        show=True,
+                    )
+
+                    features_added = 0
+                    for feat in territories_geojson.get("features", []):
                         try:
-                            territories_geojson = ee_svc.territories_fc.getInfo()
-                            territory_count = len(territories_geojson.get("features", []))
-                            logger.info(f"Retrieved {territory_count} territories from Earth Engine")
-                        except Exception as gj_err:
-                            logger.error(f"Failed to get GeoJSON from territories_fc: {gj_err}")
-                            territories_geojson = {"features": []}
-                        
-                        if not territories_geojson.get("features"):
-                            logger.warning("No territory features found in GeoJSON")
-                        
-                        # Create a FeatureGroup for the interactive layers
-                        interactive_fg = folium.FeatureGroup(
-                            name="Territory Boundaries (Interactive)",
-                            show=True,
-                        )
-                        
-                        # Build a list to track feature properties for JavaScript callbacks
-                        features_added = 0
-                        for feat_idx, feat in enumerate(territories_geojson.get("features", [])):
-                            try:
-                                props = feat.get("properties", {})
-                                tname = props.get(name_prop, "Unknown")
-                                geom = feat.get("geometry", {})
-                                
-                                if not geom or geom.get("type") not in ["Polygon", "MultiPolygon"]:
-                                    logger.debug(f"Skipping feature {feat_idx}: invalid geometry type {geom.get('type')}")
-                                    continue
-                                
-                                # Create GeoJSON feature with name property for tooltip/popup
-                                geojson_feature = {
-                                    "type": "Feature",
-                                    "geometry": geom,
-                                    "properties": {
-                                        "name": tname,
-                                        "territory_name": tname,
-                                        "name_property": name_prop,
-                                    },
-                                }
-                                
-                                # Create popover HTML with click handler that stores territory and clicks hidden button
-                                popup_html = f"""
-                                <div style="font-family:Arial;width:220px;">
-                                    <b style="font-size:14px;color:#4B0082">{tname}</b><br>
-                                    <button onclick="
-                                        window._yvyTerritory = '{tname.replace("'", "\\'")}';
-                                        try {{
-                                            var btn = parent.document.getElementById('hidden-load-territory-btn');
-                                            if (btn) {{
-                                                btn.click();
-                                                console.log('[Popup] Clicked hidden button for territory:', window._yvyTerritory);
-                                            }} else {{
-                                                console.warn('[Popup] Hidden button not found');
-                                            }}
-                                        }} catch(e) {{
-                                            console.error('[Popup] Error clicking button:', e);
-                                        }}
-                                    " style="margin-top:8px;padding:6px 12px;background:#4B0082;color:white;border:none;border-radius:3px;cursor:pointer;font-weight:bold;font-size:12px;">
-                                        &#9654; Queue for Analysis
-                                    </button>
-                                </div>
-                                """
-                                
-                                # Add GeoJSON with styling and interactivity
-                                geojson_layer = folium.GeoJson(
-                                    geojson_feature,
-                                    style_function=lambda x: {
-                                        'fillColor': '#4B0082',
-                                        'color': '#8B5CF6',
-                                        'weight': 1.5,
-                                        'opacity': 0.4,
-                                        'fillOpacity': 0.05,
-                                    },
-                                    highlight_function=lambda x: {
-                                        'fillColor': '#6D28D9',
-                                        'color': '#A78BFA',
-                                        'weight': 2.5,
-                                        'opacity': 0.8,
-                                        'fillOpacity': 0.2,
-                                    },
-                                    popup=folium.Popup(popup_html, max_width=250, sticky=True),
-                                    tooltip=folium.Tooltip(tname, sticky=True),
-                                )
-                                geojson_layer.add_to(interactive_fg)
-                                features_added += 1
-                            except Exception as feat_err:
-                                logger.warning(f"Error processing feature {feat_idx}: {feat_err}")
+                            props = feat.get("properties", {})
+                            # display_key is the canonical selection key (matches available_territories)
+                            display_key = props.get("display_key", "Unknown")
+                            terrai_nom = props.get("terrai_nom", display_key)
+                            geom = feat.get("geometry", {})
+
+                            if not geom or geom.get("type") not in ["Polygon", "MultiPolygon"]:
                                 continue
-                        
-                        if features_added > 0:
-                            interactive_fg.add_to(display_map)
-                            logger.info(f"Added {features_added} interactive territory boundaries to map")
-                        else:
-                            logger.warning("No interactive territory features were successfully added")
+
+                            # Popup with JS bridge that calls the hidden Reflex button
+                            safe_key = display_key.replace("'", "\\'").replace('"', '\\"')
+                            popup_html = f"""
+                            <div style="font-family:Arial;width:240px;">
+                                <b style="font-size:14px;color:#4B0082">{terrai_nom}</b><br>
+                                <span style="font-size:11px;color:#555;">
+                                    {props.get('fase_ti','')} &bull; {props.get('uf_sigla','')}
+                                    {f"&bull; {props.get('superficie',0):,.0f} ha" if props.get('superficie') else ""}
+                                </span><br>
+                                <button onclick="
+                                    window._yvyTerritory = '{safe_key}';
+                                    try {{
+                                        var btn = parent.document.getElementById('hidden-load-territory-btn');
+                                        if (btn) {{
+                                            btn.click();
+                                            console.log('[Popup] territory:', window._yvyTerritory);
+                                        }} else {{
+                                            console.warn('[Popup] hidden button not found');
+                                        }}
+                                    }} catch(e) {{
+                                        console.error('[Popup] error:', e);
+                                    }}
+                                " style="margin-top:8px;padding:6px 12px;background:#4B0082;color:white;
+                                         border:none;border-radius:3px;cursor:pointer;font-weight:bold;font-size:12px;">
+                                    &#9654; Select for Analysis
+                                </button>
+                            </div>
+                            """
+
+                            geojson_layer = folium.GeoJson(
+                                {"type": "Feature", "geometry": geom,
+                                 "properties": {"display_key": display_key}},
+                                style_function=lambda _: {
+                                    "fillColor": "#4B0082",
+                                    "color": "#8B5CF6",
+                                    "weight": 1.2,
+                                    "opacity": 0.4,
+                                    "fillOpacity": 0.05,
+                                },
+                                highlight_function=lambda _: {
+                                    "fillColor": "#6D28D9",
+                                    "color": "#A78BFA",
+                                    "weight": 2.5,
+                                    "opacity": 0.8,
+                                    "fillOpacity": 0.2,
+                                },
+                                popup=folium.Popup(popup_html, max_width=260, sticky=True),
+                                tooltip=folium.Tooltip(terrai_nom, sticky=True),
+                            )
+                            geojson_layer.add_to(interactive_fg)
+                            features_added += 1
+                        except Exception as feat_err:
+                            logger.debug(f"Skipping territory feature: {feat_err}")
+                            continue
+
+                    if features_added > 0:
+                        interactive_fg.add_to(display_map)
+                        logger.info(f"Added {features_added} interactive territory boundaries (local GeoPackage)")
                     else:
-                        logger.warning("Territories FeatureCollection is still None - territory layers will not be added")
-                        
-                except Exception as interactive_err:
-                    logger.warning(f"Could not add interactive territory layer: {interactive_err}")
-                    import traceback
-                    traceback.print_exc()
+                        logger.warning("No interactive territory features added")
+            except Exception as il_err:
+                logger.warning(f"Could not add indigenous lands layer: {il_err}")
+                import traceback
+                traceback.print_exc()
 
         # ADD MAPBIOMAS LAYERS - following Streamlit pattern
         layers_added = 0

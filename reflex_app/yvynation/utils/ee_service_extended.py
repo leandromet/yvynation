@@ -43,74 +43,32 @@ class ExtendedEarthEngineService:
     
     def load_territories(self) -> Tuple[bool, List[str]]:
         """
-        Load indigenous territories from Earth Engine using config asset path.
+        Load indigenous territory display-keys from the local GeoPackage.
+
+        No EE round-trip: delegates to :mod:`territory_service`.
 
         Returns:
-            tuple: (success, territory_names)
+            tuple: (success, territory_display_keys)
         """
         try:
-            from ..config.config import TERRITORY_COLLECTIONS
-
-            # Use the exact asset path from config (like Streamlit app does)
-            asset_path = TERRITORY_COLLECTIONS.get('indigenous')
-
-            if not asset_path:
-                logger.warning("No indigenous territory path in config")
+            from .territory_service import get_territory_service
+            svc = get_territory_service()
+            if not svc.is_ready():
+                logger.warning("TerritoryService not ready, returning empty list")
                 return False, []
-
-            logger.info(f"Loading territories from: {asset_path}")
-            self.territories_fc = ee.FeatureCollection(asset_path)
-
-            # Test if it works and get the count
-            count = self.territories_fc.size().getInfo()
-            logger.info(f"✓ Loaded {count} indigenous territories")
-
-            # Extract territory names
-            self.territory_names = self._get_territory_names()
-
-            if not self.territory_names:
-                logger.warning("No territory names extracted, using fallback")
-                return False, []
-
-            logger.info(f"✓ Got {len(self.territory_names)} territory names")
-            return True, sorted(self.territory_names)
-
+            keys = svc.get_all_display_keys()
+            self.territory_names = keys
+            logger.info(f"✓ Loaded {len(keys)} territory keys from local GeoPackage")
+            return True, keys
         except Exception as e:
-            logger.error(f"Failed to load territories: {e}")
-            logger.warning("Using fallback territory data - connect to real EE dataset")
-            # Return true with fallback list to avoid complete failure
-            self.territory_names = [
-                "Trincheira", "Kayapó", "Xingu", "Madeira", "Negro",
-                "Solimões", "Tapajós", "Juruena", "Aripuanã", "Jiparaná",
-                "Mato Grosso", "Pará", "Roraima", "Amazonas", "Acre",
-            ]
-            return False, sorted(self.territory_names)
+            logger.error(f"Failed to load territories from GeoPackage: {e}")
+            return False, []
     
     def _get_territory_names(self) -> List[str]:
-        """Extract territory names from feature collection."""
+        """Extract territory display keys (delegates to local GeoPackage service)."""
         try:
-            if not self.territories_fc:
-                return []
-
-            # Get first feature to inspect properties
-            first = self.territories_fc.first().getInfo()
-            props = first.get('properties', {})
-            available_props = list(props.keys())
-
-            logger.debug(f"Available properties in territories: {available_props}")
-
-            # Try different property names (from Streamlit app)
-            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
-                if prop in props:
-                    logger.info(f"Using property '{prop}' for territory names")
-                    names = self.territories_fc.aggregate_array(prop).getInfo()
-                    if names:
-                        return sorted([str(n) for n in names if n])
-
-            # If no standard property found, log the available ones
-            logger.warning(f"No standard name property found. Available: {available_props}")
-            return []
-
+            from .territory_service import get_territory_service
+            return get_territory_service().get_all_display_keys()
         except Exception as e:
             logger.error(f"Error getting territory names: {e}")
             return []
@@ -137,60 +95,44 @@ class ExtendedEarthEngineService:
             logger.error(f"Error in debug_all_territories: {e}")
             return []
     
-    def get_territory_geometry(self, territory_name: str) -> Optional[ee.Geometry]:
-        """Get geometry for a specific territory."""
+    def get_territory_geometry(self, display_key: str) -> Optional[ee.Geometry]:
+        """Return an ``ee.Geometry`` for *display_key* built from local GeoPackage data.
+
+        No EE network call — the geometry dict is pulled from the local file
+        and wrapped in ``ee.Geometry()``.
+        """
         try:
-            if not self.territories_fc:
-                return None
-
-            # Try different property names to find the territory
-            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
-                try:
-                    filtered = self.territories_fc.filter(ee.Filter.eq(prop, territory_name))
-                    count = filtered.size().getInfo()
-                    if count > 0:
-                        geom = filtered.first().geometry()
-                        logger.info(f"Found territory '{territory_name}' using property '{prop}'")
-                        return geom
-                except Exception:
-                    continue
-
-            logger.warning(f"Territory '{territory_name}' not found in any property")
+            from .territory_service import get_territory_service
+            svc = get_territory_service()
+            ee_geom = svc.get_ee_geometry(display_key)
+            if ee_geom is not None:
+                logger.info(f"Built EE geometry for '{display_key}' from local GeoPackage")
+                return ee_geom
+            # Fallback: try stripping the " (cod)" suffix for legacy callers
+            if "(" in display_key and ")" in display_key:
+                base_name = display_key.rsplit("(", 1)[0].strip()
+                ee_geom = svc.get_ee_geometry(base_name)
+                if ee_geom is not None:
+                    logger.info(f"Built EE geometry for '{display_key}' via base-name fallback")
+                    return ee_geom
+            logger.warning(f"Territory '{display_key}' not found in local GeoPackage")
             return None
-
         except Exception as e:
-            logger.error(f"Error getting territory geometry for {territory_name}: {e}")
+            logger.error(f"Error getting territory geometry for {display_key}: {e}")
             return None
     
     def get_name_property(self) -> str:
-        """Return the property name used for territory names."""
-        if not self.territories_fc:
-            return "name"
-        try:
-            first = self.territories_fc.first().getInfo()
-            props = list(first.get('properties', {}).keys())
-            for prop in ['name', 'Nome', 'NAME', 'territorio_nome', 'territory_name', 'TERRITORY_NAME']:
-                if prop in props:
-                    return prop
-        except Exception:
-            pass
-        return "name"
+        """Return the property key used for territory display names (local GeoPackage)."""
+        return "display_key"
 
     def get_indigenous_lands_tile_url(self) -> Optional[str]:
-        """Get EE tile URL for all indigenous territories styled as boundaries."""
-        try:
-            if not self.territories_fc:
-                return None
-            styled = self.territories_fc.style(
-                color='#4B0082',
-                fillColor='#4B008215',
-                width=1,
-            )
-            map_id = styled.getMapId()
-            return map_id['tile_fetcher'].url_format
-        except Exception as e:
-            logger.error(f"Error creating indigenous lands tiles: {e}")
-            return None
+        """Deprecated — territory boundaries now come from the local GeoPackage.
+
+        Returns ``None`` so callers fall through to the local GeoJSON path.
+        The interactive Folium layer is built directly from
+        :func:`territory_service.get_all_geojson_fc` in ``map_builder.py``.
+        """
+        return None
 
     def get_mapbiomas(self) -> ee.Image:
         """Get or load MapBiomas Image (default: Collection 10.1)."""
