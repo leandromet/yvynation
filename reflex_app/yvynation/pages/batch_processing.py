@@ -482,7 +482,7 @@ def howto_panel() -> rx.Component:
             ),
             type="single",
             collapsible=True,
-            default_value="howto",
+            default_value=None,
             variant="ghost",
             width="100%",
             color_scheme="orange",

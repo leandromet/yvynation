@@ -964,10 +964,14 @@ class BatchMixin(rx.State, mixin=True):
                                     loss_chart=t_figs.get("gfc_loss"),
                                 )
 
-                            # Buffer section for this region
+                            # Buffer section for this region — folder keeps
+                            # the buffer slug, but filenames use the territory
+                            # slug with `_Buffer_{km}km` appended after the
+                            # dataset (so they sort next to territory files).
                             if ben:
                                 b_slug = _slug(f"{terr}_Buffer_{bkm:g}km")
                                 b_dir = f"buffer/{b_slug}{rsub}"
+                                b_suffix = f"_Buffer_{bkm:g}km"
 
                                 b_y1_records = bmb.get("data") if bmb else (bcmp.get("_raw_y1") if bcmp else None)
                                 b_y2_records = bcmp.get("_raw_y2") if bcmp else None
@@ -983,7 +987,7 @@ class BatchMixin(rx.State, mixin=True):
                                 )
                                 if bmb or bcmp:
                                     _write_mapbiomas_section(
-                                        zf, b_dir, b_slug,
+                                        zf, b_dir, t_slug,
                                         single_year_result=bmb,
                                         comparison_result=bcmp,
                                         territory_result_y1=bcmp.get("_raw_y1") if bcmp else None,
@@ -997,19 +1001,22 @@ class BatchMixin(rx.State, mixin=True):
                                         sankey_chart=b_figs.get("sankey_chart"),
                                         sunburst_chart=b_figs.get("sunburst_chart"),
                                         transition_matrix_chart=b_figs.get("transition_matrix_chart"),
+                                        name_suffix=b_suffix,
                                     )
                                 if bglad:
                                     _write_hansen_glad_section(
-                                        zf, b_dir, b_slug,
+                                        zf, b_dir, t_slug,
                                         glad_result=bglad,
                                         bar_chart=b_figs.get("glad_bar"),
+                                        name_suffix=b_suffix,
                                     )
                                 if bgfc:
                                     _write_hansen_gfc_section(
-                                        zf, b_dir, b_slug,
+                                        zf, b_dir, t_slug,
                                         gfc_result=bgfc,
                                         bar_chart=b_figs.get("gfc_bar"),
                                         loss_chart=b_figs.get("gfc_loss"),
+                                        name_suffix=b_suffix,
                                     )
 
                         await loop.run_in_executor(None, _write_region_to_zip)

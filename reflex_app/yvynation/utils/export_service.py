@@ -156,9 +156,15 @@ def _write_mapbiomas_section(
     sankey_chart=None,
     sunburst_chart=None,
     transition_matrix_chart=None,
+    name_suffix: str = "",
 ) -> None:
-    """Write MapBiomas CSVs + figures into base_dir/mapbiomas/."""
+    """Write MapBiomas CSVs + figures into base_dir/mapbiomas/.
+
+    ``name_suffix`` is appended to every base filename right before the
+    extension — used to tag buffer outputs (e.g. ``_Buffer_10km``).
+    """
     mb_dir = f"{base_dir}/mapbiomas"
+    sfx = name_suffix
 
     # --- Single-year land-cover CSV ---
     if single_year_result:
@@ -167,7 +173,7 @@ def _write_mapbiomas_section(
         if data:
             df = pd.DataFrame(data)
             zf.writestr(
-                f"{mb_dir}/{slug}_mapbiomas_{year}_landcover.csv",
+                f"{mb_dir}/{slug}_mapbiomas_{year}_landcover{sfx}.csv",
                 _df_to_csv_bytes(df),
             )
 
@@ -176,14 +182,14 @@ def _write_mapbiomas_section(
         y1 = comparison_result.get("year_start", "")
         df = pd.DataFrame(territory_result_y1)
         zf.writestr(
-            f"{mb_dir}/{slug}_mapbiomas_{y1}_raw_classes.csv",
+            f"{mb_dir}/{slug}_mapbiomas_{y1}_raw_classes{sfx}.csv",
             _df_to_csv_bytes(df),
         )
     if territory_result_y2 and comparison_result:
         y2 = comparison_result.get("year_end", "")
         df = pd.DataFrame(territory_result_y2)
         zf.writestr(
-            f"{mb_dir}/{slug}_mapbiomas_{y2}_raw_classes.csv",
+            f"{mb_dir}/{slug}_mapbiomas_{y2}_raw_classes{sfx}.csv",
             _df_to_csv_bytes(df),
         )
 
@@ -195,7 +201,7 @@ def _write_mapbiomas_section(
         if data:
             df = pd.DataFrame(data)
             zf.writestr(
-                f"{mb_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv",
+                f"{mb_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison{sfx}.csv",
                 _df_to_csv_bytes(df),
             )
 
@@ -205,7 +211,7 @@ def _write_mapbiomas_section(
         y2 = (comparison_result or {}).get("year_end", "")
         label = f"_{y1}_vs_{y2}" if y1 and y2 else ""
         zf.writestr(
-            f"{mb_dir}/{slug}_mapbiomas{label}_transitions.json",
+            f"{mb_dir}/{slug}_mapbiomas{label}_transitions{sfx}.json",
             json.dumps(transitions, indent=2, default=str),
         )
 
@@ -216,21 +222,21 @@ def _write_mapbiomas_section(
     y2 = (comparison_result or {}).get("year_end", "")
 
     if bar_chart is not None and year:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution", bar_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution{sfx}", bar_chart)
     if pie_chart is not None and year:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie", pie_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie{sfx}", pie_chart)
     if comparison_bar_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars", comparison_bar_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars{sfx}", comparison_bar_chart)
     if gains_losses_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_gains_losses", gains_losses_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_gains_losses{sfx}", gains_losses_chart)
     if change_pct_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_change_pct", change_pct_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_change_pct{sfx}", change_pct_chart)
     if sankey_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sankey", sankey_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sankey{sfx}", sankey_chart)
     if sunburst_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sunburst", sunburst_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sunburst{sfx}", sunburst_chart)
     if transition_matrix_chart is not None and y1 and y2:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix", transition_matrix_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix{sfx}", transition_matrix_chart)
 
 
 def _write_hansen_glad_section(
@@ -240,23 +246,25 @@ def _write_hansen_glad_section(
     *,
     glad_result: Optional[Dict] = None,
     bar_chart=None,
+    name_suffix: str = "",
 ) -> None:
     """Write Hansen GLAD CSV + figure into base_dir/hansen_glad/."""
     if not glad_result:
         return
     gl_dir = f"{base_dir}/hansen_glad"
+    sfx = name_suffix
     data = glad_result.get("data", [])
     year = glad_result.get("summary", {}).get("year", "")
     if data:
         df = pd.DataFrame(data)
         zf.writestr(
-            f"{gl_dir}/{slug}_hansen_glad_{year}_distribution.csv",
+            f"{gl_dir}/{slug}_hansen_glad_{year}_distribution{sfx}.csv",
             _df_to_csv_bytes(df),
         )
     if bar_chart is not None and year:
         _write_fig(
             zf,
-            f"{gl_dir}/figures/{slug}_hansen_glad_{year}_distribution",
+            f"{gl_dir}/figures/{slug}_hansen_glad_{year}_distribution{sfx}",
             bar_chart,
         )
 
@@ -269,18 +277,20 @@ def _write_hansen_gfc_section(
     gfc_result: Optional[Dict] = None,
     bar_chart=None,
     loss_chart=None,
+    name_suffix: str = "",
 ) -> None:
     """Write Hansen GFC CSVs + figures into base_dir/hansen_gfc/."""
     if not gfc_result:
         return
     gfc_dir = f"{base_dir}/hansen_gfc"
+    sfx = name_suffix
 
     # Summary metrics
     data = gfc_result.get("data", [])
     if data:
         df = pd.DataFrame(data)
         zf.writestr(
-            f"{gfc_dir}/{slug}_hansen_gfc_summary.csv",
+            f"{gfc_dir}/{slug}_hansen_gfc_summary{sfx}.csv",
             _df_to_csv_bytes(df),
         )
 
@@ -289,7 +299,7 @@ def _write_hansen_gfc_section(
     if loss_data:
         df_loss = pd.DataFrame(loss_data)
         zf.writestr(
-            f"{gfc_dir}/{slug}_hansen_gfc_loss_by_year.csv",
+            f"{gfc_dir}/{slug}_hansen_gfc_loss_by_year{sfx}.csv",
             _df_to_csv_bytes(df_loss),
         )
 
@@ -298,7 +308,7 @@ def _write_hansen_gfc_section(
     if gain_data:
         df_gain = pd.DataFrame(gain_data)
         zf.writestr(
-            f"{gfc_dir}/{slug}_hansen_gfc_gain.csv",
+            f"{gfc_dir}/{slug}_hansen_gfc_gain{sfx}.csv",
             _df_to_csv_bytes(df_gain),
         )
 
@@ -307,15 +317,15 @@ def _write_hansen_gfc_section(
     if cover_data:
         df_cover = pd.DataFrame(cover_data)
         zf.writestr(
-            f"{gfc_dir}/{slug}_hansen_gfc_tree_cover_2000.csv",
+            f"{gfc_dir}/{slug}_hansen_gfc_tree_cover_2000{sfx}.csv",
             _df_to_csv_bytes(df_cover),
         )
 
     fig_dir = f"{gfc_dir}/figures"
     if bar_chart is not None:
-        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_summary", bar_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_summary{sfx}", bar_chart)
     if loss_chart is not None and loss_data:
-        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_loss_by_year", loss_chart)
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_loss_by_year{sfx}", loss_chart)
 
 
 # ---------------------------------------------------------------------------
@@ -416,16 +426,18 @@ def create_export_zip(
             "",
             "## File naming convention",
             "",
-            "Every file is prefixed with the territory or buffer slug so that",
-            "exports from multiple territories can be merged into one flat folder",
-            "without name collisions.",
+            "Every file is prefixed with the territory slug so that exports",
+            "from multiple territories can be merged into one flat folder",
+            "without name collisions. Buffer outputs append a `_Buffer_{km}km`",
+            "suffix at the end (just before the extension) so they sort",
+            "directly after the matching territory file.",
             "",
-            "Pattern: `{slug}_{dataset}_{year(s)}_{chart_type}.ext`",
+            "Pattern: `{territory_slug}_{dataset}_{year(s)}_{chart_type}[_Buffer_{km}km].ext`",
             "",
             "Examples:",
             f"  `{t_slug}_mapbiomas_{territory_year}_landcover.csv`",
             f"  `{t_slug}_mapbiomas_{y1}_vs_{y2}_gains_losses.png`",
-            f"  `{b_slug}_hansen_gfc_loss_by_year.csv`",
+            f"  `{t_slug}_hansen_gfc_loss_by_year_Buffer_10km.csv`",
         ]
         zf.writestr("README.md", "\n".join(readme_lines))
 
@@ -486,10 +498,21 @@ def create_export_zip(
         ]):
             buf_base = f"buffer/{b_slug}"
 
+            # File-name slug stays as the territory slug; the buffer marker
+            # (e.g. "_Buffer_10km") is appended *after* the dataset/year so
+            # files like {terr}_hansen_gfc_summary_Buffer_10km.png group with
+            # their territory counterparts when listed alphabetically.
+            if b_slug.startswith(t_slug):
+                buf_suffix = b_slug[len(t_slug):]
+                if buf_suffix and not buf_suffix.startswith("_"):
+                    buf_suffix = "_" + buf_suffix
+            else:
+                buf_suffix = "_" + b_slug
+
             # Buffer MapBiomas — single year comes from buffer_mapbiomas_result (year1)
             # or buffer_comparison_result (year2); comparison from buffer_mapbiomas_comparison_result
             _write_mapbiomas_section(
-                zf, buf_base, b_slug,
+                zf, buf_base, t_slug,
                 single_year_result=buffer_mapbiomas_result,
                 comparison_result=buffer_mapbiomas_comparison_result,
                 transitions=buffer_territory_transitions,
@@ -500,21 +523,24 @@ def create_export_zip(
                 sankey_chart=buffer_figures.get("sankey"),
                 sunburst_chart=buffer_figures.get("sunburst"),
                 transition_matrix_chart=buffer_figures.get("transition_matrix"),
+                name_suffix=buf_suffix,
             )
 
             # Buffer Hansen GLAD
             _write_hansen_glad_section(
-                zf, buf_base, b_slug,
+                zf, buf_base, t_slug,
                 glad_result=buffer_hansen_result,
                 bar_chart=buffer_figures.get("hansen_glad_bar"),
+                name_suffix=buf_suffix,
             )
 
             # Buffer Hansen GFC
             _write_hansen_gfc_section(
-                zf, buf_base, b_slug,
+                zf, buf_base, t_slug,
                 gfc_result=buffer_gfc_result,
                 bar_chart=buffer_figures.get("gfc_bar"),
                 loss_chart=buffer_figures.get("gfc_loss"),
+                name_suffix=buf_suffix,
             )
 
     buf.seek(0)
