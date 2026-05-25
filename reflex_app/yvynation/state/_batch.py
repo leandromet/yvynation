@@ -37,6 +37,174 @@ _batch_zip_bytes: Optional[bytes] = None
 
 
 # ---------------------------------------------------------------------------
+# Figure builders — pure CPU, run inside the export thread
+# ---------------------------------------------------------------------------
+
+def _build_transition_matrix_fig(transitions, year1, year2):
+    """Heatmap of land-cover transitions (replicates AppState.transition_matrix_chart)."""
+    import plotly.graph_objects as pgo
+    try:
+        if not transitions:
+            return pgo.Figure()
+
+        from ..utils.visualization import _get_mapbiomas_labels
+        try:
+            labels = _get_mapbiomas_labels()
+        except Exception:
+            labels = {}
+
+        all_classes = set()
+        for src, tgt_dict in transitions.items():
+            if isinstance(tgt_dict, dict):
+                all_classes.add(str(src))
+                all_classes.update(str(t) for t in tgt_dict)
+        classes = sorted(all_classes)
+        if not classes:
+            return pgo.Figure()
+
+        display_names = []
+        for c in classes:
+            try:
+                display_names.append(labels.get(int(c), c))
+            except (ValueError, TypeError):
+                display_names.append(labels.get(c, c))
+
+        matrix = []
+        for src in classes:
+            row = []
+            for tgt in classes:
+                src_dict = transitions.get(
+                    src, transitions.get(int(src) if src.isdigit() else src, {})
+                )
+                if isinstance(src_dict, dict):
+                    val = src_dict.get(tgt, src_dict.get(int(tgt) if tgt.isdigit() else tgt, 0))
+                else:
+                    val = 0
+                row.append(float(val) if isinstance(val, (int, float)) else 0)
+            matrix.append(row)
+
+        fig = pgo.Figure(
+            data=pgo.Heatmap(
+                z=matrix, x=display_names, y=display_names,
+                colorscale="YlOrRd", hoverongaps=False,
+                hovertemplate=f"<b>%{{y}} → %{{x}}</b><br>{year1}→{year2}: %{{z:,.1f}} ha<extra></extra>",
+            )
+        )
+        fig.update_layout(
+            title=f"Land-Cover Transition Matrix ({year1} → {year2})",
+            xaxis_title=f"To class ({year2})", yaxis_title=f"From class ({year1})",
+            template="plotly_white", height=700, margin=dict(l=200, b=180),
+        )
+        return fig
+    except Exception:
+        logger.warning("transition matrix build failed", exc_info=True)
+        return pgo.Figure()
+
+
+def _build_territory_figures(
+    mb_y1_records,
+    mb_y2_records,
+    transitions,
+    glad_records,
+    gfc_dict,
+    y1, y2, hansen_year,
+):
+    """Build every plotly figure needed for the export ZIP (territory or buffer)."""
+    import pandas as pd
+    figs = {}
+    try:
+        from ..utils.visualization import (
+            MapBiomasVisualizer, HansenVisualizer,
+            calculate_gains_losses,
+            create_gains_losses_chart, create_change_percentage_chart,
+            create_sankey_transitions, create_sunburst_transitions,
+            _create_gfc_summary_chart,
+        )
+    except Exception as e:
+        logger.warning(f"Could not import visualization helpers: {e}")
+        return figs
+
+    df1 = pd.DataFrame(mb_y1_records) if mb_y1_records else pd.DataFrame()
+    df2 = pd.DataFrame(mb_y2_records) if mb_y2_records else pd.DataFrame()
+
+    # Single-year distribution (prefer year2 if available)
+    df_single, single_year = (df2, y2) if not df2.empty else (df1, y1)
+    if not df_single.empty:
+        try:
+            figs["bar_chart"] = MapBiomasVisualizer.create_area_bar_chart(df_single, year=single_year)
+        except Exception as e:
+            logger.warning(f"bar_chart build failed: {e}")
+        try:
+            figs["pie_chart"] = MapBiomasVisualizer.create_pie_chart(df_single)
+        except Exception as e:
+            logger.warning(f"pie_chart build failed: {e}")
+
+    # Year-over-year comparison
+    if not df1.empty and not df2.empty:
+        try:
+            figs["comparison_bar_chart"] = MapBiomasVisualizer.create_comparison_chart(
+                df1, df2, y1, y2
+            )
+        except Exception as e:
+            logger.warning(f"comparison_bar_chart build failed: {e}")
+        try:
+            comp_df = calculate_gains_losses(df1, df2)
+            if comp_df is not None and not comp_df.empty:
+                figs["gains_losses_chart"] = create_gains_losses_chart(comp_df, y1, y2)
+                figs["change_pct_chart"] = create_change_percentage_chart(comp_df, y1, y2)
+        except Exception as e:
+            logger.warning(f"gains_losses/change_pct build failed: {e}")
+
+    # Transition-based charts
+    if transitions:
+        try:
+            figs["sankey_chart"] = create_sankey_transitions(transitions, y1, y2)
+        except Exception as e:
+            logger.warning(f"sankey build failed: {e}")
+        try:
+            figs["sunburst_chart"] = create_sunburst_transitions(transitions, y1, y2)
+        except Exception as e:
+            logger.warning(f"sunburst build failed: {e}")
+        try:
+            figs["transition_matrix_chart"] = _build_transition_matrix_fig(transitions, y1, y2)
+        except Exception as e:
+            logger.warning(f"matrix build failed: {e}")
+
+    # Hansen GLAD bar chart
+    if glad_records:
+        try:
+            glad_df = pd.DataFrame(glad_records)
+            figs["glad_bar"] = HansenVisualizer.create_area_distribution_chart(
+                glad_df, year=hansen_year
+            )
+        except Exception as e:
+            logger.warning(f"glad_bar build failed: {e}")
+
+    # Hansen GFC charts
+    if gfc_dict:
+        try:
+            summary_data = gfc_dict.get("data")
+            if summary_data:
+                figs["gfc_bar"] = _create_gfc_summary_chart(pd.DataFrame(summary_data))
+        except Exception as e:
+            logger.warning(f"gfc_bar build failed: {e}")
+        try:
+            loss_rows = [r for r in gfc_dict.get("tree_loss_data", [])
+                         if r.get("Year_Code", 0) > 0]
+            if loss_rows:
+                loss_df = pd.DataFrame(loss_rows)
+                if "Year" not in loss_df.columns and "Year_Code" in loss_df.columns:
+                    loss_df["Year"] = 2000 + loss_df["Year_Code"].astype(int)
+                if "Loss_ha" not in loss_df.columns and "Area_ha" in loss_df.columns:
+                    loss_df["Loss_ha"] = loss_df["Area_ha"]
+                figs["gfc_loss"] = HansenVisualizer.create_loss_timeline_chart(loss_df)
+        except Exception as e:
+            logger.warning(f"gfc_loss build failed: {e}")
+
+    return figs
+
+
+# ---------------------------------------------------------------------------
 # Steps reported to the UI
 # ---------------------------------------------------------------------------
 STEPS = {
@@ -352,11 +520,18 @@ class BatchMixin(rx.State, mixin=True):
                         def _cmp(geom=ee_geom, y1=year1, y2=year2):
                             from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
                             from ..utils.visualization import calculate_gains_losses
-                            import pandas as pd
                             analyzer = get_mapbiomas_analyzer()
                             df_y1 = analyzer.analyze_single_year(geom, y1, scale=30)
                             df_y2 = analyzer.analyze_single_year(geom, y2, scale=30)
-                            gains, losses, net = calculate_gains_losses(df_y1, df_y2)
+                            # calculate_gains_losses returns a DataFrame with
+                            # Change_ha/Change_km2/Change_pct columns — not a tuple.
+                            comp_df = calculate_gains_losses(df_y1, df_y2)
+                            if comp_df is not None and not comp_df.empty:
+                                gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
+                                losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
+                                net_ha = gains_ha + losses_ha  # losses is already negative
+                            else:
+                                gains_ha = losses_ha = net_ha = 0.0
                             transitions = {}
                             try:
                                 raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
@@ -381,13 +556,15 @@ class BatchMixin(rx.State, mixin=True):
                                 "territory": territory,
                                 "year_start": y1, "year_end": y2,
                                 "data": rows,
-                                "gains_ha": float(gains),
-                                "losses_ha": float(losses),
-                                "net_ha": float(net),
+                                "gains_ha": gains_ha,
+                                "losses_ha": losses_ha,
+                                "net_ha": net_ha,
                                 "transitions": transitions,
-                            }, df_y1.to_dict("records"), df_y2.to_dict("records")
+                                "_raw_y1": df_y1.to_dict("records"),
+                                "_raw_y2": df_y2.to_dict("records"),
+                            }
                         try:
-                            cmp_result, raw_y1, raw_y2 = await loop.run_in_executor(None, _cmp)
+                            cmp_result = await loop.run_in_executor(None, _cmp)
                         except Exception as e:
                             logger.warning(f"Comparison failed for {territory}: {e}")
 
@@ -467,7 +644,20 @@ class BatchMixin(rx.State, mixin=True):
                                 analyzer = get_mapbiomas_analyzer()
                                 df1b = analyzer.analyze_single_year(geom, y1, scale=30)
                                 df2b = analyzer.analyze_single_year(geom, y2, scale=30)
-                                gains, losses, net = calculate_gains_losses(df1b, df2b)
+                                comp_df = calculate_gains_losses(df1b, df2b)
+                                if comp_df is not None and not comp_df.empty:
+                                    gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
+                                    losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
+                                    net_ha = gains_ha + losses_ha
+                                else:
+                                    gains_ha = losses_ha = net_ha = 0.0
+                                transitions = {}
+                                try:
+                                    raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
+                                    if raw_trans:
+                                        transitions = {str(k): v for k, v in raw_trans.items()}
+                                except Exception:
+                                    pass
                                 rows = []
                                 nc = "Class_Name" if "Class_Name" in df2b.columns else "Class"
                                 ac = "Area_ha"
@@ -481,9 +671,12 @@ class BatchMixin(rx.State, mixin=True):
                                     "territory": f"Buffer {buf_km}km - {territory}",
                                     "year_start": y1, "year_end": y2,
                                     "data": rows,
-                                    "gains_ha": float(gains),
-                                    "losses_ha": float(losses),
-                                    "net_ha": float(net),
+                                    "gains_ha": gains_ha,
+                                    "losses_ha": losses_ha,
+                                    "net_ha": net_ha,
+                                    "transitions": transitions,
+                                    "_raw_y1": df1b.to_dict("records"),
+                                    "_raw_y2": df2b.to_dict("records"),
                                 }
                             try:
                                 buf_cmp_result = await loop.run_in_executor(None, _buf_cmp)
@@ -539,54 +732,118 @@ class BatchMixin(rx.State, mixin=True):
                         bmb=buf_mb_result, bcmp=buf_cmp_result,
                         bglad=buf_glad_result, bgfc=buf_gfc_result,
                     ):
-                        from ..utils.export_service import _slug, _write_mapbiomas_section
-                        from ..utils.export_service import _write_hansen_glad_section
-                        from ..utils.export_service import _write_hansen_gfc_section
-                        import pandas as pd
+                        from ..utils.export_service import (
+                            _slug, _write_mapbiomas_section,
+                            _write_hansen_glad_section, _write_hansen_gfc_section,
+                        )
 
                         t_slug = _slug(terr)
                         t_dir = f"territory/{t_slug}"
 
-                        # boundary
+                        # ── Boundary GeoJSON ─────────────────────────────────
                         zf.writestr(
                             f"{t_dir}/boundary.geojson",
                             json.dumps({"type": "Feature", "geometry": geojson,
                                         "properties": {"name": terr}}).encode(),
                         )
 
-                        # MapBiomas section
+                        # ── Build figures for the territory ──────────────────
+                        t_y1_records = mb1.get("data") if mb1 else (cmp.get("_raw_y1") if cmp else None)
+                        t_y2_records = mb2.get("data") if mb2 else (cmp.get("_raw_y2") if cmp else None)
+                        t_transitions = cmp.get("transitions") if cmp else None
+                        t_glad_records = glad.get("data") if glad else None
+                        t_figs = _build_territory_figures(
+                            mb_y1_records=t_y1_records,
+                            mb_y2_records=t_y2_records,
+                            transitions=t_transitions,
+                            glad_records=t_glad_records,
+                            gfc_dict=gfc,
+                            y1=y1, y2=y2, hansen_year=hy,
+                        )
+
+                        # ── MapBiomas section + figures ──────────────────────
                         _write_mapbiomas_section(
                             zf, t_dir, t_slug,
-                            single_year_result=mb1,
+                            single_year_result=(mb2 or mb1),
                             comparison_result=cmp,
                             territory_result_y1=cmp.get("_raw_y1") if cmp else None,
                             territory_result_y2=cmp.get("_raw_y2") if cmp else None,
-                            transitions=cmp.get("transitions") if cmp else None,
+                            transitions=t_transitions,
+                            bar_chart=t_figs.get("bar_chart"),
+                            pie_chart=t_figs.get("pie_chart"),
+                            comparison_bar_chart=t_figs.get("comparison_bar_chart"),
+                            gains_losses_chart=t_figs.get("gains_losses_chart"),
+                            change_pct_chart=t_figs.get("change_pct_chart"),
+                            sankey_chart=t_figs.get("sankey_chart"),
+                            sunburst_chart=t_figs.get("sunburst_chart"),
+                            transition_matrix_chart=t_figs.get("transition_matrix_chart"),
                         )
 
-                        # Hansen GLAD
+                        # ── Hansen GLAD ──────────────────────────────────────
                         if glad:
-                            _write_hansen_glad_section(zf, t_dir, t_slug, result=glad)
+                            _write_hansen_glad_section(
+                                zf, t_dir, t_slug,
+                                glad_result=glad,
+                                bar_chart=t_figs.get("glad_bar"),
+                            )
 
-                        # Hansen GFC
+                        # ── Hansen GFC ───────────────────────────────────────
                         if gfc:
-                            _write_hansen_gfc_section(zf, t_dir, t_slug, result=gfc)
+                            _write_hansen_gfc_section(
+                                zf, t_dir, t_slug,
+                                gfc_result=gfc,
+                                bar_chart=t_figs.get("gfc_bar"),
+                                loss_chart=t_figs.get("gfc_loss"),
+                            )
 
-                        # Buffer
+                        # ── Buffer section ───────────────────────────────────
                         if ben:
                             b_slug = _slug(f"Buffer_{bkm}km_{terr}")
                             b_dir = f"buffer/{b_slug}"
+
+                            b_y1_records = bmb.get("data") if bmb else (bcmp.get("_raw_y1") if bcmp else None)
+                            b_y2_records = bcmp.get("_raw_y2") if bcmp else None
+                            b_transitions = bcmp.get("transitions") if bcmp else None
+                            b_glad_records = bglad.get("data") if bglad else None
+                            b_figs = _build_territory_figures(
+                                mb_y1_records=b_y1_records,
+                                mb_y2_records=b_y2_records,
+                                transitions=b_transitions,
+                                glad_records=b_glad_records,
+                                gfc_dict=bgfc,
+                                y1=y1, y2=y2, hansen_year=hy,
+                            )
+
                             if bmb or bcmp:
                                 _write_mapbiomas_section(
                                     zf, b_dir, b_slug,
                                     single_year_result=bmb,
                                     comparison_result=bcmp,
-                                    transitions=bcmp.get("transitions") if bcmp else None,
+                                    territory_result_y1=bcmp.get("_raw_y1") if bcmp else None,
+                                    territory_result_y2=bcmp.get("_raw_y2") if bcmp else None,
+                                    transitions=b_transitions,
+                                    bar_chart=b_figs.get("bar_chart"),
+                                    pie_chart=b_figs.get("pie_chart"),
+                                    comparison_bar_chart=b_figs.get("comparison_bar_chart"),
+                                    gains_losses_chart=b_figs.get("gains_losses_chart"),
+                                    change_pct_chart=b_figs.get("change_pct_chart"),
+                                    sankey_chart=b_figs.get("sankey_chart"),
+                                    sunburst_chart=b_figs.get("sunburst_chart"),
+                                    transition_matrix_chart=b_figs.get("transition_matrix_chart"),
                                 )
                             if bglad:
-                                _write_hansen_glad_section(zf, b_dir, b_slug, result=bglad)
+                                _write_hansen_glad_section(
+                                    zf, b_dir, b_slug,
+                                    glad_result=bglad,
+                                    bar_chart=b_figs.get("glad_bar"),
+                                )
                             if bgfc:
-                                _write_hansen_gfc_section(zf, b_dir, b_slug, result=bgfc)
+                                _write_hansen_gfc_section(
+                                    zf, b_dir, b_slug,
+                                    gfc_result=bgfc,
+                                    bar_chart=b_figs.get("gfc_bar"),
+                                    loss_chart=b_figs.get("gfc_loss"),
+                                )
 
                     await loop.run_in_executor(None, _write_territory_to_zip)
 
