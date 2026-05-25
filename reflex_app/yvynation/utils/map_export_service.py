@@ -211,9 +211,10 @@ def add_scale_bar(ax, min_lon: float, min_lat: float,
 
 def get_geometry_bounds(features: List[Dict],
                         territory_geojson: Optional[Dict] = None,
+                        buffer_geojson: Optional[Dict] = None,
                         padding: float = 0.1) -> Tuple[float, float, float, float]:
     """
-    Get bounding box from features and/or territory GeoJSON.
+    Get bounding box from features and/or territory + buffer GeoJSON.
     Returns (min_lon, min_lat, max_lon, max_lat) with padding.
     """
     all_lons, all_lats = [], []
@@ -228,14 +229,19 @@ def get_geometry_bounds(features: List[Dict],
             for c in coords:
                 _extract_coords(c)
 
-    # Territory bounds first
-    if territory_geojson:
-        coords = territory_geojson.get('coordinates', [])
-        if not coords and 'features' in territory_geojson:
-            for f in territory_geojson['features']:
+    def _from_geojson(gj):
+        if not gj:
+            return
+        coords = gj.get('coordinates', [])
+        if not coords and 'features' in gj:
+            for f in gj['features']:
                 _extract_coords(f.get('geometry', {}).get('coordinates', []))
         else:
             _extract_coords(coords)
+
+    # Territory + buffer bounds (so the external ring isn't clipped off)
+    _from_geojson(territory_geojson)
+    _from_geojson(buffer_geojson)
 
     # Drawn features
     for feat in (features or []):
@@ -465,7 +471,19 @@ def create_map_set(
     """
     maps = {}
 
-    bounds = get_geometry_bounds(drawn_features, territory_geojson)
+    bounds = get_geometry_bounds(drawn_features, territory_geojson, buffer_geojson)
+
+    # For raster overlays, clip to (territory ∪ buffer) so MapBiomas / Hansen
+    # pixels render inside both regions — not just the territory.
+    raster_geometry = ee_geometry
+    if ee_geometry is not None and buffer_geojson:
+        try:
+            import ee
+            buf_ee = ee.Geometry(buffer_geojson)
+            raster_geometry = ee_geometry.union(buf_ee, 1)
+        except Exception as e:
+            logger.warning(f"buffer union for raster clip failed: {e}")
+            raster_geometry = ee_geometry
 
     # MapBiomas maps
     for year in (active_mapbiomas_years or []):
@@ -475,7 +493,7 @@ def create_map_set(
             title += f" | {territory_name}"
         pdf = create_pdf_map(
             bounds, 'mapbiomas', year, drawn_features,
-            territory_geojson, buffer_geojson, title, ee_geometry,
+            territory_geojson, buffer_geojson, title, raster_geometry,
         )
         if pdf:
             maps[name] = pdf
@@ -492,7 +510,7 @@ def create_map_set(
             title += f" | {territory_name}"
         pdf = create_pdf_map(
             bounds, 'hansen', year, drawn_features,
-            territory_geojson, buffer_geojson, title, ee_geometry,
+            territory_geojson, buffer_geojson, title, raster_geometry,
         )
         if pdf:
             maps[name] = pdf
