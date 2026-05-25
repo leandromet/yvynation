@@ -14,7 +14,7 @@ collects data from *all* selected territories into one file:
       mapbiomas/  …
       hansen_glad/  …
       hansen_gfc/  …
-      maps/        ← PDF maps (satellite, MapBiomas y1/y2, Hansen)
+      maps/        ← PNG maps (satellite, MapBiomas y1/y2, Hansen)
     buffer/{buffer_slug}/
       …
     batch_summary.json
@@ -332,7 +332,7 @@ STEPS = {
     "buf_cmp":      "🔵 Buffer comparison {year1} → {year2}…",
     "buf_glad":     "🔵 Buffer Hansen GLAD…",
     "buf_gfc":      "🔵 Buffer Hansen GFC…",
-    "maps":         "🗺️  Rendering PDF maps…",
+    "maps":         "🗺️  Rendering PNG maps…",
     "export":       "📦 Packaging data…",
     "done":         "✅ Done",
 }
@@ -935,6 +935,11 @@ class BatchMixin(rx.State, mixin=True):
                             # else just territory/<slug>/...
                             rsub = f"/{rname}" if rname else ""
                             t_dir = f"territory/{t_slug}{rsub}"
+                            # Quadrant tag appended to every filename (just
+                            # before the extension, or just before the buffer
+                            # tag for buffer files) so flat-listed files can
+                            # still be traced back to their quadrant.
+                            q_tag = f"_{rname.upper()}" if rname else ""
 
                             # MapBiomas section + figures
                             t_y1_records = mb1.get("data") if mb1 else (cmp.get("_raw_y1") if cmp else None)
@@ -979,12 +984,14 @@ class BatchMixin(rx.State, mixin=True):
                                 sankey_chart=t_figs.get("sankey_chart"),
                                 sunburst_chart=t_figs.get("sunburst_chart"),
                                 transition_matrix_chart=t_figs.get("transition_matrix_chart"),
+                                name_suffix=q_tag,
                             )
                             if glad:
                                 _write_hansen_glad_section(
                                     zf, t_dir, t_slug,
                                     glad_result=glad,
                                     bar_chart=t_figs.get("glad_bar"),
+                                    name_suffix=q_tag,
                                 )
                             if gfc:
                                 _write_hansen_gfc_section(
@@ -992,6 +999,7 @@ class BatchMixin(rx.State, mixin=True):
                                     gfc_result=gfc,
                                     bar_chart=t_figs.get("gfc_bar"),
                                     loss_chart=t_figs.get("gfc_loss"),
+                                    name_suffix=q_tag,
                                 )
 
                             # Buffer section for this region — folder keeps
@@ -1001,7 +1009,10 @@ class BatchMixin(rx.State, mixin=True):
                             if ben:
                                 b_slug = _slug(f"{terr}_Buffer_{bkm:g}km")
                                 b_dir = f"buffer/{b_slug}{rsub}"
-                                b_suffix = f"_Buffer_{bkm:g}km"
+                                # Quadrant tag goes *before* the buffer tag so
+                                # the buffer marker stays last (just before
+                                # the extension), preserving file grouping.
+                                b_suffix = f"{q_tag}_Buffer_{bkm:g}km"
 
                                 b_y1_records = bmb.get("data") if bmb else (bcmp.get("_raw_y1") if bcmp else None)
                                 b_y2_records = bcmp.get("_raw_y2") if bcmp else None
@@ -1121,11 +1132,12 @@ class BatchMixin(rx.State, mixin=True):
                                     ee_geometry=ee_g,
                                     territory_geojson=geojson,
                                     buffer_geojson=buf_gj,
+                                    image_format="png",
                                 )
-                                for name, pdf_bytes in (maps or {}).items():
+                                for name, img_bytes in (maps or {}).items():
                                     zf.writestr(
-                                        f"territory/{t_slug}/maps/{t_slug}_{name}.pdf",
-                                        pdf_bytes,
+                                        f"territory/{t_slug}/maps/{t_slug}_{name}.png",
+                                        img_bytes,
                                     )
                             except Exception as me:
                                 logger.warning(

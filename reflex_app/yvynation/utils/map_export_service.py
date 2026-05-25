@@ -271,9 +271,10 @@ def create_pdf_map(
     title: Optional[str] = None,
     ee_geometry=None,
     figsize: Tuple[int, int] = (12, 10),
+    image_format: str = "pdf",
 ) -> Optional[bytes]:
     """
-    Create a publication-quality PDF map.
+    Create a publication-quality map image.
 
     Args:
         bounds: (min_lon, min_lat, max_lon, max_lat)
@@ -285,9 +286,11 @@ def create_pdf_map(
         title: Map title
         ee_geometry: Earth Engine geometry for raster layer
         figsize: Figure size in inches
+        image_format: 'pdf' (default), 'png', or any other matplotlib backend
+            that ``Figure.savefig`` accepts.
 
     Returns:
-        bytes: PDF file content, or None on error
+        bytes: rendered image bytes, or None on error
     """
     try:
         min_lon, min_lat, max_lon, max_lat = bounds
@@ -381,15 +384,15 @@ def create_pdf_map(
 
         plt.tight_layout()
 
-        # Export to PDF bytes
+        # Export to bytes in the requested format
         buf = io.BytesIO()
-        fig.savefig(buf, format='pdf', dpi=150, bbox_inches='tight')
+        fig.savefig(buf, format=image_format, dpi=150, bbox_inches='tight')
         plt.close(fig)
         buf.seek(0)
         return buf.read()
 
     except Exception as e:
-        logger.error(f"PDF map creation failed: {e}")
+        logger.error(f"Map image creation failed ({image_format}): {e}")
         return None
 
 
@@ -463,11 +466,13 @@ def create_map_set(
     ee_geometry=None,
     territory_geojson: Optional[Dict] = None,
     buffer_geojson: Optional[Dict] = None,
+    image_format: str = "pdf",
 ) -> Dict[str, bytes]:
     """
-    Generate a set of PDF maps for all active layers.
+    Generate a set of maps for all active layers.
 
-    Returns dict of {map_name: pdf_bytes}.
+    Returns dict of {map_name: image_bytes}. The byte content is the file
+    encoded with ``image_format`` (e.g. 'pdf' or 'png').
     """
     maps = {}
 
@@ -491,12 +496,13 @@ def create_map_set(
         title = f"MapBiomas Land Cover - {year}"
         if territory_name:
             title += f" | {territory_name}"
-        pdf = create_pdf_map(
+        img = create_pdf_map(
             bounds, 'mapbiomas', year, drawn_features,
             territory_geojson, buffer_geojson, title, raster_geometry,
+            image_format=image_format,
         )
-        if pdf:
-            maps[name] = pdf
+        if img:
+            maps[name] = img
 
     # Hansen maps
     for layer in (active_hansen_layers or []):
@@ -508,20 +514,22 @@ def create_map_set(
         title = f"Hansen/GLAD - {year}"
         if territory_name:
             title += f" | {territory_name}"
-        pdf = create_pdf_map(
+        img = create_pdf_map(
             bounds, 'hansen', year, drawn_features,
             territory_geojson, buffer_geojson, title, raster_geometry,
+            image_format=image_format,
         )
-        if pdf:
-            maps[name] = pdf
+        if img:
+            maps[name] = img
 
     # Satellite basemap
-    pdf = create_pdf_map(
+    img = create_pdf_map(
         bounds, 'satellite', None, drawn_features,
         territory_geojson, buffer_geojson,
         f"Satellite Basemap{' | ' + territory_name if territory_name else ''}",
+        image_format=image_format,
     )
-    if pdf:
-        maps["Satellite_Basemap"] = pdf
+    if img:
+        maps["Satellite_Basemap"] = img
 
     return maps

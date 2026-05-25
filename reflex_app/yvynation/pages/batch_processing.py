@@ -219,7 +219,7 @@ def config_panel() -> rx.Component:
                 color_scheme="orange",
             ),
             rx.checkbox(
-                "🗺️ PDF maps (satellite + MapBiomas y1/y2)",
+                "🗺️ PNG maps (satellite + MapBiomas y1/y2)",
                 checked=AppState.batch_run_pdf_maps,
                 on_change=AppState.batch_toggle_run_pdf_maps,
                 color_scheme="orange",
