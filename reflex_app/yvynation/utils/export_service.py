@@ -1,68 +1,125 @@
 """
-Phase 5: Export service for generating ZIP bundles with analysis data.
-Ports Streamlit's export_utils.py to work with Reflex AppState.
+Yvynation – Export service.
 
-Generates organized ZIP with:
-  - metadata.json
-  - geometries.geojson
-  - polygons/polygon_N/{analysis}_data.csv
-  - territory/{name}/{analysis}.csv, transitions.json, figures/
-  - figures/{name}.png, {name}.html
-  - maps/{name}.pdf
+Generates a ZIP archive with a predictable, self-describing folder/file
+structure so that exports from multiple territories can be merged into a
+single directory without name collisions:
+
+  yvynation_{territory_slug}_{YYYYMMDD_HHMM}.zip
+  │
+  ├── README.md               ← human-readable summary
+  ├── metadata.json           ← machine-readable metadata
+  │
+  ├── territory/
+  │   └── {slug}/
+  │       ├── boundary.geojson
+  │       ├── mapbiomas/
+  │       │   ├── {slug}_mapbiomas_{year}_landcover.csv
+  │       │   ├── {slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv
+  │       │   ├── {slug}_mapbiomas_{y1}_vs_{y2}_transitions.json
+  │       │   └── figures/
+  │       │       ├── {slug}_mapbiomas_{year}_distribution.png + .html
+  │       │       ├── {slug}_mapbiomas_{year}_composition_pie.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_gains_losses.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_change_pct.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_sankey.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_sunburst.png + .html
+  │       │       └── {slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix.png + .html
+  │       ├── hansen_glad/
+  │       │   ├── {slug}_hansen_glad_{year}_distribution.csv
+  │       │   └── figures/
+  │       │       └── {slug}_hansen_glad_{year}_distribution.png + .html
+  │       └── hansen_gfc/
+  │           ├── {slug}_hansen_gfc_summary.csv
+  │           ├── {slug}_hansen_gfc_loss_by_year.csv
+  │           ├── {slug}_hansen_gfc_gain.csv
+  │           └── figures/
+  │               ├── {slug}_hansen_gfc_summary.png + .html
+  │               └── {slug}_hansen_gfc_loss_by_year.png + .html
+  │
+  └── buffer/
+      └── {buffer_slug}/      (e.g. buffer_10km_{territory_slug})
+          └── [same sub-structure as territory/]
 """
 
 import io
 import json
+import re
 import zipfile
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def _fig_to_png_bytes(fig, dpi: int = 150) -> Optional[bytes]:
-    """Convert a matplotlib Figure to PNG bytes."""
-    try:
-        import matplotlib
-        matplotlib.use('Agg')
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
-        buf.seek(0)
-        return buf.read()
-    except Exception as e:
-        logger.warning(f"Could not convert figure to PNG: {e}")
-        return None
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
+def _slug(name: str) -> str:
+    """Turn an arbitrary territory / buffer name into a safe filesystem slug.
 
-def _plotly_to_html_bytes(fig) -> Optional[bytes]:
-    """Convert a Plotly figure to interactive HTML bytes."""
-    try:
-        html_str = fig.to_html(include_plotlyjs='cdn', full_html=True)
-        return html_str.encode('utf-8')
-    except Exception as e:
-        logger.warning(f"Could not convert Plotly figure to HTML: {e}")
-        return None
-
-
-def _plotly_to_png_bytes(fig, width: int = 1200, height: int = 600) -> Optional[bytes]:
-    """Convert Plotly figure to PNG bytes (requires kaleido)."""
-    try:
-        return fig.to_image(format='png', width=width, height=height)
-    except Exception as e:
-        logger.warning(f"Plotly PNG export failed (install kaleido?): {e}")
-        return None
+    Examples:
+        "Terra Indígena Xingu (PA)"  → "Terra_Indigena_Xingu_PA"
+        "Buffer (10 km) — Xingu"     → "Buffer_10km_Xingu"
+    """
+    import unicodedata
+    # Normalize unicode (remove accents)
+    norm = unicodedata.normalize("NFD", str(name))
+    ascii_name = norm.encode("ascii", "ignore").decode("ascii")
+    # Replace common separators / brackets with underscores
+    ascii_name = re.sub(r"[\s\(\)\[\]{}/\\:;,\-–—]+", "_", ascii_name)
+    # Strip leading/trailing underscores, collapse multiples
+    ascii_name = re.sub(r"_+", "_", ascii_name).strip("_")
+    return ascii_name or "unknown"
 
 
 def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
-    """Convert DataFrame to CSV bytes."""
-    return df.to_csv(index=False).encode('utf-8')
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def _plotly_to_html_bytes(fig) -> Optional[bytes]:
+    try:
+        return fig.to_html(include_plotlyjs="cdn", full_html=True).encode("utf-8")
+    except Exception as e:
+        logger.warning(f"Plotly → HTML failed: {e}")
+        return None
+
+
+def _plotly_to_png_bytes(fig, width: int = 1400, height: int = 700) -> Optional[bytes]:
+    """Convert Plotly figure to PNG bytes (requires kaleido)."""
+    try:
+        return fig.to_image(format="png", width=width, height=height)
+    except Exception as e:
+        logger.warning(f"Plotly → PNG failed (install kaleido): {e}")
+        return None
+
+
+def _write_fig(zf: zipfile.ZipFile, base_path: str, fig) -> None:
+    """Write both .html and (if kaleido available) .png versions of a figure."""
+    if fig is None:
+        return
+    try:
+        import plotly.graph_objects as go
+        if isinstance(fig, dict):
+            fig = go.Figure(fig)
+        # Always try HTML first (no extra deps)
+        html = _plotly_to_html_bytes(fig)
+        if html:
+            zf.writestr(base_path + ".html", html)
+        # PNG is optional
+        png = _plotly_to_png_bytes(fig)
+        if png:
+            zf.writestr(base_path + ".png", png)
+    except Exception as e:
+        logger.warning(f"Could not write figure '{base_path}': {e}")
 
 
 def _geojson_from_features(features: List[Dict]) -> Dict:
-    """Build a GeoJSON FeatureCollection from drawn features."""
     fc = {"type": "FeatureCollection", "features": []}
     for feat in features:
         geom = feat.get("geometry")
@@ -77,17 +134,188 @@ def _geojson_from_features(features: List[Dict]) -> Dict:
     return fc
 
 
-def _territory_geojson(territory_name: str) -> Optional[Dict]:
-    """Try to get territory GeoJSON from Earth Engine."""
-    try:
-        from .ee_service_extended import get_ee_service
-        ee_service = get_ee_service()
-        ee_geom = ee_service.get_territory_geometry(territory_name)
-        if ee_geom:
-            return ee_geom.getInfo()
-    except Exception as e:
-        logger.warning(f"Could not get territory GeoJSON: {e}")
-    return None
+# ---------------------------------------------------------------------------
+# Section writers  (territory or buffer, same logic)
+# ---------------------------------------------------------------------------
+
+def _write_mapbiomas_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    single_year_result: Optional[Dict] = None,
+    comparison_result: Optional[Dict] = None,
+    territory_result_y1: Optional[List[Dict]] = None,
+    territory_result_y2: Optional[List[Dict]] = None,
+    transitions: Optional[Dict] = None,
+    bar_chart=None,
+    pie_chart=None,
+    comparison_bar_chart=None,
+    gains_losses_chart=None,
+    change_pct_chart=None,
+    sankey_chart=None,
+    sunburst_chart=None,
+    transition_matrix_chart=None,
+) -> None:
+    """Write MapBiomas CSVs + figures into base_dir/mapbiomas/."""
+    mb_dir = f"{base_dir}/mapbiomas"
+
+    # --- Single-year land-cover CSV ---
+    if single_year_result:
+        data = single_year_result.get("data", [])
+        year = single_year_result.get("year", "")
+        if data:
+            df = pd.DataFrame(data)
+            zf.writestr(
+                f"{mb_dir}/{slug}_mapbiomas_{year}_landcover.csv",
+                _df_to_csv_bytes(df),
+            )
+
+    # --- Raw year1 / year2 data rows (from territory_result / territory_result_year2) ---
+    if territory_result_y1 and comparison_result:
+        y1 = comparison_result.get("year_start", "")
+        df = pd.DataFrame(territory_result_y1)
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas_{y1}_raw_classes.csv",
+            _df_to_csv_bytes(df),
+        )
+    if territory_result_y2 and comparison_result:
+        y2 = comparison_result.get("year_end", "")
+        df = pd.DataFrame(territory_result_y2)
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas_{y2}_raw_classes.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # --- Comparison gains/losses CSV ---
+    if comparison_result:
+        data = comparison_result.get("data", [])
+        y1 = comparison_result.get("year_start", "")
+        y2 = comparison_result.get("year_end", "")
+        if data:
+            df = pd.DataFrame(data)
+            zf.writestr(
+                f"{mb_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv",
+                _df_to_csv_bytes(df),
+            )
+
+    # --- Transitions JSON ---
+    if transitions:
+        y1 = (comparison_result or {}).get("year_start", "")
+        y2 = (comparison_result or {}).get("year_end", "")
+        label = f"_{y1}_vs_{y2}" if y1 and y2 else ""
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas{label}_transitions.json",
+            json.dumps(transitions, indent=2, default=str),
+        )
+
+    # --- Figures ---
+    fig_dir = f"{mb_dir}/figures"
+    year = (single_year_result or {}).get("year", "")
+    y1 = (comparison_result or {}).get("year_start", "")
+    y2 = (comparison_result or {}).get("year_end", "")
+
+    if bar_chart is not None and year:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution", bar_chart)
+    if pie_chart is not None and year:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie", pie_chart)
+    if comparison_bar_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars", comparison_bar_chart)
+    if gains_losses_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_gains_losses", gains_losses_chart)
+    if change_pct_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_change_pct", change_pct_chart)
+    if sankey_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sankey", sankey_chart)
+    if sunburst_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sunburst", sunburst_chart)
+    if transition_matrix_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix", transition_matrix_chart)
+
+
+def _write_hansen_glad_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    glad_result: Optional[Dict] = None,
+    bar_chart=None,
+) -> None:
+    """Write Hansen GLAD CSV + figure into base_dir/hansen_glad/."""
+    if not glad_result:
+        return
+    gl_dir = f"{base_dir}/hansen_glad"
+    data = glad_result.get("data", [])
+    year = glad_result.get("summary", {}).get("year", "")
+    if data:
+        df = pd.DataFrame(data)
+        zf.writestr(
+            f"{gl_dir}/{slug}_hansen_glad_{year}_distribution.csv",
+            _df_to_csv_bytes(df),
+        )
+    if bar_chart is not None and year:
+        _write_fig(
+            zf,
+            f"{gl_dir}/figures/{slug}_hansen_glad_{year}_distribution",
+            bar_chart,
+        )
+
+
+def _write_hansen_gfc_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    gfc_result: Optional[Dict] = None,
+    bar_chart=None,
+    loss_chart=None,
+) -> None:
+    """Write Hansen GFC CSVs + figures into base_dir/hansen_gfc/."""
+    if not gfc_result:
+        return
+    gfc_dir = f"{base_dir}/hansen_gfc"
+
+    # Summary metrics
+    data = gfc_result.get("data", [])
+    if data:
+        df = pd.DataFrame(data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_summary.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # Loss by year (Year_Code > 0)
+    loss_data = [r for r in gfc_result.get("tree_loss_data", []) if r.get("Year_Code", 0) > 0]
+    if loss_data:
+        df_loss = pd.DataFrame(loss_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_loss_by_year.csv",
+            _df_to_csv_bytes(df_loss),
+        )
+
+    # Gain summary
+    gain_data = gfc_result.get("tree_gain_data", [])
+    if gain_data:
+        df_gain = pd.DataFrame(gain_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_gain.csv",
+            _df_to_csv_bytes(df_gain),
+        )
+
+    # Tree cover categories
+    cover_data = gfc_result.get("tree_cover_data", [])
+    if cover_data:
+        df_cover = pd.DataFrame(cover_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_tree_cover_2000.csv",
+            _df_to_csv_bytes(df_cover),
+        )
+
+    fig_dir = f"{gfc_dir}/figures"
+    if bar_chart is not None:
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_summary", bar_chart)
+    if loss_chart is not None and loss_data:
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_loss_by_year", loss_chart)
 
 
 # ---------------------------------------------------------------------------
@@ -95,265 +323,274 @@ def _territory_geojson(territory_name: str) -> Optional[Dict]:
 # ---------------------------------------------------------------------------
 
 def create_export_zip(
-    analysis_results: Dict[str, Any],
-    comparison_result: Optional[Dict[str, Any]] = None,
+    # Territory identity
     territory_name: str = "",
     territory_year: int = 0,
     territory_year2: Optional[int] = None,
     territory_source: str = "MapBiomas",
-    drawn_features: Optional[List[Dict]] = None,
-    plotly_figures: Optional[Dict[str, Any]] = None,
-    transitions: Optional[Dict] = None,
+    # Territory analysis data
+    analysis_results: Optional[Dict[str, Any]] = None,
+    mapbiomas_analysis_result: Optional[Dict[str, Any]] = None,
+    comparison_result: Optional[Dict[str, Any]] = None,
     territory_result: Optional[List[Dict]] = None,
     territory_result_year2: Optional[List[Dict]] = None,
-    territory_geojson_cached: Optional[Dict] = None,
+    territory_transitions: Optional[Dict] = None,
     glad_result: Optional[Dict[str, Any]] = None,
     gfc_result: Optional[Dict[str, Any]] = None,
+    territory_geojson_cached: Optional[Dict] = None,
+    drawn_features: Optional[List[Dict]] = None,
+    # Territory figures
+    territory_figures: Optional[Dict[str, Any]] = None,
+    # Buffer identity + data
+    buffer_name: str = "",
+    buffer_mapbiomas_result: Optional[Dict[str, Any]] = None,
+    buffer_comparison_result: Optional[Dict[str, Any]] = None,   # year2 single-year
+    buffer_mapbiomas_comparison_result: Optional[Dict[str, Any]] = None,
+    buffer_territory_transitions: Optional[Dict] = None,
+    buffer_hansen_result: Optional[Dict[str, Any]] = None,
+    buffer_gfc_result: Optional[Dict[str, Any]] = None,
+    # Buffer figures
+    buffer_figures: Optional[Dict[str, Any]] = None,
+    # Legacy parameter (ignored, kept for backwards compat)
+    plotly_figures: Optional[Dict[str, Any]] = None,
 ) -> bytes:
-    """
-    Create a ZIP file containing all analysis data, figures, and metadata.
-
-    Args:
-        analysis_results: Current analysis results dict from AppState
-        comparison_result: Year comparison data (if available)
-        territory_name: Name of analyzed territory
-        territory_year: Primary analysis year
-        territory_year2: Comparison year (if any)
-        territory_source: Data source (MapBiomas, Hansen)
-        drawn_features: List of drawn geometry features
-        plotly_figures: Dict of {name: plotly_figure_json} for export
-        transitions: Transition matrix data (for Sankey)
-        territory_result: Territory analysis data for year 1
-        territory_result_year2: Territory analysis data for year 2
-
-    Returns:
-        bytes: ZIP file content
-    """
+    """Build and return a well-structured ZIP archive for download."""
     buf = io.BytesIO()
+    analysis_results = analysis_results or {}
+    territory_figures = territory_figures or {}
+    buffer_figures = buffer_figures or {}
 
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        timestamp = datetime.now().isoformat()
+    t_slug = _slug(territory_name) if territory_name else "territory"
+    b_slug = _slug(buffer_name) if buffer_name else (f"buffer_{t_slug}" if t_slug else "buffer")
+    timestamp = datetime.now().isoformat()
 
-        # === 1. Metadata ===
+    y1 = (comparison_result or {}).get("year_start", territory_year or "")
+    y2 = (comparison_result or {}).get("year_end", territory_year2 or "")
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+
+        # ── metadata.json ────────────────────────────────────────────────────
         metadata = {
-            "app": "Yvynation - Indigenous Land Monitoring",
+            "app": "Yvynation – Indigenous Land Monitoring",
             "export_timestamp": timestamp,
             "territory": territory_name or "N/A",
-            "year": territory_year,
-            "year2": territory_year2,
+            "territory_slug": t_slug,
+            "year_primary": territory_year,
+            "year_comparison": territory_year2,
             "source": territory_source,
-            "analysis_type": analysis_results.get("type", "N/A"),
             "has_comparison": comparison_result is not None,
-            "num_polygons": len(drawn_features) if drawn_features else 0,
+            "has_buffer": bool(buffer_name),
+            "buffer_name": buffer_name or None,
+            "buffer_slug": b_slug if buffer_name else None,
+            "num_drawn_polygons": len(drawn_features) if drawn_features else 0,
         }
         zf.writestr("metadata.json", json.dumps(metadata, indent=2, default=str))
 
-        # === 2. Geometries GeoJSON ===
-        if drawn_features:
-            geojson = _geojson_from_features(drawn_features)
-            zf.writestr("geometries.geojson", json.dumps(geojson, indent=2, default=str))
-
-        # Try to add territory boundary (use cached GeoJSON to avoid EE re-fetch)
-        if territory_name:
-            terr_geojson = territory_geojson_cached or _territory_geojson(territory_name)
-            if terr_geojson:
-                zf.writestr(
-                    f"territory/{territory_name}/boundary.geojson",
-                    json.dumps(terr_geojson, indent=2, default=str),
-                )
-
-        # === 3. Analysis results CSV ===
-        a_data = analysis_results.get("data", [])
-        if a_data:
-            df = pd.DataFrame(a_data)
-            a_type = analysis_results.get("type", "analysis")
-            year = analysis_results.get("year", "")
-
-            if territory_name:
-                path = f"territory/{territory_name}/{a_type}_{year}_data.csv"
-            else:
-                path = f"analysis/{a_type}_{year}_data.csv"
-            zf.writestr(path, _df_to_csv_bytes(df))
-
-        # === 4. Territory year 1 & year 2 results ===
-        if territory_result and territory_name:
-            df1 = pd.DataFrame(territory_result)
-            zf.writestr(
-                f"territory/{territory_name}/{territory_source}_{territory_year}_data.csv",
-                _df_to_csv_bytes(df1),
-            )
-
-        if territory_result_year2 and territory_name and territory_year2:
-            df2 = pd.DataFrame(territory_result_year2)
-            zf.writestr(
-                f"territory/{territory_name}/{territory_source}_{territory_year2}_data.csv",
-                _df_to_csv_bytes(df2),
-            )
-
-        # === 5. Comparison data ===
-        if comparison_result:
-            comp_data = comparison_result.get("data", [])
-            if comp_data:
-                df_comp = pd.DataFrame(comp_data)
-                y1 = comparison_result.get("year_start", "")
-                y2 = comparison_result.get("year_end", "")
-
-                if territory_name:
-                    path = f"territory/{territory_name}/comparison_{y1}_vs_{y2}.csv"
-                else:
-                    path = f"analysis/comparison_{y1}_vs_{y2}.csv"
-                zf.writestr(path, _df_to_csv_bytes(df_comp))
-
-        # === 5b. Hansen GLAD data ===
-        if glad_result:
-            glad_data = glad_result.get("data", [])
-            if glad_data:
-                df_glad = pd.DataFrame(glad_data)
-                glad_year = glad_result.get("summary", {}).get("year", "")
-                name_slug = territory_name or glad_result.get("geometry_name", "area")
-                path = f"territory/{name_slug}/hansen_glad_{glad_year}_data.csv" if territory_name \
-                    else f"analysis/hansen_glad_{glad_year}_data.csv"
-                zf.writestr(path, _df_to_csv_bytes(df_glad))
-
-        # === 5c. Hansen GFC data ===
-        if gfc_result:
-            name_slug = territory_name or gfc_result.get("geometry_name", "area")
-            # Summary metrics table
-            gfc_data = gfc_result.get("data", [])
-            if gfc_data:
-                df_gfc = pd.DataFrame(gfc_data)
-                path = f"territory/{name_slug}/hansen_gfc_summary.csv" if territory_name \
-                    else "analysis/hansen_gfc_summary.csv"
-                zf.writestr(path, _df_to_csv_bytes(df_gfc))
-            # Tree loss by year
-            loss_data = gfc_result.get("tree_loss_data", [])
-            if loss_data:
-                df_loss = pd.DataFrame(loss_data)
-                path = f"territory/{name_slug}/hansen_gfc_loss_by_year.csv" if territory_name \
-                    else "analysis/hansen_gfc_loss_by_year.csv"
-                zf.writestr(path, _df_to_csv_bytes(df_loss))
-            # Tree gain
-            gain_data = gfc_result.get("tree_gain_data", [])
-            if gain_data:
-                df_gain = pd.DataFrame(gain_data)
-                path = f"territory/{name_slug}/hansen_gfc_gain.csv" if territory_name \
-                    else "analysis/hansen_gfc_gain.csv"
-                zf.writestr(path, _df_to_csv_bytes(df_gain))
-
-        # === 6. Transitions JSON ===
-        if transitions:
-            if territory_name:
-                path = f"territory/{territory_name}/transitions.json"
-            else:
-                path = "analysis/transitions.json"
-            zf.writestr(path, json.dumps(transitions, indent=2, default=str))
-
-        # === 7. Plotly figures (HTML + PNG) ===
-        if plotly_figures:
-            import plotly.graph_objects as go
-            for name, fig_data in plotly_figures.items():
-                try:
-                    if isinstance(fig_data, dict):
-                        fig = go.Figure(fig_data)
-                    else:
-                        fig = fig_data
-
-                    # HTML (always works)
-                    html_bytes = _plotly_to_html_bytes(fig)
-                    if html_bytes:
-                        zf.writestr(f"figures/{name}.html", html_bytes)
-
-                    # PNG (may require kaleido)
-                    png_bytes = _plotly_to_png_bytes(fig)
-                    if png_bytes:
-                        zf.writestr(f"figures/{name}.png", png_bytes)
-                except Exception as e:
-                    logger.warning(f"Failed to export figure '{name}': {e}")
-
-        # === 8. Summary text ===
-        summary_lines = [
-            f"Yvynation Analysis Export",
-            f"========================",
-            f"Generated: {timestamp}",
-            f"Territory: {territory_name or 'N/A'}",
-            f"Source: {territory_source}",
-            f"Year: {territory_year}",
+        # ── README.md ────────────────────────────────────────────────────────
+        readme_lines = [
+            "# Yvynation Analysis Export",
+            "",
+            f"**Generated:** {timestamp}",
+            f"**Territory:** {territory_name or 'N/A'}",
+            f"**Source:** {territory_source}",
         ]
+        if territory_year:
+            readme_lines.append(f"**Primary year:** {territory_year}")
         if territory_year2:
-            summary_lines.append(f"Comparison Year: {territory_year2}")
-        if comparison_result:
-            summary_lines.append(f"Comparison: {comparison_result.get('year_start')} vs {comparison_result.get('year_end')}")
+            readme_lines.append(f"**Comparison year:** {territory_year2}")
+        if buffer_name:
+            readme_lines.append(f"**Buffer zone:** {buffer_name}")
+        readme_lines += [
+            "",
+            "## Folder structure",
+            "",
+            "```",
+            "territory/{slug}/",
+            "  mapbiomas/          ← land-cover CSVs + figures",
+            "  hansen_glad/        ← forest-cover snapshot CSVs + figures",
+            "  hansen_gfc/         ← annual loss/gain CSVs + figures",
+            "  boundary.geojson    ← territory polygon",
+            "buffer/{slug}/        ← same sub-structure for the buffer ring",
+            "geometries.geojson    ← any manually drawn features",
+            "```",
+            "",
+            "## File naming convention",
+            "",
+            "Every file is prefixed with the territory or buffer slug so that",
+            "exports from multiple territories can be merged into one flat folder",
+            "without name collisions.",
+            "",
+            "Pattern: `{slug}_{dataset}_{year(s)}_{chart_type}.ext`",
+            "",
+            "Examples:",
+            f"  `{t_slug}_mapbiomas_{territory_year}_landcover.csv`",
+            f"  `{t_slug}_mapbiomas_{y1}_vs_{y2}_gains_losses.png`",
+            f"  `{b_slug}_hansen_gfc_loss_by_year.csv`",
+        ]
+        zf.writestr("README.md", "\n".join(readme_lines))
 
-        summary = analysis_results.get("summary", {})
-        if summary:
-            summary_lines.append(f"\nAnalysis Summary:")
-            for k, v in summary.items():
-                summary_lines.append(f"  {k}: {v}")
+        # ── Drawn features ───────────────────────────────────────────────────
+        if drawn_features:
+            fc = _geojson_from_features(drawn_features)
+            zf.writestr("geometries.geojson", json.dumps(fc, indent=2, default=str))
 
-        zf.writestr("README.txt", "\n".join(summary_lines))
+        # ── Territory boundary ───────────────────────────────────────────────
+        terr_base = f"territory/{t_slug}"
+        if territory_geojson_cached:
+            zf.writestr(
+                f"{terr_base}/boundary.geojson",
+                json.dumps(territory_geojson_cached, indent=2, default=str),
+            )
+
+        # ── Territory MapBiomas ──────────────────────────────────────────────
+        _write_mapbiomas_section(
+            zf, terr_base, t_slug,
+            single_year_result=mapbiomas_analysis_result or (
+                analysis_results if analysis_results.get("type") == "mapbiomas" else None
+            ),
+            comparison_result=comparison_result,
+            territory_result_y1=territory_result,
+            territory_result_y2=territory_result_year2,
+            transitions=territory_transitions,
+            bar_chart=territory_figures.get("mapbiomas_bar"),
+            pie_chart=territory_figures.get("mapbiomas_pie"),
+            comparison_bar_chart=territory_figures.get("comparison_bar"),
+            gains_losses_chart=territory_figures.get("gains_losses"),
+            change_pct_chart=territory_figures.get("change_pct"),
+            sankey_chart=territory_figures.get("sankey"),
+            sunburst_chart=territory_figures.get("sunburst"),
+            transition_matrix_chart=territory_figures.get("transition_matrix"),
+        )
+
+        # ── Territory Hansen GLAD ────────────────────────────────────────────
+        _write_hansen_glad_section(
+            zf, terr_base, t_slug,
+            glad_result=glad_result,
+            bar_chart=territory_figures.get("hansen_glad_bar"),
+        )
+
+        # ── Territory Hansen GFC ─────────────────────────────────────────────
+        _write_hansen_gfc_section(
+            zf, terr_base, t_slug,
+            gfc_result=gfc_result,
+            bar_chart=territory_figures.get("gfc_bar"),
+            loss_chart=territory_figures.get("gfc_loss"),
+        )
+
+        # ── Buffer sections (only when buffer data exists) ───────────────────
+        if any([
+            buffer_mapbiomas_result,
+            buffer_mapbiomas_comparison_result,
+            buffer_hansen_result,
+            buffer_gfc_result,
+        ]):
+            buf_base = f"buffer/{b_slug}"
+
+            # Buffer MapBiomas — single year comes from buffer_mapbiomas_result (year1)
+            # or buffer_comparison_result (year2); comparison from buffer_mapbiomas_comparison_result
+            _write_mapbiomas_section(
+                zf, buf_base, b_slug,
+                single_year_result=buffer_mapbiomas_result,
+                comparison_result=buffer_mapbiomas_comparison_result,
+                transitions=buffer_territory_transitions,
+                bar_chart=buffer_figures.get("mapbiomas_bar"),
+                comparison_bar_chart=buffer_figures.get("comparison_bar"),
+                gains_losses_chart=buffer_figures.get("gains_losses"),
+                change_pct_chart=buffer_figures.get("change_pct"),
+                sankey_chart=buffer_figures.get("sankey"),
+                sunburst_chart=buffer_figures.get("sunburst"),
+                transition_matrix_chart=buffer_figures.get("transition_matrix"),
+            )
+
+            # Buffer Hansen GLAD
+            _write_hansen_glad_section(
+                zf, buf_base, b_slug,
+                glad_result=buffer_hansen_result,
+                bar_chart=buffer_figures.get("hansen_glad_bar"),
+            )
+
+            # Buffer Hansen GFC
+            _write_hansen_gfc_section(
+                zf, buf_base, b_slug,
+                gfc_result=buffer_gfc_result,
+                bar_chart=buffer_figures.get("gfc_bar"),
+                loss_chart=buffer_figures.get("gfc_loss"),
+            )
 
     buf.seek(0)
     return buf.read()
 
 
 # ---------------------------------------------------------------------------
-# Convenience: collect export data from AppState fields
+# Convenience: collect export data from AppState
 # ---------------------------------------------------------------------------
 
 def collect_export_data_from_state(state) -> Dict[str, Any]:
-    """
-    Collect all exportable data from an AppState instance.
+    """Collect all exportable data from an AppState instance."""
 
-    Returns dict with keys matching create_export_zip() parameters.
-    """
-    # Collect all available Plotly figures
-    plotly_figs = {}
+    # ── Territory figures ────────────────────────────────────────────────────
+    terr_figs: Dict[str, Any] = {}
     try:
-        # MapBiomas single-year
         if state.mapbiomas_bar_chart:
-            plotly_figs["mapbiomas_distribution"] = state.mapbiomas_bar_chart
+            terr_figs["mapbiomas_bar"] = state.mapbiomas_bar_chart
         if state.mapbiomas_pie_chart:
-            plotly_figs["mapbiomas_composition"] = state.mapbiomas_pie_chart
-
-        # Hansen GLAD
-        if state.glad_bar_chart:
-            plotly_figs["hansen_glad_distribution"] = state.glad_bar_chart
-
-        # Hansen GFC
-        if state.gfc_bar_chart:
-            plotly_figs["hansen_gfc_summary"] = state.gfc_bar_chart
-        if state.gfc_loss_chart:
-            plotly_figs["hansen_gfc_loss_by_year"] = state.gfc_loss_chart
-
-        # Hansen territory balance (old-style territory analysis)
-        if state.hansen_balance_chart:
-            plotly_figs["hansen_balance"] = state.hansen_balance_chart
-
-        # Year comparison charts
+            terr_figs["mapbiomas_pie"] = state.mapbiomas_pie_chart
+        if state.comparison_chart:
+            terr_figs["comparison_bar"] = state.comparison_chart
         if state.gains_losses_chart:
-            plotly_figs["gains_losses"] = state.gains_losses_chart
+            terr_figs["gains_losses"] = state.gains_losses_chart
         if state.change_pct_chart:
-            plotly_figs["change_percentage"] = state.change_pct_chart
-
-        # Transition charts (Sankey, Sunburst, Matrix)
+            terr_figs["change_pct"] = state.change_pct_chart
         if state.sankey_chart:
-            plotly_figs["transitions_sankey"] = state.sankey_chart
+            terr_figs["sankey"] = state.sankey_chart
         if state.sunburst_transitions_chart:
-            plotly_figs["transitions_sunburst"] = state.sunburst_transitions_chart
+            terr_figs["sunburst"] = state.sunburst_transitions_chart
         if state.transition_matrix_chart:
-            plotly_figs["transitions_matrix"] = state.transition_matrix_chart
-
+            terr_figs["transition_matrix"] = state.transition_matrix_chart
+        if state.glad_bar_chart:
+            terr_figs["hansen_glad_bar"] = state.glad_bar_chart
+        elif state.hansen_balance_chart:
+            terr_figs["hansen_glad_bar"] = state.hansen_balance_chart
+        if state.gfc_bar_chart:
+            terr_figs["gfc_bar"] = state.gfc_bar_chart
+        if state.gfc_loss_chart:
+            terr_figs["gfc_loss"] = state.gfc_loss_chart
     except Exception as e:
-        logger.warning(f"Error collecting plotly figures: {e}")
+        logger.warning(f"Error collecting territory figures: {e}")
 
-    # territory_result / territory_result_year2 are dicts with "data" and "summary"
-    # keys — extract just the records list for pd.DataFrame()
+    # ── Buffer figures ───────────────────────────────────────────────────────
+    buf_figs: Dict[str, Any] = {}
+    try:
+        if state.buffer_mapbiomas_bar_chart:
+            buf_figs["mapbiomas_bar"] = state.buffer_mapbiomas_bar_chart
+        if state.buffer_comparison_chart:
+            buf_figs["comparison_bar"] = state.buffer_comparison_chart
+        if state.buffer_compare_gains_losses_chart:
+            buf_figs["gains_losses"] = state.buffer_compare_gains_losses_chart
+        if state.buffer_compare_change_pct_chart:
+            buf_figs["change_pct"] = state.buffer_compare_change_pct_chart
+        if state.buffer_sankey_chart:
+            buf_figs["sankey"] = state.buffer_sankey_chart
+        if state.buffer_sunburst_chart:
+            buf_figs["sunburst"] = state.buffer_sunburst_chart
+        if state.buffer_transition_matrix_chart:
+            buf_figs["transition_matrix"] = state.buffer_transition_matrix_chart
+        if state.buffer_hansen_bar_chart:
+            buf_figs["hansen_glad_bar"] = state.buffer_hansen_bar_chart
+        if state.buffer_gfc_bar_chart:
+            buf_figs["gfc_bar"] = state.buffer_gfc_bar_chart
+        if state.buffer_gfc_loss_chart:
+            buf_figs["gfc_loss"] = state.buffer_gfc_loss_chart
+    except Exception as e:
+        logger.warning(f"Error collecting buffer figures: {e}")
+
+    # ── Territory result data ────────────────────────────────────────────────
     t_result = state.territory_result
-    t_result_year2 = state.territory_result_year2
-    t_result_data = t_result.get("data", []) if isinstance(t_result, dict) else (t_result or [])
-    t_result_year2_data = t_result_year2.get("data", []) if isinstance(t_result_year2, dict) else (t_result_year2 or [])
+    t_result_y2 = state.territory_result_year2
+    t_data = t_result.get("data", []) if isinstance(t_result, dict) else (t_result or [])
+    t_data_y2 = t_result_y2.get("data", []) if isinstance(t_result_y2, dict) else (t_result_y2 or [])
 
-    # Use cached territory GeoJSON to avoid re-fetching from EE
+    # ── Cached territory GeoJSON ─────────────────────────────────────────────
     cached_geojson = None
     try:
         feats = state.territory_geojson_features
@@ -362,19 +599,47 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # ── Buffer name ─────────────────────────────────────────────────────────
+    buffer_name = ""
+    try:
+        buffer_name = state.current_buffer_for_analysis or ""
+        if not buffer_name and state.buffer_mapbiomas_result:
+            buffer_name = state.buffer_mapbiomas_result.get("territory", "")
+        if not buffer_name and state.buffer_mapbiomas_comparison_result:
+            buffer_name = state.buffer_mapbiomas_comparison_result.get("territory", "")
+        if not buffer_name and any([
+            state.buffer_mapbiomas_result,
+            state.buffer_gfc_result,
+            state.buffer_hansen_result,
+        ]):
+            t = state.territory_name or state.selected_territory or ""
+            buffer_name = f"Buffer ({state.auto_buffer_km:.0f} km) — {t}" if t else "Buffer"
+    except Exception:
+        pass
+
     return {
-        "analysis_results": state.analysis_results,
-        "comparison_result": state.mapbiomas_comparison_result,
         "territory_name": state.territory_name or state.selected_territory or "",
         "territory_year": state.territory_year or state.mapbiomas_current_year,
         "territory_year2": state.territory_year2,
         "territory_source": state.territory_source,
-        "drawn_features": state.drawn_features,
-        "plotly_figures": plotly_figs if plotly_figs else None,
-        "transitions": state.territory_transitions,
-        "territory_result": t_result_data or None,
-        "territory_result_year2": t_result_year2_data or None,
-        "territory_geojson_cached": cached_geojson,
+        "analysis_results": state.analysis_results,
+        "mapbiomas_analysis_result": state.mapbiomas_analysis_result,
+        "comparison_result": state.mapbiomas_comparison_result,
+        "territory_result": t_data or None,
+        "territory_result_year2": t_data_y2 or None,
+        "territory_transitions": state.territory_transitions,
         "glad_result": state.geometry_glad_result or None,
         "gfc_result": state.geometry_gfc_result or None,
+        "territory_geojson_cached": cached_geojson,
+        "drawn_features": state.drawn_features,
+        "territory_figures": terr_figs or None,
+        # Buffer
+        "buffer_name": buffer_name,
+        "buffer_mapbiomas_result": state.buffer_mapbiomas_result,
+        "buffer_comparison_result": state.buffer_compare_result,
+        "buffer_mapbiomas_comparison_result": state.buffer_mapbiomas_comparison_result,
+        "buffer_territory_transitions": state.buffer_territory_transitions,
+        "buffer_hansen_result": state.buffer_hansen_result,
+        "buffer_gfc_result": state.buffer_gfc_result,
+        "buffer_figures": buf_figs or None,
     }

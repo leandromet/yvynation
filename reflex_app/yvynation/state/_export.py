@@ -8,6 +8,15 @@ import reflex as rx
 logger = logging.getLogger(__name__)
 
 
+def _export_slug(name: str) -> str:
+    """Quick filesystem-safe slug (mirrors export_service._slug without the import)."""
+    import re, unicodedata
+    norm = unicodedata.normalize("NFD", str(name))
+    ascii_name = norm.encode("ascii", "ignore").decode("ascii")
+    ascii_name = re.sub(r"[\s\(\)\[\]{}/\\:;,\-–—]+", "_", ascii_name)
+    return re.sub(r"_+", "_", ascii_name).strip("_") or "unknown"
+
+
 class ExportMixin(rx.State, mixin=True):
     """Event handlers for data and map export."""
 
@@ -28,14 +37,15 @@ class ExportMixin(rx.State, mixin=True):
             a_type = self.analysis_results.get("type", "analysis")
             territory = self.analysis_results.get("geometry", "unknown")
             year = self.analysis_results.get("year", "")
-            filename = f"{territory}_{a_type}_{year}.csv".replace(" ", "_")
+            slug = _export_slug(territory)
+            filename = f"{slug}_{a_type}_{year}_data.csv"
             return rx.download(data=csv_content, filename=filename)
 
         except Exception as e:
             self.error_message = f"Export error: {e}"
 
     def download_mapbiomas_csv(self):
-        """Download MapBiomas analysis results as CSV."""
+        """Download MapBiomas land-cover analysis results as CSV."""
         try:
             import pandas as pd
 
@@ -50,57 +60,149 @@ class ExportMixin(rx.State, mixin=True):
 
             df = pd.DataFrame(data)
             csv_content = df.to_csv(index=False)
-            territory = self.mapbiomas_analysis_result.get("territory", "unknown")
+            territory = self.mapbiomas_analysis_result.get(
+                "territory", self.selected_territory or "unknown"
+            )
             year = self.mapbiomas_analysis_result.get("year", "")
-            filename = f"{territory}_MapBiomas_{year}.csv".replace(" ", "_")
+            slug = _export_slug(territory)
+            filename = f"{slug}_mapbiomas_{year}_landcover.csv"
             return rx.download(data=csv_content, filename=filename)
 
         except Exception as e:
             self.error_message = f"MapBiomas export error: {e}"
 
     def download_hansen_csv(self):
-        """Download Hansen analysis results as CSV."""
+        """Download Hansen GLAD distribution results as CSV."""
         try:
             import pandas as pd
 
-            if not self.hansen_analysis_result:
+            # Prefer geometry_glad_result (territory GLAD tab) over generic hansen_analysis_result
+            result = self.geometry_glad_result or self.hansen_analysis_result
+            if not result:
                 self.error_message = "No Hansen analysis data to export"
                 return
 
-            data = self.hansen_analysis_result.get("data", [])
+            data = result.get("data", [])
             if not data:
                 self.error_message = "No Hansen data to export"
                 return
 
             df = pd.DataFrame(data)
             csv_content = df.to_csv(index=False)
-            territory = self.hansen_analysis_result.get("territory", "unknown")
-            year = self.hansen_analysis_result.get("year", "")
-            filename = f"{territory}_Hansen_{year}.csv".replace(" ", "_")
+            territory = (
+                result.get("territory")
+                or result.get("geometry_name")
+                or self.selected_territory
+                or "unknown"
+            )
+            year = result.get("year", "") or result.get("summary", {}).get("year", "")
+            slug = _export_slug(territory)
+            filename = f"{slug}_hansen_glad_{year}_distribution.csv"
             return rx.download(data=csv_content, filename=filename)
 
         except Exception as e:
             self.error_message = f"Hansen export error: {e}"
 
-    def download_comparison_csv(self):
-        """Download MapBiomas comparison results as CSV."""
+    def download_gfc_csv(self):
+        """Download Hansen GFC summary as CSV."""
         try:
-            import pandas as pd
+            import pandas as pd, io, zipfile
+
+            result = self.geometry_gfc_result
+            if not result:
+                self.error_message = "No Hansen GFC data to export"
+                return
+
+            territory = result.get("geometry_name", self.selected_territory or "unknown")
+            slug = _export_slug(territory)
+
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                # Summary
+                gfc_data = result.get("data", [])
+                if gfc_data:
+                    zf.writestr(
+                        f"{slug}_hansen_gfc_summary.csv",
+                        pd.DataFrame(gfc_data).to_csv(index=False),
+                    )
+                # Loss by year
+                loss_rows = [r for r in result.get("tree_loss_data", []) if r.get("Year_Code", 0) > 0]
+                if loss_rows:
+                    zf.writestr(
+                        f"{slug}_hansen_gfc_loss_by_year.csv",
+                        pd.DataFrame(loss_rows).to_csv(index=False),
+                    )
+                # Gain
+                gain_rows = result.get("tree_gain_data", [])
+                if gain_rows:
+                    zf.writestr(
+                        f"{slug}_hansen_gfc_gain.csv",
+                        pd.DataFrame(gain_rows).to_csv(index=False),
+                    )
+            buf.seek(0)
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            return rx.download(data=buf.read(), filename=f"{slug}_hansen_gfc_{ts}.zip")
+
+        except Exception as e:
+            self.error_message = f"GFC export error: {e}"
+
+    def download_comparison_csv(self):
+        """Download MapBiomas year-comparison results as CSV (territory + buffer if available)."""
+        try:
+            import pandas as pd, io, zipfile
 
             if not self.mapbiomas_comparison_result:
                 self.error_message = "No comparison data to export"
                 return
 
-            data = self.mapbiomas_comparison_result.get("data", [])
-            if not data:
-                return
+            territory = (
+                self.mapbiomas_comparison_result.get("territory")
+                or self.territory_name
+                or self.selected_territory
+                or "unknown"
+            )
+            y1 = self.mapbiomas_comparison_result.get("year_start", "")
+            y2 = self.mapbiomas_comparison_result.get("year_end", "")
+            t_slug = _export_slug(territory)
 
-            df = pd.DataFrame(data)
-            csv_content = df.to_csv(index=False)
-            year1 = self.mapbiomas_comparison_result.get("year_start", "")
-            year2 = self.mapbiomas_comparison_result.get("year_end", "")
-            filename = f"comparison_{year1}_vs_{year2}.csv"
-            return rx.download(data=csv_content, filename=filename)
+            t_data = self.mapbiomas_comparison_result.get("data", [])
+            buf_cmp = self.buffer_mapbiomas_comparison_result
+
+            # Single territory, no buffer → plain CSV
+            if not buf_cmp:
+                if not t_data:
+                    return
+                csv_content = pd.DataFrame(t_data).to_csv(index=False)
+                filename = f"{t_slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv"
+                return rx.download(data=csv_content, filename=filename)
+
+            # Territory + buffer → ZIP with two CSVs
+            buf_territory = (
+                buf_cmp.get("territory")
+                or self.current_buffer_for_analysis
+                or f"Buffer_{t_slug}"
+            )
+            b_slug = _export_slug(buf_territory)
+
+            zip_buf = io.BytesIO()
+            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                if t_data:
+                    zf.writestr(
+                        f"{t_slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv",
+                        pd.DataFrame(t_data).to_csv(index=False),
+                    )
+                buf_data = buf_cmp.get("data", [])
+                if buf_data:
+                    zf.writestr(
+                        f"{b_slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv",
+                        pd.DataFrame(buf_data).to_csv(index=False),
+                    )
+            zip_buf.seek(0)
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"{t_slug}_mapbiomas_{y1}_vs_{y2}_comparison_{ts}.zip"
+            return rx.download(data=zip_buf.read(), filename=filename)
 
         except Exception as e:
             self.error_message = f"Export error: {e}"

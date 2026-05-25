@@ -1274,6 +1274,13 @@ def hansen_gfc_tab() -> rx.Component:
                     ),
                     rx.box(),
                 ),
+                rx.button(
+                    AppState.tr["export_as_csv"],
+                    on_click=AppState.download_gfc_csv,
+                    color_scheme="blue",
+                    size="2",
+                    variant="outline",
+                ),
                 spacing="3",
                 width="100%",
             ),
@@ -1627,12 +1634,28 @@ def comparison_tab() -> rx.Component:
                     ),
                 ),
 
-                rx.button(
-                    AppState.tr["download_comparison_csv"],
-                    on_click=AppState.download_comparison_csv,
-                    size="1",
-                    color_scheme="blue",
-                    variant="outline",
+                rx.hstack(
+                    rx.button(
+                        AppState.tr["download_comparison_csv"],
+                        on_click=AppState.download_comparison_csv,
+                        size="1",
+                        color_scheme="blue",
+                        variant="outline",
+                    ),
+                    # When buffer data is also available, the download bundles both
+                    # territory + buffer CSVs in a ZIP so the filename is self-descriptive.
+                    rx.cond(
+                        AppState.buffer_mapbiomas_comparison_result != None,
+                        rx.text(
+                            "↳ Includes territory + buffer (ZIP)",
+                            font_size="2xs",
+                            color="gray",
+                            align_self="center",
+                        ),
+                        rx.box(),
+                    ),
+                    spacing="3",
+                    align_items="center",
                 ),
                 spacing="3",
                 width="100%",
