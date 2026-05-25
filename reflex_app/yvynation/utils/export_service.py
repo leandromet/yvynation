@@ -144,12 +144,15 @@ def _write_mapbiomas_section(
     slug: str,
     *,
     single_year_result: Optional[Dict] = None,
+    single_year_result_extra: Optional[Dict] = None,
     comparison_result: Optional[Dict] = None,
     territory_result_y1: Optional[List[Dict]] = None,
     territory_result_y2: Optional[List[Dict]] = None,
     transitions: Optional[Dict] = None,
     bar_chart=None,
     pie_chart=None,
+    bar_chart_extra=None,
+    pie_chart_extra=None,
     comparison_bar_chart=None,
     gains_losses_chart=None,
     change_pct_chart=None,
@@ -162,20 +165,33 @@ def _write_mapbiomas_section(
 
     ``name_suffix`` is appended to every base filename right before the
     extension — used to tag buffer outputs (e.g. ``_Buffer_10km``).
+
+    ``single_year_result_extra`` (plus matching ``bar_chart_extra`` /
+    ``pie_chart_extra``) writes a second single-year landcover CSV +
+    distribution/pie figures — so a comparison run produces parallel y1
+    and y2 outputs for both territory and buffer.
     """
     mb_dir = f"{base_dir}/mapbiomas"
     sfx = name_suffix
 
-    # --- Single-year land-cover CSV ---
-    if single_year_result:
-        data = single_year_result.get("data", [])
-        year = single_year_result.get("year", "")
-        if data:
+    # --- Single-year land-cover CSVs (primary + optional extra) ---
+    single_pairs = [
+        (single_year_result, bar_chart, pie_chart),
+        (single_year_result_extra, bar_chart_extra, pie_chart_extra),
+    ]
+    seen_single_years = set()
+    for syr, _bc, _pc in single_pairs:
+        if not syr:
+            continue
+        data = syr.get("data", [])
+        year = syr.get("year", "")
+        if data and year not in seen_single_years:
             df = pd.DataFrame(data)
             zf.writestr(
                 f"{mb_dir}/{slug}_mapbiomas_{year}_landcover{sfx}.csv",
                 _df_to_csv_bytes(df),
             )
+            seen_single_years.add(year)
 
     # --- Raw year1 / year2 data rows (from territory_result / territory_result_year2) ---
     if territory_result_y1 and comparison_result:
@@ -217,14 +233,23 @@ def _write_mapbiomas_section(
 
     # --- Figures ---
     fig_dir = f"{mb_dir}/figures"
-    year = (single_year_result or {}).get("year", "")
     y1 = (comparison_result or {}).get("year_start", "")
     y2 = (comparison_result or {}).get("year_end", "")
 
-    if bar_chart is not None and year:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution{sfx}", bar_chart)
-    if pie_chart is not None and year:
-        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie{sfx}", pie_chart)
+    # Single-year distribution + pie for each provided result (skip duplicates)
+    seen_fig_years = set()
+    for syr, bc, pc in single_pairs:
+        if not syr:
+            continue
+        year = syr.get("year", "")
+        if not year or year in seen_fig_years:
+            continue
+        if bc is not None:
+            _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution{sfx}", bc)
+        if pc is not None:
+            _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie{sfx}", pc)
+        seen_fig_years.add(year)
+
     if comparison_bar_chart is not None and y1 and y2:
         _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars{sfx}", comparison_bar_chart)
     if gains_losses_chart is not None and y1 and y2:

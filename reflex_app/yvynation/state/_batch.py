@@ -231,17 +231,26 @@ def _build_territory_figures(
     df1 = _ensure_class_name(df1)
     df2 = _ensure_class_name(df2)
 
-    # Single-year distribution (prefer year2 if available)
-    df_single, single_year = (df2, y2) if not df2.empty else (df1, y1)
-    if not df_single.empty:
+    # Single-year distribution + pie — build for both years when both have
+    # data, so the export ends up with parallel y1 and y2 files for both
+    # the territory and its buffer.
+    def _build_single_year(df, year, suffix):
+        if df.empty:
+            return
         try:
-            figs["bar_chart"] = MapBiomasVisualizer.create_area_bar_chart(df_single, year=single_year)
+            figs[f"bar_chart_{suffix}"] = MapBiomasVisualizer.create_area_bar_chart(df, year=year)
         except Exception as e:
-            logger.warning(f"bar_chart build failed: {e}")
+            logger.warning(f"bar_chart_{suffix} build failed: {e}")
         try:
-            figs["pie_chart"] = MapBiomasVisualizer.create_pie_chart(df_single)
+            figs[f"pie_chart_{suffix}"] = MapBiomasVisualizer.create_pie_chart(df)
         except Exception as e:
-            logger.warning(f"pie_chart build failed: {e}")
+            logger.warning(f"pie_chart_{suffix} build failed: {e}")
+
+    _build_single_year(df1, y1, "y1")
+    _build_single_year(df2, y2, "y2")
+    # Back-compat aliases (still used by older non-batch call sites).
+    figs["bar_chart"] = figs.get("bar_chart_y2") or figs.get("bar_chart_y1")
+    figs["pie_chart"] = figs.get("pie_chart_y2") or figs.get("pie_chart_y1")
 
     # Year-over-year comparison
     if not df1.empty and not df2.empty:
@@ -934,15 +943,29 @@ class BatchMixin(rx.State, mixin=True):
                                 y1=y1, y2=y2, hansen_year=hy,
                             )
 
+                            # Synthesize single-year results from comparison
+                            # raw rows when the dedicated mb step was skipped,
+                            # so we always emit both y1 and y2 distribution +
+                            # pie when comparison data is available.
+                            t_y1_single = mb1
+                            if t_y1_single is None and cmp and cmp.get("_raw_y1"):
+                                t_y1_single = {"type": "mapbiomas", "year": y1, "data": cmp["_raw_y1"]}
+                            t_y2_single = mb2
+                            if t_y2_single is None and cmp and cmp.get("_raw_y2"):
+                                t_y2_single = {"type": "mapbiomas", "year": y2, "data": cmp["_raw_y2"]}
+
                             _write_mapbiomas_section(
                                 zf, t_dir, t_slug,
-                                single_year_result=(mb2 or mb1),
+                                single_year_result=t_y2_single,
+                                single_year_result_extra=t_y1_single,
                                 comparison_result=cmp,
                                 territory_result_y1=cmp.get("_raw_y1") if cmp else None,
                                 territory_result_y2=cmp.get("_raw_y2") if cmp else None,
                                 transitions=t_transitions,
-                                bar_chart=t_figs.get("bar_chart"),
-                                pie_chart=t_figs.get("pie_chart"),
+                                bar_chart=t_figs.get("bar_chart_y2"),
+                                pie_chart=t_figs.get("pie_chart_y2"),
+                                bar_chart_extra=t_figs.get("bar_chart_y1"),
+                                pie_chart_extra=t_figs.get("pie_chart_y1"),
                                 comparison_bar_chart=t_figs.get("comparison_bar_chart"),
                                 gains_losses_chart=t_figs.get("gains_losses_chart"),
                                 change_pct_chart=t_figs.get("change_pct_chart"),
@@ -986,15 +1009,29 @@ class BatchMixin(rx.State, mixin=True):
                                     y1=y1, y2=y2, hansen_year=hy,
                                 )
                                 if bmb or bcmp:
+                                    # buf year1 single = bmb (run_mb path);
+                                    # buf year2 single is synthesized from
+                                    # bcmp._raw_y2 since the dedicated buffer
+                                    # mb step only analyses year1.
+                                    b_y1_single = bmb
+                                    if b_y1_single is None and bcmp and bcmp.get("_raw_y1"):
+                                        b_y1_single = {"type": "mapbiomas", "year": y1, "data": bcmp["_raw_y1"]}
+                                    b_y2_single = None
+                                    if bcmp and bcmp.get("_raw_y2"):
+                                        b_y2_single = {"type": "mapbiomas", "year": y2, "data": bcmp["_raw_y2"]}
+
                                     _write_mapbiomas_section(
                                         zf, b_dir, t_slug,
-                                        single_year_result=bmb,
+                                        single_year_result=b_y2_single or b_y1_single,
+                                        single_year_result_extra=b_y1_single if b_y2_single else None,
                                         comparison_result=bcmp,
                                         territory_result_y1=bcmp.get("_raw_y1") if bcmp else None,
                                         territory_result_y2=bcmp.get("_raw_y2") if bcmp else None,
                                         transitions=b_transitions,
-                                        bar_chart=b_figs.get("bar_chart"),
-                                        pie_chart=b_figs.get("pie_chart"),
+                                        bar_chart=b_figs.get("bar_chart_y2") or b_figs.get("bar_chart_y1"),
+                                        pie_chart=b_figs.get("pie_chart_y2") or b_figs.get("pie_chart_y1"),
+                                        bar_chart_extra=b_figs.get("bar_chart_y1") if b_figs.get("bar_chart_y2") else None,
+                                        pie_chart_extra=b_figs.get("pie_chart_y1") if b_figs.get("pie_chart_y2") else None,
                                         comparison_bar_chart=b_figs.get("comparison_bar_chart"),
                                         gains_losses_chart=b_figs.get("gains_losses_chart"),
                                         change_pct_chart=b_figs.get("change_pct_chart"),
