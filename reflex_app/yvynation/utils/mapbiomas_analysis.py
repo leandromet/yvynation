@@ -186,12 +186,20 @@ class MapBiomasAnalyzer:
         year_end: int,
         scale: int = 30,
         max_pixels: int = 1_000_000_000,
+        include_unchanged: bool = False,
     ) -> Dict:
         """
         Compute pixel-level land cover transitions between two years.
 
         Uses the EE pattern: band1 * 1000 + band2 -> frequencyHistogram
         to get a dict of {source_class_id: {target_class_id: area_ha}}.
+
+        Args:
+            include_unchanged: when True, also emits self-transitions
+                (``src == tgt``) so downstream Sankey diagrams keep a
+                constant total area across consecutive year columns.
+                Default False matches the comparison/transition-matrix
+                semantics (change-only).
 
         Returns:
             Dict[int, Dict[int, float]] — transitions dict for Sankey/matrix.
@@ -243,8 +251,14 @@ class MapBiomasAnalyzer:
                 area_ha = count * 0.09  # 30m pixel = 900 m² = 0.09 ha
                 
                 # Include transitions if area is significant (at least one pixel)
-                # Allow class 0 on one side (nodata conversions) but not both
-                if area_ha > 0 and src != tgt and not(src == 0 and tgt == 0):
+                # Allow class 0 on one side (nodata conversions) but not both.
+                # Same-class entries are kept only when include_unchanged=True
+                # so callers that want a constant total per year (multi-stage
+                # Sankey) keep persistence flows, while change-only consumers
+                # (gains/losses, transition matrix) stay unaffected.
+                if area_ha > 0 and not (src == 0 and tgt == 0):
+                    if src == tgt and not include_unchanged:
+                        continue
                     if src not in transitions:
                         transitions[src] = {}
                     transitions[src][tgt] = transitions[src].get(tgt, 0) + area_ha

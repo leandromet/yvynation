@@ -12,6 +12,7 @@ collects data from *all* selected territories into one file:
     territory/{slug}/
       boundary.geojson
       mapbiomas/  …
+      mapbiomas_multi_window/  ← optional Sankey/Sunburst across N years
       hansen_glad/  …
       hansen_gfc/  …
       maps/        ← PNG maps (satellite, MapBiomas y1/y2, Hansen)
@@ -332,6 +333,8 @@ STEPS = {
     "buf_cmp":      "🔵 Buffer comparison {year1} → {year2}…",
     "buf_glad":     "🔵 Buffer Hansen GLAD…",
     "buf_gfc":      "🔵 Buffer Hansen GFC…",
+    "multi_window": "🌀 Multi-window MapBiomas transitions…",
+    "buf_multi":    "🔵 Multi-window MapBiomas transitions (buffer)…",
     "maps":         "🗺️  Rendering PNG maps…",
     "export":       "📦 Packaging data…",
     "done":         "✅ Done",
@@ -356,6 +359,15 @@ class BatchMixin(rx.State, mixin=True):
     batch_run_glad: bool = True
     batch_run_gfc: bool = True
     batch_run_pdf_maps: bool = True
+    # ── Multiple time-window MapBiomas (off by default) ───────────────────
+    batch_run_multi_window: bool = False
+    # "constant" → step list from 1985, force-end on 2024
+    # "custom"   → user-supplied comma-separated year list
+    batch_multi_window_mode: str = "constant"
+    # Step in years for the constant mode (one of 1, 2, 4, 5, 8).
+    batch_multi_window_step: str = "8"
+    # Custom mode: 3 or 4 user-selected years, comma-separated.
+    batch_multi_window_custom_years: str = "1985, 2004, 2012, 2023"
     batch_territory_search: str = ""
 
     # ---- Runtime status ------------------------------------------------------
@@ -396,6 +408,32 @@ class BatchMixin(rx.State, mixin=True):
     def batch_is_territory_selected(self) -> Dict[str, bool]:
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
+
+    @rx.var
+    def batch_territory_meta(self) -> Dict[str, str]:
+        """display_key → one-line metadata string from the FUNAI GeoPackage.
+
+        Format: ``🪶 {etnia}  •  📐 {area} ha`` (parts omitted when missing).
+        Returns ``""`` for keys with no metadata so the UI can always render
+        the value unconditionally.
+        """
+        try:
+            from ..utils.territory_service import get_territory_service
+            svc = get_territory_service()
+            out: Dict[str, str] = {}
+            for key in self.available_territories:
+                info = svc.get_territory_info(key) or {}
+                parts = []
+                etn = (info.get("etnia") or "").strip()
+                if etn:
+                    parts.append(f"🪶 {etn}")
+                ha = info.get("superficie_ha") or 0
+                if ha and ha > 0:
+                    parts.append(f"📐 {ha:,.0f} ha")
+                out[key] = "   ".join(parts)
+            return out
+        except Exception:
+            return {}
 
     # ---- Selection helpers ---------------------------------------------------
 
@@ -460,6 +498,57 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_toggle_run_pdf_maps(self, val: bool):
         self.batch_run_pdf_maps = val
+
+    # ── Multi-window MapBiomas setters ────────────────────────────────────
+    def batch_toggle_run_multi_window(self, val: bool):
+        self.batch_run_multi_window = val
+
+    def batch_set_multi_window_mode(self, mode: str):
+        if mode in ("constant", "custom"):
+            self.batch_multi_window_mode = mode
+
+    def batch_set_multi_window_step(self, step: str):
+        if step in ("1", "2", "4", "5", "8"):
+            self.batch_multi_window_step = step
+
+    def batch_set_multi_window_custom_years(self, txt: str):
+        self.batch_multi_window_custom_years = txt
+
+    @rx.var
+    def batch_multi_window_resolved_years(self) -> List[int]:
+        """Compute the active year list for the multi-window analysis.
+
+        Constant mode: start at 1985, take steps of ``batch_multi_window_step``
+        years, always include 2024 as the final year. Custom mode: parse the
+        comma-separated text and keep 3 or 4 valid years between 1985 and 2024.
+        Returns an empty list when the input is invalid.
+        """
+        START, END = 1985, 2024
+        try:
+            if self.batch_multi_window_mode == "custom":
+                raw = [p.strip() for p in self.batch_multi_window_custom_years.split(",") if p.strip()]
+                years: List[int] = []
+                for p in raw:
+                    try:
+                        y = int(p)
+                    except ValueError:
+                        continue
+                    if START <= y <= END and y not in years:
+                        years.append(y)
+                years.sort()
+                if 3 <= len(years) <= 4:
+                    return years
+                return []
+            # constant mode
+            step = int(self.batch_multi_window_step)
+            if step <= 0:
+                return []
+            years = list(range(START, END + 1, step))
+            if years[-1] != END:
+                years.append(END)
+            return years
+        except Exception:
+            return []
 
     def batch_toggle_buffer_enabled(self, val: bool):
         self.batch_buffer_enabled = val
@@ -532,6 +621,12 @@ class BatchMixin(rx.State, mixin=True):
             run_glad = bool(self.batch_run_glad)
             run_gfc = bool(self.batch_run_gfc)
             run_maps = bool(self.batch_run_pdf_maps)
+            run_multi = bool(self.batch_run_multi_window)
+            multi_years: List[int] = list(self.batch_multi_window_resolved_years) if run_multi else []
+            if run_multi and len(multi_years) < 2:
+                # Invalid input — disable for this run to avoid wasted EE calls.
+                run_multi = False
+                multi_years = []
 
             if not territories:
                 self.error_message = "No territories selected for batch processing."
@@ -638,6 +733,8 @@ class BatchMixin(rx.State, mixin=True):
                         glad_result = gfc_result = None
                         buf_mb_result = buf_cmp_result = None
                         buf_glad_result = buf_gfc_result = None
+                        multi_window_result = None      # territory multi-window
+                        buf_multi_window_result = None  # buffer multi-window
 
                         if region_name:
                             async with self:
@@ -901,6 +998,82 @@ class BatchMixin(rx.State, mixin=True):
                                     async with self:
                                         self._batch_append_log(f"  ⚠ skipped buffer Hansen GFC{rsuffix}")
 
+                        # ─── Multi-window MapBiomas (constant or custom years) ──
+                        if run_multi and len(multi_years) >= 2:
+                            async with self:
+                                self.batch_current_step = STEPS["multi_window"] + rlabel
+
+                            def _multi(geom=region_ee_geom, years=tuple(multi_years)):
+                                from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                                analyzer = get_mapbiomas_analyzer()
+                                pairs = []
+                                for ya, yb in zip(years[:-1], years[1:]):
+                                    try:
+                                        tr = analyzer.compute_transitions(
+                                            geom, ya, yb, 30,
+                                            include_unchanged=True,
+                                        )
+                                    except Exception:
+                                        tr = {}
+                                    pairs.append({
+                                        "year_from": int(ya),
+                                        "year_to": int(yb),
+                                        "transitions": {str(k): v for k, v in (tr or {}).items()},
+                                    })
+                                return pairs
+
+                            multi_pairs = await _ee_with_retry(
+                                loop, _multi,
+                                f"Multi-window transitions{rsuffix} ({territory})",
+                            )
+                            if multi_pairs:
+                                multi_window_result = {
+                                    "territory": territory,
+                                    "years": list(multi_years),
+                                    "pairs": multi_pairs,
+                                }
+                            else:
+                                async with self:
+                                    self._batch_append_log(f"  ⚠ skipped multi-window{rsuffix}")
+
+                            # Buffer counterpart
+                            if buf_enabled and region_buf_geom is not None:
+                                async with self:
+                                    self.batch_current_step = STEPS["buf_multi"] + rlabel
+
+                                def _buf_multi(geom=region_buf_geom, years=tuple(multi_years)):
+                                    from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                                    analyzer = get_mapbiomas_analyzer()
+                                    pairs = []
+                                    for ya, yb in zip(years[:-1], years[1:]):
+                                        try:
+                                            tr = analyzer.compute_transitions(
+                                                geom, ya, yb, 30,
+                                                include_unchanged=True,
+                                            )
+                                        except Exception:
+                                            tr = {}
+                                        pairs.append({
+                                            "year_from": int(ya),
+                                            "year_to": int(yb),
+                                            "transitions": {str(k): v for k, v in (tr or {}).items()},
+                                        })
+                                    return pairs
+
+                                buf_multi_pairs = await _ee_with_retry(
+                                    loop, _buf_multi,
+                                    f"Buffer multi-window transitions{rsuffix} ({territory})",
+                                )
+                                if buf_multi_pairs:
+                                    buf_multi_window_result = {
+                                        "territory": f"{territory} - Buffer {buf_km:g}km",
+                                        "years": list(multi_years),
+                                        "pairs": buf_multi_pairs,
+                                    }
+                                else:
+                                    async with self:
+                                        self._batch_append_log(f"  ⚠ skipped buffer multi-window{rsuffix}")
+
                         # Track accumulated success across regions
                         if mb_y1_result: had_mb_y1 = True
                         if mb_y2_result: had_mb_y2 = True
@@ -924,10 +1097,12 @@ class BatchMixin(rx.State, mixin=True):
                             glad=glad_result, gfc=gfc_result,
                             bmb=buf_mb_result, bcmp=buf_cmp_result,
                             bglad=buf_glad_result, bgfc=buf_gfc_result,
+                            mw=multi_window_result, bmw=buf_multi_window_result,
                         ):
                             from ..utils.export_service import (
                                 _slug, _write_mapbiomas_section,
                                 _write_hansen_glad_section, _write_hansen_gfc_section,
+                                _write_multi_window_section,
                             )
 
                             t_slug = _slug(terr)
@@ -1073,6 +1248,22 @@ class BatchMixin(rx.State, mixin=True):
                                         loss_chart=b_figs.get("gfc_loss"),
                                         name_suffix=b_suffix,
                                     )
+
+                                # ── Multi-window MapBiomas (buffer) ───
+                                if bmw:
+                                    _write_multi_window_section(
+                                        zf, b_dir, t_slug,
+                                        mw_result=bmw,
+                                        name_suffix=b_suffix,
+                                    )
+
+                            # ── Multi-window MapBiomas (territory) ────
+                            if mw:
+                                _write_multi_window_section(
+                                    zf, t_dir, t_slug,
+                                    mw_result=mw,
+                                    name_suffix=q_tag,
+                                )
 
                         await loop.run_in_executor(None, _write_region_to_zip)
 

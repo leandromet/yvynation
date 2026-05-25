@@ -386,6 +386,173 @@ def create_sankey_transitions(transitions_dict: Dict,
 
 
 # ---------------------------------------------------------------------------
+# Multi-stage Sankey across N years
+# ---------------------------------------------------------------------------
+
+def create_multi_stage_sankey(
+    stages: List[Tuple[int, int, Dict]],
+    class_colors: Optional[Dict] = None,
+    class_names: Optional[Dict] = None,
+) -> Optional[go.Figure]:
+    """
+    Sankey diagram across an arbitrary list of years.
+
+    Args:
+        stages: ordered list of ``(year_from, year_to, transitions_dict)``
+            where ``transitions_dict`` is the usual
+            ``{src_id: {tgt_id: area_ha}}`` mapping. The diagram chains the
+            stages: stage[i].year_to must equal stage[i+1].year_from.
+        class_colors / class_names: optional overrides; default to the
+            MapBiomas palette.
+
+    Returns:
+        Plotly Figure, or None when no transition data is present.
+    """
+    if not stages:
+        return None
+
+    if class_colors is None:
+        class_colors = _get_mapbiomas_colors()
+    if class_names is None:
+        class_names = _get_mapbiomas_labels()
+
+    def _resolve_label(class_id) -> str:
+        try:
+            int_id = int(class_id)
+            if int_id in class_names:
+                return class_names[int_id]
+        except (ValueError, TypeError):
+            pass
+        return class_names.get(class_id, str(class_id))
+
+    def _resolve_color(class_id) -> str:
+        try:
+            return class_colors.get(int(class_id), class_colors.get(class_id, '#cccccc'))
+        except (ValueError, TypeError):
+            return class_colors.get(class_id, '#cccccc')
+
+    # Walk stages, accumulate per-year totals + raw (src, tgt, area) records.
+    # Storing records first lets us decide the final node ordering once we
+    # know the area totals per (year, class). Each year is counted exactly
+    # once — from the *from*-side of its own stage, except the very last
+    # year which only appears as a *to*-side.
+    year_order = [stages[0][0]] + [s[1] for s in stages]
+    year_totals: Dict[int, Dict[str, float]] = {y: {} for y in year_order}
+    records: List[Tuple[int, str, int, str, float]] = []
+    # records = (y_from, src_id, y_to, tgt_id, area)
+
+    n_stages = len(stages)
+    for i, (y_from, y_to, tdict) in enumerate(stages):
+        if not isinstance(tdict, dict) or not tdict:
+            continue
+        is_last = (i == n_stages - 1)
+        for src_id, tgt_dict in tdict.items():
+            if not isinstance(tgt_dict, dict):
+                continue
+            for tgt_id, area in tgt_dict.items():
+                if not isinstance(area, (int, float)) or area <= 0:
+                    continue
+                src_key = str(src_id)
+                tgt_key = str(tgt_id)
+                area = float(area)
+                records.append((y_from, src_key, y_to, tgt_key, area))
+                # Count this stage's source class toward y_from's total.
+                year_totals[y_from][src_key] = year_totals[y_from].get(src_key, 0.0) + area
+                # Last year would otherwise never be totalled — pick it up
+                # from the to-side of the final stage.
+                if is_last:
+                    year_totals[y_to][tgt_key] = year_totals[y_to].get(tgt_key, 0.0) + area
+
+    if not records:
+        return None
+
+    # Sort classes within each year column by area desc → largest on top
+    # (Sankey y axis is 0 at the top, 1 at the bottom in Plotly).
+    n_years = len(year_order)
+    x_positions: Dict[int, float] = {}
+    for i, y in enumerate(year_order):
+        # Keep first/last columns slightly inset so labels don't clip.
+        x_positions[y] = max(0.001, min(0.999, i / max(n_years - 1, 1)))
+
+    node_index: Dict[Tuple[int, str], int] = {}
+    node_labels: List[str] = []
+    node_colors: List[str] = []
+    node_x: List[float] = []
+    node_y: List[float] = []
+
+    GAP = 0.01  # vertical gap between stacked nodes (proportion of column)
+
+    for y in year_order:
+        classes = year_totals[y]
+        if not classes:
+            continue
+        total = sum(classes.values()) or 1.0
+        # Sort: largest first.
+        ordered = sorted(classes.items(), key=lambda kv: kv[1], reverse=True)
+        n = len(ordered)
+        usable = max(1e-6, 1.0 - GAP * (n - 1))
+        cursor = 0.0
+        for cls_id, area in ordered:
+            frac = area / total
+            height = frac * usable
+            y_center = cursor + height / 2.0
+            cursor += height + GAP
+            node_index[(y, cls_id)] = len(node_labels)
+            node_labels.append(
+                f"{_resolve_label(cls_id)} ({y}) — {area:,.0f} ha ({frac * 100:.1f}%)"
+            )
+            node_colors.append(_resolve_color(cls_id))
+            node_x.append(x_positions[y])
+            # Clamp y to (0, 1) — Plotly rejects exact 0 / 1.
+            node_y.append(max(0.001, min(0.999, y_center)))
+
+    sources: List[int] = []
+    targets: List[int] = []
+    values: List[float] = []
+    link_colors: List[str] = []
+    for y_from, src_key, y_to, tgt_key, area in records:
+        s = node_index.get((y_from, src_key))
+        t = node_index.get((y_to, tgt_key))
+        if s is None or t is None:
+            continue
+        sources.append(s)
+        targets.append(t)
+        values.append(area)
+        link_colors.append(_resolve_color(src_key))
+
+    if not sources:
+        return None
+
+    title = "Land Cover Transitions — " + " → ".join(str(y) for y in year_order)
+
+    fig = go.Figure(data=[go.Sankey(
+        arrangement='fixed',
+        node=dict(
+            pad=12, thickness=18,
+            line=dict(color='black', width=0.4),
+            label=node_labels,
+            color=node_colors,
+            x=node_x,
+            y=node_y,
+        ),
+        link=dict(
+            source=sources,
+            target=targets,
+            value=values,
+            color=link_colors,
+            label=[f"{v:,.1f} ha" for v in values],
+        ),
+    )])
+    fig.update_layout(
+        title=title,
+        font=dict(size=10),
+        height=max(700, 90 * len(year_order)),
+        template='plotly_white',
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Hansen Visualizer
 # ---------------------------------------------------------------------------
 

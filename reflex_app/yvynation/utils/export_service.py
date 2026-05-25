@@ -30,13 +30,18 @@ single directory without name collisions:
   │       │   ├── {slug}_hansen_glad_{year}_distribution.csv
   │       │   └── figures/
   │       │       └── {slug}_hansen_glad_{year}_distribution.png + .html
-  │       └── hansen_gfc/
-  │           ├── {slug}_hansen_gfc_summary.csv
-  │           ├── {slug}_hansen_gfc_loss_by_year.csv
-  │           ├── {slug}_hansen_gfc_gain.csv
+  │       ├── hansen_gfc/
+  │       │   ├── {slug}_hansen_gfc_summary.csv
+  │       │   ├── {slug}_hansen_gfc_loss_by_year.csv
+  │       │   ├── {slug}_hansen_gfc_gain.csv
+  │       │   └── figures/
+  │       │       ├── {slug}_hansen_gfc_summary.png + .html
+  │       │       └── {slug}_hansen_gfc_loss_by_year.png + .html
+  │       └── mapbiomas_multi_window/     (optional, batch only)
+  │           ├── {slug}_mapbiomas_multi_window_{years}_transitions.csv
   │           └── figures/
-  │               ├── {slug}_hansen_gfc_summary.png + .html
-  │               └── {slug}_hansen_gfc_loss_by_year.png + .html
+  │               ├── {slug}_mapbiomas_multi_window_{years}_sankey.png + .html
+  │               └── {slug}_mapbiomas_{y1}_vs_{y2}_sunburst.png + .html  (per pair)
   │
   └── buffer/
       └── {buffer_slug}/      (e.g. {territory_slug}_Buffer_10km)
@@ -351,6 +356,112 @@ def _write_hansen_gfc_section(
         _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_summary{sfx}", bar_chart)
     if loss_chart is not None and loss_data:
         _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_loss_by_year{sfx}", loss_chart)
+
+
+# ---------------------------------------------------------------------------
+# Multi-window MapBiomas section
+# ---------------------------------------------------------------------------
+
+def _write_multi_window_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    mw_result: Optional[Dict] = None,
+    name_suffix: str = "",
+) -> None:
+    """Write the multi-time-window MapBiomas outputs.
+
+    ``mw_result`` must have the shape::
+
+        {
+            "years": [1985, 1993, 2001, ..., 2024],
+            "pairs": [
+                {"year_from": 1985, "year_to": 1993, "transitions": {...}},
+                ...
+            ],
+        }
+
+    Produces (inside ``base_dir/mapbiomas_multi_window/``):
+      * one combined long-format CSV with columns
+        ``year_from, year_to, class_from, class_to, area_ha``
+      * one combined multi-stage Sankey (PNG + HTML)
+      * one Sunburst per consecutive pair (PNG + HTML)
+    """
+    if not mw_result:
+        return
+    pairs = mw_result.get("pairs") or []
+    years = mw_result.get("years") or []
+    if not pairs or len(years) < 2:
+        return
+
+    mw_dir = f"{base_dir}/mapbiomas_multi_window"
+    fig_dir = f"{mw_dir}/figures"
+    sfx = name_suffix
+    years_tag = "_".join(str(y) for y in years)
+    base_name = f"{slug}_mapbiomas_multi_window_{years_tag}"
+
+    # ---- Combined long-format CSV ---------------------------------------
+    rows: List[Dict[str, Any]] = []
+    for pair in pairs:
+        y_from = pair.get("year_from")
+        y_to = pair.get("year_to")
+        for src_id, tgt_dict in (pair.get("transitions") or {}).items():
+            if not isinstance(tgt_dict, dict):
+                continue
+            for tgt_id, area in tgt_dict.items():
+                if not isinstance(area, (int, float)) or area <= 0:
+                    continue
+                rows.append({
+                    "year_from": y_from,
+                    "year_to": y_to,
+                    "class_from": src_id,
+                    "class_to": tgt_id,
+                    "area_ha": float(area),
+                })
+    if rows:
+        df = pd.DataFrame(rows)
+        zf.writestr(
+            f"{mw_dir}/{base_name}_transitions{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # ---- Figures (Sankey + per-pair sunbursts) --------------------------
+    try:
+        from .visualization import (
+            create_multi_stage_sankey, create_sunburst_transitions,
+        )
+    except Exception as e:
+        logger.warning(f"Could not import visualization helpers for multi-window: {e}")
+        return
+
+    try:
+        stages = [
+            (p["year_from"], p["year_to"], p.get("transitions") or {})
+            for p in pairs
+        ]
+        sankey_fig = create_multi_stage_sankey(stages)
+        if sankey_fig is not None:
+            _write_fig(zf, f"{fig_dir}/{base_name}_sankey{sfx}", sankey_fig)
+    except Exception as e:
+        logger.warning(f"multi-window sankey build failed: {e}")
+
+    for pair in pairs:
+        y_from = pair.get("year_from")
+        y_to = pair.get("year_to")
+        tdict = pair.get("transitions") or {}
+        if not tdict:
+            continue
+        try:
+            sun_fig = create_sunburst_transitions(tdict, year_start=y_from, year_end=y_to)
+            if sun_fig is not None:
+                _write_fig(
+                    zf,
+                    f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_sunburst{sfx}",
+                    sun_fig,
+                )
+        except Exception as e:
+            logger.warning(f"multi-window sunburst {y_from}->{y_to} failed: {e}")
 
 
 # ---------------------------------------------------------------------------

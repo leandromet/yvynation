@@ -30,7 +30,6 @@ output/
 #*.ipynb
 *.csv
 *.geojson
-*.gpkg
 *.kmz
 .gitkeep
 

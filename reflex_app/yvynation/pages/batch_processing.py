@@ -112,12 +112,24 @@ def territory_selector() -> rx.Component:
                         on_change=lambda _: AppState.batch_toggle_territory(t),
                         color_scheme="orange",
                     ),
-                    rx.text(t, font_size="sm", cursor="pointer",
-                            on_click=AppState.batch_toggle_territory(t)),
+                    rx.vstack(
+                        rx.text(
+                            t, font_size="sm", cursor="pointer",
+                            on_click=AppState.batch_toggle_territory(t),
+                            font_weight="500",
+                        ),
+                        rx.text(
+                            AppState.batch_territory_meta.get(t, ""),
+                            font_size="xs", color="#6B7280",
+                            cursor="pointer",
+                            on_click=AppState.batch_toggle_territory(t),
+                        ),
+                        spacing="0", align_items="flex-start", width="100%",
+                    ),
                     width="100%",
-                    align_items="center",
+                    align_items="flex-start",
                     spacing="2",
-                    padding="0.25rem 0.5rem",
+                    padding="0.35rem 0.5rem",
                     border_radius="md",
                     bg=rx.cond(
                         AppState.batch_is_territory_selected.get(t, False),
@@ -223,6 +235,71 @@ def config_panel() -> rx.Component:
                 checked=AppState.batch_run_pdf_maps,
                 on_change=AppState.batch_toggle_run_pdf_maps,
                 color_scheme="orange",
+            ),
+            rx.checkbox(
+                "🌀 Multiple time-window MapBiomas (Sankey + Sunburst)",
+                checked=AppState.batch_run_multi_window,
+                on_change=AppState.batch_toggle_run_multi_window,
+                color_scheme="orange",
+            ),
+            rx.cond(
+                AppState.batch_run_multi_window,
+                rx.box(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Mode:", font_size="xs", color="#6B7280", width="70px"),
+                            rx.select(
+                                ["constant", "custom"],
+                                value=AppState.batch_multi_window_mode,
+                                on_change=AppState.batch_set_multi_window_mode,
+                                size="2", width="130px",
+                            ),
+                            spacing="2", align_items="center",
+                        ),
+                        rx.cond(
+                            AppState.batch_multi_window_mode == "constant",
+                            rx.hstack(
+                                rx.text("Step (years):", font_size="xs", color="#6B7280", width="100px"),
+                                rx.select(
+                                    ["1", "2", "4", "5", "8"],
+                                    value=AppState.batch_multi_window_step,
+                                    on_change=AppState.batch_set_multi_window_step,
+                                    size="2", width="80px",
+                                ),
+                                rx.text(
+                                    "1985 → 2024 forced as last year",
+                                    font_size="xs", color="#9CA3AF",
+                                ),
+                                spacing="2", align_items="center",
+                            ),
+                            rx.vstack(
+                                rx.text(
+                                    "Custom years (3 or 4, comma-separated, 1985–2024)",
+                                    font_size="xs", color="#6B7280",
+                                ),
+                                rx.input(
+                                    value=AppState.batch_multi_window_custom_years,
+                                    on_change=AppState.batch_set_multi_window_custom_years,
+                                    placeholder="1985, 2004, 2012, 2023",
+                                    size="2", width="100%",
+                                ),
+                                spacing="1", width="100%",
+                            ),
+                        ),
+                        rx.text(
+                            "Active years: " + AppState.batch_multi_window_resolved_years.to(str),
+                            font_size="xs", color="#374151",
+                        ),
+                        spacing="2", width="100%",
+                    ),
+                    padding="0.75rem",
+                    margin_left="1.75rem",
+                    bg="#FFF7ED",
+                    border="1px solid " + ORANGE_BORDER,
+                    border_radius="md",
+                    width="calc(100% - 1.75rem)",
+                ),
+                rx.box(),
             ),
             spacing="2",
         ),
