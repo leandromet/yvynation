@@ -128,6 +128,14 @@ class UIMixin(rx.State, mixin=True):
         if bg_task is not None:
             yield bg_task
 
+    def go_to_batch_processing(self):
+        """Navigate to batch processing page, loading territories in background."""
+        self.analysis_mode = "batch"
+        self.show_indigenous_lands = False
+        bg_task = self.initialize_app()
+        if bg_task is not None:
+            yield bg_task
+
     def go_to_portal(self):
         """Navigate back to the portal/introduction page."""
         self.analysis_mode = "portal"

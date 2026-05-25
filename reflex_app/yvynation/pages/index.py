@@ -15,6 +15,7 @@ from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
 from ..components.loading_indicator import loading_indicator
 from .portal import portal
+from .batch_processing import batch_processing_page
 
 
 def navbar() -> rx.Component:
@@ -393,6 +394,9 @@ def index() -> rx.Component:
     return rx.cond(
         AppState.analysis_mode == "portal",
         portal(),
+        rx.cond(
+            AppState.analysis_mode == "batch",
+            batch_processing_page(),
         # Analysis pages (geometry or territory mode)
         rx.vstack(
             navbar(),
@@ -435,4 +439,5 @@ def index() -> rx.Component:
             height="120vh",
             spacing="0",
         ),
-    )
+        ),  # end rx.cond(batch)
+    )  # end rx.cond(portal)

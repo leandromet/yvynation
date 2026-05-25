@@ -29,11 +29,13 @@ from ._map import MapMixin
 from ._territory import TerritoryMixin
 from ._analysis import AnalysisMixin
 from ._export import ExportMixin
+from ._batch import BatchMixin
 
 logger = logging.getLogger(__name__)
 
 
 class AppState(
+    BatchMixin,
     ExportMixin,
     AnalysisMixin,
     GeometryMixin,
