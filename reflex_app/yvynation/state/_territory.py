@@ -125,6 +125,27 @@ class TerritoryMixin(rx.State, mixin=True):
                 logger.warning("[INIT] Empty territory list from GeoPackage")
 
             # ------------------------------------------------------------------
+            # Initialise Earth Engine up-front so subsequent ``ee.Geometry(...)``
+            # calls (auto-buffer, territory analysis, batch) don't blow up with
+            # "client library not initialized". Idempotent — the helper short-
+            # circuits when EE is already up. Non-fatal: if init fails we just
+            # log it; users can still see the territory list and EE failures
+            # will surface with a more specific message later.
+            # ------------------------------------------------------------------
+            def _ee_init():
+                from ..utils.ee_service import initialize_earth_engine
+                return initialize_earth_engine()
+
+            try:
+                await asyncio.get_event_loop().run_in_executor(None, _ee_init)
+                logger.info("[INIT] Earth Engine initialised at startup")
+            except Exception as ee_err:
+                logger.warning(
+                    f"[INIT] Earth Engine init failed at startup (will retry on "
+                    f"first analysis): {ee_err}"
+                )
+
+            # ------------------------------------------------------------------
             # Commit: update territory list + bump geometry_version so the map
             # rebuilds its interactive indigenous-lands layer from local GeoJSON.
             # ``indigenous_lands_tile_url`` is intentionally left empty — the
