@@ -650,6 +650,31 @@ class BatchMixin(rx.State, mixin=True):
 
         loop = asyncio.get_event_loop()
 
+        # ── Ensure Earth Engine is initialised before the first EE call ───────
+        # The batch entry-point can be reached directly from the portal without
+        # ever touching the territory-analysis page that lazily initialises EE
+        # via ``get_ee()``. On Cloud Run that means the very first
+        # ``ee.Geometry(...)`` blows up with "client library not initialized".
+        # ``initialize_earth_engine()`` is idempotent (guarded by a module-level
+        # flag), so calling it here is free when EE is already set up locally.
+        try:
+            def _ee_init():
+                from ..utils.ee_service import initialize_earth_engine
+                return initialize_earth_engine()
+            await loop.run_in_executor(None, _ee_init)
+        except Exception as ee_err:
+            async with self:
+                self._batch_append_log(f"❌ Earth Engine init failed: {ee_err}")
+                self.error_message = (
+                    "Earth Engine init failed — check EE_PRIVATE_KEY / "
+                    "EE_SERVICE_ACCOUNT_EMAIL env vars on the Cloud Run service, "
+                    "or grant the runtime service account access to Earth Engine."
+                )
+                self.batch_running = False
+                self.batch_done = True
+            logger.error(f"EE init failed in batch: {ee_err}", exc_info=True)
+            return
+
         # Master ZIP buffer
         master_buf = io.BytesIO()
         batch_summary: List[Dict] = []
