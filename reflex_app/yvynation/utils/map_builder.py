@@ -13,17 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_ee_initialized():
-    """Ensure Earth Engine is initialized (non-blocking check)."""
+    """Ensure Earth Engine is initialized.
+
+    Delegates to :func:`utils.ee_service.initialize_earth_engine`, which is
+    aware of the GCP project ID (required by ``ee.Initialize`` since the
+    high-volume endpoint migration) and of all the credential sources we
+    support (env-var service account, ADC, JSON file). Idempotent: the
+    helper short-circuits on its module-level ``_EE_INITIALIZED`` flag, so
+    calling this on every map build is essentially free after the first hit.
+    """
     try:
-        # Just try to initialize - doesn't block on computation
-        ee.Initialize()
-        logger.info("✓ Earth Engine initialized")
-        return True
+        from .ee_service import initialize_earth_engine
+        return bool(initialize_earth_engine())
     except Exception as e:
-        # Already initialized or initialization failed
-        if "already initialized" in str(e).lower():
-            logger.info("✓ Earth Engine already initialized")
-            return True
         logger.error(f"Failed to initialize Earth Engine: {e}")
         return False
 
