@@ -409,13 +409,19 @@ class BatchMixin(rx.State, mixin=True):
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
 
-    @rx.var
+    @rx.var(auto_deps=False, deps=["available_territories"])
     def batch_territory_meta(self) -> Dict[str, str]:
         """display_key → one-line metadata string from the FUNAI GeoPackage.
 
         Format: ``🪶 {etnia}  •  📐 {area} ha`` (parts omitted when missing).
         Returns ``""`` for keys with no metadata so the UI can always render
         the value unconditionally.
+
+        Reflex's auto-dep introspection trips on the relative import below
+        (``from ..utils.territory_service ...``) — emitting a "No module
+        named 'utils'" warning and, worse, never re-evaluating when
+        ``available_territories`` loads. Declaring the dep explicitly fixes
+        both issues.
         """
         try:
             from ..utils.territory_service import get_territory_service
