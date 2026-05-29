@@ -860,10 +860,10 @@ def get_chart_for_analysis(analysis_data: Dict[str, Any],
 # Ideology → fill colour. Maps the integer ideology codes used by
 # political_context_brazil.PRESIDENTS and GOVERNORS to a diverging palette.
 _IDEOLOGY_COLOR = {
-    -1: "#1f77b4",  # left
-     0: "#bdbdbd",  # centre
-     1: "#fdae61",  # centre-right
-     2: "#d73027",  # right / agribusiness
+    -1: "#505050",  # left       → dark grey
+     0: "#909090",  # centre     → mid grey
+     1: "#bebebe",  # centre-right → light grey
+     2: "#e0e0e0",  # right      → near-white grey
 }
 
 # Regime → fill colour for the policy bar (uses the regime labels from
@@ -1056,72 +1056,93 @@ def _political_shapes_and_annots(
 
 def _policy_shapes_and_annots(
     years: List[int],
-    bar_y0: float = -0.22,
-    bar_y1: float = -0.06,
-    milestone_limit: int = 8,
+    top_y: float = -0.06,
+    row_height: float = 0.042,
+    row_gap: float = 0.008,
+    milestone_limit: int = 6,
 ):
-    """Build (shapes, annotations) for the policy-context bar below the plot."""
+    """Per-year policy score heat-rows below the plot area.
+
+    Draws four colour-coded rows (one cell per year) from
+    ``policy_context_brazil.POLICY_SCORES``, top to bottom:
+      1. enforcement_capacity    (0–3)
+      2. forest_law_strength     (0–3)
+      3. indigenous_rights_score (0–3)
+      4. demarcation_posture     (−1 / 0 / +1)
+
+    Green scale (0→3): white → light-green → mid-green → dark-green.
+    Demarcation diverging: red (hostile) → grey (stalled) → green (active).
+    """
     try:
-        from .policy_context_brazil import build_combined_context, build_milestones_df
+        from .policy_context_brazil import POLICY_SCORES, build_milestones_df
     except Exception as e:
         logger.warning(f"policy context import failed: {e}")
         return [], []
 
-    shapes = []
-    annots = []
+    shapes: list = []
+    annots: list = []
 
-    df = build_combined_context(years)
-    if df is None or len(df) == 0:
-        return [], []
+    _GREEN4 = ["#f7f7f7", "#bae4b3", "#74c476", "#238b45"]
+    _DEMAR  = {-1: "#d73027", 0: "#969696", 1: "#1a9850"}
 
-    # Regime stripe
-    groups = []
-    cur = None
-    for _, r in df.iterrows():
-        reg = r.get("regime")
-        if cur is None or reg != cur["regime"]:
-            if cur is not None:
-                groups.append(cur)
-            cur = {"regime": reg, "start": int(r["year"]), "end": int(r["year"])}
-        else:
-            cur["end"] = int(r["year"])
-    if cur is not None:
-        groups.append(cur)
+    ROWS = [
+        ("enforcement_capacity",     "Enforcement",       _GREEN4, False),
+        ("forest_law_strength",      "Forest Law",        _GREEN4, False),
+        ("indigenous_rights_score",  "Indigenous Rights", _GREEN4, False),
+        ("demarcation_posture",      "Demarcation",       None,    True),
+    ]
 
-    for g in groups:
-        color = _REGIME_COLOR.get(g["regime"], "#cccccc")
-        shapes.append({
-            "type": "rect", "xref": "x", "yref": "paper",
-            "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,
-            "y0": bar_y0, "y1": bar_y1,
-            "fillcolor": color, "line": {"width": 0.5, "color": "#555"},
-            "opacity": 0.85, "layer": "above",
-        })
-        if g["end"] - g["start"] >= 2 and g["regime"]:
-            annots.append({
-                "x": (g["start"] + g["end"]) / 2,
-                "y": (bar_y0 + bar_y1) / 2,
-                "xref": "x", "yref": "paper",
-                "text": g["regime"].replace("_", " "),
-                "showarrow": False,
-                "font": {"size": 9, "color": "#111"},
+    step = row_height + row_gap
+    for row_idx, (dim, label, palette, diverging) in enumerate(ROWS):
+        y1_row = top_y - row_idx * step           # top of this row (paper)
+        y0_row = y1_row - row_height               # bottom of this row
+        mid_y  = (y0_row + y1_row) / 2
+
+        for y in years:
+            scores = POLICY_SCORES.get(y)
+            if scores is None:
+                cell_color = "#eeeeee"
+            elif diverging:
+                val = scores.get(dim, 0)
+                cell_color = _DEMAR.get(int(val) if val is not None else 0, "#969696")
+            else:
+                val = scores.get(dim, 0)
+                idx = max(0, min(3, int(val) if val is not None else 0))
+                cell_color = palette[idx]
+
+            shapes.append({
+                "type": "rect", "xref": "x", "yref": "paper",
+                "x0": y - 0.45, "x1": y + 0.45,
+                "y0": y0_row, "y1": y1_row,
+                "fillcolor": cell_color, "line": {"width": 0},
+                "opacity": 1.0, "layer": "above",
             })
 
-    # Highlight a few major legal milestones in the requested year range
+        # Row label — right-aligned against the left edge of the plot area
+        annots.append({
+            "x": 0, "y": mid_y,
+            "xref": "paper", "yref": "paper",
+            "text": label,
+            "showarrow": False,
+            "xanchor": "right", "yanchor": "middle",
+            "font": {"size": 9, "color": "#444"},
+        })
+
+    # Milestone arrows just below the last row
+    arrow_y = top_y - len(ROWS) * step - 0.025
     try:
         ms_df = build_milestones_df()
         in_range = ms_df[(ms_df["year"] >= years[0]) & (ms_df["year"] <= years[-1])]
-        # Pick a manageable subset prioritising FOREST_LAW + INDIGENOUS categories.
         priority = in_range[in_range["category"].isin(["FOREST_LAW", "INDIGENOUS", "CLIMATE"])]
         picks = priority.head(milestone_limit)
         for _, r in picks.iterrows():
             annots.append({
                 "x": int(r["year"]),
-                "y": bar_y0 - 0.04,
+                "y": arrow_y,
                 "xref": "x", "yref": "paper",
                 "text": "▲",
                 "showarrow": False,
-                "font": {"size": 12, "color": "#333"},
+                "font": {"size": 10, "color": "#555"},
                 "hovertext": f"{int(r['year'])} — {r['instrument']}",
             })
     except Exception as e:
@@ -1238,12 +1259,11 @@ def create_deforestation_timeline_chart(
     fig.update_layout(
         title=title,
         template="plotly_white",
-        height=720,
-        # Extra top room for two president+governor stripes (~22% of plot
-        # height) and extra bottom room for the regime stripe + milestone
-        # arrows + the legend.
-        margin={"t": 180, "b": 220, "l": 70, "r": 30},
-        legend={"orientation": "h", "yanchor": "top", "y": -0.36,
+        # Taller figure to accommodate 4 policy rows + milestone row + legend
+        # below the chart in addition to the president+governor stripes above.
+        height=840,
+        margin={"t": 180, "b": 310, "l": 100, "r": 30},
+        legend={"orientation": "h", "yanchor": "top", "y": -0.50,
                 "xanchor": "center", "x": 0.5},
         shapes=pol_shapes + pcy_shapes,
         annotations=pol_annots + pcy_annots,
