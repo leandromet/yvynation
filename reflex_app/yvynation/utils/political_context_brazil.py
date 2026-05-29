@@ -41,7 +41,7 @@ PRESIDENTS = [
     ("Dilma Rousseff",            "PT",     2011, 2016, -1, "Impeached May 2016; weakened Forest Code 2012"),
     ("Michel Temer",              "PMDB",   2016, 2018,  1, "Acting/full after impeachment; rollbacks begin"),
     ("Jair Bolsonaro",            "PSL/PL", 2019, 2022,  2, "Dismantled IBAMA/FUNAI; Yanomami crisis; peak deforestation"),
-    ("Luiz Inácio Lula da Silva", "PT",     2023, 2024, -1, "Third term; restored enforcement; Yanomami emergency"),
+    ("Luiz Inácio Lula da Silva", "PT",     2023, 2025, -1, "Third term; restored enforcement; Yanomami emergency"),
 ]
 
 

@@ -1008,6 +1008,7 @@ def _political_shapes_and_annots(
                     "xref": "x", "yref": "paper",
                     "text": f"{g['president'].split()[-1]} ({g['party']})",
                     "showarrow": False,
+                    "xanchor": "center", "yanchor": "middle",
                     "font": {"size": 10, "color": "#111"},
                 })
 
@@ -1048,6 +1049,7 @@ def _political_shapes_and_annots(
                     "xref": "x", "yref": "paper",
                     "text": f"{state_code}: {str(g['governor']).split()[-1]}",
                     "showarrow": False,
+                    "xanchor": "center", "yanchor": "middle",
                     "font": {"size": 9, "color": "#111"},
                 })
 
@@ -1147,6 +1149,147 @@ def _policy_shapes_and_annots(
             })
     except Exception as e:
         logger.warning(f"policy milestones annotation failed: {e}")
+
+    return shapes, annots
+
+
+def _context_legend_shapes_and_annots(
+    years: List[int],
+    top_y: float = -0.31,
+    milestone_limit: int = 8,
+) -> Tuple[list, list]:
+    """Color-key swatches + policy milestone list for the figure's bottom area.
+
+    Explains the four policy-row scales and lists key milestones within the
+    requested year range. Positioned in paper coordinates so it sits in the
+    bottom margin regardless of the data range.
+    """
+    shapes: list = []
+    annots: list = []
+
+    _GREEN4 = ["#f7f7f7", "#bae4b3", "#74c476", "#238b45"]
+    SCORE_LABELS = ["0 – absent", "1 – weak", "2 – moderate", "3 – strong"]
+    SCORE_XS = [0.20, 0.38, 0.56, 0.74]   # left x of each swatch (paper)
+    SW = 0.038                              # swatch width (paper x)
+    SH = 0.017                             # swatch height (paper y)
+    ROW_GAP = 0.040                        # vertical spacing between key rows
+
+    # ── Section header ─────────────────────────────────────────────────────────
+    annots.append({
+        "x": 0.0, "y": top_y,
+        "xref": "paper", "yref": "paper",
+        "text": "<b>Policy context key</b>",
+        "showarrow": False,
+        "xanchor": "left", "yanchor": "top",
+        "font": {"size": 9, "color": "#333"},
+    })
+
+    # ── Green-scale key (Enforcement / Forest Law / Indigenous Rights) ──────────
+    row_cy = top_y - 0.022          # cell centre y for this row
+    annots.append({
+        "x": 0.0, "y": row_cy,
+        "xref": "paper", "yref": "paper",
+        "text": "Score (0 – 3):",
+        "showarrow": False,
+        "xanchor": "left", "yanchor": "middle",
+        "font": {"size": 8, "color": "#555"},
+    })
+    for i, (color, label) in enumerate(zip(_GREEN4, SCORE_LABELS)):
+        sx = SCORE_XS[i]
+        shapes.append({
+            "type": "rect", "xref": "paper", "yref": "paper",
+            "x0": sx, "x1": sx + SW,
+            "y0": row_cy - SH / 2, "y1": row_cy + SH / 2,
+            "fillcolor": color,
+            "line": {"width": 0.5, "color": "#aaa"},
+            "opacity": 1.0, "layer": "above",
+        })
+        annots.append({
+            "x": sx + SW + 0.01, "y": row_cy,
+            "xref": "paper", "yref": "paper",
+            "text": label,
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "middle",
+            "font": {"size": 8, "color": "#444"},
+        })
+
+    # ── Demarcation key ─────────────────────────────────────────────────────────
+    DEMAR_ITEMS = [
+        (-1, "#d73027", "−1 hostile (frozen)"),
+        ( 0, "#969696", "0 stalled"),
+        ( 1, "#1a9850", "+1 active"),
+    ]
+    DEMAR_XS = [0.20, 0.44, 0.68]
+    row_cy -= ROW_GAP
+    annots.append({
+        "x": 0.0, "y": row_cy,
+        "xref": "paper", "yref": "paper",
+        "text": "Demarcation:",
+        "showarrow": False,
+        "xanchor": "left", "yanchor": "middle",
+        "font": {"size": 8, "color": "#555"},
+    })
+    for (val, color, label), sx in zip(DEMAR_ITEMS, DEMAR_XS):
+        shapes.append({
+            "type": "rect", "xref": "paper", "yref": "paper",
+            "x0": sx, "x1": sx + SW,
+            "y0": row_cy - SH / 2, "y1": row_cy + SH / 2,
+            "fillcolor": color,
+            "line": {"width": 0.5, "color": "#aaa"},
+            "opacity": 0.9, "layer": "above",
+        })
+        annots.append({
+            "x": sx + SW + 0.01, "y": row_cy,
+            "xref": "paper", "yref": "paper",
+            "text": label,
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "middle",
+            "font": {"size": 8, "color": "#444"},
+        })
+
+    # ── Top-bar note ────────────────────────────────────────────────────────────
+    row_cy -= ROW_GAP
+    annots.append({
+        "x": 0.0, "y": row_cy,
+        "xref": "paper", "yref": "paper",
+        "text": "Top bars: president (bottom stripe) and state governor (top stripe) — neutral grey, darker = earlier period",
+        "showarrow": False,
+        "xanchor": "left", "yanchor": "middle",
+        "font": {"size": 8, "color": "#555"},
+    })
+
+    # ── Key policy milestones list ──────────────────────────────────────────────
+    try:
+        from .policy_context_brazil import build_milestones_df
+        ms_df = build_milestones_df()
+        in_range = ms_df[(ms_df["year"] >= years[0]) & (ms_df["year"] <= years[-1])]
+        priority = in_range[in_range["category"].isin(
+            ["FOREST_LAW", "INDIGENOUS", "CLIMATE", "PLANNING"]
+        )].sort_values("year").head(milestone_limit)
+
+        ms_header_y = row_cy - ROW_GAP
+        annots.append({
+            "x": 0.0, "y": ms_header_y,
+            "xref": "paper", "yref": "paper",
+            "text": "<b>Key policy milestones (▲ markers above)</b>",
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "top",
+            "font": {"size": 9, "color": "#333"},
+        })
+        for i, (_, r) in enumerate(priority.iterrows()):
+            instr = r["instrument"]
+            if len(instr) > 75:
+                instr = instr[:72] + "…"
+            annots.append({
+                "x": 0.0, "y": ms_header_y - 0.016 - i * 0.020,
+                "xref": "paper", "yref": "paper",
+                "text": f"{int(r['year'])}  {instr}",
+                "showarrow": False,
+                "xanchor": "left", "yanchor": "top",
+                "font": {"size": 8, "color": "#555"},
+            })
+    except Exception as e:
+        logger.warning(f"context legend milestones failed: {e}")
 
     return shapes, annots
 
@@ -1251,6 +1394,7 @@ def create_deforestation_timeline_chart(
     # Build context shapes / annotations
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
     pcy_shapes, pcy_annots = _policy_shapes_and_annots(years)
+    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years)
 
     title = f"Deforestation Timeline — {v_title}"
     if title_suffix:
@@ -1259,14 +1403,17 @@ def create_deforestation_timeline_chart(
     fig.update_layout(
         title=title,
         template="plotly_white",
-        # Taller figure to accommodate 4 policy rows + milestone row + legend
-        # below the chart in addition to the president+governor stripes above.
-        height=840,
-        margin={"t": 180, "b": 310, "l": 100, "r": 30},
-        legend={"orientation": "h", "yanchor": "top", "y": -0.50,
+        # Tall figure: president/governor stripes above + 4 policy rows +
+        # color-key legend + milestone list + trace legend below.
+        # height=880, margin t=180, b=360 → plot area 340 px = 1 paper unit.
+        # All content below y=0: arrow_y≈-0.29, legend top≈-0.31,
+        # last milestone≈-0.61, trace-legend at -0.68 (231 px < 360 margin).
+        height=880,
+        margin={"t": 180, "b": 360, "l": 100, "r": 30},
+        legend={"orientation": "h", "yanchor": "top", "y": -0.68,
                 "xanchor": "center", "x": 0.5},
-        shapes=pol_shapes + pcy_shapes,
-        annotations=pol_annots + pcy_annots,
+        shapes=pol_shapes + pcy_shapes + leg_shapes,
+        annotations=pol_annots + pcy_annots + leg_annots,
         xaxis={"title": "Year",
                 "range": [year_start - 0.5, year_end + 0.5],
                 "dtick": 5, "tickfont": {"size": 11}},
