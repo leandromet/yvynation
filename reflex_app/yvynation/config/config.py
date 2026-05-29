@@ -132,11 +132,27 @@ MAPBIOMAS_AUX_DATASETS = {
             "classification_{year}",  # This asset uses classification_YYYY bands
         ],
         "per_year": True,
-        "year_start": 1985,  # LULC collection starts at 1985 (not 1987 like fire)
+        "year_start": 1987,  # Deforestation/secondary veg asset bands start at classification_1987
         "year_end": 2024,
+        # Official MapBiomas spec: 8 classes (0-7), each pixel is a class code.
+        #   0 Other (gray)               1 Anthropic (light orange)
+        #   2 Primary veg (forest green) 3 Secondary veg (light green)
+        #   4 Deforestation primary (red)5 Regrowth (bright green)
+        #   6 Deforestation secondary    7 Not applied (dark gray)
+        # min=0/max=7 + a discrete 8-entry palette ensures each class lands on
+        # the intended swatch instead of being interpolated.
         "vis": {
-            "min": 0, "max": 100,
-            "palette": ["ffffff", "d73027", "fc8d59", "fee08b", "ffffbf", "d9ef8b", "91cf60", "1a9850"],
+            "min": 0, "max": 7,
+            "palette": [
+                "808080",  # 0  Other
+                "FFB266",  # 1  Anthropic
+                "228B22",  # 2  Primary Vegetation
+                "90EE90",  # 3  Secondary Vegetation
+                "FF0000",  # 4  Deforestation in Primary
+                "00FF00",  # 5  Secondary Vegetation Regrowth
+                "FF4500",  # 6  Deforestation in Secondary
+                "A9A9A9",  # 7  Not applied
+            ],
         },
     },
     "fire_scar_size": {

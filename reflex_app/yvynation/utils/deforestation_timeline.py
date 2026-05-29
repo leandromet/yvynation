@@ -122,16 +122,23 @@ def _reduce_stacked(bands, ee_geometry, scale: int = 30) -> Dict[str, float]:
 # ---------------------------------------------------------------------------
 
 # Class codes used when the asset has per-year class-coded bands.
-# MapBiomas Deforestation & Secondary Vegetation Collection 10.1 uses:
-#   1 = Anthropic (permanent or transition)
-#   2 = Primary Vegetation Suppression (deforestation from primary forest)
-#   3 = Secondary Vegetation
-#   4 = Primary Veg Suppression (from secondary veg)
-#   5 = Recovery for Secondary Vegetation
-#   6 = Secondary Veg Suppression
-#   7 = Ruído (noise/water)
-_MB_CLASS_PRIMARY_DEFOR = 2        # Deforestation from primary forest
-_MB_CLASS_SECONDARY_REGROWTH = 3   # Secondary vegetation (recovery)
+# MapBiomas Deforestation & Secondary Vegetation Collection 10.1
+# (per the official MapBiomas spec — confirmed by upstream JS palette):
+#   0 = Other / Não aplicável
+#   1 = Anthropic / Antrópico (stable)
+#   2 = Primary Vegetation / Vegetação Primária (stable)
+#   3 = Secondary Vegetation / Vegetação Secundária (stable)
+#   4 = Deforestation in Primary Vegetation        ← the per-year event we want
+#   5 = Secondary Vegetation Regrowth (event year) ← the per-year event we want
+#   6 = Deforestation in Secondary Vegetation
+#   7 = Not applied / Ruído
+#
+# IMPORTANT: classes 2 and 3 are the *stable* primary and secondary states —
+# their per-year pixel count is roughly constant over time and does NOT
+# represent annual deforestation or regrowth. The yearly change-events are
+# classes 4 and 5; that's what we sum.
+_MB_CLASS_PRIMARY_DEFOR = 4        # Deforestation in Primary Vegetation
+_MB_CLASS_SECONDARY_REGROWTH = 5   # Secondary Vegetation Regrowth (event year)
 
 
 def _series_year_value(
@@ -182,6 +189,8 @@ def _series_class_value(
             f"_series_class_value: starting for asset={asset_id}, "
             f"template={band_template}, class={target_class}, years={year_start}-{year_end}"
         )
+        from ..config.config import _list_aux_bands
+        available_bands = set(_list_aux_bands(asset_id))
         asset = ee.Image(asset_id)
         px_area_ha = ee.Image.pixelArea().divide(10_000)
         masked = []
@@ -189,19 +198,19 @@ def _series_class_value(
         bands_missing = 0
         for y in range(year_start, year_end + 1):
             band_name = band_template.format(year=y)
-            try:
-                src = asset.select(band_name)
-                # Count how many pixels have our target class
-                class_mask = src.eq(target_class)
-                masked_band = class_mask.multiply(px_area_ha).rename(f"y_{y}")
-                masked.append(masked_band)
-                bands_found += 1
-                logger.debug(f"  Band found: {band_name} (will mask for class={target_class})")
-            except Exception as band_err:
-                # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
+            # EE .select() is lazy — invalid bands only fail at getInfo() time,
+            # corrupting the whole stacked reduceRegion. Check upfront.
+            if band_name not in available_bands:
                 bands_missing += 1
-                logger.debug(f"  Band missing: {band_name} ({band_err})")
+                logger.debug(f"  Band not in asset: {band_name}")
                 continue
+            src = asset.select(band_name)
+            # Count how many pixels have our target class
+            class_mask = src.eq(target_class)
+            masked_band = class_mask.multiply(px_area_ha).rename(f"y_{y}")
+            masked.append(masked_band)
+            bands_found += 1
+            logger.debug(f"  Band found: {band_name} (will mask for class={target_class})")
         logger.info(f"_series_class_value: found {bands_found} bands, missing {bands_missing}")
         if not masked:
             logger.warning(f"_series_class_value: no bands matched, returning all zeros")
@@ -263,6 +272,8 @@ def _series_nonzero(
             f"_series_nonzero: starting for asset={asset_id}, "
             f"template={band_template}, years={year_start}-{year_end}"
         )
+        from ..config.config import _list_aux_bands
+        available_bands = set(_list_aux_bands(asset_id))
         asset = ee.Image(asset_id)
         px_area_ha = ee.Image.pixelArea().divide(10_000)
         masked = []
@@ -270,16 +281,16 @@ def _series_nonzero(
         bands_missing = 0
         for y in range(year_start, year_end + 1):
             band_name = band_template.format(year=y)
-            try:
-                src = asset.select(band_name)
-                masked.append(src.gt(0).multiply(px_area_ha).rename(f"y_{y}"))
-                bands_found += 1
-                logger.debug(f"  Band found: {band_name}")
-            except Exception:
-                # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
+            # EE .select() is lazy — check band existence upfront to avoid
+            # corrupting the entire stacked reduceRegion at getInfo() time.
+            if band_name not in available_bands:
                 bands_missing += 1
-                logger.debug(f"  Band missing: {band_name}")
+                logger.debug(f"  Band not in asset: {band_name}")
                 continue
+            src = asset.select(band_name)
+            masked.append(src.gt(0).multiply(px_area_ha).rename(f"y_{y}"))
+            bands_found += 1
+            logger.debug(f"  Band found: {band_name}")
         logger.info(f"_series_nonzero: found {bands_found} bands, missing {bands_missing}")
         if not masked:
             logger.warning(f"_series_nonzero: no bands matched, returning all zeros")
@@ -377,8 +388,9 @@ def mapbiomas_primary_deforestation_series(
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     logger.info(f"primary deforestation: using band template '{band_template}'")
-    # Data is class-value: classification_YYYY with class==2 for deforestation
-    # Collect only for the valid range, then fill full range with zeros
+    # Data is class-value: classification_YYYY where pixels of class 4 are
+    # "Deforestation in Primary Vegetation" for that year. Collect only for
+    # the valid range, then fill full range with zeros.
     result = _series_class_value(
         ee_geometry, asset_id, band_template,
         _MB_CLASS_PRIMARY_DEFOR, clamped_start, clamped_end,
@@ -449,8 +461,9 @@ def mapbiomas_secondary_regrowth_series(
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     logger.info(f"secondary regrowth: using band template '{band_template}'")
-    # Data is class-value: classification_YYYY with class==3 for secondary vegetation
-    # Collect only for the valid range, then fill full range with zeros
+    # Data is class-value: classification_YYYY where pixels of class 5 are
+    # "Secondary Vegetation Regrowth" (event in that year). Collect only for
+    # the valid range, then fill full range with zeros.
     result = _series_class_value(
         ee_geometry, asset_id, band_template,
         _MB_CLASS_SECONDARY_REGROWTH, clamped_start, clamped_end,
