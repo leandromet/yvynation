@@ -44,8 +44,18 @@ def hansen_loss_series(
     """
     out: Dict[int, float] = {y: 0.0 for y in range(year_start, year_end + 1)}
     if not gfc_result:
+        logger.warning(
+            f"hansen_loss_series: gfc_result is None or empty; returning all zeros for {year_start}-{year_end}"
+        )
         return out
-    for rec in gfc_result.get("tree_loss_data", []) or []:
+    
+    tree_loss_data = gfc_result.get("tree_loss_data", []) or []
+    logger.info(
+        f"hansen_loss_series: processing {len(tree_loss_data)} loss records "
+        f"for year range {year_start}-{year_end}"
+    )
+    
+    for rec in tree_loss_data:
         try:
             code = int(rec.get("Year_Code", 0))
         except (TypeError, ValueError):
@@ -55,9 +65,16 @@ def hansen_loss_series(
         y = 2000 + code
         if year_start <= y <= year_end:
             try:
-                out[y] = out.get(y, 0.0) + float(rec.get("Area_ha", 0.0) or 0.0)
+                area = float(rec.get("Area_ha", 0.0) or 0.0)
+                out[y] = out.get(y, 0.0) + area
+                logger.debug(f"  Year {y}: +{area:.2f} ha")
             except (TypeError, ValueError):
                 continue
+    
+    non_zero_count = sum(1 for v in out.values() if v > 0.0)
+    logger.info(
+        f"hansen_loss_series: completed with {non_zero_count}/{len(out)} years having data"
+    )
     return out
 
 
@@ -72,12 +89,15 @@ def _reduce_stacked(bands, ee_geometry, scale: int = 30) -> Dict[str, float]:
     bands must already be in units of hectares per pixel (see callers).
     """
     if not bands:
+        logger.warning("_reduce_stacked: no bands provided")
         return {}
     try:
         import ee
     except Exception:
+        logger.error("_reduce_stacked: failed to import ee")
         return {}
     try:
+        logger.debug(f"_reduce_stacked: stacking {len(bands)} bands for reduceRegion")
         stacked = ee.Image.cat(bands)
         result = stacked.reduceRegion(
             reducer=ee.Reducer.sum(),
@@ -86,11 +106,15 @@ def _reduce_stacked(bands, ee_geometry, scale: int = 30) -> Dict[str, float]:
             maxPixels=int(1e10),
             bestEffort=True,
         ).getInfo() or {}
+        logger.debug(f"_reduce_stacked: EE returned {len(result)} values")
     except Exception as exc:
-        logger.warning(f"stacked reduceRegion failed: {exc}")
+        logger.warning(f"_reduce_stacked: reduceRegion failed: {exc}")
         return {}
     # Normalise None → 0.0 so consumers don't have to care.
-    return {k: float(v or 0.0) for k, v in result.items()}
+    result_norm = {k: float(v or 0.0) for k, v in result.items()}
+    non_zero = sum(1 for v in result_norm.values() if v > 0.0)
+    logger.debug(f"_reduce_stacked: {non_zero}/{len(result_norm)} values non-zero after normalize")
+    return result_norm
 
 
 # ---------------------------------------------------------------------------
@@ -143,22 +167,35 @@ def _series_class_value(
     try:
         import ee
     except Exception:
+        logger.error("_series_class_value: failed to import ee")
         return out
     try:
+        logger.info(
+            f"_series_class_value: starting for asset={asset_id}, "
+            f"template={band_template}, class={target_class}, years={year_start}-{year_end}"
+        )
         asset = ee.Image(asset_id)
         px_area_ha = ee.Image.pixelArea().divide(10_000)
         masked = []
+        bands_found = 0
+        bands_missing = 0
         for y in range(year_start, year_end + 1):
             band_name = band_template.format(year=y)
             try:
                 src = asset.select(band_name)
+                masked.append(
+                    src.eq(target_class).multiply(px_area_ha).rename(f"y_{y}")
+                )
+                bands_found += 1
+                logger.debug(f"  Band found: {band_name}")
             except Exception:
                 # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
+                bands_missing += 1
+                logger.debug(f"  Band missing: {band_name}")
                 continue
-            masked.append(
-                src.eq(target_class).multiply(px_area_ha).rename(f"y_{y}")
-            )
+        logger.info(f"_series_class_value: found {bands_found} bands, missing {bands_missing}")
         if not masked:
+            logger.warning(f"_series_class_value: no bands matched, returning all zeros")
             return out
         result = _reduce_stacked(masked, ee_geometry)
         for key, val in result.items():
@@ -167,12 +204,17 @@ def _series_class_value(
             try:
                 y = int(key[2:])
                 out[y] = float(val or 0.0)
+                if out[y] > 0.0:
+                    logger.debug(f"  Year {y}: {out[y]:.2f} ha")
             except (ValueError, TypeError):
                 continue
+        non_zero_count = sum(1 for v in out.values() if v > 0.0)
+        logger.info(f"_series_class_value: completed with {non_zero_count} non-zero years")
     except Exception as exc:
         logger.warning(
-            f"class-value collector failed (asset={asset_id}, "
-            f"template={band_template}, class={target_class}): {exc}"
+            f"_series_class_value failed (asset={asset_id}, "
+            f"template={band_template}, class={target_class}): {exc}",
+            exc_info=True
         )
     return out
 
@@ -186,20 +228,33 @@ def _series_nonzero(
     try:
         import ee
     except Exception:
+        logger.error("_series_nonzero: failed to import ee")
         return out
     try:
+        logger.info(
+            f"_series_nonzero: starting for asset={asset_id}, "
+            f"template={band_template}, years={year_start}-{year_end}"
+        )
         asset = ee.Image(asset_id)
         px_area_ha = ee.Image.pixelArea().divide(10_000)
         masked = []
+        bands_found = 0
+        bands_missing = 0
         for y in range(year_start, year_end + 1):
             band_name = band_template.format(year=y)
             try:
                 src = asset.select(band_name)
+                masked.append(src.gt(0).multiply(px_area_ha).rename(f"y_{y}"))
+                bands_found += 1
+                logger.debug(f"  Band found: {band_name}")
             except Exception:
                 # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
+                bands_missing += 1
+                logger.debug(f"  Band missing: {band_name}")
                 continue
-            masked.append(src.gt(0).multiply(px_area_ha).rename(f"y_{y}"))
+        logger.info(f"_series_nonzero: found {bands_found} bands, missing {bands_missing}")
         if not masked:
+            logger.warning(f"_series_nonzero: no bands matched, returning all zeros")
             return out
         result = _reduce_stacked(masked, ee_geometry)
         for key, val in result.items():
@@ -208,12 +263,17 @@ def _series_nonzero(
             try:
                 y = int(key[2:])
                 out[y] = float(val or 0.0)
+                if out[y] > 0.0:
+                    logger.debug(f"  Year {y}: {out[y]:.2f} ha")
             except (ValueError, TypeError):
                 continue
+        non_zero_count = sum(1 for v in out.values() if v > 0.0)
+        logger.info(f"_series_nonzero: completed with {non_zero_count} non-zero years")
     except Exception as exc:
         logger.warning(
-            f"nonzero collector failed (asset={asset_id}, "
-            f"template={band_template}): {exc}"
+            f"_series_nonzero failed (asset={asset_id}, "
+            f"template={band_template}): {exc}",
+            exc_info=True
         )
     return out
 
@@ -222,41 +282,10 @@ def _series_nonzero(
 # Public per-indicator entry points
 # ---------------------------------------------------------------------------
 
-# Bands likely to encode primary deforestation (pixel value = year of event).
-_PRIMARY_DEFOR_YEAR_BANDS = [
-    "primary_vegetation_loss",
-    "primary_vegetation_year_to_secondary",
-    "primary_loss_year",
-    "deforestation_year",
-]
-# Bands likely to encode secondary regrowth (pixel value = year of event).
-_SECONDARY_REGROWTH_YEAR_BANDS = [
-    "secondary_vegetation_regrowth",
-    "secondary_regrowth_year",
-    "regrowth_year",
-]
-# Bands likely to encode fire scar (per-year, value = scar size bin > 0).
-_FIRE_SCAR_BANDS = [
-    "classification_{year}",  # MapBiomas Fire 4 uses this
-    "scar_size_{year}",
-    "burned_area_{year}",
-]
-
-
-def _pick_band(asset_id: str, candidates: List[str]) -> Optional[str]:
-    """Return the first candidate present in the asset, or ``None``."""
-    try:
-        from ..config.config import _list_aux_bands
-    except Exception:
-        return None
-    try:
-        available = set(_list_aux_bands(asset_id))
-    except Exception:
-        return None
-    for c in candidates:
-        if c in available:
-            return c
-    return None
+# Band candidates are now read from config.py per dataset.
+# Each dataset (deforestation_secondary, fire_scar_size) defines band_candidates
+# that match the actual EE asset structure. resolve_aux_band() is used to
+# discover the correct band template at runtime.
 
 
 def mapbiomas_primary_deforestation_series(
@@ -264,26 +293,52 @@ def mapbiomas_primary_deforestation_series(
 ) -> Dict[int, float]:
     """Per-year area of MapBiomas primary deforestation.
 
-    Tries the single-band-with-year-value pattern first (the user's
-    observed semantics for the v3 asset), then falls back to a per-year
-    class-coded band where class == 100.
+    Uses resolve_aux_band() to match the correct band template from config,
+    then collects data for the requested year range.
     """
-    from ..config.config import MAPBIOMAS_AUX_DATASETS
+    from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("deforestation_secondary") or {}
     asset_id = spec.get("asset")
     if not asset_id:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # year-value bands
-    band = _pick_band(asset_id, _PRIMARY_DEFOR_YEAR_BANDS)
-    if band:
-        logger.info(f"primary deforestation: using year-value band '{band}'")
-        return _series_year_value(ee_geometry, asset_id, band, year_start, year_end)
+    candidates = spec.get("band_candidates", [])
+    if not candidates:
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # class-value fallback
-    logger.info("primary deforestation: falling back to classification_{year}==100")
+    # Validate that one of the band templates is available by probing with a year
+    spec_start = spec.get("year_start", 1985)
+    probe_year = max(year_start, spec_start)
+    resolved_band = resolve_aux_band(asset_id, candidates, year=probe_year)
+    
+    # Find which candidate template matched, or fall back to first template
+    band_template = None
+    if resolved_band:
+        # Match resolved band back to template
+        for cand in candidates:
+            if "{year}" in cand:
+                test_name = cand.format(year=probe_year)
+                if test_name == resolved_band:
+                    band_template = cand
+                    logger.info(f"primary deforestation: matched template '{cand}' at probe year {probe_year}")
+                    break
+    
+    if not band_template:
+        # Fallback: use first template candidate even if probe failed
+        band_template = next((c for c in candidates if "{year}" in c), None)
+        if band_template:
+            logger.warning(
+                f"primary deforestation: probe failed, falling back to template '{band_template}'"
+            )
+    
+    if not band_template:
+        logger.warning(f"primary deforestation: no template found in candidates {candidates}")
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+
+    logger.info(f"primary deforestation: using band template '{band_template}'")
+    # Data is class-value: classification_YYYY with class==100 for deforestation
     return _series_class_value(
-        ee_geometry, asset_id, "classification_{year}",
+        ee_geometry, asset_id, band_template,
         _MB_CLASS_PRIMARY_DEFOR, year_start, year_end,
     )
 
@@ -291,21 +346,52 @@ def mapbiomas_primary_deforestation_series(
 def mapbiomas_secondary_regrowth_series(
     ee_geometry, year_start: int, year_end: int
 ) -> Dict[int, float]:
-    """Per-year area of MapBiomas secondary-vegetation regrowth."""
-    from ..config.config import MAPBIOMAS_AUX_DATASETS
+    """Per-year area of MapBiomas secondary-vegetation regrowth.
+    
+    Uses the same asset as primary deforestation (deforestation_secondary),
+    but looks for class == 200 instead of class == 100.
+    """
+    from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("deforestation_secondary") or {}
     asset_id = spec.get("asset")
     if not asset_id:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    band = _pick_band(asset_id, _SECONDARY_REGROWTH_YEAR_BANDS)
-    if band:
-        logger.info(f"secondary regrowth: using year-value band '{band}'")
-        return _series_year_value(ee_geometry, asset_id, band, year_start, year_end)
+    candidates = spec.get("band_candidates", [])
+    if not candidates:
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    logger.info("secondary regrowth: falling back to classification_{year}==200")
+    # Validate that one of the band templates is available by probing with a year
+    spec_start = spec.get("year_start", 1985)
+    probe_year = max(year_start, spec_start)
+    resolved_band = resolve_aux_band(asset_id, candidates, year=probe_year)
+    
+    # Find which candidate template matched, or fall back to first template
+    band_template = None
+    if resolved_band:
+        for cand in candidates:
+            if "{year}" in cand:
+                test_name = cand.format(year=probe_year)
+                if test_name == resolved_band:
+                    band_template = cand
+                    logger.info(f"secondary regrowth: matched template '{cand}' at probe year {probe_year}")
+                    break
+    
+    if not band_template:
+        # Fallback: use first template candidate even if probe failed
+        band_template = next((c for c in candidates if "{year}" in c), None)
+        if band_template:
+            logger.warning(
+                f"secondary regrowth: probe failed, falling back to template '{band_template}'"
+            )
+    
+    if not band_template:
+        logger.warning(f"secondary regrowth: no template found in candidates {candidates}")
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+
+    logger.info(f"secondary regrowth: using band template '{band_template}'")
     return _series_class_value(
-        ee_geometry, asset_id, "classification_{year}",
+        ee_geometry, asset_id, band_template,
         _MB_CLASS_SECONDARY_REGROWTH, year_start, year_end,
     )
 
@@ -313,52 +399,24 @@ def mapbiomas_secondary_regrowth_series(
 def mapbiomas_fire_scar_series(
     ee_geometry, year_start: int, year_end: int,
 ) -> Dict[int, float]:
-    """Per-year burned area (ha) from MapBiomas Fire Coll. 4 scar-size dataset."""
-    from ..config.config import MAPBIOMAS_AUX_DATASETS
+    """Per-year burned area (ha) from MapBiomas Fire Coll. 4 scar-size dataset.
+    
+    Uses resolve_aux_band() to match the correct band template (e.g., scar_area_ha_{year})
+    and respects the fire collection's year range (1987-2024, not 1985).
+    """
+    from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("fire_scar_size") or {}
     asset_id = spec.get("asset")
     if not asset_id:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # Fire collection has different year ranges — respect them
-    collection_year_start = spec.get("year_start", 1985)
-    collection_year_end = spec.get("year_end", 2024)
-    
-    # Probe for a matching band template, trying years within the collection's range
-    probe_years = []
-    # Try the requested start, then collection start, then nearby years
-    for y in (year_start, collection_year_start, year_start + 1, year_start + 2):
-        if collection_year_start <= y <= collection_year_end:
-            probe_years.append(y)
-    
-    chosen_template = None
-    try:
-        from ..config.config import _list_aux_bands
-        available = set(_list_aux_bands(asset_id))
-        for probe_year in probe_years:
-            for tpl in _FIRE_SCAR_BANDS:
-                band_name = tpl.format(year=probe_year)
-                if band_name in available:
-                    chosen_template = tpl
-                    logger.info(
-                        f"fire scar: matched template '{tpl}' with probe year {probe_year}"
-                    )
-                    break
-            if chosen_template:
-                break
-    except Exception as e:
-        logger.warning(f"fire scar template probe failed: {e}")
-        chosen_template = None
-
-    if chosen_template is None:
-        logger.warning(
-            f"fire scar: no known band template matched in {asset_id} "
-            f"(collection range {collection_year_start}-{collection_year_end}, "
-            f"requested {year_start}-{year_end}); tried {_FIRE_SCAR_BANDS}"
-        )
+    candidates = spec.get("band_candidates", [])
+    if not candidates:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    logger.info(f"fire scar: using band template '{chosen_template}'")
+    # Fire collection has different year ranges — respect them
+    collection_year_start = spec.get("year_start", 1987)
+    collection_year_end = spec.get("year_end", 2024)
     
     # Clamp the year range to the collection's valid range
     clamped_start = max(year_start, collection_year_start)
@@ -371,9 +429,37 @@ def mapbiomas_fire_scar_series(
         )
         return {y: 0.0 for y in range(year_start, year_end + 1)}
     
+    # Validate that one of the band templates is available by probing with clamped start year
+    resolved_band = resolve_aux_band(asset_id, candidates, year=clamped_start)
+    
+    # Find which candidate template matched, or fall back to first template
+    band_template = None
+    if resolved_band:
+        for cand in candidates:
+            if "{year}" in cand:
+                test_name = cand.format(year=clamped_start)
+                if test_name == resolved_band:
+                    band_template = cand
+                    logger.info(f"fire scar: matched template '{cand}' at probe year {clamped_start}")
+                    break
+    
+    if not band_template:
+        # Fallback: use first template candidate even if probe failed
+        band_template = next((c for c in candidates if "{year}" in c), None)
+        if band_template:
+            logger.warning(
+                f"fire scar: probe failed, falling back to template '{band_template}'"
+            )
+    
+    if not band_template:
+        logger.warning(f"fire scar: no template found in candidates {candidates}")
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+
+    logger.info(f"fire scar: using band template '{band_template}'")
+    
     # Collect data only for years in the valid range
     result = _series_nonzero(
-        ee_geometry, asset_id, chosen_template, clamped_start, clamped_end
+        ee_geometry, asset_id, band_template, clamped_start, clamped_end
     )
     
     # Fill in the full requested range with zeros for years outside the collection
@@ -399,20 +485,41 @@ def collect_timeline(
 ) -> Dict[str, Dict[int, float]]:
     """Pull all yearly time-series for the deforestation-timeline chart."""
     out: Dict[str, Dict[int, float]] = {}
+    
+    logger.info(
+        f"collect_timeline: starting for {year_start}-{year_end}, "
+        f"gfc_result={'present' if gfc_result else 'None'}, "
+        f"includes: hansen={include_hansen}, mb_defor={include_mb_defor}, "
+        f"mb_secondary={include_mb_secondary}, fire={include_fire}"
+    )
+    
     if include_hansen:
         out["hansen_loss"] = hansen_loss_series(gfc_result, year_start, year_end)
+        non_zero = sum(1 for v in out["hansen_loss"].values() if v > 0.0)
+        logger.info(f"  hansen_loss: {non_zero} non-zero years")
+    
     if include_mb_defor:
         out["mb_defor_primary"] = mapbiomas_primary_deforestation_series(
             ee_geometry, year_start, year_end
         )
+        non_zero = sum(1 for v in out["mb_defor_primary"].values() if v > 0.0)
+        logger.info(f"  mb_defor_primary: {non_zero} non-zero years")
+    
     if include_mb_secondary:
         out["mb_secondary_growth"] = mapbiomas_secondary_regrowth_series(
             ee_geometry, year_start, year_end
         )
+        non_zero = sum(1 for v in out["mb_secondary_growth"].values() if v > 0.0)
+        logger.info(f"  mb_secondary_growth: {non_zero} non-zero years")
+    
     if include_fire:
         out["mb_fire_scar"] = mapbiomas_fire_scar_series(
             ee_geometry, year_start, year_end
         )
+        non_zero = sum(1 for v in out["mb_fire_scar"].values() if v > 0.0)
+        logger.info(f"  mb_fire_scar: {non_zero} non-zero years")
+    
+    logger.info(f"collect_timeline: completed with {len(out)} series")
     return out
 
 

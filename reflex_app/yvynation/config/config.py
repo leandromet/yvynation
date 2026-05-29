@@ -132,7 +132,7 @@ MAPBIOMAS_AUX_DATASETS = {
             "classification_{year}",  # This asset uses classification_YYYY bands
         ],
         "per_year": True,
-        "year_start": 1987,  # Changed from 1985 - data starts at 1987 based on error
+        "year_start": 1985,  # LULC collection starts at 1985 (not 1987 like fire)
         "year_end": 2024,
         "vis": {
             "min": 0, "max": 100,
@@ -178,12 +178,12 @@ MAPBIOMAS_AUX_DATASETS = {
         "label": "Year of Last Fire",
         "value_semantics": "year_value",
         "band_candidates": [
-            "last_fire_year",  # Most common band name
+            "classification_{year}",  # Asset uses per-year classification bands like other fire datasets
             "year_last_fire",
-            "fire_year",
+            "last_fire_year",
         ],
         "per_year": False,
-        "year_start": 1985,
+        "year_start": 1987,
         "year_end": 2024,
         "vis": {
             "min": 1985, "max": 2024,

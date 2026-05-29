@@ -1469,11 +1469,16 @@ class BatchMixin(rx.State, mixin=True):
                                 def _write_region(label_suffix, sub_dir, region_geom,
                                                   gfc_for_region, title_extra):
                                     """Build CSV + 3 chart variants for one region (territory or buffer)."""
+                                    logger.info(
+                                        f"_write_region({label_suffix}): gfc_for_region={'present' if gfc_for_region else 'None'}, "
+                                        f"tree_loss_data={'present' if (gfc_for_region and gfc_for_region.get('tree_loss_data')) else 'missing/None'}"
+                                    )
                                     series = collect_timeline(
                                         region_geom, y_start, y_end,
                                         gfc_result=gfc_for_region,
                                     )
                                     if not series:
+                                        logger.warning(f"_write_region({label_suffix}): no series returned")
                                         return
                                     # Wide CSV: one row per year, one column per indicator
                                     years = list(range(y_start, y_end + 1))
