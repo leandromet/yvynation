@@ -1515,6 +1515,28 @@ class BatchMixin(rx.State, mixin=True):
                                                     f"{y_start}_{y_end}_{suffix}{label_suffix}")
                                             _write_fig(zf, base, fig)
 
+                                    # Also emit single-indicator raw plots (one line each)
+                                    for ik, ival in series.items():
+                                        try:
+                                            single = {ik: ival}
+                                            fig_single = create_deforestation_timeline_chart(
+                                                single,
+                                                state_code=state_code,
+                                                year_start=y_start,
+                                                year_end=y_end,
+                                                variant="raw",
+                                                moving_window=5,
+                                                title_suffix=f"{terr}{title_extra}",
+                                            )
+                                            if fig_single is not None:
+                                                base_single = (
+                                                    f"{fig_dir}/{t_slug}_deforestation_timeline_"
+                                                    f"{y_start}_{y_end}_{ik}{label_suffix}"
+                                                )
+                                                _write_fig(zf, base_single, fig_single)
+                                        except Exception:
+                                            logger.debug(f"failed to write single-indicator plot for {ik}")
+
                                 # Territory
                                 t_dir = f"territory/{t_slug}/deforestation_timeline"
                                 _write_region("", t_dir, ee_g, gfc_t, title_extra="")

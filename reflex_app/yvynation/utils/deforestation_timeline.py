@@ -122,8 +122,16 @@ def _reduce_stacked(bands, ee_geometry, scale: int = 30) -> Dict[str, float]:
 # ---------------------------------------------------------------------------
 
 # Class codes used when the asset has per-year class-coded bands.
-_MB_CLASS_PRIMARY_DEFOR = 100
-_MB_CLASS_SECONDARY_REGROWTH = 200
+# MapBiomas Deforestation & Secondary Vegetation Collection 10.1 uses:
+#   1 = Anthropic (permanent or transition)
+#   2 = Primary Vegetation Suppression (deforestation from primary forest)
+#   3 = Secondary Vegetation
+#   4 = Primary Veg Suppression (from secondary veg)
+#   5 = Recovery for Secondary Vegetation
+#   6 = Secondary Veg Suppression
+#   7 = Ruído (noise/water)
+_MB_CLASS_PRIMARY_DEFOR = 2        # Deforestation from primary forest
+_MB_CLASS_SECONDARY_REGROWTH = 3   # Secondary vegetation (recovery)
 
 
 def _series_year_value(
@@ -183,21 +191,36 @@ def _series_class_value(
             band_name = band_template.format(year=y)
             try:
                 src = asset.select(band_name)
-                masked.append(
-                    src.eq(target_class).multiply(px_area_ha).rename(f"y_{y}")
-                )
+                # Count how many pixels have our target class
+                class_mask = src.eq(target_class)
+                masked_band = class_mask.multiply(px_area_ha).rename(f"y_{y}")
+                masked.append(masked_band)
                 bands_found += 1
-                logger.debug(f"  Band found: {band_name}")
-            except Exception:
+                logger.debug(f"  Band found: {band_name} (will mask for class={target_class})")
+            except Exception as band_err:
                 # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
                 bands_missing += 1
-                logger.debug(f"  Band missing: {band_name}")
+                logger.debug(f"  Band missing: {band_name} ({band_err})")
                 continue
         logger.info(f"_series_class_value: found {bands_found} bands, missing {bands_missing}")
         if not masked:
             logger.warning(f"_series_class_value: no bands matched, returning all zeros")
             return out
+        logger.debug(f"_series_class_value: stacking {len(masked)} class-masked bands for reduceRegion")
         result = _reduce_stacked(masked, ee_geometry)
+        logger.debug(f"_series_class_value: reduceRegion returned {len(result)} results")
+        
+        # Log which years have non-zero results (helps diagnose class code issues)
+        sample_year_for_stats = year_start
+        if sample_year_for_stats in result or f"y_{sample_year_for_stats}" in result:
+            sample_key = f"y_{sample_year_for_stats}"
+            if sample_key in result:
+                sample_val = result[sample_key]
+                logger.info(
+                    f"_series_class_value: sample {sample_year_for_stats} → {sample_val} ha "
+                    f"(if 0, class {target_class} may not exist in data)"
+                )
+        
         for key, val in result.items():
             if not key.startswith("y_"):
                 continue
@@ -210,6 +233,11 @@ def _series_class_value(
                 continue
         non_zero_count = sum(1 for v in out.values() if v > 0.0)
         logger.info(f"_series_class_value: completed with {non_zero_count} non-zero years")
+        if non_zero_count == 0:
+            logger.warning(
+                f"_series_class_value: zero years have data - class {target_class} may not exist in "
+                f"{asset_id} or region may have no pixels with that class"
+            )
     except Exception as exc:
         logger.warning(
             f"_series_class_value failed (asset={asset_id}, "
@@ -294,7 +322,8 @@ def mapbiomas_primary_deforestation_series(
     """Per-year area of MapBiomas primary deforestation.
 
     Uses resolve_aux_band() to match the correct band template from config,
-    then collects data for the requested year range.
+    then collects data for the requested year range. Year range is clamped
+    to the asset's valid range (typically 1987-2024 for deforestation_secondary).
     """
     from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("deforestation_secondary") or {}
@@ -306,9 +335,21 @@ def mapbiomas_primary_deforestation_series(
     if not candidates:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # Validate that one of the band templates is available by probing with a year
-    spec_start = spec.get("year_start", 1985)
-    probe_year = max(year_start, spec_start)
+    # Clamp year range to asset's valid range (e.g., deforestation starts 1987, not 1985)
+    collection_year_start = spec.get("year_start", 1985)
+    collection_year_end = spec.get("year_end", 2024)
+    clamped_start = max(year_start, collection_year_start)
+    clamped_end = min(year_end, collection_year_end)
+    
+    if clamped_start > clamped_end:
+        logger.warning(
+            f"primary deforestation: requested range {year_start}-{year_end} does not overlap "
+            f"collection range {collection_year_start}-{collection_year_end}"
+        )
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+
+    # Validate that one of the band templates is available by probing with clamped start year
+    probe_year = clamped_start
     resolved_band = resolve_aux_band(asset_id, candidates, year=probe_year)
     
     # Find which candidate template matched, or fall back to first template
@@ -336,11 +377,16 @@ def mapbiomas_primary_deforestation_series(
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     logger.info(f"primary deforestation: using band template '{band_template}'")
-    # Data is class-value: classification_YYYY with class==100 for deforestation
-    return _series_class_value(
+    # Data is class-value: classification_YYYY with class==2 for deforestation
+    # Collect only for the valid range, then fill full range with zeros
+    result = _series_class_value(
         ee_geometry, asset_id, band_template,
-        _MB_CLASS_PRIMARY_DEFOR, year_start, year_end,
+        _MB_CLASS_PRIMARY_DEFOR, clamped_start, clamped_end,
     )
+    # Fill in the full requested range with zeros for years outside the collection
+    full_result: Dict[int, float] = {y: 0.0 for y in range(year_start, year_end + 1)}
+    full_result.update(result)
+    return full_result
 
 
 def mapbiomas_secondary_regrowth_series(
@@ -349,7 +395,8 @@ def mapbiomas_secondary_regrowth_series(
     """Per-year area of MapBiomas secondary-vegetation regrowth.
     
     Uses the same asset as primary deforestation (deforestation_secondary),
-    but looks for class == 200 instead of class == 100.
+    but looks for class == 3 (secondary vegetation) instead of class == 2 (deforestation).
+    Year range is clamped to the asset's valid range (typically 1987-2024).
     """
     from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("deforestation_secondary") or {}
@@ -361,9 +408,21 @@ def mapbiomas_secondary_regrowth_series(
     if not candidates:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # Validate that one of the band templates is available by probing with a year
-    spec_start = spec.get("year_start", 1985)
-    probe_year = max(year_start, spec_start)
+    # Clamp year range to asset's valid range (e.g., deforestation starts 1987, not 1985)
+    collection_year_start = spec.get("year_start", 1985)
+    collection_year_end = spec.get("year_end", 2024)
+    clamped_start = max(year_start, collection_year_start)
+    clamped_end = min(year_end, collection_year_end)
+    
+    if clamped_start > clamped_end:
+        logger.warning(
+            f"secondary regrowth: requested range {year_start}-{year_end} does not overlap "
+            f"collection range {collection_year_start}-{collection_year_end}"
+        )
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+
+    # Validate that one of the band templates is available by probing with clamped start year
+    probe_year = clamped_start
     resolved_band = resolve_aux_band(asset_id, candidates, year=probe_year)
     
     # Find which candidate template matched, or fall back to first template
@@ -390,10 +449,16 @@ def mapbiomas_secondary_regrowth_series(
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     logger.info(f"secondary regrowth: using band template '{band_template}'")
-    return _series_class_value(
+    # Data is class-value: classification_YYYY with class==3 for secondary vegetation
+    # Collect only for the valid range, then fill full range with zeros
+    result = _series_class_value(
         ee_geometry, asset_id, band_template,
-        _MB_CLASS_SECONDARY_REGROWTH, year_start, year_end,
+        _MB_CLASS_SECONDARY_REGROWTH, clamped_start, clamped_end,
     )
+    # Fill in the full requested range with zeros for years outside the collection
+    full_result: Dict[int, float] = {y: 0.0 for y in range(year_start, year_end + 1)}
+    full_result.update(result)
+    return full_result
 
 
 def mapbiomas_fire_scar_series(
