@@ -1583,6 +1583,8 @@ class BatchMixin(rx.State, mixin=True):
                                             variant=variant,
                                             moving_window=5,
                                             title_suffix=f"{terr}{title_extra}",
+                                            territory_name=terr,
+                                            territory_type=ttype,
                                         )
                                         if fig is not None:
                                             base = (f"{fig_dir}/{t_slug}_deforestation_timeline_"
@@ -1604,6 +1606,8 @@ class BatchMixin(rx.State, mixin=True):
                                                 variant="raw",
                                                 moving_window=5,
                                                 title_suffix=f"{terr}{title_extra}",
+                                                territory_name=terr,
+                                                territory_type=ttype,
                                             )
                                             if fig_single is not None:
                                                 base_single = (

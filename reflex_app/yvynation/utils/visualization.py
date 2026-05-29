@@ -352,7 +352,7 @@ def create_sankey_transitions(transitions_dict: Dict,
         node_flow[t] = node_flow.get(t, 0) + v
 
     sorted_nodes = sorted(all_nodes, key=lambda x: node_flow.get(x, 0), reverse=True)
-    node_labels = [f"{n}\n({node_flow.get(n, 0):,.0f} ha)" for n in sorted_nodes]
+    node_labels = [f"{n}<br>({node_flow.get(n, 0):,.0f} ha)" for n in sorted_nodes]
     node_to_idx = {n: i for i, n in enumerate(sorted_nodes)}
 
     node_colors = []
@@ -499,7 +499,7 @@ def create_multi_stage_sankey(
             cursor += height + GAP
             node_index[(y, cls_id)] = len(node_labels)
             node_labels.append(
-                f"{_resolve_label(cls_id)} ({y}) — {area:,.0f} ha ({frac * 100:.1f}%)"
+                f"{_resolve_label(cls_id)} ({y})<br>{area:,.0f} ha ({frac * 100:.1f}%)"
             )
             node_colors.append(_resolve_color(cls_id))
             node_x.append(x_positions[y])
@@ -543,10 +543,16 @@ def create_multi_stage_sankey(
             label=[f"{v:,.1f} ha" for v in values],
         ),
     )])
+    n_cols = len(year_order)
     fig.update_layout(
         title=title,
         font=dict(size=10),
-        height=max(700, 90 * len(year_order)),
+        # Width scales with number of year columns; 130 px/column matches the
+        # current look at 8-year steps (≈6 cols → ~780 px).
+        # Height stays fixed — the node stacks per column don't change size
+        # with step frequency, only the horizontal spread does.
+        width=min(4000, max(700, 130 * n_cols)),
+        height=900,
         template='plotly_white',
     )
     return fig
@@ -857,6 +863,165 @@ def get_chart_for_analysis(analysis_data: Dict[str, Any],
 # Deforestation / regrowth / fire timeline with political + policy context
 # ---------------------------------------------------------------------------
 
+# Demarcation stage colours (territory-specific, chronological pipeline).
+# Each cell in the "Demarcation" heatmap row is coloured by the highest stage
+# the territory had reached by that year.
+# Dated stages (in chronological order) — used to compute per-year heatmap colour.
+# "encaminhada_ri" is a FUNAI fase_ti status but has no date column in the GeoPackage,
+# so it cannot appear in the per-year colour calculation; it is shown in the legend key only.
+_DEMAR_STAGE_ORDER = [
+    "em_estudo", "delimitada", "declarada", "homologada", "regularizada",
+]
+_DEMAR_STAGE_COLORS: Dict[str, str] = {
+    "none":            "#eeeeee",
+    "em_estudo":       "#fff3cd",
+    "delimitada":      "#fde68a",
+    "declarada":       "#bae4b3",
+    "encaminhada_ri":  "#97d494",  # intermediate between declarada and homologada
+    "homologada":      "#74c476",
+    "regularizada":    "#238b45",
+}
+_DEMAR_STAGE_LABELS: Dict[str, str] = {
+    "em_estudo":       "1 - Under Study",
+    "delimitada":      "2 - Delimited",
+    "declarada":       "3 - Declared",
+    "encaminhada_ri":  "4 - Forwarded to RI",
+    "homologada":      "4 - Approved",
+    "regularizada":    "5 - Regularized",
+}
+
+# ---------------------------------------------------------------------------
+# Conservation unit (UC) translations and colour palette
+# ---------------------------------------------------------------------------
+
+_UC_ESFERA_EN: Dict[str, str] = {
+    "Federal":   "Federal",
+    "Estadual":  "State",
+    "Municipal": "Municipal",
+}
+_UC_GRUPO_EN: Dict[str, str] = {
+    "Proteção Integral": "Strict Protection",
+    "Uso Sustentável":   "Sustainable Use",
+}
+_UC_CATEGORIA_EN: Dict[str, str] = {
+    "Estação Ecológica":                      "Ecological Station",
+    "Floresta":                               "National Forest",
+    "Monumento Natural":                      "Natural Monument",
+    "Parque":                                 "National Park",
+    "Refúgio de Vida Silvestre":              "Wildlife Refuge",
+    "Reserva Biológica":                      "Biological Reserve",
+    "Reserva de Desenvolvimento Sustentável": "Sustainable Dev. Reserve",
+    "Reserva de Fauna":                       "Fauna Reserve",
+    "Reserva Extrativista":                   "Extractive Reserve",
+    "Reserva Particular do Patrimônio Natural": "Private Natural Heritage Reserve",
+    "Área de Proteção Ambiental":             "Environmental Protection Area",
+    "Área de Relevante Interesse Ecológico":  "Ecologically Relevant Area",
+}
+# Blue palette — clearly distinct from the TI green palette.
+_UC_GRUPO_COLORS: Dict[str, str] = {
+    "Proteção Integral": "#1e7abf",  # strong blue — strict protection
+    "Uso Sustentável":   "#7ec8e3",  # light blue  — sustainable use
+}
+
+
+def _conservation_unit_demar_info(
+    territory_name: str,
+    years: List[int],
+) -> Tuple[Dict[int, str], str, List[Dict]]:
+    """Return (year→fillcolor, subtitle_text, milestone_list) for a UC.
+
+    year→fillcolor: grey before creation year, grupo colour from creation year on.
+    subtitle_text: English metadata string for display (e.g. in the chart title).
+    milestone_list: one bold entry at the creation year.
+    Returns ({}, "", []) on any failure.
+    """
+    try:
+        from .conservation_service import get_conservation_unit_service
+        info = get_conservation_unit_service().get_creation_info(territory_name)
+    except Exception as exc:
+        logger.debug(f"UC creation info lookup failed for '{territory_name}': {exc}")
+        return {}, "", []
+
+    if not info:
+        return {}, "", []
+
+    creation_year = info.get("creation_year")
+    esfera    = _UC_ESFERA_EN.get(info.get("esfera", ""),    info.get("esfera", ""))
+    grupo     = _UC_GRUPO_EN.get(info.get("grupo", ""),      info.get("grupo", ""))
+    categoria = _UC_CATEGORIA_EN.get(info.get("categoria", ""), info.get("categoria", ""))
+
+    grupo_color = _UC_GRUPO_COLORS.get(info.get("grupo", ""), "#7ec8e3")
+    y_min, y_max = min(years), max(years)
+
+    year_colors: Dict[int, str] = {}
+    for y in years:
+        if creation_year is not None and y >= creation_year:
+            year_colors[y] = grupo_color
+        else:
+            year_colors[y] = "#eeeeee"
+
+    subtitle = f"{categoria}  ·  {esfera}  ·  {grupo}"
+
+    milestones: List[Dict] = []
+    if creation_year is not None and y_min <= creation_year <= y_max:
+        milestones.append({
+            "year": creation_year,
+            "label": f"UC established: {categoria} ({esfera})",
+            "bold": True,
+        })
+
+    return year_colors, subtitle, milestones
+
+
+def _territory_demar_info(
+    territory_name: str,
+    years: List[int],
+) -> Tuple[Dict[int, str], str, List[Dict]]:
+    """Return (year→fillcolor, subtitle_text, milestone_list) for a TI.
+
+    subtitle_text: "Ethnicity: <etnia_nome>" when available, else "".
+    Returns ({}, "", []) on any failure.
+    """
+    try:
+        from .territory_service import get_territory_service
+        svc = get_territory_service()
+        dates = svc.get_demarcation_dates(territory_name)
+        etnia = svc.get_ethnicity(territory_name)
+    except Exception as exc:
+        logger.debug(f"TI info lookup failed for '{territory_name}': {exc}")
+        return {}, "", []
+
+    if not dates:
+        return {}, "", []
+
+    # Per-year cell colour: highest stage reached by that year.
+    year_colors: Dict[int, str] = {}
+    for y in years:
+        color = _DEMAR_STAGE_COLORS["none"]
+        for stage in reversed(_DEMAR_STAGE_ORDER):
+            yr = dates.get(stage)
+            if yr is not None and yr <= y:
+                color = _DEMAR_STAGE_COLORS[stage]
+                break
+        year_colors[y] = color
+
+    subtitle = f"Ethnicity: {etnia}" if etnia else ""
+
+    # Milestone entries: one bold entry per dated event within the year range.
+    y_min, y_max = min(years), max(years)
+    milestones: List[Dict] = []
+    for stage in _DEMAR_STAGE_ORDER:
+        yr = dates.get(stage)
+        if yr is not None and y_min <= yr <= y_max:
+            milestones.append({
+                "year": yr,
+                "label": f"TI: {_DEMAR_STAGE_LABELS[stage]}",
+                "bold": True,
+            })
+    milestones.sort(key=lambda m: m["year"])
+    return year_colors, subtitle, milestones
+
+
 # Ideology → fill colour. Maps the integer ideology codes used by
 # political_context_brazil.PRESIDENTS and GOVERNORS to a diverging palette.
 _IDEOLOGY_COLOR = {
@@ -1062,6 +1227,8 @@ def _policy_shapes_and_annots(
     row_height: float = 0.042,
     row_gap: float = 0.008,
     milestone_limit: int = 12,
+    territory_demar_colors: Optional[Dict[int, str]] = None,
+    demar_row_label: str = "Demarcation",
 ):
     """Per-year policy score heat-rows below the plot area.
 
@@ -1091,7 +1258,7 @@ def _policy_shapes_and_annots(
         ("enforcement_capacity",     "Enforcement",       _GREEN4, False),
         ("forest_law_strength",      "Forest Law",        _GREEN4, False),
         ("indigenous_rights_score",  "Indigenous Rights", _GREEN4, False),
-        ("demarcation_posture",      "Demarcation",       None,    True),
+        ("demarcation_posture",      demar_row_label,     None,    True),
     ]
 
     step = row_height + row_gap
@@ -1105,8 +1272,11 @@ def _policy_shapes_and_annots(
             if scores is None:
                 cell_color = "#eeeeee"
             elif diverging:
-                val = scores.get(dim, 0)
-                cell_color = _DEMAR.get(int(val) if val is not None else 0, "#969696")
+                if territory_demar_colors:
+                    cell_color = territory_demar_colors.get(y, "#eeeeee")
+                else:
+                    val = scores.get(dim, 0)
+                    cell_color = _DEMAR.get(int(val) if val is not None else 0, "#969696")
             else:
                 val = scores.get(dim, 0)
                 idx = max(0, min(3, int(val) if val is not None else 0))
@@ -1157,6 +1327,8 @@ def _context_legend_shapes_and_annots(
     years: List[int],
     top_y: float = -0.31,
     milestone_limit: int = 50,
+    demar_milestones: Optional[List[Dict]] = None,
+    territory_type: str = "indigenous",
 ) -> Tuple[list, list]:
     """Color-key swatches + policy milestone list for the figure's bottom area.
 
@@ -1214,39 +1386,116 @@ def _context_legend_shapes_and_annots(
             "font": {"size": 8, "color": "#444"},
         })
 
-    # ── Demarcation key ─────────────────────────────────────────────────────────
-    DEMAR_ITEMS = [
-        (-1, "#d73027", "−1 hostile (frozen)"),
-        ( 0, "#969696", "0 stalled"),
-        ( 1, "#1a9850", "+1 active"),
-    ]
-    DEMAR_XS = [0.20, 0.44, 0.68]
+    # ── Demarcation / UC status key ─────────────────────────────────────────────
     row_cy -= ROW_GAP
-    annots.append({
-        "x": 0.0, "y": row_cy,
-        "xref": "paper", "yref": "paper",
-        "text": "Demarcation:",
-        "showarrow": False,
-        "xanchor": "left", "yanchor": "middle",
-        "font": {"size": 8, "color": "#555"},
-    })
-    for (val, color, label), sx in zip(DEMAR_ITEMS, DEMAR_XS):
-        shapes.append({
-            "type": "rect", "xref": "paper", "yref": "paper",
-            "x0": sx, "x1": sx + SW,
-            "y0": row_cy - SH / 2, "y1": row_cy + SH / 2,
-            "fillcolor": color,
-            "line": {"width": 0.5, "color": "#aaa"},
-            "opacity": 0.9, "layer": "above",
-        })
+    if demar_milestones and territory_type == "conservation":
+        # Conservation unit mode: simple 3-swatch key (not protected / Strict / Sustainable).
+        UC_ITEMS = [
+            ("#eeeeee",  "Not yet protected"),
+            (_UC_GRUPO_COLORS["Proteção Integral"], "Strict Protection"),
+            (_UC_GRUPO_COLORS["Uso Sustentável"],   "Sustainable Use"),
+        ]
+        UC_XS = [0.13, 0.40, 0.67]
         annots.append({
-            "x": sx + SW + 0.01, "y": row_cy,
+            "x": 0.0, "y": row_cy,
             "xref": "paper", "yref": "paper",
-            "text": label,
+            "text": "UC status:",
             "showarrow": False,
             "xanchor": "left", "yanchor": "middle",
-            "font": {"size": 8, "color": "#444"},
+            "font": {"size": 8, "color": "#555"},
         })
+        for (color, label), sx in zip(UC_ITEMS, UC_XS):
+            shapes.append({
+                "type": "rect", "xref": "paper", "yref": "paper",
+                "x0": sx, "x1": sx + SW,
+                "y0": row_cy - SH / 2, "y1": row_cy + SH / 2,
+                "fillcolor": color,
+                "line": {"width": 0.5, "color": "#aaa"},
+                "opacity": 1.0, "layer": "above",
+            })
+            annots.append({
+                "x": sx + SW + 0.008, "y": row_cy,
+                "xref": "paper", "yref": "paper",
+                "text": label,
+                "showarrow": False,
+                "xanchor": "left", "yanchor": "middle",
+                "font": {"size": 8, "color": "#444"},
+            })
+        # Single row consumed — no extra sub-rows needed.
+    elif demar_milestones:
+        # Indigenous territory mode: 3 rows × 3 swatches covering all 6 FUNAI stages.
+        STAGE_ROWS = [
+            [("none", "none"),
+             ("em_estudo",      _DEMAR_STAGE_LABELS["em_estudo"]),
+             ("delimitada",     _DEMAR_STAGE_LABELS["delimitada"])],
+            [("declarada",      _DEMAR_STAGE_LABELS["declarada"]),
+             ("encaminhada_ri", _DEMAR_STAGE_LABELS["encaminhada_ri"]),
+             ("homologada",     _DEMAR_STAGE_LABELS["homologada"])],
+            [("regularizada",   _DEMAR_STAGE_LABELS["regularizada"])],
+        ]
+        STAGE_XS = [0.13, 0.40, 0.67]
+        annots.append({
+            "x": 0.0, "y": row_cy,
+            "xref": "paper", "yref": "paper",
+            "text": "Demarcation stage (this TI):",
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "middle",
+            "font": {"size": 8, "color": "#555"},
+        })
+        for r_idx, stage_row in enumerate(STAGE_ROWS):
+            cy = row_cy - (r_idx + 1) * (SH + 0.012)
+            for (stage_key, stage_lbl), sx in zip(stage_row, STAGE_XS):
+                shapes.append({
+                    "type": "rect", "xref": "paper", "yref": "paper",
+                    "x0": sx, "x1": sx + SW,
+                    "y0": cy - SH / 2, "y1": cy + SH / 2,
+                    "fillcolor": _DEMAR_STAGE_COLORS.get(stage_key, "#eeeeee"),
+                    "line": {"width": 0.5, "color": "#aaa"},
+                    "opacity": 1.0, "layer": "above",
+                })
+                annots.append({
+                    "x": sx + SW + 0.008, "y": cy,
+                    "xref": "paper", "yref": "paper",
+                    "text": stage_lbl,
+                    "showarrow": False,
+                    "xanchor": "left", "yanchor": "middle",
+                    "font": {"size": 8, "color": "#444"},
+                })
+        # Consume the 3 sub-rows of vertical space so the next element is positioned correctly.
+        row_cy -= 3 * (SH + 0.012)
+    else:
+        # National policy mode: −1 / 0 / +1 posture score.
+        DEMAR_ITEMS = [
+            ("#d73027", "−1 hostile (frozen)"),
+            ("#969696", "0 stalled"),
+            ("#1a9850", "+1 active"),
+        ]
+        DEMAR_XS = [0.20, 0.44, 0.68]
+        annots.append({
+            "x": 0.0, "y": row_cy,
+            "xref": "paper", "yref": "paper",
+            "text": "Demarcation:",
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "middle",
+            "font": {"size": 8, "color": "#555"},
+        })
+        for (color, label), sx in zip(DEMAR_ITEMS, DEMAR_XS):
+            shapes.append({
+                "type": "rect", "xref": "paper", "yref": "paper",
+                "x0": sx, "x1": sx + SW,
+                "y0": row_cy - SH / 2, "y1": row_cy + SH / 2,
+                "fillcolor": color,
+                "line": {"width": 0.5, "color": "#aaa"},
+                "opacity": 0.9, "layer": "above",
+            })
+            annots.append({
+                "x": sx + SW + 0.01, "y": row_cy,
+                "xref": "paper", "yref": "paper",
+                "text": label,
+                "showarrow": False,
+                "xanchor": "left", "yanchor": "middle",
+                "font": {"size": 8, "color": "#444"},
+            })
 
     # ── Top-bar note ────────────────────────────────────────────────────────────
     row_cy -= ROW_GAP
@@ -1277,22 +1526,33 @@ def _context_legend_shapes_and_annots(
             "xanchor": "left", "yanchor": "top",
             "font": {"size": 9, "color": "#333"},
         })
-        # Two-column layout: left col x=0.0, right col x=0.51.
-        # Each column takes ~half the entries, halving the vertical span.
-        for i, (_, r) in enumerate(priority.iterrows()):
+
+        # Build the combined list: territory demarcation events (bold) merged
+        # with national policy milestones, sorted by year.
+        combined: List[Dict] = []
+        for _, r in priority.iterrows():
             instr = r["instrument"]
             if len(instr) > 60:
                 instr = instr[:57] + "…"
-            col = i % 2          # 0 → left, 1 → right
-            row = i // 2
+            combined.append({"year": int(r["year"]), "text": instr, "bold": False})
+        for dm in (demar_milestones or []):
+            combined.append({"year": dm["year"], "text": dm["label"], "bold": True})
+        combined.sort(key=lambda e: e["year"])
+
+        # Two-column layout: left col x=0.0, right col x=0.51.
+        for i, entry in enumerate(combined):
+            col = i % 2
+            row_i = i // 2
+            txt = f"<b>{entry['year']}  {entry['text']}</b>" if entry["bold"] \
+                  else f"{entry['year']}  {entry['text']}"
             annots.append({
                 "x": 0.0 if col == 0 else 0.51,
-                "y": ms_header_y - 0.036 - row * 0.030,
+                "y": ms_header_y - 0.036 - row_i * 0.030,
                 "xref": "paper", "yref": "paper",
-                "text": f"{int(r['year'])}  {instr}",
+                "text": txt,
                 "showarrow": False,
                 "xanchor": "left", "yanchor": "top",
-                "font": {"size": 8, "color": "#555"},
+                "font": {"size": 8, "color": "#333" if entry["bold"] else "#555"},
             })
     except Exception as e:
         logger.warning(f"context legend milestones failed: {e}")
@@ -1308,6 +1568,8 @@ def create_deforestation_timeline_chart(
     variant: str = "raw",
     moving_window: int = 5,
     title_suffix: str = "",
+    territory_name: str = "",
+    territory_type: str = "indigenous",
 ) -> Optional[go.Figure]:
     """Build a Plotly figure with political bar above, indicator lines, policy bar below.
 
@@ -1406,13 +1668,33 @@ def create_deforestation_timeline_chart(
     #   context key  top_y=−0.59 → key rows end at −0.81
     #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.48
     #                1.48 × 340 = 503 px  (<  560 px margin ✓)
+    subtitle = ""
+    if territory_name and territory_type == "conservation":
+        demar_colors, subtitle, demar_milestones = _conservation_unit_demar_info(territory_name, years)
+    elif territory_name:
+        demar_colors, subtitle, demar_milestones = _territory_demar_info(territory_name, years)
+    else:
+        demar_colors, demar_milestones = {}, []
+
+    demar_row_label = "UC Status" if territory_type == "conservation" else "Demarcation"
+
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
-    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years, top_y=-0.32, milestone_limit=12)
-    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years, top_y=-0.59, milestone_limit=50)
+    pcy_shapes, pcy_annots = _policy_shapes_and_annots(
+        years, top_y=-0.32, milestone_limit=12,
+        territory_demar_colors=demar_colors or None,
+        demar_row_label=demar_row_label,
+    )
+    leg_shapes, leg_annots = _context_legend_shapes_and_annots(
+        years, top_y=-0.59, milestone_limit=50,
+        demar_milestones=demar_milestones or None,
+        territory_type=territory_type,
+    )
 
     title = f"Deforestation Timeline — {v_title}"
     if title_suffix:
         title += f" | {title_suffix}"
+    if subtitle:
+        title += f"<br><sup>{subtitle}</sup>"
 
     # Derivatives: 8 traces → vertical legend on the right avoids overflow.
     # Raw / moving_avg: 4 traces → horizontal legend below the axis title.

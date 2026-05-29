@@ -84,6 +84,7 @@ def main() -> None:
             variant=variant,
             moving_window=5,
             title_suffix=territory_name,
+            territory_name=territory_name,
         )
         if fig is None:
             print("  (skipped — no data)")

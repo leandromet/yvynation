@@ -115,6 +115,23 @@ class TerritoryService:
         rows = self._gdf[self._gdf["terrai_cod"] == cod]
         return rows.iloc[0] if len(rows) > 0 else None
 
+    def _get_row_fuzzy(self, display_key: str):
+        """Like _get_row but falls back to accent-stripped, case-insensitive matching."""
+        import unicodedata
+
+        row = self._get_row(display_key)
+        if row is not None or self._gdf is None:
+            return row
+
+        def _norm(s: str) -> str:
+            return unicodedata.normalize("NFD", str(s)).encode("ascii", "ignore").decode("ascii").lower().strip()
+
+        target = _norm(display_key)
+        for _, candidate in self._gdf.iterrows():
+            if _norm(str(candidate.get("terrai_nom", ""))) == target:
+                return candidate
+        return None
+
     def get_geojson_for_key(self, display_key: str) -> Optional[Dict]:
         """Return the geometry as a plain GeoJSON dict for *display_key*."""
         row = self._get_row(display_key)
@@ -163,6 +180,43 @@ class TerritoryService:
             "modalidade": str(row.get("modalidade", "") or ""),
             "superficie_ha": float(row.get("superficie", 0) or 0),
         }
+
+    def get_demarcation_dates(self, display_key: str) -> Dict[str, Optional[int]]:
+        """Return demarcation stage years for *display_key*.
+
+        Keys: ``em_estudo``, ``delimitada``, ``declarada``, ``homologada``,
+        ``regularizada``.  Values are integer years or ``None`` when the stage
+        has not been reached / date is missing.
+        """
+        import pandas as pd
+
+        row = self._get_row_fuzzy(display_key)
+        if row is None:
+            return {}
+        result: Dict[str, Optional[int]] = {}
+        for col, stage in [
+            ("data_em_es", "em_estudo"),
+            ("data_delim", "delimitada"),
+            ("data_decla", "declarada"),
+            ("data_homol", "homologada"),
+            ("data_regul", "regularizada"),
+        ]:
+            val = row.get(col)
+            try:
+                result[stage] = int(pd.Timestamp(val).year) if val is not None and not pd.isnull(val) else None
+            except Exception:
+                result[stage] = None
+        return result
+
+    def get_ethnicity(self, display_key: str) -> str:
+        """Return the ``etnia_nome`` value for *display_key*, or empty string.
+
+        Values are kept exactly as stored (comma-separated Portuguese names).
+        """
+        row = self._get_row_fuzzy(display_key)
+        if row is None:
+            return ""
+        return str(row.get("etnia_nome", "") or "")
 
     def get_ee_geometry(self, display_key: str):
         """Return an ``ee.Geometry`` built from local data — no EE round-trip."""

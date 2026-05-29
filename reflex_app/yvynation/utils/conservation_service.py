@@ -208,6 +208,50 @@ class ConservationUnitService:
             "superficie_ha": superficie_ha,
         }
 
+    def get_creation_info(self, display_key: str) -> Optional[Dict[str, Any]]:
+        """Return creation metadata for a conservation unit.
+
+        Falls back to accent-stripped, case-insensitive matching when the exact
+        display key is not found (handles names derived from filenames / batch slugs).
+
+        Returned keys:
+          ``creation_year`` (int or None), ``esfera``, ``grupo``, ``categoria``,
+          ``nome_uc``.
+        """
+        import unicodedata
+
+        def _norm(s: str) -> str:
+            return unicodedata.normalize("NFD", str(s)).encode("ascii", "ignore").decode("ascii").lower().strip()
+
+        row = self._get_row(display_key)
+        if row is None and self._gdf is not None:
+            target = _norm(display_key)
+            for _, candidate in self._gdf.iterrows():
+                if _norm(str(candidate.get("nome_uc", ""))) == target:
+                    row = candidate
+                    break
+        if row is None:
+            return None
+
+        creation_year: Optional[int] = None
+        cria_ano = str(row.get("cria_ano", "") or "")
+        if cria_ano:
+            try:
+                # Format stored as DD-MM-YYYY
+                parts = cria_ano.split("-")
+                if len(parts) == 3 and len(parts[2]) == 4:
+                    creation_year = int(parts[2])
+            except Exception:
+                pass
+
+        return {
+            "creation_year": creation_year,
+            "esfera":   str(row.get("esfera",   "") or ""),
+            "grupo":    str(row.get("grupo",    "") or ""),
+            "categoria": str(row.get("categoria", "") or ""),
+            "nome_uc":  str(row.get("nome_uc",  "") or ""),
+        }
+
     def get_ee_geometry(self, display_key: str):
         """Return an ``ee.Geometry`` built from local data — no EE round-trip."""
         geojson = self.get_geojson_for_key(display_key)
