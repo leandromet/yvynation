@@ -1587,11 +1587,10 @@ class BatchMixin(rx.State, mixin=True):
                                         if fig is not None:
                                             base = (f"{fig_dir}/{t_slug}_deforestation_timeline_"
                                                     f"{y_start}_{y_end}_{suffix}{label_suffix}")
-                                            # High-res PNG: timeline charts are tall with many
-                                            # policy rows + milestones — use scale=2 so the PNG
-                                            # is print-ready; kaleido uses the figure's own
-                                            # layout dimensions (height=1100) as the base size.
-                                            _write_fig(zf, base, fig, png_scale=2.0)
+                                            # png_width=1400 overrides kaleido's 700px default;
+                                            # scale=2 → 2800×2600px print-ready output.
+                                            _write_fig(zf, base, fig,
+                                                       png_width=1400, png_scale=2.0)
 
                                     # Also emit single-indicator raw plots (one line each)
                                     for ik, ival in series.items():
@@ -1612,7 +1611,7 @@ class BatchMixin(rx.State, mixin=True):
                                                     f"{y_start}_{y_end}_{ik}{label_suffix}"
                                                 )
                                                 _write_fig(zf, base_single, fig_single,
-                                                           png_scale=2.0)
+                                                           png_width=1400, png_scale=2.0)
                                         except Exception:
                                             logger.debug(f"failed to write single-indicator plot for {ik}")
 

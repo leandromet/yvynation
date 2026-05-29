@@ -1277,13 +1277,17 @@ def _context_legend_shapes_and_annots(
             "xanchor": "left", "yanchor": "top",
             "font": {"size": 9, "color": "#333"},
         })
-        # Extra blank line after the header (≈12 px at 340 px/paper-unit)
+        # Two-column layout: left col x=0.0, right col x=0.51.
+        # Each column takes ~half the entries, halving the vertical span.
         for i, (_, r) in enumerate(priority.iterrows()):
             instr = r["instrument"]
-            if len(instr) > 80:
-                instr = instr[:77] + "…"
+            if len(instr) > 60:
+                instr = instr[:57] + "…"
+            col = i % 2          # 0 → left, 1 → right
+            row = i // 2
             annots.append({
-                "x": 0.0, "y": ms_header_y - 0.036 - i * 0.030,
+                "x": 0.0 if col == 0 else 0.51,
+                "y": ms_header_y - 0.036 - row * 0.030,
                 "xref": "paper", "yref": "paper",
                 "text": f"{int(r['year'])}  {instr}",
                 "showarrow": False,
@@ -1393,29 +1397,47 @@ def create_deforestation_timeline_chart(
     else:
         return None
 
-    # Build context shapes / annotations
+    # Build context shapes / annotations.
+    # Layout budget (height=1080, t=180, b=560 → plot area 340 px = 1 paper unit):
+    #   x-axis ticks + "Year" title   ≈ −0.15  (50 px below plot)
+    #   trace legend (raw/ma5)        y=−0.17  (58 px, safely below axis title)
+    #   blank gap × 2 rows            0.084 paper units
+    #   policy rows  top_y=−0.32 → end at −0.52; arrows at −0.545
+    #   context key  top_y=−0.59 → key rows end at −0.81
+    #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.48
+    #                1.48 × 340 = 503 px  (<  560 px margin ✓)
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
-    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years, milestone_limit=12)
-    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years, milestone_limit=50)
+    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years, top_y=-0.32, milestone_limit=12)
+    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years, top_y=-0.59, milestone_limit=50)
 
     title = f"Deforestation Timeline — {v_title}"
     if title_suffix:
         title += f" | {title_suffix}"
 
+    # Derivatives: 8 traces → vertical legend on the right avoids overflow.
+    # Raw / moving_avg: 4 traces → horizontal legend below the axis title.
+    if variant == "derivatives":
+        legend_cfg = {
+            "orientation": "v",
+            "yanchor": "top", "y": 1.0,
+            "xanchor": "left", "x": 1.01,
+            "font": {"size": 10},
+        }
+        right_margin = 220
+    else:
+        legend_cfg = {
+            "orientation": "h", "yanchor": "top", "y": -0.17,
+            "xanchor": "center", "x": 0.5,
+            "font": {"size": 10},
+        }
+        right_margin = 30
+
     fig.update_layout(
         title=title,
         template="plotly_white",
-        # Tall figure: president/governor stripes above + 4 policy rows +
-        # color-key legend + up to 42 milestone entries (~all 1985-2024).
-        # height=1300, margin t=180, b=780 → plot area 340 px = 1 paper unit.
-        # Key area: -0.31 … -0.53 (≈76px); milestones header -0.53;
-        # 42 entries at 0.030 = 1.26 span → last at ≈-1.80 (611px);
-        # trace-legend at -2.10 (714px < 780px bottom margin).
-        # PNG export uses scale=2 → ~1400×2600px, print-ready.
-        height=1300,
-        margin={"t": 180, "b": 780, "l": 100, "r": 30},
-        legend={"orientation": "h", "yanchor": "top", "y": -2.10,
-                "xanchor": "center", "x": 0.5},
+        height=1080,
+        margin={"t": 180, "b": 560, "l": 100, "r": right_margin},
+        legend=legend_cfg,
         shapes=pol_shapes + pcy_shapes + leg_shapes,
         annotations=pol_annots + pcy_annots + leg_annots,
         xaxis={"title": "Year",
@@ -1426,4 +1448,148 @@ def create_deforestation_timeline_chart(
                 "tickfont": {"size": 11}},
     )
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Print-ready export helpers
+# ---------------------------------------------------------------------------
+
+def create_improved_layout(
+    fig: go.Figure,
+    title: str,
+    year_start: int = 1985,
+    year_end: int = 2024,
+    y_axis_title: str = "Δ ha / year (1st), Δ² ha / year² (2nd)",
+) -> go.Figure:
+    """Apply a compact, print-optimised layout to a deforestation timeline figure."""
+    fig.update_layout(
+        title={
+            "text": title,
+            "x": 0.5,
+            "xanchor": "center",
+            "font": {"size": 20, "family": "Arial, sans-serif", "weight": "bold"},
+            "y": 0.98,
+        },
+        template="plotly_white",
+        height=1800,
+        width=1200,
+        margin={"t": 140, "b": 200, "l": 120, "r": 50},
+        legend={
+            "orientation": "h",
+            "yanchor": "top",
+            "y": -1.5,
+            "xanchor": "center",
+            "x": 0.5,
+            "font": {"size": 10},
+            "bgcolor": "rgba(255,255,255,0.9)",
+            "bordercolor": "#ccc",
+            "borderwidth": 1,
+        },
+        xaxis={
+            "title": {"text": "Year", "font": {"size": 14, "weight": "bold"}},
+            "range": [year_start - 0.5, year_end + 0.5],
+            "dtick": 5,
+            "tickfont": {"size": 11},
+            "gridcolor": "#e0e0e0",
+            "showgrid": True,
+            "zerolinecolor": "#333",
+            "zerolinewidth": 1,
+        },
+        yaxis={
+            "title": {"text": y_axis_title, "font": {"size": 14, "weight": "bold"}},
+            "tickformat": "~s",
+            "tickfont": {"size": 11},
+            "gridcolor": "#e0e0e0",
+            "showgrid": True,
+            "zerolinecolor": "#333",
+            "zerolinewidth": 1,
+        },
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font={"family": "Arial, sans-serif", "size": 12, "color": "#2a3f5f"},
+        hoverlabel={
+            "bgcolor": "white",
+            "font_size": 12,
+            "font_family": "Arial",
+            "bordercolor": "#ccc",
+        },
+        autosize=False,
+        bargap=0.1,
+    )
+
+    for shape in fig.layout.shapes:
+        if hasattr(shape, "opacity") and shape.opacity is not None:
+            shape.opacity = min(shape.opacity * 1.2, 1.0)
+
+    return fig
+
+
+def export_print_ready(fig: go.Figure, filename: str, scale: int = 3) -> None:
+    """Export figure to a high-resolution PNG suitable for printing.
+
+    scale=3 yields ~3600×5400 px at 300 dpi (12×18 inches).
+    """
+    fig.write_image(
+        filename,
+        scale=scale,
+        width=1200,
+        height=1800,
+    )
+
+
+def create_two_part_layout(
+    fig: go.Figure,
+    title: str,
+    policy_annots: list,
+) -> Tuple[go.Figure, go.Figure]:
+    """Split a timeline figure into a chart figure and a policy-table figure.
+
+    Returns:
+        (chart_fig, policy_fig) — two independent Plotly figures.
+    """
+    chart_fig = fig
+    chart_fig.update_layout(
+        title=title,
+        height=800,
+        width=1200,
+        margin={"t": 100, "b": 100, "l": 100, "r": 50},
+        legend={"orientation": "h", "y": -0.2, "x": 0.5},
+    )
+
+    policy_data = []
+    for ann in policy_annots:
+        text = getattr(ann, "text", None) or ann.get("text", "")
+        if text and "▲" not in text:
+            year = getattr(ann, "x", None) or ann.get("x")
+            policy_data.append({"year": year, "text": text})
+
+    policy_fig = go.Figure()
+    policy_fig.add_trace(go.Table(
+        header=dict(
+            values=["Year", "Policy Milestone"],
+            font=dict(size=12, color="white", family="Arial"),
+            fill=dict(color="#2a3f5f"),
+            align="left",
+            height=30,
+        ),
+        cells=dict(
+            values=[
+                [p["year"] for p in policy_data if p["year"] is not None],
+                [p["text"] for p in policy_data],
+            ],
+            font=dict(size=10, family="Arial"),
+            align="left",
+            height=25,
+            fill=dict(color="white"),
+            line=dict(color="#ddd"),
+        ),
+    ))
+    policy_fig.update_layout(
+        title="Policy Timeline Reference",
+        height=800,
+        width=1200,
+        margin={"t": 50, "b": 50, "l": 50, "r": 50},
+    )
+
+    return chart_fig, policy_fig
 
