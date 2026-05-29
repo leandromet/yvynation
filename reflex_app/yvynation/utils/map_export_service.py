@@ -168,18 +168,39 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                 return None, None
             asset_id = spec["asset"]
             candidates = spec.get("band_candidates") or []
-            # Per-year layers: try the configured year, then walk back a few
-            # years (some assets stop at 2023 even when 2024 was requested).
+            
+            # Per-year layers: respect year range constraints, fall back
+            # within the valid range if needed
             band = None
             year_used = year
             if spec.get("per_year") and year is not None:
-                for y_try in (year, year - 1, year - 2):
-                    band = resolve_aux_band(asset_id, candidates, year=y_try)
-                    if band:
-                        year_used = y_try
-                        break
+                year_start = spec.get("year_start", 1985)
+                year_end = spec.get("year_end", 2024)
+                
+                # If requested year is outside range, clamp to range
+                if year < year_start:
+                    logger.info(
+                        f"aux layer {aux_key}: requested year {year} < "
+                        f"available range start {year_start}, using {year_start}"
+                    )
+                    year_used = year_start
+                elif year > year_end:
+                    logger.info(
+                        f"aux layer {aux_key}: requested year {year} > "
+                        f"available range end {year_end}, using {year_end}"
+                    )
+                    year_used = year_end
+                
+                # Try clamped year and nearby years
+                for y_try in (year_used, year_used + 1, year_used - 1):
+                    if year_start <= y_try <= year_end:
+                        band = resolve_aux_band(asset_id, candidates, year=y_try)
+                        if band:
+                            year_used = y_try
+                            break
             else:
                 band = resolve_aux_band(asset_id, candidates)
+            
             if band is None:
                 logger.warning(
                     f"aux layer {aux_key}: no candidate band found in "
@@ -198,7 +219,7 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                 vis_params = dict(spec.get("vis") or {})
             logger.info(
                 f"aux layer {aux_key}: using band '{band}'"
-                + (f" (fell back from year {year} to {year_used})"
+                + (f" (year {year} → {year_used})"
                    if year_used != year else "")
             )
         else:

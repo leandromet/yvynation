@@ -127,44 +127,32 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10_1/"
                  "mapbiomas_brazil_collection10_1_deforestation_secondary_vegetation_v3",
         "label": "Deforestation & Secondary Vegetation",
-        # Two value semantics are common for this asset:
-        #   - "year_value"  : single band, pixel value = year of event
-        #   - "class_value" : per-year band ``classification_{year}`` whose
-        #                     pixel is a class code (100/200/…).
-        # ``band_candidates`` is tried in order; the first one present in the
-        # EE asset wins. ``value_semantics`` tells the renderer how to read it.
-        "value_semantics": "year_value",
+        "value_semantics": "class_value",
         "band_candidates": [
-            "primary_vegetation_loss",
-            "primary_vegetation_year_to_secondary",
-            "deforestation_year",
-            "secondary_vegetation_regrowth",
-            "classification_{year}",  # fallback to class-coded per-year band
+            "classification_{year}",  # This asset uses classification_YYYY bands
         ],
         "per_year": True,
-        # Visualization for single-band year-valued pixels: palette spans the
-        # year range so older events appear cooler, newer warmer.
+        "year_start": 1987,  # Changed from 1985 - data starts at 1987 based on error
+        "year_end": 2024,
         "vis": {
-            "min": 1985, "max": 2024,
-            "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
+            "min": 0, "max": 100,
+            "palette": ["ffffff", "d73027", "fc8d59", "fee08b", "ffffbf", "d9ef8b", "91cf60", "1a9850"],
         },
     },
     "fire_scar_size": {
         "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
                  "mapbiomas_fire_collection4_annual_burned_scar_size_range_v1",
         "label": "Annual Burned Area (scar size)",
-        "value_semantics": "class_value",
+        "value_semantics": "class_value",  # It's a class value (1-5), not raw area
         "band_candidates": [
-            "scar_size_{year}",
-            "burned_area_{year}",
-            "classification_{year}",
+            "scar_area_ha_{year}",  # Correct band pattern from error
         ],
         "per_year": True,
-        # Bins (per MapBiomas Fire 4): 1=<10 ha, 2=10-100, 3=100-1000,
-        # 4=1000-10000, 5=>10000.
+        "year_start": 1987,  # Changed from 1985 - error shows collection starts 1987
+        "year_end": 2024,
         "vis": {
-            "min": 0, "max": 5,
-            "palette": ["000000", "fee08b", "fdae61", "f46d43", "d73027", "7f0000"],
+            "min": 1, "max": 5,  # Classes: 1=<10ha, 2=10-100, 3=100-1000, 4=1000-10000, 5=>10000
+            "palette": ["fee08b", "fdae61", "f46d43", "d73027", "7f0000"],
         },
     },
     "fire_frequency": {
@@ -173,10 +161,12 @@ MAPBIOMAS_AUX_DATASETS = {
         "label": "Fire Frequency (1985–2024)",
         "value_semantics": "class_value",
         "band_candidates": [
-            "fire_frequency_1985_2024",
+            "fire_frequency_1985_2024",  # Single band for the whole period
             "fire_frequency",
         ],
         "per_year": False,
+        "year_start": 1985,
+        "year_end": 2024,
         "vis": {
             "min": 0, "max": 20,
             "palette": ["ffffff", "ffffb2", "fecc5c", "fd8d3c", "f03b20", "bd0026"],
@@ -188,11 +178,13 @@ MAPBIOMAS_AUX_DATASETS = {
         "label": "Year of Last Fire",
         "value_semantics": "year_value",
         "band_candidates": [
-            "classification_{year}",
-            "year_last_fire_{year}",
+            "last_fire_year",  # Most common band name
             "year_last_fire",
+            "fire_year",
         ],
-        "per_year": True,
+        "per_year": False,
+        "year_start": 1985,
+        "year_end": 2024,
         "vis": {
             "min": 1985, "max": 2024,
             "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
@@ -204,18 +196,14 @@ MAPBIOMAS_AUX_DATASETS = {
         "label": "Mining Substances",
         "value_semantics": "class_value",
         "band_candidates": [
-            "mining_substances_{year}",
-            "classification_{year}",
-            "substance_{year}",
-            "mining_{year}",
+            "classification_{year}",  # This asset has classification_YYYY bands
         ],
         "per_year": True,
+        "year_start": 1985,  # Collection10 might have 1985
+        "year_end": 2024,
         "vis": {
-            "min": 0, "max": 10,
-            "palette": [
-                "000000", "9c0027", "e6194b", "f58231", "ffe119",
-                "bcf60c", "3cb44b", "46f0f0", "4363d8", "911eb4", "f032e6",
-            ],
+            "min": 0, "max": 50,  # Adjust based on actual mining class codes
+            "palette": ["000000", "9c0027", "e6194b", "f58231"],
         },
     },
     "agriculture_cycles": {
@@ -224,12 +212,12 @@ MAPBIOMAS_AUX_DATASETS = {
         "label": "Agriculture — Number of Cycles",
         "value_semantics": "class_value",
         "band_candidates": [
-            "agriculture_cycles_{year}",
-            "number_of_cycles_{year}",
-            "classification_{year}",
+            "classification_{year}",  # Collection10 pattern
             "cycles_{year}",
         ],
         "per_year": True,
+        "year_start": 1985,
+        "year_end": 2024,
         "vis": {
             "min": 0, "max": 4,
             "palette": ["ffffff", "edf8e9", "bae4b3", "74c476", "238b45"],
@@ -242,25 +230,55 @@ def resolve_aux_band(asset_id: str, candidates: List[str], year=None) -> Optiona
     """Return the first candidate band that exists in ``asset_id``.
 
     Each candidate may contain ``{year}`` which is substituted with ``year``
-    before lookup. Available bands are pulled via a tiny EE call cached at
-    module level — one round-trip per asset across the whole run.
+    before lookup. If a year-based band doesn't exist exactly, tries fallback
+    years (year, year+1, year+2, ...) to handle datasets with gaps (e.g., fire
+    collection starts 1987, not 1985).
+    
+    Available bands are pulled via a tiny EE call cached at module level —
+    one round-trip per asset across the whole run.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         bands = _list_aux_bands(asset_id)
-    except Exception:
+    except Exception as e:
+        logger.error(f"resolve_aux_band: _list_aux_bands failed for {asset_id}: {e}")
         return None
     if not bands:
+        logger.warning(f"resolve_aux_band: no bands returned for {asset_id}")
         return None
     available = set(bands)
+    logger.debug(f"resolve_aux_band: checking {len(candidates)} candidates against {len(available)} bands")
+    
     for cand in candidates:
         if "{year}" in cand:
             if year is None:
+                logger.debug(f"resolve_aux_band: skipping template '{cand}' (no year provided)")
                 continue
-            name = cand.format(year=year)
+            # Try exact year first, then fallback to +1, +2, ..., +10 years
+            # (handles cases where data starts at 1987 instead of 1985)
+            for year_offset in range(11):
+                year_try = year + year_offset
+                name = cand.format(year=year_try)
+                if name in available:
+                    if year_offset > 0:
+                        logger.debug(
+                            f"resolve_aux_band: {cand} with year {year} "
+                            f"→ {name} (offset +{year_offset})"
+                        )
+                    else:
+                        logger.debug(f"resolve_aux_band: matched {name} (exact year)")
+                    return name
+            logger.debug(f"resolve_aux_band: template '{cand}' with year {year}: no match found")
         else:
             name = cand
-        if name in available:
-            return name
+            if name in available:
+                logger.debug(f"resolve_aux_band: matched literal band '{name}'")
+                return name
+            logger.debug(f"resolve_aux_band: literal band '{name}' not found")
+    
+    logger.warning(f"resolve_aux_band: no candidates matched. Tried: {candidates}, Available: {list(available)[:10]}")
     return None
 
 
@@ -269,17 +287,27 @@ _AUX_BAND_CACHE: dict = {}
 
 def _list_aux_bands(asset_id: str) -> List[str]:
     """One ``bandNames().getInfo()`` per asset, cached for the whole process."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if asset_id in _AUX_BAND_CACHE:
-        return _AUX_BAND_CACHE[asset_id]
+        cached = _AUX_BAND_CACHE[asset_id]
+        logger.debug(f"_list_aux_bands: cache hit for {asset_id}, got {len(cached)} bands")
+        return cached
+    
     try:
         import ee
-        names = ee.Image(asset_id).bandNames().getInfo() or []
+        logger.debug(f"_list_aux_bands: querying EE for {asset_id}")
+        img = ee.Image(asset_id)
+        band_names = img.bandNames()
+        names = band_names.getInfo() or []
+        logger.info(f"_list_aux_bands: {asset_id} has {len(names)} bands: {names[:5] if len(names) > 5 else names}")
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
-            f"could not list bands for aux asset {asset_id}: {e}"
+        logger.error(
+            f"_list_aux_bands: could not list bands for {asset_id}: {type(e).__name__}: {e}"
         )
         names = []
+    
     _AUX_BAND_CACHE[asset_id] = names
     return names
 

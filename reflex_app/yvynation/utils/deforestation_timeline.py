@@ -153,6 +153,7 @@ def _series_class_value(
             try:
                 src = asset.select(band_name)
             except Exception:
+                # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
                 continue
             masked.append(
                 src.eq(target_class).multiply(px_area_ha).rename(f"y_{y}")
@@ -195,6 +196,7 @@ def _series_nonzero(
             try:
                 src = asset.select(band_name)
             except Exception:
+                # Band doesn't exist for this year (e.g., fire starts 1987 not 1985)
                 continue
             masked.append(src.gt(0).multiply(px_area_ha).rename(f"y_{y}"))
         if not masked:
@@ -235,9 +237,9 @@ _SECONDARY_REGROWTH_YEAR_BANDS = [
 ]
 # Bands likely to encode fire scar (per-year, value = scar size bin > 0).
 _FIRE_SCAR_BANDS = [
+    "classification_{year}",  # MapBiomas Fire 4 uses this
     "scar_size_{year}",
     "burned_area_{year}",
-    "classification_{year}",
 ]
 
 
@@ -318,28 +320,66 @@ def mapbiomas_fire_scar_series(
     if not asset_id:
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
-    # Pick a template by probing one year — works whether the asset uses
-    # ``scar_size_YYYY`` or ``classification_YYYY``.
-    probe_year = year_start
+    # Fire collection has different year ranges — respect them
+    collection_year_start = spec.get("year_start", 1985)
+    collection_year_end = spec.get("year_end", 2024)
+    
+    # Probe for a matching band template, trying years within the collection's range
+    probe_years = []
+    # Try the requested start, then collection start, then nearby years
+    for y in (year_start, collection_year_start, year_start + 1, year_start + 2):
+        if collection_year_start <= y <= collection_year_end:
+            probe_years.append(y)
+    
     chosen_template = None
     try:
         from ..config.config import _list_aux_bands
         available = set(_list_aux_bands(asset_id))
-        for tpl in _FIRE_SCAR_BANDS:
-            if tpl.format(year=probe_year) in available:
-                chosen_template = tpl
+        for probe_year in probe_years:
+            for tpl in _FIRE_SCAR_BANDS:
+                band_name = tpl.format(year=probe_year)
+                if band_name in available:
+                    chosen_template = tpl
+                    logger.info(
+                        f"fire scar: matched template '{tpl}' with probe year {probe_year}"
+                    )
+                    break
+            if chosen_template:
                 break
-    except Exception:
+    except Exception as e:
+        logger.warning(f"fire scar template probe failed: {e}")
         chosen_template = None
 
     if chosen_template is None:
         logger.warning(
-            f"fire scar: no known band template matched in {asset_id}; tried {_FIRE_SCAR_BANDS}"
+            f"fire scar: no known band template matched in {asset_id} "
+            f"(collection range {collection_year_start}-{collection_year_end}, "
+            f"requested {year_start}-{year_end}); tried {_FIRE_SCAR_BANDS}"
         )
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     logger.info(f"fire scar: using band template '{chosen_template}'")
-    return _series_nonzero(ee_geometry, asset_id, chosen_template, year_start, year_end)
+    
+    # Clamp the year range to the collection's valid range
+    clamped_start = max(year_start, collection_year_start)
+    clamped_end = min(year_end, collection_year_end)
+    
+    if clamped_start > clamped_end:
+        logger.warning(
+            f"fire scar: requested range {year_start}-{year_end} does not overlap "
+            f"collection range {collection_year_start}-{collection_year_end}"
+        )
+        return {y: 0.0 for y in range(year_start, year_end + 1)}
+    
+    # Collect data only for years in the valid range
+    result = _series_nonzero(
+        ee_geometry, asset_id, chosen_template, clamped_start, clamped_end
+    )
+    
+    # Fill in the full requested range with zeros for years outside the collection
+    full_result: Dict[int, float] = {y: 0.0 for y in range(year_start, year_end + 1)}
+    full_result.update(result)
+    return full_result
 
 
 # ---------------------------------------------------------------------------
