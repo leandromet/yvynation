@@ -1061,7 +1061,7 @@ def _policy_shapes_and_annots(
     top_y: float = -0.06,
     row_height: float = 0.042,
     row_gap: float = 0.008,
-    milestone_limit: int = 6,
+    milestone_limit: int = 12,
 ):
     """Per-year policy score heat-rows below the plot area.
 
@@ -1156,7 +1156,7 @@ def _policy_shapes_and_annots(
 def _context_legend_shapes_and_annots(
     years: List[int],
     top_y: float = -0.31,
-    milestone_limit: int = 8,
+    milestone_limit: int = 50,
 ) -> Tuple[list, list]:
     """Color-key swatches + policy milestone list for the figure's bottom area.
 
@@ -1171,8 +1171,8 @@ def _context_legend_shapes_and_annots(
     SCORE_LABELS = ["0 – absent", "1 – weak", "2 – moderate", "3 – strong"]
     SCORE_XS = [0.20, 0.38, 0.56, 0.74]   # left x of each swatch (paper)
     SW = 0.038                              # swatch width (paper x)
-    SH = 0.017                             # swatch height (paper y)
-    ROW_GAP = 0.040                        # vertical spacing between key rows
+    SH = 0.018                             # swatch height (paper y)
+    ROW_GAP = 0.060                        # vertical spacing between key rows (≈20px)
 
     # ── Section header ─────────────────────────────────────────────────────────
     annots.append({
@@ -1185,7 +1185,8 @@ def _context_legend_shapes_and_annots(
     })
 
     # ── Green-scale key (Enforcement / Forest Law / Indigenous Rights) ──────────
-    row_cy = top_y - 0.022          # cell centre y for this row
+    # Extra gap after the header line (≈14 px at 340 px/paper-unit)
+    row_cy = top_y - 0.042
     annots.append({
         "x": 0.0, "y": row_cy,
         "xref": "paper", "yref": "paper",
@@ -1255,7 +1256,7 @@ def _context_legend_shapes_and_annots(
         "text": "Top bars: president (bottom stripe) and state governor (top stripe) — neutral grey, darker = earlier period",
         "showarrow": False,
         "xanchor": "left", "yanchor": "middle",
-        "font": {"size": 8, "color": "#555"},
+        "font": {"size": 10, "color": "#555"},
     })
 
     # ── Key policy milestones list ──────────────────────────────────────────────
@@ -1264,7 +1265,7 @@ def _context_legend_shapes_and_annots(
         ms_df = build_milestones_df()
         in_range = ms_df[(ms_df["year"] >= years[0]) & (ms_df["year"] <= years[-1])]
         priority = in_range[in_range["category"].isin(
-            ["FOREST_LAW", "INDIGENOUS", "CLIMATE", "PLANNING"]
+            ["FOREST_LAW", "INDIGENOUS", "CLIMATE", "PLANNING", "FINANCE", "ENFORCEMENT"]
         )].sort_values("year").head(milestone_limit)
 
         ms_header_y = row_cy - ROW_GAP
@@ -1276,12 +1277,13 @@ def _context_legend_shapes_and_annots(
             "xanchor": "left", "yanchor": "top",
             "font": {"size": 9, "color": "#333"},
         })
+        # Extra blank line after the header (≈12 px at 340 px/paper-unit)
         for i, (_, r) in enumerate(priority.iterrows()):
             instr = r["instrument"]
-            if len(instr) > 75:
-                instr = instr[:72] + "…"
+            if len(instr) > 80:
+                instr = instr[:77] + "…"
             annots.append({
-                "x": 0.0, "y": ms_header_y - 0.016 - i * 0.020,
+                "x": 0.0, "y": ms_header_y - 0.036 - i * 0.030,
                 "xref": "paper", "yref": "paper",
                 "text": f"{int(r['year'])}  {instr}",
                 "showarrow": False,
@@ -1393,8 +1395,8 @@ def create_deforestation_timeline_chart(
 
     # Build context shapes / annotations
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
-    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years)
-    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years)
+    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years, milestone_limit=12)
+    leg_shapes, leg_annots = _context_legend_shapes_and_annots(years, milestone_limit=50)
 
     title = f"Deforestation Timeline — {v_title}"
     if title_suffix:
@@ -1404,13 +1406,15 @@ def create_deforestation_timeline_chart(
         title=title,
         template="plotly_white",
         # Tall figure: president/governor stripes above + 4 policy rows +
-        # color-key legend + milestone list + trace legend below.
-        # height=880, margin t=180, b=360 → plot area 340 px = 1 paper unit.
-        # All content below y=0: arrow_y≈-0.29, legend top≈-0.31,
-        # last milestone≈-0.61, trace-legend at -0.68 (231 px < 360 margin).
-        height=880,
-        margin={"t": 180, "b": 360, "l": 100, "r": 30},
-        legend={"orientation": "h", "yanchor": "top", "y": -0.68,
+        # color-key legend + up to 42 milestone entries (~all 1985-2024).
+        # height=1300, margin t=180, b=780 → plot area 340 px = 1 paper unit.
+        # Key area: -0.31 … -0.53 (≈76px); milestones header -0.53;
+        # 42 entries at 0.030 = 1.26 span → last at ≈-1.80 (611px);
+        # trace-legend at -2.10 (714px < 780px bottom margin).
+        # PNG export uses scale=2 → ~1400×2600px, print-ready.
+        height=1300,
+        margin={"t": 180, "b": 780, "l": 100, "r": 30},
+        legend={"orientation": "h", "yanchor": "top", "y": -2.10,
                 "xanchor": "center", "x": 0.5},
         shapes=pol_shapes + pcy_shapes + leg_shapes,
         annotations=pol_annots + pcy_annots + leg_annots,

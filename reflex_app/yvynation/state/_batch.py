@@ -386,6 +386,8 @@ class BatchMixin(rx.State, mixin=True):
     # Custom mode: 3 or 4 user-selected years, comma-separated.
     batch_multi_window_custom_years: str = "1985, 2004, 2012, 2023"
     batch_territory_search: str = ""
+    # "indigenous" | "conservation" — which GeoPackage backs the selector
+    batch_territory_type: str = "indigenous"
 
     # ---- Runtime status ------------------------------------------------------
     batch_running: bool = False
@@ -402,12 +404,24 @@ class BatchMixin(rx.State, mixin=True):
     # ---- Computed ------------------------------------------------------------
 
     @rx.var
+    def batch_available_territories(self) -> List[str]:
+        """Full territory list from the active source (indigenous or conservation)."""
+        try:
+            if self.batch_territory_type == "conservation":
+                from ..utils.conservation_service import get_conservation_unit_service
+                return get_conservation_unit_service().get_all_display_keys()
+            from ..utils.territory_service import get_territory_service
+            return get_territory_service().get_all_display_keys()
+        except Exception:
+            return []
+
+    @rx.var
     def batch_filtered_territories(self) -> List[str]:
         """Territory list filtered by the search query."""
         q = self.batch_territory_search.lower()
         if not q:
-            return self.available_territories
-        return [t for t in self.available_territories if q in t.lower()]
+            return self.batch_available_territories
+        return [t for t in self.batch_available_territories if q in t.lower()]
 
     @rx.var
     def batch_progress_pct(self) -> int:
@@ -426,30 +440,72 @@ class BatchMixin(rx.State, mixin=True):
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
 
-    @rx.var(auto_deps=False, deps=["available_territories"])
-    def batch_territory_meta(self) -> Dict[str, str]:
-        """display_key → one-line metadata string from the FUNAI GeoPackage.
+    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_type"])
+    def batch_territory_uf(self) -> Dict[str, str]:
+        """display_key → normalised UF sigla string (e.g. "PA", "MT, PA").
 
-        Format: ``🪶 {etnia}  •  📐 {area} ha`` (parts omitted when missing).
-        Returns ``""`` for keys with no metadata so the UI can always render
-        the value unconditionally.
-
-        Reflex's auto-dep introspection trips on the relative import below
-        (``from ..utils.territory_service ...``) — emitting a "No module
-        named 'utils'" warning and, worse, never re-evaluating when
-        ``available_territories`` loads. Declaring the dep explicitly fixes
-        both issues.
+        Returns ``""`` for keys with no data so the UI can render unconditionally.
+        Siglas are comma+space separated regardless of how they are stored.
         """
         try:
-            from ..utils.territory_service import get_territory_service
-            svc = get_territory_service()
+            is_conservation = self.batch_territory_type == "conservation"
+            if is_conservation:
+                from ..utils.conservation_service import get_conservation_unit_service
+                svc = get_conservation_unit_service()
+                keys = svc.get_all_display_keys()
+            else:
+                from ..utils.territory_service import get_territory_service
+                svc = get_territory_service()
+                keys = self.available_territories
             out: Dict[str, str] = {}
-            for key in self.available_territories:
+            for key in keys:
+                info = svc.get_territory_info(key) or {}
+                raw = (info.get("uf_sigla") or "").strip()
+                # Normalise separators: "RR,AM,PA" → "RR, AM, PA"
+                if raw:
+                    out[key] = ", ".join(p.strip() for p in raw.split(",") if p.strip())
+            return out
+        except Exception:
+            return {}
+
+    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_type"])
+    def batch_territory_meta(self) -> Dict[str, str]:
+        """display_key → one-line metadata string from the active GeoPackage.
+
+        Indigenous format: ``🪶 {etnia}  •  📐 {area} ha``
+        Conservation format: ``🌿 {categoria}  •  📐 {area} ha``
+        Parts are omitted when missing; returns ``""`` for unknown keys.
+
+        auto_deps=False: Reflex's dep introspection trips on relative imports,
+        so we declare deps explicitly to react when the territory list or type
+        changes.
+        """
+        try:
+            is_conservation = self.batch_territory_type == "conservation"
+            if is_conservation:
+                from ..utils.conservation_service import get_conservation_unit_service
+                svc = get_conservation_unit_service()
+            else:
+                from ..utils.territory_service import get_territory_service
+                svc = get_territory_service()
+
+            out: Dict[str, str] = {}
+            keys = (
+                svc.get_all_display_keys()
+                if is_conservation
+                else self.available_territories
+            )
+            for key in keys:
                 info = svc.get_territory_info(key) or {}
                 parts = []
-                etn = (info.get("etnia") or "").strip()
-                if etn:
-                    parts.append(f"🪶 {etn}")
+                if is_conservation:
+                    cat = (info.get("categoria") or "").strip()
+                    if cat:
+                        parts.append(f"🌿 {cat}")
+                else:
+                    etn = (info.get("etnia") or "").strip()
+                    if etn:
+                        parts.append(f"🪶 {etn}")
                 ha = info.get("superficie_ha") or 0
                 if ha and ha > 0:
                     parts.append(f"📐 {ha:,.0f} ha")
@@ -462,6 +518,14 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_set_territory_search(self, q: str):
         self.batch_territory_search = q
+
+    def batch_set_territory_type(self, t: str):
+        """Switch between 'indigenous' and 'conservation' territory sources."""
+        if t in ("indigenous", "conservation") and t != self.batch_territory_type:
+            self.batch_territory_type = t
+            # Clear selection to avoid mixing territory types
+            self.batch_selected_territories = []
+            self.batch_territory_search = ""
 
     def batch_toggle_territory(self, territory: str):
         """Add or remove a territory from the batch selection."""
@@ -675,6 +739,7 @@ class BatchMixin(rx.State, mixin=True):
             if self.batch_run_aux_mining_substances:aux_layer_keys.append("mining_substances")
             if self.batch_run_aux_agriculture_cycles:aux_layer_keys.append("agriculture_cycles")
             run_timeline = bool(self.batch_run_deforestation_timeline)
+            territory_type = str(self.batch_territory_type)
             multi_years: List[int] = list(self.batch_multi_window_resolved_years) if run_multi else []
             if run_multi and len(multi_years) < 2:
                 # Invalid input — disable for this run to avoid wasted EE calls.
@@ -748,9 +813,13 @@ class BatchMixin(rx.State, mixin=True):
 
                 try:
                     # ─── Step 1: EE geometry (instant, local GeoPackage) ────
-                    def _get_ee_geom(terr=territory):
-                        from ..utils.territory_service import get_territory_service
-                        svc = get_territory_service()
+                    def _get_ee_geom(terr=territory, ttype=territory_type):
+                        if ttype == "conservation":
+                            from ..utils.conservation_service import get_conservation_unit_service
+                            svc = get_conservation_unit_service()
+                        else:
+                            from ..utils.territory_service import get_territory_service
+                            svc = get_territory_service()
                         geojson = svc.get_geojson_for_key(terr)
                         if geojson is None:
                             raise ValueError(f"Territory not found in GeoPackage: {terr}")
@@ -775,9 +844,13 @@ class BatchMixin(rx.State, mixin=True):
                     # — split them into four bounding-box quadrants and run
                     # the whole pipeline on each.  Each quadrant becomes its
                     # own sub-folder in the ZIP (nw/, ne/, sw/, se/).
-                    def _get_area_and_shapely(terr=territory):
-                        from ..utils.territory_service import get_territory_service
-                        svc = get_territory_service()
+                    def _get_area_and_shapely(terr=territory, ttype=territory_type):
+                        if ttype == "conservation":
+                            from ..utils.conservation_service import get_conservation_unit_service
+                            svc = get_conservation_unit_service()
+                        else:
+                            from ..utils.territory_service import get_territory_service
+                            svc = get_territory_service()
                         info = svc.get_territory_info(terr)
                         row = svc._get_row(terr)
                         return info.get("superficie_ha", 0), (row.geometry if row is not None else None)
@@ -799,8 +872,9 @@ class BatchMixin(rx.State, mixin=True):
                     else:
                         regions = [("", ee_geom, buf_ee_geom)]
 
-                    # Per-region result containers (region_name → result dict)
-                    per_region: Dict[str, Dict[str, Any]] = {}
+                    # Accumulate (region_name, ee_geom, gfc_result) for maps +
+                    # timeline tasks that run after the regions loop.
+                    region_map_data: List[tuple] = []
 
                     for region_name, region_ee_geom, region_buf_geom in regions:
                         rlabel = f" [{region_name.upper()}]" if region_name else ""
@@ -1152,14 +1226,8 @@ class BatchMixin(rx.State, mixin=True):
                                     async with self:
                                         self._batch_append_log(f"  ⚠ skipped buffer multi-window{rsuffix}")
 
-                        # Track accumulated success across regions
-                        if mb_y1_result: had_mb_y1 = True
-                        if mb_y2_result: had_mb_y2 = True
-                        if cmp_result: had_cmp = True
-                        if glad_result: had_glad = True
-                        if gfc_result: had_gfc = True
-                        if any([buf_mb_result, buf_cmp_result, buf_glad_result, buf_gfc_result]):
-                            had_buffer = True
+                        # Capture region data for per-quadrant maps + timeline
+                        region_map_data.append((region_name, region_ee_geom, gfc_result))
 
                         # ─── Step 11: Write THIS region to master ZIP ───────
                         async with self:
@@ -1367,7 +1435,7 @@ class BatchMixin(rx.State, mixin=True):
                             zf=master_zf,
                             terr=territory,
                             geojson=raw_geojson,
-                            ee_g=ee_geom,
+                            all_regions=region_map_data,
                             buf_ee=buf_ee_geom,
                             y1=year1, y2=year2, hy=hansen_year,
                             do_mb=(run_mb or run_cmp),
@@ -1378,7 +1446,6 @@ class BatchMixin(rx.State, mixin=True):
                                 from ..utils.export_service import _slug
                                 from ..utils.map_export_service import create_map_set
                                 t_slug = _slug(terr)
-                                # Buffer outline (single EE round-trip if available)
                                 buf_gj = None
                                 if buf_ee is not None:
                                     try:
@@ -1388,33 +1455,36 @@ class BatchMixin(rx.State, mixin=True):
 
                                 mb_years: List[int] = []
                                 if do_mb:
-                                    if y1 == y2:
-                                        mb_years = [int(y1)]
-                                    else:
-                                        mb_years = [int(y1), int(y2)]
+                                    mb_years = [int(y1)] if y1 == y2 else [int(y1), int(y2)]
                                 glad_layers = [str(hy)] if do_glad else None
-
-                                # Per-user spec: per-year aux layers reuse the
-                                # batch year2 (final year); full-period layers
-                                # (fire_frequency) ignore the year.
                                 aux_layers = [(k, int(y2)) for k in aux_keys]
+                                multi = any(rname for rname, _, __ in all_regions)
 
-                                maps = create_map_set(
-                                    drawn_features=[],
-                                    territory_name=terr,
-                                    active_mapbiomas_years=mb_years,
-                                    active_hansen_layers=glad_layers,
-                                    ee_geometry=ee_g,
-                                    territory_geojson=geojson,
-                                    buffer_geojson=buf_gj,
-                                    image_format="png",
-                                    active_aux_layers=aux_layers,
-                                )
-                                for name, img_bytes in (maps or {}).items():
-                                    zf.writestr(
-                                        f"territory/{t_slug}/maps/{t_slug}_{name}.png",
-                                        img_bytes,
-                                    )
+                                for rname, region_geom, _ in all_regions:
+                                    q_label = rname.upper() if rname else ""
+                                    map_title = f"{terr} [{q_label}]" if q_label else terr
+                                    fname_pre = f"{q_label}_" if q_label else ""
+                                    try:
+                                        maps = create_map_set(
+                                            drawn_features=[],
+                                            territory_name=map_title,
+                                            active_mapbiomas_years=mb_years,
+                                            active_hansen_layers=glad_layers,
+                                            ee_geometry=region_geom,
+                                            territory_geojson=geojson,
+                                            buffer_geojson=buf_gj,
+                                            image_format="png",
+                                            active_aux_layers=aux_layers,
+                                        )
+                                        for name, img_bytes in (maps or {}).items():
+                                            zf.writestr(
+                                                f"territory/{t_slug}/maps/{t_slug}_{fname_pre}{name}.png",
+                                                img_bytes,
+                                            )
+                                    except Exception as me:
+                                        logger.warning(
+                                            f"PDF maps {q_label or 'full'} for {terr}: {me}",
+                                        )
                             except Exception as me:
                                 logger.warning(
                                     f"PDF maps for {terr} failed (non-fatal): {me}",
@@ -1435,13 +1505,13 @@ class BatchMixin(rx.State, mixin=True):
                         def _write_timeline(
                             zf=master_zf,
                             terr=territory,
-                            ee_g=ee_geom,
+                            all_regions=region_map_data,
                             buf_ee=buf_ee_geom,
                             ben=buf_enabled,
                             bkm=buf_km,
                             y_start=int(year1),
                             y_end=int(year2),
-                            gfc_t=gfc_result,
+                            ttype=territory_type,
                         ):
                             try:
                                 from ..utils.export_service import _slug, _write_fig
@@ -1460,8 +1530,12 @@ class BatchMixin(rx.State, mixin=True):
 
                                 # State code for the political bar
                                 try:
-                                    svc = get_territory_service()
-                                    info = svc.get_territory_info(terr) or {}
+                                    if ttype == "conservation":
+                                        from ..utils.conservation_service import get_conservation_unit_service
+                                        _svc = get_conservation_unit_service()
+                                    else:
+                                        _svc = get_territory_service()
+                                    info = _svc.get_territory_info(terr) or {}
                                     state_code = first_state_code(info.get("uf_sigla"))
                                 except Exception:
                                     state_code = None
@@ -1513,7 +1587,11 @@ class BatchMixin(rx.State, mixin=True):
                                         if fig is not None:
                                             base = (f"{fig_dir}/{t_slug}_deforestation_timeline_"
                                                     f"{y_start}_{y_end}_{suffix}{label_suffix}")
-                                            _write_fig(zf, base, fig)
+                                            # High-res PNG: timeline charts are tall with many
+                                            # policy rows + milestones — use scale=2 so the PNG
+                                            # is print-ready; kaleido uses the figure's own
+                                            # layout dimensions (height=1100) as the base size.
+                                            _write_fig(zf, base, fig, png_scale=2.0)
 
                                     # Also emit single-indicator raw plots (one line each)
                                     for ik, ival in series.items():
@@ -1533,13 +1611,22 @@ class BatchMixin(rx.State, mixin=True):
                                                     f"{fig_dir}/{t_slug}_deforestation_timeline_"
                                                     f"{y_start}_{y_end}_{ik}{label_suffix}"
                                                 )
-                                                _write_fig(zf, base_single, fig_single)
+                                                _write_fig(zf, base_single, fig_single,
+                                                           png_scale=2.0)
                                         except Exception:
                                             logger.debug(f"failed to write single-indicator plot for {ik}")
 
-                                # Territory
+                                # Territory — one pass per region/quadrant
                                 t_dir = f"territory/{t_slug}/deforestation_timeline"
-                                _write_region("", t_dir, ee_g, gfc_t, title_extra="")
+                                for rname, region_geom, region_gfc in all_regions:
+                                    q_label = rname.upper() if rname else ""
+                                    _write_region(
+                                        f"_{q_label}" if q_label else "",
+                                        t_dir,
+                                        region_geom,
+                                        region_gfc,
+                                        title_extra=f" [{q_label}]" if q_label else "",
+                                    )
 
                                 # Buffer (uses the territory's Hansen GFC fallback
                                 # only if buffer GFC isn't available — Hansen yearly

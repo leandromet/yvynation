@@ -71,6 +71,60 @@ def territory_selector() -> rx.Component:
             ),
             width="100%", align_items="center",
         ),
+        # Territory type toggle
+        rx.hstack(
+            rx.button(
+                "🪶 Indigenous",
+                on_click=AppState.batch_set_territory_type("indigenous"),
+                size="1",
+                bg=rx.cond(
+                    AppState.batch_territory_type == "indigenous",
+                    ORANGE, "white",
+                ),
+                color=rx.cond(
+                    AppState.batch_territory_type == "indigenous",
+                    "white", "#6B7280",
+                ),
+                border=rx.cond(
+                    AppState.batch_territory_type == "indigenous",
+                    f"1px solid {ORANGE}",
+                    f"1px solid #D1D5DB",
+                ),
+                border_radius="md",
+                flex="1",
+                cursor="pointer",
+                _hover={"bg": rx.cond(
+                    AppState.batch_territory_type == "indigenous",
+                    ORANGE_DARK, "#F9FAFB",
+                )},
+            ),
+            rx.button(
+                "🌿 Conservation Units",
+                on_click=AppState.batch_set_territory_type("conservation"),
+                size="1",
+                bg=rx.cond(
+                    AppState.batch_territory_type == "conservation",
+                    "#16A34A", "white",
+                ),
+                color=rx.cond(
+                    AppState.batch_territory_type == "conservation",
+                    "white", "#6B7280",
+                ),
+                border=rx.cond(
+                    AppState.batch_territory_type == "conservation",
+                    "1px solid #16A34A",
+                    "1px solid #D1D5DB",
+                ),
+                border_radius="md",
+                flex="1",
+                cursor="pointer",
+                _hover={"bg": rx.cond(
+                    AppState.batch_territory_type == "conservation",
+                    "#15803D", "#F9FAFB",
+                )},
+            ),
+            width="100%", spacing="2",
+        ),
         # Search
         rx.input(
             placeholder="🔍 Search territories…",
@@ -124,10 +178,21 @@ def territory_selector() -> rx.Component:
                             cursor="pointer",
                             on_click=AppState.batch_toggle_territory(t),
                         ),
-                        spacing="0", align_items="flex-start", width="100%",
+                        spacing="0", align_items="flex-start", flex="1",
+                    ),
+                    rx.cond(
+                        AppState.batch_territory_uf.get(t, "") != "",
+                        rx.badge(
+                            AppState.batch_territory_uf.get(t, ""),
+                            font_size="xs",
+                            color_scheme="gray",
+                            variant="soft",
+                            flex_shrink="0",
+                        ),
+                        rx.box(),
                     ),
                     width="100%",
-                    align_items="flex-start",
+                    align_items="center",
                     spacing="2",
                     padding="0.35rem 0.5rem",
                     border_radius="md",
@@ -551,11 +616,12 @@ def howto_panel() -> rx.Component:
         rx.text(
             "Run the full Yvynation analysis pipeline (MapBiomas land cover, "
             "year-over-year change, Hansen GLAD forest cover, and Hansen GFC "
-            "loss/gain) across many indigenous territories in one unattended "
-            "run. Each territory — and its optional external buffer — is "
-            "processed via Google Earth Engine and packaged into a single ZIP "
-            "archive containing CSV tables, transition matrices, and chart "
-            "figures (HTML + PNG) per territory.",
+            "loss/gain) across many territories in one unattended run. "
+            "Supports both FUNAI indigenous territories (657) and CNUC "
+            "conservation units (3,247). Each territory — and its optional "
+            "external buffer — is processed via Google Earth Engine and "
+            "packaged into a single ZIP archive containing CSV tables, "
+            "transition matrices, and chart figures (HTML + PNG) per territory.",
             font_size="sm", color="#374151", line_height="1.6",
         ),
         rx.divider(border_color="#F3F4F6"),
@@ -582,9 +648,11 @@ def howto_panel() -> rx.Component:
                     _howto_step(
                         1,
                         "Select territories",
-                        "Use the search box on the left, then tick the territories you "
-                        "want to include. “Select all filtered” adds every match of the "
-                        "current search; “Clear all” starts over.",
+                        "Choose the source type (Indigenous or Conservation Units) "
+                        "then use the search box to filter, and tick the territories you "
+                        "want to include. 'Select all filtered' adds every match of the "
+                        "current search; 'Clear all' starts over. Switching type clears "
+                        "the current selection.",
                     ),
                     _howto_step(
                         2,
@@ -614,14 +682,14 @@ def howto_panel() -> rx.Component:
                     _howto_step(
                         6,
                         "Start the batch",
-                        "Click “Start Batch Processing”. The configuration panel is "
+                        "Click 'Start Batch Processing'. The configuration panel is "
                         "replaced by the live progress view; you can stop after the "
                         "current territory at any time.",
                     ),
                     _howto_step(
                         7,
                         "Download the ZIP",
-                        "When the run finishes, hit “Download ZIP” to grab all "
+                        "When the run finishes, hit 'Download ZIP' to grab all "
                         "tables, transitions, and figures for every territory in one "
                         "self-describing archive.",
                     ),

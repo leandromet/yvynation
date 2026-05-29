@@ -95,17 +95,45 @@ def _plotly_to_html_bytes(fig) -> Optional[bytes]:
         return None
 
 
-def _plotly_to_png_bytes(fig, width: int = 1400, height: int = 700) -> Optional[bytes]:
-    """Convert Plotly figure to PNG bytes (requires kaleido)."""
+def _plotly_to_png_bytes(
+    fig,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    scale: float = 1.0,
+) -> Optional[bytes]:
+    """Convert Plotly figure to PNG bytes (requires kaleido).
+
+    When *width*/*height* are omitted, kaleido uses the figure's own layout
+    dimensions (or its default 700×450 if none are set).  Pass ``scale`` > 1
+    for high-DPI export (scale=2 → @2× / print quality).
+    """
     try:
-        return fig.to_image(format="png", width=width, height=height)
+        kwargs: dict = {"format": "png", "scale": scale}
+        if width is not None:
+            kwargs["width"] = width
+        if height is not None:
+            kwargs["height"] = height
+        return fig.to_image(**kwargs)
     except Exception as e:
         logger.warning(f"Plotly → PNG failed (install kaleido): {e}")
         return None
 
 
-def _write_fig(zf: zipfile.ZipFile, base_path: str, fig) -> None:
-    """Write both .html and (if kaleido available) .png versions of a figure."""
+def _write_fig(
+    zf: zipfile.ZipFile,
+    base_path: str,
+    fig,
+    png_width: Optional[int] = None,
+    png_height: Optional[int] = None,
+    png_scale: float = 1.0,
+) -> None:
+    """Write both .html and (if kaleido available) .png versions of a figure.
+
+    For ordinary charts the default 1:1 scale is fine.  Pass
+    ``png_scale=2.0`` (and leave *png_width*/*png_height* unset) for the
+    deforestation-timeline chart so kaleido uses the figure's own layout
+    dimensions at @2× pixel density — print-ready quality.
+    """
     if fig is None:
         return
     try:
@@ -117,7 +145,7 @@ def _write_fig(zf: zipfile.ZipFile, base_path: str, fig) -> None:
         if html:
             zf.writestr(base_path + ".html", html)
         # PNG is optional
-        png = _plotly_to_png_bytes(fig)
+        png = _plotly_to_png_bytes(fig, width=png_width, height=png_height, scale=png_scale)
         if png:
             zf.writestr(base_path + ".png", png)
     except Exception as e:
