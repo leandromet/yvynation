@@ -153,6 +153,29 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                 return None, None
             if vis_params is None:
                 vis_params = {'min': 0, 'max': 255}
+        elif isinstance(layer_type, str) and layer_type.startswith('aux:'):
+            # MapBiomas auxiliary rasters (deforestation, fire, mining,
+            # agriculture-cycles). Spec comes from MAPBIOMAS_AUX_DATASETS so
+            # palettes/bands can be tuned in config without touching this
+            # renderer.
+            from ..config.config import MAPBIOMAS_AUX_DATASETS
+            aux_key = layer_type.split(':', 1)[1]
+            spec = MAPBIOMAS_AUX_DATASETS.get(aux_key)
+            if spec is None:
+                logger.warning(f"Unknown aux layer key: {aux_key}")
+                return None, None
+            band_tpl = spec["band_template"]
+            band = band_tpl.format(year=year) if "{year}" in band_tpl else band_tpl
+            try:
+                image = ee.Image(spec["asset"]).select(band)
+            except Exception as ee_err:
+                logger.warning(
+                    f"aux layer {aux_key}: failed to select band '{band}' on "
+                    f"{spec['asset']} — {ee_err}"
+                )
+                return None, None
+            if vis_params is None:
+                vis_params = dict(spec.get("vis") or {})
         else:
             return None, None
 
@@ -311,14 +334,19 @@ def create_pdf_map(
             if basemap:
                 ax.imshow(basemap, extent=[bm_bounds[0], bm_bounds[2], bm_bounds[1], bm_bounds[3]],
                           aspect='auto', zorder=0)
-        elif layer_type in ('mapbiomas', 'hansen') and ee_geometry and year:
-            # EE raster overlay
+        elif (
+            layer_type in ('mapbiomas', 'hansen')
+            or (isinstance(layer_type, str) and layer_type.startswith('aux:'))
+        ) and ee_geometry:
+            # EE raster overlay (year is required for per-year layers; aux
+            # layers with per_year=False ignore it).
             ee_img, ee_bounds = get_ee_layer_image(bounds, ee_geometry, layer_type, year)
             if ee_img:
                 ax.imshow(ee_img, extent=[ee_bounds[0], ee_bounds[2], ee_bounds[1], ee_bounds[3]],
                           aspect='auto', zorder=1, alpha=0.85)
             else:
-                # Fallback to satellite basemap
+                # Fallback to satellite basemap so the territory + buffer
+                # outlines still have a meaningful background.
                 basemap, bm_bounds = get_basemap_image(bounds, 'google_satellite')
                 if basemap:
                     ax.imshow(basemap, extent=[bm_bounds[0], bm_bounds[2], bm_bounds[1], bm_bounds[3]],
@@ -467,6 +495,7 @@ def create_map_set(
     territory_geojson: Optional[Dict] = None,
     buffer_geojson: Optional[Dict] = None,
     image_format: str = "pdf",
+    active_aux_layers: Optional[List[Tuple[str, Optional[int]]]] = None,
 ) -> Dict[str, bytes]:
     """
     Generate a set of maps for all active layers.
@@ -521,6 +550,38 @@ def create_map_set(
         )
         if img:
             maps[name] = img
+
+    # MapBiomas auxiliary rasters (deforestation, fire, mining, agriculture-cycles)
+    if active_aux_layers:
+        try:
+            from ..config.config import MAPBIOMAS_AUX_DATASETS
+        except Exception:
+            MAPBIOMAS_AUX_DATASETS = {}
+        for aux_key, year in active_aux_layers:
+            spec = MAPBIOMAS_AUX_DATASETS.get(aux_key)
+            if spec is None:
+                logger.warning(f"aux layer '{aux_key}' not in MAPBIOMAS_AUX_DATASETS")
+                continue
+            label = spec.get("label", aux_key)
+            per_year = bool(spec.get("per_year", False))
+            year_for_call = year if per_year else None
+            name_year = f"_{year}" if per_year and year else ""
+            # PNG-safe filename slug for the layer
+            safe_label = "".join(
+                c if c.isalnum() else "_"
+                for c in label.replace(" ", "_")
+            ).strip("_") or aux_key
+            name = f"{safe_label}{name_year}"
+            title = f"{label}{(' ' + str(year)) if per_year and year else ''}"
+            if territory_name:
+                title += f" | {territory_name}"
+            img = create_pdf_map(
+                bounds, f"aux:{aux_key}", year_for_call, drawn_features,
+                territory_geojson, buffer_geojson, title, raster_geometry,
+                image_format=image_format,
+            )
+            if img:
+                maps[name] = img
 
     # Satellite basemap
     img = create_pdf_map(

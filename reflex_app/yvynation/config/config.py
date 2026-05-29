@@ -103,6 +103,111 @@ HANSEN_COLOR_MAP = {
     12: "#4A6FA0", 13: "#FFD700", 14: "#FF6B35", 15: "#FFA500", 16: "#F0F8FF", 17: "#8B8680",
 }
 
+# ==============================================================================
+# MAPBIOMAS AUXILIARY RASTERS (collection 10 / 10.1 / fire collection 4)
+# ------------------------------------------------------------------------------
+# Each entry describes one EE Image that can be rendered as an additional PNG
+# in the batch map output. Fields:
+#
+#   asset          : full EE asset path
+#   label          : human-readable name (used in PNG file name / map title)
+#   band_template  : pattern with "{year}" placeholder when the dataset has one
+#                    band per year, or a constant band name for single-image
+#                    datasets (e.g. fire frequency, year of last fire).
+#   per_year       : True → renders for the configured batch year2; False →
+#                    one image covers the full record.
+#   vis            : default visualization (min/max/palette) passed to
+#                    EE Image.visualize(). Palettes are intentionally generic;
+#                    refine here without touching the rendering code.
+# ==============================================================================
+MAPBIOMAS_AUX_DATASETS = {
+    "deforestation_secondary": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10_1/"
+                 "mapbiomas_brazil_collection10_1_deforestation_secondary_vegetation_v3",
+        "label": "Deforestation & Secondary Vegetation",
+        "band_template": "classification_{year}",
+        "per_year": True,
+        # Classes (per MapBiomas spec): 0 nodata, 100 deforestation primary,
+        # 200 secondary-vegetation regrowth, 300 deforestation secondary,
+        # 400 anthropic use of secondary, 500 secondary-vegetation stable.
+        "vis": {
+            "min": 0, "max": 500,
+            "palette": [
+                "000000",  # 0 nodata
+                "ff0000",  # 100 deforestation primary
+                "00ff00",  # 200 secondary regrowth
+                "ff8000",  # 300 deforestation secondary
+                "808080",  # 400 anthropic on secondary
+                "008000",  # 500 stable secondary
+            ],
+        },
+    },
+    "fire_scar_size": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_annual_burned_scar_size_range_v1",
+        "label": "Annual Burned Area (scar size)",
+        "band_template": "classification_{year}",
+        "per_year": True,
+        # Bins (per MapBiomas Fire 4): 1=<10 ha, 2=10-100, 3=100-1000,
+        # 4=1000-10000, 5=>10000.
+        "vis": {
+            "min": 0, "max": 5,
+            "palette": ["000000", "fee08b", "fdae61", "f46d43", "d73027", "7f0000"],
+        },
+    },
+    "fire_frequency": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_fire_frequency_v1",
+        "label": "Fire Frequency (1985–2024)",
+        "band_template": "fire_frequency_1985_2024",
+        "per_year": False,
+        "vis": {
+            "min": 0, "max": 20,
+            "palette": ["ffffff", "ffffb2", "fecc5c", "fd8d3c", "f03b20", "bd0026"],
+        },
+    },
+    "fire_year_last": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_year_last_fire_v1",
+        "label": "Year of Last Fire",
+        "band_template": "classification_{year}",
+        "per_year": True,
+        "vis": {
+            "min": 1985, "max": 2024,
+            "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
+        },
+    },
+    "mining_substances": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
+                 "mapbiomas_brazil_collection10_mining_substances_v3",
+        "label": "Mining Substances",
+        "band_template": "classification_{year}",
+        "per_year": True,
+        # Substances: 0=nodata, others are substance IDs. Generic categorical
+        # palette — refine as the MapBiomas table evolves.
+        "vis": {
+            "min": 0, "max": 10,
+            "palette": [
+                "000000", "9c0027", "e6194b", "f58231", "ffe119",
+                "bcf60c", "3cb44b", "46f0f0", "4363d8", "911eb4", "f032e6",
+            ],
+        },
+    },
+    "agriculture_cycles": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
+                 "mapbiomas_brazil_collection10_agriculture_number_cycles_v2",
+        "label": "Agriculture — Number of Cycles",
+        "band_template": "classification_{year}",
+        "per_year": True,
+        # 0=nodata / non-agri, 1..4 = number of crop cycles in the year.
+        "vis": {
+            "min": 0, "max": 4,
+            "palette": ["ffffff", "edf8e9", "bae4b3", "74c476", "238b45"],
+        },
+    },
+}
+
+
 TERRITORY_COLLECTIONS = {
     'indigenous': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES',
     'biomes': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/BIOMES'

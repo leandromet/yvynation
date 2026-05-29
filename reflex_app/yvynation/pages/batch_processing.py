@@ -236,6 +236,66 @@ def config_panel() -> rx.Component:
                 on_change=AppState.batch_toggle_run_pdf_maps,
                 color_scheme="orange",
             ),
+            # Extra MapBiomas auxiliary raster layers (one PNG per layer per
+            # territory). Per-year layers render for the configured batch
+            # year2; fire frequency is a single full-period image.
+            rx.cond(
+                AppState.batch_run_pdf_maps,
+                rx.box(
+                    rx.vstack(
+                        rx.text(
+                            "Extra MapBiomas rasters (year2)",
+                            font_size="xs", font_weight="600",
+                            color="#374151",
+                            text_transform="uppercase", letter_spacing="0.05em",
+                        ),
+                        rx.checkbox(
+                            "🌳 Deforestation & secondary vegetation",
+                            checked=AppState.batch_run_aux_deforestation,
+                            on_change=AppState.batch_toggle_aux_deforestation,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            "🔥 Annual burned area (fire scar size)",
+                            checked=AppState.batch_run_aux_fire_scar,
+                            on_change=AppState.batch_toggle_aux_fire_scar,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            "📊 Fire frequency (1985–2024 full period)",
+                            checked=AppState.batch_run_aux_fire_frequency,
+                            on_change=AppState.batch_toggle_aux_fire_frequency,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            "📅 Year of last fire",
+                            checked=AppState.batch_run_aux_fire_year_last,
+                            on_change=AppState.batch_toggle_aux_fire_year_last,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            "⛏️ Mining substances",
+                            checked=AppState.batch_run_aux_mining_substances,
+                            on_change=AppState.batch_toggle_aux_mining_substances,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            "🌾 Agriculture — number of cycles",
+                            checked=AppState.batch_run_aux_agriculture_cycles,
+                            on_change=AppState.batch_toggle_aux_agriculture_cycles,
+                            color_scheme="orange",
+                        ),
+                        spacing="2", width="100%",
+                    ),
+                    padding="0.75rem",
+                    margin_left="1.75rem",
+                    bg="#FFF7ED",
+                    border="1px solid " + ORANGE_BORDER,
+                    border_radius="md",
+                    width="calc(100% - 1.75rem)",
+                ),
+                rx.box(),
+            ),
             rx.checkbox(
                 "🌀 Multiple time-window MapBiomas (Sankey + Sunburst)",
                 checked=AppState.batch_run_multi_window,

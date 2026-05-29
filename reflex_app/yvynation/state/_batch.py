@@ -359,6 +359,15 @@ class BatchMixin(rx.State, mixin=True):
     batch_run_glad: bool = True
     batch_run_gfc: bool = True
     batch_run_pdf_maps: bool = True
+    # ── MapBiomas auxiliary raster layers (each rendered as one PNG when on) ──
+    # Per-year layers use the configured batch year2; full-period layers
+    # (fire_frequency) render one image regardless of year selection.
+    batch_run_aux_deforestation: bool = False
+    batch_run_aux_fire_scar: bool = False
+    batch_run_aux_fire_frequency: bool = False
+    batch_run_aux_fire_year_last: bool = False
+    batch_run_aux_mining_substances: bool = False
+    batch_run_aux_agriculture_cycles: bool = False
     # ── Multiple time-window MapBiomas (off by default) ───────────────────
     batch_run_multi_window: bool = False
     # "constant" → step list from 1985, force-end on 2024
@@ -505,6 +514,25 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_run_pdf_maps(self, val: bool):
         self.batch_run_pdf_maps = val
 
+    # ── Auxiliary-layer toggles ──────────────────────────────────────────
+    def batch_toggle_aux_deforestation(self, val: bool):
+        self.batch_run_aux_deforestation = val
+
+    def batch_toggle_aux_fire_scar(self, val: bool):
+        self.batch_run_aux_fire_scar = val
+
+    def batch_toggle_aux_fire_frequency(self, val: bool):
+        self.batch_run_aux_fire_frequency = val
+
+    def batch_toggle_aux_fire_year_last(self, val: bool):
+        self.batch_run_aux_fire_year_last = val
+
+    def batch_toggle_aux_mining_substances(self, val: bool):
+        self.batch_run_aux_mining_substances = val
+
+    def batch_toggle_aux_agriculture_cycles(self, val: bool):
+        self.batch_run_aux_agriculture_cycles = val
+
     # ── Multi-window MapBiomas setters ────────────────────────────────────
     def batch_toggle_run_multi_window(self, val: bool):
         self.batch_run_multi_window = val
@@ -628,6 +656,13 @@ class BatchMixin(rx.State, mixin=True):
             run_gfc = bool(self.batch_run_gfc)
             run_maps = bool(self.batch_run_pdf_maps)
             run_multi = bool(self.batch_run_multi_window)
+            aux_layer_keys: List[str] = []
+            if self.batch_run_aux_deforestation:    aux_layer_keys.append("deforestation_secondary")
+            if self.batch_run_aux_fire_scar:        aux_layer_keys.append("fire_scar_size")
+            if self.batch_run_aux_fire_frequency:   aux_layer_keys.append("fire_frequency")
+            if self.batch_run_aux_fire_year_last:   aux_layer_keys.append("fire_year_last")
+            if self.batch_run_aux_mining_substances:aux_layer_keys.append("mining_substances")
+            if self.batch_run_aux_agriculture_cycles:aux_layer_keys.append("agriculture_cycles")
             multi_years: List[int] = list(self.batch_multi_window_resolved_years) if run_multi else []
             if run_multi and len(multi_years) < 2:
                 # Invalid input — disable for this run to avoid wasted EE calls.
@@ -1325,6 +1360,7 @@ class BatchMixin(rx.State, mixin=True):
                             y1=year1, y2=year2, hy=hansen_year,
                             do_mb=(run_mb or run_cmp),
                             do_glad=run_glad,
+                            aux_keys=tuple(aux_layer_keys),
                         ):
                             try:
                                 from ..utils.export_service import _slug
@@ -1346,6 +1382,11 @@ class BatchMixin(rx.State, mixin=True):
                                         mb_years = [int(y1), int(y2)]
                                 glad_layers = [str(hy)] if do_glad else None
 
+                                # Per-user spec: per-year aux layers reuse the
+                                # batch year2 (final year); full-period layers
+                                # (fire_frequency) ignore the year.
+                                aux_layers = [(k, int(y2)) for k in aux_keys]
+
                                 maps = create_map_set(
                                     drawn_features=[],
                                     territory_name=terr,
@@ -1355,6 +1396,7 @@ class BatchMixin(rx.State, mixin=True):
                                     territory_geojson=geojson,
                                     buffer_geojson=buf_gj,
                                     image_format="png",
+                                    active_aux_layers=aux_layers,
                                 )
                                 for name, img_bytes in (maps or {}).items():
                                     zf.writestr(
