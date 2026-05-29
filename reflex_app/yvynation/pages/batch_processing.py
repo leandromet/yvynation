@@ -361,6 +361,12 @@ def config_panel() -> rx.Component:
                 ),
                 rx.box(),
             ),
+            rx.checkbox(
+                "📈 Deforestation timeline (Hansen + MapBiomas + Fire) with political/policy context",
+                checked=AppState.batch_run_deforestation_timeline,
+                on_change=AppState.batch_toggle_run_deforestation_timeline,
+                color_scheme="orange",
+            ),
             spacing="2",
         ),
 

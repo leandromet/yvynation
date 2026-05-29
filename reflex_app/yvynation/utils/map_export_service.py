@@ -157,25 +157,50 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
             # MapBiomas auxiliary rasters (deforestation, fire, mining,
             # agriculture-cycles). Spec comes from MAPBIOMAS_AUX_DATASETS so
             # palettes/bands can be tuned in config without touching this
-            # renderer.
-            from ..config.config import MAPBIOMAS_AUX_DATASETS
+            # renderer. We probe the asset's actual band names and try each
+            # candidate in order — handles the common case where different
+            # MapBiomas collections use slightly different band naming.
+            from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
             aux_key = layer_type.split(':', 1)[1]
             spec = MAPBIOMAS_AUX_DATASETS.get(aux_key)
             if spec is None:
                 logger.warning(f"Unknown aux layer key: {aux_key}")
                 return None, None
-            band_tpl = spec["band_template"]
-            band = band_tpl.format(year=year) if "{year}" in band_tpl else band_tpl
+            asset_id = spec["asset"]
+            candidates = spec.get("band_candidates") or []
+            # Per-year layers: try the configured year, then walk back a few
+            # years (some assets stop at 2023 even when 2024 was requested).
+            band = None
+            year_used = year
+            if spec.get("per_year") and year is not None:
+                for y_try in (year, year - 1, year - 2):
+                    band = resolve_aux_band(asset_id, candidates, year=y_try)
+                    if band:
+                        year_used = y_try
+                        break
+            else:
+                band = resolve_aux_band(asset_id, candidates)
+            if band is None:
+                logger.warning(
+                    f"aux layer {aux_key}: no candidate band found in "
+                    f"{asset_id}. Tried: {candidates}"
+                )
+                return None, None
             try:
-                image = ee.Image(spec["asset"]).select(band)
+                image = ee.Image(asset_id).select(band)
             except Exception as ee_err:
                 logger.warning(
-                    f"aux layer {aux_key}: failed to select band '{band}' on "
-                    f"{spec['asset']} — {ee_err}"
+                    f"aux layer {aux_key}: select('{band}') failed on "
+                    f"{asset_id} — {ee_err}"
                 )
                 return None, None
             if vis_params is None:
                 vis_params = dict(spec.get("vis") or {})
+            logger.info(
+                f"aux layer {aux_key}: using band '{band}'"
+                + (f" (fell back from year {year} to {year_used})"
+                   if year_used != year else "")
+            )
         else:
             return None, None
 

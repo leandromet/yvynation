@@ -3,6 +3,8 @@ Configuration and constants for Yvynation Reflex app.
 Adapted from original Streamlit version - no Streamlit dependencies.
 """
 
+from typing import List, Optional  # used by aux-band helper annotations below
+
 # ==============================================================================
 # EARTH ENGINE PROJECT CONFIGURATION
 # ==============================================================================
@@ -125,28 +127,38 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10_1/"
                  "mapbiomas_brazil_collection10_1_deforestation_secondary_vegetation_v3",
         "label": "Deforestation & Secondary Vegetation",
-        "band_template": "classification_{year}",
+        # Two value semantics are common for this asset:
+        #   - "year_value"  : single band, pixel value = year of event
+        #   - "class_value" : per-year band ``classification_{year}`` whose
+        #                     pixel is a class code (100/200/…).
+        # ``band_candidates`` is tried in order; the first one present in the
+        # EE asset wins. ``value_semantics`` tells the renderer how to read it.
+        "value_semantics": "year_value",
+        "band_candidates": [
+            "primary_vegetation_loss",
+            "primary_vegetation_year_to_secondary",
+            "deforestation_year",
+            "secondary_vegetation_regrowth",
+            "classification_{year}",  # fallback to class-coded per-year band
+        ],
         "per_year": True,
-        # Classes (per MapBiomas spec): 0 nodata, 100 deforestation primary,
-        # 200 secondary-vegetation regrowth, 300 deforestation secondary,
-        # 400 anthropic use of secondary, 500 secondary-vegetation stable.
+        # Visualization for single-band year-valued pixels: palette spans the
+        # year range so older events appear cooler, newer warmer.
         "vis": {
-            "min": 0, "max": 500,
-            "palette": [
-                "000000",  # 0 nodata
-                "ff0000",  # 100 deforestation primary
-                "00ff00",  # 200 secondary regrowth
-                "ff8000",  # 300 deforestation secondary
-                "808080",  # 400 anthropic on secondary
-                "008000",  # 500 stable secondary
-            ],
+            "min": 1985, "max": 2024,
+            "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
         },
     },
     "fire_scar_size": {
         "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
                  "mapbiomas_fire_collection4_annual_burned_scar_size_range_v1",
         "label": "Annual Burned Area (scar size)",
-        "band_template": "classification_{year}",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "scar_size_{year}",
+            "burned_area_{year}",
+            "classification_{year}",
+        ],
         "per_year": True,
         # Bins (per MapBiomas Fire 4): 1=<10 ha, 2=10-100, 3=100-1000,
         # 4=1000-10000, 5=>10000.
@@ -159,7 +171,11 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
                  "mapbiomas_fire_collection4_fire_frequency_v1",
         "label": "Fire Frequency (1985–2024)",
-        "band_template": "fire_frequency_1985_2024",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "fire_frequency_1985_2024",
+            "fire_frequency",
+        ],
         "per_year": False,
         "vis": {
             "min": 0, "max": 20,
@@ -170,7 +186,12 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
                  "mapbiomas_fire_collection4_year_last_fire_v1",
         "label": "Year of Last Fire",
-        "band_template": "classification_{year}",
+        "value_semantics": "year_value",
+        "band_candidates": [
+            "classification_{year}",
+            "year_last_fire_{year}",
+            "year_last_fire",
+        ],
         "per_year": True,
         "vis": {
             "min": 1985, "max": 2024,
@@ -181,10 +202,14 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
                  "mapbiomas_brazil_collection10_mining_substances_v3",
         "label": "Mining Substances",
-        "band_template": "classification_{year}",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "mining_substances_{year}",
+            "classification_{year}",
+            "substance_{year}",
+            "mining_{year}",
+        ],
         "per_year": True,
-        # Substances: 0=nodata, others are substance IDs. Generic categorical
-        # palette — refine as the MapBiomas table evolves.
         "vis": {
             "min": 0, "max": 10,
             "palette": [
@@ -197,15 +222,66 @@ MAPBIOMAS_AUX_DATASETS = {
         "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
                  "mapbiomas_brazil_collection10_agriculture_number_cycles_v2",
         "label": "Agriculture — Number of Cycles",
-        "band_template": "classification_{year}",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "agriculture_cycles_{year}",
+            "number_of_cycles_{year}",
+            "classification_{year}",
+            "cycles_{year}",
+        ],
         "per_year": True,
-        # 0=nodata / non-agri, 1..4 = number of crop cycles in the year.
         "vis": {
             "min": 0, "max": 4,
             "palette": ["ffffff", "edf8e9", "bae4b3", "74c476", "238b45"],
         },
     },
 }
+
+
+def resolve_aux_band(asset_id: str, candidates: List[str], year=None) -> Optional[str]:
+    """Return the first candidate band that exists in ``asset_id``.
+
+    Each candidate may contain ``{year}`` which is substituted with ``year``
+    before lookup. Available bands are pulled via a tiny EE call cached at
+    module level — one round-trip per asset across the whole run.
+    """
+    try:
+        bands = _list_aux_bands(asset_id)
+    except Exception:
+        return None
+    if not bands:
+        return None
+    available = set(bands)
+    for cand in candidates:
+        if "{year}" in cand:
+            if year is None:
+                continue
+            name = cand.format(year=year)
+        else:
+            name = cand
+        if name in available:
+            return name
+    return None
+
+
+_AUX_BAND_CACHE: dict = {}
+
+
+def _list_aux_bands(asset_id: str) -> List[str]:
+    """One ``bandNames().getInfo()`` per asset, cached for the whole process."""
+    if asset_id in _AUX_BAND_CACHE:
+        return _AUX_BAND_CACHE[asset_id]
+    try:
+        import ee
+        names = ee.Image(asset_id).bandNames().getInfo() or []
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"could not list bands for aux asset {asset_id}: {e}"
+        )
+        names = []
+    _AUX_BAND_CACHE[asset_id] = names
+    return names
 
 
 TERRITORY_COLLECTIONS = {

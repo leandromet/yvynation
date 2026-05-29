@@ -16,6 +16,10 @@ collects data from *all* selected territories into one file:
       hansen_glad/  …
       hansen_gfc/  …
       maps/        ← PNG maps (satellite, MapBiomas y1/y2, Hansen)
+      deforestation_timeline/  ← optional: yearly Hansen + MapBiomas defor +
+                                  secondary regrowth + fire scar CSV, plus
+                                  three chart variants (raw, MA5, derivatives)
+                                  with political/policy context bars.
     buffer/{buffer_slug}/
       …
     batch_summary.json
@@ -368,6 +372,10 @@ class BatchMixin(rx.State, mixin=True):
     batch_run_aux_fire_year_last: bool = False
     batch_run_aux_mining_substances: bool = False
     batch_run_aux_agriculture_cycles: bool = False
+    # ── Annual deforestation / regrowth / fire timeline with political &
+    # policy context bars (per-territory, full year range from batch_year to
+    # batch_year2). One CSV + three chart variants per region.
+    batch_run_deforestation_timeline: bool = False
     # ── Multiple time-window MapBiomas (off by default) ───────────────────
     batch_run_multi_window: bool = False
     # "constant" → step list from 1985, force-end on 2024
@@ -533,6 +541,9 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_aux_agriculture_cycles(self, val: bool):
         self.batch_run_aux_agriculture_cycles = val
 
+    def batch_toggle_run_deforestation_timeline(self, val: bool):
+        self.batch_run_deforestation_timeline = val
+
     # ── Multi-window MapBiomas setters ────────────────────────────────────
     def batch_toggle_run_multi_window(self, val: bool):
         self.batch_run_multi_window = val
@@ -663,6 +674,7 @@ class BatchMixin(rx.State, mixin=True):
             if self.batch_run_aux_fire_year_last:   aux_layer_keys.append("fire_year_last")
             if self.batch_run_aux_mining_substances:aux_layer_keys.append("mining_substances")
             if self.batch_run_aux_agriculture_cycles:aux_layer_keys.append("agriculture_cycles")
+            run_timeline = bool(self.batch_run_deforestation_timeline)
             multi_years: List[int] = list(self.batch_multi_window_resolved_years) if run_multi else []
             if run_multi and len(multi_years) < 2:
                 # Invalid input — disable for this run to avoid wasted EE calls.
@@ -1414,6 +1426,117 @@ class BatchMixin(rx.State, mixin=True):
                         except Exception as me:
                             async with self:
                                 self._batch_append_log(f"  ⚠ PDF maps skipped: {me}")
+
+                    # ── Deforestation timeline (per-territory + buffer) ─────
+                    if run_timeline:
+                        async with self:
+                            self.batch_current_step = "📈 Deforestation timeline…"
+
+                        def _write_timeline(
+                            zf=master_zf,
+                            terr=territory,
+                            ee_g=ee_geom,
+                            buf_ee=buf_ee_geom,
+                            ben=buf_enabled,
+                            bkm=buf_km,
+                            y_start=int(year1),
+                            y_end=int(year2),
+                            gfc_t=gfc_result,
+                        ):
+                            try:
+                                from ..utils.export_service import _slug, _write_fig
+                                from ..utils.deforestation_timeline import (
+                                    collect_timeline, first_state_code,
+                                )
+                                from ..utils.visualization import (
+                                    create_deforestation_timeline_chart,
+                                )
+                                from ..utils.territory_service import get_territory_service
+                                import pandas as pd
+
+                                t_slug = _slug(terr)
+                                if y_end < y_start:
+                                    y_start, y_end = y_end, y_start
+
+                                # State code for the political bar
+                                try:
+                                    svc = get_territory_service()
+                                    info = svc.get_territory_info(terr) or {}
+                                    state_code = first_state_code(info.get("uf_sigla"))
+                                except Exception:
+                                    state_code = None
+
+                                def _write_region(label_suffix, sub_dir, region_geom,
+                                                  gfc_for_region, title_extra):
+                                    """Build CSV + 3 chart variants for one region (territory or buffer)."""
+                                    series = collect_timeline(
+                                        region_geom, y_start, y_end,
+                                        gfc_result=gfc_for_region,
+                                    )
+                                    if not series:
+                                        return
+                                    # Wide CSV: one row per year, one column per indicator
+                                    years = list(range(y_start, y_end + 1))
+                                    rows = []
+                                    for y in years:
+                                        row = {"year": y}
+                                        for k, ser in series.items():
+                                            row[k] = float(ser.get(y, 0.0) or 0.0)
+                                        rows.append(row)
+                                    df = pd.DataFrame(rows)
+                                    csv_path = (f"{sub_dir}/{t_slug}_deforestation_timeline_"
+                                                f"{y_start}_{y_end}{label_suffix}.csv")
+                                    zf.writestr(csv_path,
+                                                df.to_csv(index=False).encode("utf-8"))
+
+                                    # Three chart variants
+                                    fig_dir = f"{sub_dir}/figures"
+                                    for variant, suffix in (
+                                        ("raw", "raw"),
+                                        ("moving_avg", "ma5"),
+                                        ("derivatives", "derivatives"),
+                                    ):
+                                        fig = create_deforestation_timeline_chart(
+                                            series,
+                                            state_code=state_code,
+                                            year_start=y_start,
+                                            year_end=y_end,
+                                            variant=variant,
+                                            moving_window=5,
+                                            title_suffix=f"{terr}{title_extra}",
+                                        )
+                                        if fig is not None:
+                                            base = (f"{fig_dir}/{t_slug}_deforestation_timeline_"
+                                                    f"{y_start}_{y_end}_{suffix}{label_suffix}")
+                                            _write_fig(zf, base, fig)
+
+                                # Territory
+                                t_dir = f"territory/{t_slug}/deforestation_timeline"
+                                _write_region("", t_dir, ee_g, gfc_t, title_extra="")
+
+                                # Buffer (uses the territory's Hansen GFC fallback
+                                # only if buffer GFC isn't available — Hansen yearly
+                                # loss for the buffer is best-effort).
+                                if ben and buf_ee is not None:
+                                    b_slug = _slug(f"{terr}_Buffer_{bkm:g}km")
+                                    b_dir = f"buffer/{b_slug}/deforestation_timeline"
+                                    _write_region(
+                                        f"_Buffer_{bkm:g}km",
+                                        b_dir, buf_ee, None,
+                                        title_extra=f" — Buffer {bkm:g} km",
+                                    )
+
+                            except Exception as te:
+                                logger.warning(
+                                    f"Deforestation timeline for {terr} failed: {te}",
+                                    exc_info=True,
+                                )
+
+                        try:
+                            await loop.run_in_executor(None, _write_timeline)
+                        except Exception as te:
+                            async with self:
+                                self._batch_append_log(f"  ⚠ Timeline skipped: {te}")
 
                     # ── Mark as completed ────────────────────────────────────
                     total_area = (

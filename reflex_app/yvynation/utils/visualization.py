@@ -851,3 +851,408 @@ def get_chart_for_analysis(analysis_data: Dict[str, Any],
     except Exception as e:
         logger.error(f"Failed to generate chart: {e}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# Deforestation / regrowth / fire timeline with political + policy context
+# ---------------------------------------------------------------------------
+
+# Ideology → fill colour. Maps the integer ideology codes used by
+# political_context_brazil.PRESIDENTS and GOVERNORS to a diverging palette.
+_IDEOLOGY_COLOR = {
+    -1: "#1f77b4",  # left
+     0: "#bdbdbd",  # centre
+     1: "#fdae61",  # centre-right
+     2: "#d73027",  # right / agribusiness
+}
+
+# Regime → fill colour for the policy bar (uses the regime labels from
+# policy_context_brazil.build_combined_context).
+_REGIME_COLOR = {
+    "redemocratisation":  "#9ecae1",
+    "new_republic_early": "#6baed6",
+    "FHC":                "#fdae61",
+    "Lula_I_II":          "#74c476",
+    "Dilma":              "#31a354",
+    "Temer":              "#fdae61",
+    "Bolsonaro":          "#d73027",
+    "Lula_III":           "#238b45",
+}
+
+# Indicator → display config
+_INDICATOR_CFG = {
+    "hansen_loss": {
+        "label": "Hansen tree-cover loss",
+        "color": "#d73027",
+        "dash": "solid",
+    },
+    "mb_defor_primary": {
+        "label": "MapBiomas primary deforestation",
+        "color": "#7f0000",
+        "dash": "solid",
+    },
+    "mb_secondary_growth": {
+        "label": "MapBiomas secondary regrowth",
+        "color": "#238b45",
+        "dash": "dash",
+    },
+    "mb_fire_scar": {
+        "label": "Annual burned area (MapBiomas Fire C4)",
+        "color": "#fd8d3c",
+        "dash": "dot",
+    },
+}
+
+
+def _moving_average(values: List[Optional[float]], window: int) -> List[Optional[float]]:
+    """Centred moving average. Returns ``None`` where the window can't fit."""
+    out: List[Optional[float]] = []
+    half = window // 2
+    for i in range(len(values)):
+        lo = i - half
+        hi = i + half + 1
+        if lo < 0 or hi > len(values):
+            out.append(None)
+            continue
+        chunk = [v for v in values[lo:hi] if v is not None]
+        if not chunk:
+            out.append(None)
+            continue
+        out.append(sum(chunk) / len(chunk))
+    return out
+
+
+def _first_diff(values: List[Optional[float]]) -> List[Optional[float]]:
+    out: List[Optional[float]] = [None]
+    for i in range(1, len(values)):
+        a, b = values[i - 1], values[i]
+        if a is None or b is None:
+            out.append(None)
+        else:
+            out.append(b - a)
+    return out
+
+
+def _political_shapes_and_annots(
+    state_code: Optional[str],
+    years: List[int],
+    bar_y0: float = 1.04,
+    bar_y1: float = 1.22,
+    add_governor: bool = True,
+):
+    """Build (shapes, annotations) for the political-context bar above the plot.
+
+    Uses ``political_context_brazil.build_political_context`` when a state
+    code is provided, otherwise falls back to presidents only.
+    """
+    try:
+        from .political_context_brazil import (
+            build_president_series, build_political_context, GOVERNORS,
+        )
+    except Exception as e:
+        logger.warning(f"political context import failed: {e}")
+        return [], []
+
+    shapes = []
+    annots = []
+    y0, y1 = bar_y0, bar_y1
+    mid_y = (y0 + y1) / 2
+
+    # Two stripes when a valid state is known: top = governor, bottom = president
+    if add_governor and state_code and state_code in GOVERNORS:
+        # split the bar into two stripes
+        gap = (y1 - y0) * 0.05
+        gov_y0, gov_y1 = y0, y0 + (y1 - y0) / 2 - gap / 2
+        pres_y0, pres_y1 = y0 + (y1 - y0) / 2 + gap / 2, y1
+        ctx = build_political_context(states=(state_code,), years=years)
+    else:
+        gov_y0 = gov_y1 = None
+        pres_y0, pres_y1 = y0, y1
+        ctx = None
+
+    # Presidents: collapse consecutive years with the same president into one shape
+    pres_df = build_president_series(years)
+    if pres_df is not None and len(pres_df) > 0:
+        groups = []
+        cur = None
+        for _, r in pres_df.iterrows():
+            if cur is None or r["president"] != cur["president"]:
+                if cur is not None:
+                    groups.append(cur)
+                cur = {
+                    "president": r["president"],
+                    "party": r["president_party"],
+                    "ideo": r["president_ideology"],
+                    "start": int(r["year"]),
+                    "end": int(r["year"]),
+                }
+            else:
+                cur["end"] = int(r["year"])
+        if cur is not None:
+            groups.append(cur)
+
+        for g in groups:
+            color = _IDEOLOGY_COLOR.get(int(g["ideo"] or 0), "#bdbdbd")
+            shapes.append({
+                "type": "rect", "xref": "x", "yref": "paper",
+                "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,
+                "y0": pres_y0, "y1": pres_y1,
+                "fillcolor": color, "line": {"width": 0.5, "color": "#555"},
+                "opacity": 0.9, "layer": "above",
+            })
+            # Label centred in the rectangle if it spans ≥ 3 years
+            if g["end"] - g["start"] >= 2:
+                annots.append({
+                    "x": (g["start"] + g["end"]) / 2,
+                    "y": (pres_y0 + pres_y1) / 2,
+                    "xref": "x", "yref": "paper",
+                    "text": f"{g['president'].split()[-1]} ({g['party']})",
+                    "showarrow": False,
+                    "font": {"size": 10, "color": "#111"},
+                })
+
+    # Governors stripe
+    if gov_y0 is not None and ctx is not None and len(ctx) > 0:
+        groups = []
+        cur = None
+        for _, r in ctx.iterrows():
+            gov = r.get("governor")
+            if cur is None or gov != cur["governor"]:
+                if cur is not None:
+                    groups.append(cur)
+                cur = {
+                    "governor": gov,
+                    "party": r.get("gov_party"),
+                    "ideo": r.get("gov_ideology") or 0,
+                    "start": int(r["year"]),
+                    "end": int(r["year"]),
+                }
+            else:
+                cur["end"] = int(r["year"])
+        if cur is not None:
+            groups.append(cur)
+
+        for g in groups:
+            color = _IDEOLOGY_COLOR.get(int(g["ideo"] or 0), "#bdbdbd")
+            shapes.append({
+                "type": "rect", "xref": "x", "yref": "paper",
+                "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,
+                "y0": gov_y0, "y1": gov_y1,
+                "fillcolor": color, "line": {"width": 0.5, "color": "#555"},
+                "opacity": 0.75, "layer": "above",
+            })
+            if g["end"] - g["start"] >= 3 and g["governor"]:
+                annots.append({
+                    "x": (g["start"] + g["end"]) / 2,
+                    "y": (gov_y0 + gov_y1) / 2,
+                    "xref": "x", "yref": "paper",
+                    "text": f"{state_code}: {str(g['governor']).split()[-1]}",
+                    "showarrow": False,
+                    "font": {"size": 9, "color": "#111"},
+                })
+
+    return shapes, annots
+
+
+def _policy_shapes_and_annots(
+    years: List[int],
+    bar_y0: float = -0.22,
+    bar_y1: float = -0.06,
+    milestone_limit: int = 8,
+):
+    """Build (shapes, annotations) for the policy-context bar below the plot."""
+    try:
+        from .policy_context_brazil import build_combined_context, build_milestones_df
+    except Exception as e:
+        logger.warning(f"policy context import failed: {e}")
+        return [], []
+
+    shapes = []
+    annots = []
+
+    df = build_combined_context(years)
+    if df is None or len(df) == 0:
+        return [], []
+
+    # Regime stripe
+    groups = []
+    cur = None
+    for _, r in df.iterrows():
+        reg = r.get("regime")
+        if cur is None or reg != cur["regime"]:
+            if cur is not None:
+                groups.append(cur)
+            cur = {"regime": reg, "start": int(r["year"]), "end": int(r["year"])}
+        else:
+            cur["end"] = int(r["year"])
+    if cur is not None:
+        groups.append(cur)
+
+    for g in groups:
+        color = _REGIME_COLOR.get(g["regime"], "#cccccc")
+        shapes.append({
+            "type": "rect", "xref": "x", "yref": "paper",
+            "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,
+            "y0": bar_y0, "y1": bar_y1,
+            "fillcolor": color, "line": {"width": 0.5, "color": "#555"},
+            "opacity": 0.85, "layer": "above",
+        })
+        if g["end"] - g["start"] >= 2 and g["regime"]:
+            annots.append({
+                "x": (g["start"] + g["end"]) / 2,
+                "y": (bar_y0 + bar_y1) / 2,
+                "xref": "x", "yref": "paper",
+                "text": g["regime"].replace("_", " "),
+                "showarrow": False,
+                "font": {"size": 9, "color": "#111"},
+            })
+
+    # Highlight a few major legal milestones in the requested year range
+    try:
+        ms_df = build_milestones_df()
+        in_range = ms_df[(ms_df["year"] >= years[0]) & (ms_df["year"] <= years[-1])]
+        # Pick a manageable subset prioritising FOREST_LAW + INDIGENOUS categories.
+        priority = in_range[in_range["category"].isin(["FOREST_LAW", "INDIGENOUS", "CLIMATE"])]
+        picks = priority.head(milestone_limit)
+        for _, r in picks.iterrows():
+            annots.append({
+                "x": int(r["year"]),
+                "y": bar_y0 - 0.04,
+                "xref": "x", "yref": "paper",
+                "text": "▲",
+                "showarrow": False,
+                "font": {"size": 12, "color": "#333"},
+                "hovertext": f"{int(r['year'])} — {r['instrument']}",
+            })
+    except Exception as e:
+        logger.warning(f"policy milestones annotation failed: {e}")
+
+    return shapes, annots
+
+
+def create_deforestation_timeline_chart(
+    timeline_data: Dict[str, Dict[int, float]],
+    state_code: Optional[str],
+    year_start: int,
+    year_end: int,
+    variant: str = "raw",
+    moving_window: int = 5,
+    title_suffix: str = "",
+) -> Optional[go.Figure]:
+    """Build a Plotly figure with political bar above, indicator lines, policy bar below.
+
+    Args:
+        timeline_data: ``{indicator_key: {year: ha}}`` from
+            ``deforestation_timeline.collect_timeline``.
+        state_code: 2-letter Brazilian state code for the governor stripe;
+            ``None`` to omit the governor row.
+        year_start, year_end: x-axis range (inclusive).
+        variant: ``"raw"`` (default), ``"moving_avg"`` (centred N-year window
+            using ``moving_window``), or ``"derivatives"`` (first and second
+            differences, plotted as separate trace groups).
+        moving_window: window size for the ``moving_avg`` variant.
+        title_suffix: appended to the figure title (typically the territory
+            name).
+
+    Returns ``None`` if no indicator has data.
+    """
+    if not timeline_data:
+        return None
+
+    years = list(range(year_start, year_end + 1))
+
+    # Pull each indicator into a list aligned to ``years``.
+    raw_lines: Dict[str, List[Optional[float]]] = {}
+    for key, series in timeline_data.items():
+        if not series:
+            continue
+        raw_lines[key] = [float(series.get(y, 0.0) or 0.0) for y in years]
+
+    if not raw_lines:
+        return None
+
+    fig = go.Figure()
+
+    if variant == "raw":
+        for key, values in raw_lines.items():
+            cfg = _INDICATOR_CFG.get(key, {"label": key, "color": "#555", "dash": "solid"})
+            fig.add_trace(go.Scatter(
+                x=years, y=values, mode="lines+markers",
+                name=cfg["label"],
+                line={"color": cfg["color"], "width": 2, "dash": cfg["dash"]},
+                marker={"size": 5},
+                hovertemplate="<b>%{x}</b>: %{y:,.0f} ha<extra>" + cfg["label"] + "</extra>",
+            ))
+        y_axis_title = "Area (ha / year)"
+        v_title = "raw values"
+
+    elif variant == "moving_avg":
+        for key, values in raw_lines.items():
+            cfg = _INDICATOR_CFG.get(key, {"label": key, "color": "#555", "dash": "solid"})
+            ma = _moving_average(values, moving_window)
+            fig.add_trace(go.Scatter(
+                x=years, y=ma, mode="lines",
+                name=f"{cfg['label']} (MA{moving_window})",
+                line={"color": cfg["color"], "width": 2.5, "dash": cfg["dash"]},
+                hovertemplate="<b>%{x}</b>: %{y:,.0f} ha<extra>" + cfg["label"] + "</extra>",
+                connectgaps=False,
+            ))
+        y_axis_title = f"Area (ha / year) — {moving_window}-yr moving average"
+        v_title = f"{moving_window}-yr moving average"
+
+    elif variant == "derivatives":
+        for key, values in raw_lines.items():
+            cfg = _INDICATOR_CFG.get(key, {"label": key, "color": "#555", "dash": "solid"})
+            d1 = _first_diff(values)
+            d2 = _first_diff(d1)
+            fig.add_trace(go.Scatter(
+                x=years, y=d1, mode="lines",
+                name=f"Δ {cfg['label']}",
+                line={"color": cfg["color"], "width": 2, "dash": "solid"},
+                hovertemplate="<b>%{x}</b>: %{y:+,.0f} ha<extra>Δ " + cfg["label"] + "</extra>",
+                legendgroup=key, showlegend=True,
+            ))
+            fig.add_trace(go.Scatter(
+                x=years, y=d2, mode="lines",
+                name=f"Δ² {cfg['label']}",
+                line={"color": cfg["color"], "width": 1.4, "dash": "dot"},
+                hovertemplate="<b>%{x}</b>: %{y:+,.0f} ha<extra>Δ² " + cfg["label"] + "</extra>",
+                legendgroup=key, showlegend=True,
+                opacity=0.7,
+            ))
+        # Zero baseline
+        fig.add_hline(y=0, line_width=0.8, line_dash="dot", line_color="#888")
+        y_axis_title = "Δ ha / year (1st), Δ² ha / year² (2nd)"
+        v_title = "1st & 2nd derivatives"
+    else:
+        return None
+
+    # Build context shapes / annotations
+    pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
+    pcy_shapes, pcy_annots = _policy_shapes_and_annots(years)
+
+    title = f"Deforestation Timeline — {v_title}"
+    if title_suffix:
+        title += f" | {title_suffix}"
+
+    fig.update_layout(
+        title=title,
+        template="plotly_white",
+        height=720,
+        # Extra top room for two president+governor stripes (~22% of plot
+        # height) and extra bottom room for the regime stripe + milestone
+        # arrows + the legend.
+        margin={"t": 180, "b": 220, "l": 70, "r": 30},
+        legend={"orientation": "h", "yanchor": "top", "y": -0.36,
+                "xanchor": "center", "x": 0.5},
+        shapes=pol_shapes + pcy_shapes,
+        annotations=pol_annots + pcy_annots,
+        xaxis={"title": "Year",
+                "range": [year_start - 0.5, year_end + 0.5],
+                "dtick": 5, "tickfont": {"size": 11}},
+        yaxis={"title": y_axis_title,
+                "tickformat": "~s",  # SI prefixes: 1k, 10k, 100k…
+                "tickfont": {"size": 11}},
+    )
+    return fig
+
