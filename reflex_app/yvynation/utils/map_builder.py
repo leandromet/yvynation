@@ -73,7 +73,20 @@ def build_map(
             zoom_start=5,
             tiles="OpenStreetMap"
         )
-        
+
+        # Leaflet's own full-screen control (top-left) — expands the map to the
+        # whole browser window without disturbing the app's grid layout.
+        try:
+            from folium.plugins import Fullscreen
+            Fullscreen(
+                position="topleft",
+                title="Full screen",
+                title_cancel="Exit full screen",
+                force_separate_button=True,
+            ).add_to(display_map)
+        except Exception as e:
+            logger.warning(f"Could not add Fullscreen control: {e}")
+
         logger.info(f"Base map created. MapBiomas years: {mapbiomas_years}, Hansen: {hansen_layers}")
         
         # Add alternative basemaps

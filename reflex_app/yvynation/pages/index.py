@@ -490,18 +490,13 @@ def main_content_area() -> rx.Component:
         # - 1fr: results (or 0 if hidden)
         display="grid",
         grid_template_rows=rx.cond(
-            AppState.fullscreen_panel == "map",
-            # Map fills; results collapsed
-            "auto auto 1fr auto 0px",
+            AppState.fullscreen_panel == "results",
+            # Results fill; map collapsed (map has Leaflet's own full-screen control)
+            "auto auto 0px auto 1fr",
             rx.cond(
-                AppState.fullscreen_panel == "results",
-                # Results fill; map collapsed
-                "auto auto 0px auto 1fr",
-                rx.cond(
-                    has_analysis,
-                    "auto auto minmax(400px, 50vh) auto 1fr",
-                    "auto auto 1fr auto 0px",
-                ),
+                has_analysis,
+                "auto auto minmax(400px, 50vh) auto 1fr",
+                "auto auto 1fr auto 0px",
             ),
         ),
         width="100%",
