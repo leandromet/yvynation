@@ -68,8 +68,9 @@ def active_target_bar() -> rx.Component:
                                 on_click=lambda: AppState.set_active_target(o["id"]),
                             ),
                         ),
-                        rx.menu.item("No areas yet — select a territory or draw one",
-                                     disabled=True),
+                        rx.text("No areas yet — select a territory or draw one",
+                                font_size="xs", color="gray",
+                                padding="0.25rem 0.5rem"),
                     ),
                 ),
             ),
@@ -442,6 +443,21 @@ def main_content_area() -> rx.Component:
             has_analysis,
             rx.box(
                 rx.vstack(
+                    # Results header with full-screen toggle
+                    rx.hstack(
+                        rx.text("📊 Results", font_size="sm", font_weight="700",
+                                color="#1a472a"),
+                        rx.spacer(),
+                        rx.button(
+                            rx.cond(AppState.fullscreen_panel == "results",
+                                    "⛶ Exit full results", "⛶ Full results"),
+                            on_click=AppState.toggle_fullscreen_results,
+                            size="1", variant="outline", color_scheme="gray",
+                            title="Toggle full-screen results",
+                        ),
+                        width="100%", align_items="center",
+                        padding="0.25rem 0.5rem",
+                    ),
                     # Analysis results tabs
                     results_panel(),
 
@@ -474,9 +490,19 @@ def main_content_area() -> rx.Component:
         # - 1fr: results (or 0 if hidden)
         display="grid",
         grid_template_rows=rx.cond(
-            has_analysis,
-            "auto auto minmax(400px, 50vh) auto 1fr",
+            AppState.fullscreen_panel == "map",
+            # Map fills; results collapsed
             "auto auto 1fr auto 0px",
+            rx.cond(
+                AppState.fullscreen_panel == "results",
+                # Results fill; map collapsed
+                "auto auto 0px auto 1fr",
+                rx.cond(
+                    has_analysis,
+                    "auto auto minmax(400px, 50vh) auto 1fr",
+                    "auto auto 1fr auto 0px",
+                ),
+            ),
         ),
         width="100%",
         height="100%",
