@@ -128,10 +128,17 @@ class AppState(
     #: GeoJSON features for active buffer overlays on the map
     buffer_geojson_features: List[Dict[str, Any]] = []
 
-    # ---- Active analysis target (single source of truth) ----------------
-    #: Which subject every "Analyse" run + the top-bar switcher act on.
-    #: "territory" (→ selected_territory) | "drawing" (→ selected_geometry_idx) | ""
+    # ---- Active analysis target + area registry -------------------------
+    #: Subject kind every run acts on: "territory" | "drawing" | "".
     active_target_kind: str = ""
+    #: Registry of every selected/drawn area, keyed by a stable id.  Each entry:
+    #: {id, kind, label, geojson (feature), buffer_geojson, buffer_name,
+    #:  result_key, has_results}.  The entry's geojson is the canonical geometry
+    #: (zoom / resolve / download / re-activation all read it), so switching
+    #: between territories restores each one without re-fetching.
+    analysis_targets: Dict[str, Dict[str, Any]] = {}
+    #: id of the active registry entry.
+    active_target_id: str = ""
     #: Cache of buffer overlay features keyed by source geometry name, so
     #: switching the active target reuses a buffer without recomputing it.
     buffer_overlays_by_source: Dict[str, Dict[str, Any]] = {}
@@ -251,6 +258,9 @@ class AppState(
     # Which sub-tab is active inside the analysis panel (persists across Reflex re-renders)
     active_analysis_tab: str = "mapbiomas"
 
+    #: Full-screen panel toggle: "" (split) | "map" | "results"
+    fullscreen_panel: str = ""
+
     # ====================================================================
     # Computed properties
     # ====================================================================
@@ -352,37 +362,30 @@ class AppState(
 
     @rx.var
     def active_geometry_feature(self) -> Dict[str, Any]:
-        """The GeoJSON feature for whatever is the active analysis subject."""
+        """GeoJSON feature of the active registry entry (canonical geometry)."""
         try:
-            if self.active_target_kind == "drawing":
-                idx = self.selected_geometry_idx
-                if idx is not None and 0 <= idx < len(self.drawn_features):
-                    return self.drawn_features[idx]
-            elif self.active_target_kind == "territory":
-                if self.territory_geojson_features:
-                    return self.territory_geojson_features[0]
-            return {}
+            entry = self.analysis_targets.get(self.active_target_id)
+            if entry and entry.get("geojson"):
+                return entry["geojson"]
         except Exception:
-            return {}
+            pass
+        return {}
 
     @rx.var
     def active_target_label(self) -> str:
         """Human label for the active subject (top bar + menu button)."""
-        if self.active_target_kind == "drawing":
-            idx = self.selected_geometry_idx
-            if idx is not None and 0 <= idx < len(self.drawn_features):
-                f = self.drawn_features[idx]
-                return f.get("name") or ("Drawing " + str(idx + 1))
-            return "No drawing selected"
-        if self.active_target_kind == "territory":
-            return self.selected_territory or "No territory selected"
+        entry = self.analysis_targets.get(self.active_target_id)
+        if entry:
+            return entry.get("label") or "Unnamed area"
         return "Nothing selected"
 
     @rx.var
     def active_target_kind_label(self) -> str:
-        if self.active_target_kind == "territory":
+        entry = self.analysis_targets.get(self.active_target_id)
+        kind = entry.get("kind") if entry else self.active_target_kind
+        if kind == "territory":
             return "Territory"
-        if self.active_target_kind == "drawing":
+        if kind == "drawing":
             return "Drawing"
         return "—"
 
@@ -398,30 +401,35 @@ class AppState(
 
     @rx.var
     def has_active_target(self) -> bool:
-        return bool(self.active_geometry_feature)
+        # Reference active_target_id (public) so the client updates reactively.
+        return bool(self.active_target_id) and bool(self.active_geometry_feature)
 
     @rx.var
     def active_target_options(self) -> List[Dict[str, str]]:
-        """Switcher options: the selected territory + every drawn geometry.
+        """Switcher options — every registered area (territories + drawings).
 
-        ``ref`` is the territory name (territory) or the list position
-        (drawing), matched by ``set_active_target``.
+        Each option carries ``id`` (matched by ``set_active_target``), a
+        display ``label`` (with a ✓ when it has results), and ``kind``.
         """
         opts: List[Dict[str, str]] = []
-        if self.selected_territory:
+        for tid, e in self.analysis_targets.items():
+            kind = e.get("kind", "")
+            icon = "🗺️" if kind == "territory" else "✏️"
+            mark = "  ✓" if e.get("has_results") else ""
             opts.append({
-                "label": "🗺️ " + self.selected_territory,
-                "kind": "territory",
-                "ref": self.selected_territory,
-            })
-        for i, f in enumerate(self.drawn_features):
-            nm = f.get("name") or ("Drawing " + str(i + 1))
-            opts.append({
-                "label": "✏️ " + nm,
-                "kind": "drawing",
-                "ref": str(i),
+                "id": tid,
+                "label": icon + " " + (e.get("label") or tid) + mark,
+                "kind": kind,
             })
         return opts
+
+    @rx.var
+    def analyzed_target_count(self) -> int:
+        """How many registered areas have results (drives Download-all)."""
+        try:
+            return sum(1 for e in self.analysis_targets.values() if e.get("has_results"))
+        except Exception:
+            return 0
 
     @rx.var
     def active_fit_bounds(self) -> Optional[List]:
@@ -1250,6 +1258,10 @@ class AppState(
                 territory_name=self.timeline_territory_name,
                 territory_type=self.timeline_territory_type or "indigenous",
             )
+            if fig is not None:
+                # Render full container width interactively (the figure ships a
+                # fixed height but no width → Plotly would default to ~700px).
+                fig.update_layout(autosize=True, width=None)
             return fig or pgo.Figure()
         except Exception as e:
             logger.error(f"timeline chart ({variant}) error: {e}", exc_info=True)

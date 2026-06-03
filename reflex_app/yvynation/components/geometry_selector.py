@@ -98,7 +98,8 @@ def geometry_selector() -> rx.Component:
                             border_radius="md",
                             width="100%",
                             cursor="pointer",
-                            on_click=lambda: AppState.set_active_target("drawing", i.to(str)),
+                            on_click=lambda: AppState.set_active_target(
+                                "drawing::" + feature["_idx"].to(str)),
                             _hover={"bg": "gray.50"},
                         ),
                     ),

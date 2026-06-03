@@ -87,6 +87,21 @@ class AnalysisMixin(rx.State, mixin=True):
         """Directly set the active analysis results dict."""
         self.analysis_results = results
 
+    def _mark_target_analyzed(self, result_key: str):
+        """Flag the active registry area as analyzed and link its result bundle.
+
+        Also ensures ``result_keys_list`` lists the key so the results-panel
+        switcher (and Download-all) see it.
+        """
+        if result_key and result_key not in self.result_keys_list:
+            self.result_keys_list = self.result_keys_list + [result_key]
+        tid = self.active_target_id
+        if tid and tid in self.analysis_targets:
+            entry = dict(self.analysis_targets[tid])
+            entry["has_results"] = True
+            entry["result_key"] = result_key
+            self.analysis_targets = {**self.analysis_targets, tid: entry}
+
     # ====================================================================
     # Comparison year setters
     # ====================================================================
@@ -915,6 +930,7 @@ class AnalysisMixin(rx.State, mixin=True):
             key = f"geometry::{self.selected_geometry_idx}"
             feat = self.drawn_features[self.selected_geometry_idx]
             self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=feat)
+            self._mark_target_analyzed(key)
 
             self.show_change_mask = True
             self.change_mask_year1 = y1
@@ -1001,6 +1017,17 @@ class AnalysisMixin(rx.State, mixin=True):
                                 ee_geom = ee.Geometry.Polygon(valid)
                     except Exception as geom_err:
                         logger.warning(f"[COMPARISON] Geometry rebuild failed: {geom_err}")
+
+            # Robust fallback: let ee.Geometry parse the raw GeoJSON directly
+            # (handles odd ring nesting that the manual builder above trips on).
+            if ee_geom is None and geojson_features:
+                try:
+                    from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                    ee_geom = convert_geojson_to_ee_geometry(geojson_features[0])
+                    if ee_geom is not None:
+                        logger.info("[COMPARISON] Geometry built via convert_geojson_to_ee_geometry")
+                except Exception as ce:
+                    logger.warning(f"[COMPARISON] convert_geojson_to_ee_geometry failed: {ce}")
 
             if ee_geom is None:
                 # Slow fallback: re-fetch from EE service
@@ -1232,6 +1259,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
                 self.all_analysis_results[key] = bundle
                 self.active_result_key = key
+                self._mark_target_analyzed(key)
                 self.loading_message = f"✓ Comparison {y1}→{y2} complete ({len(df1)} / {len(df2)} classes)"
                 self.mapbiomas_analysis_pending = False
 

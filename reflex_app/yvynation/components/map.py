@@ -189,6 +189,13 @@ def leaflet_map() -> rx.Component:
                 ),
                 rx.box(),
             ),
+            rx.spacer(),
+            rx.button(
+                rx.cond(AppState.fullscreen_panel == "map", "⛶ Exit full map", "⛶ Full map"),
+                on_click=AppState.toggle_fullscreen_map,
+                size="1", variant="outline", color_scheme="gray",
+                title="Toggle full-screen map",
+            ),
             width="100%",
             padding="0.5rem 1rem",
             bg="white",

@@ -332,10 +332,10 @@ class TerritoryMixin(rx.State, mixin=True):
             self.territory_geojson_features = territory_geojson_features
             self.map_zoom_bounds = map_zoom_bounds
             self.territory_geometry_displayed = bool(map_zoom_bounds)
-            # This territory is now the active analysis subject (drives runs +
-            # the top-bar switcher + zoom-to-active).
+            # Register this territory as an area (keeps history of every
+            # selected territory) and make it the active analysis subject.
             if territory_geojson_features:
-                self.active_target_kind = "territory"
+                self._register_target("territory", territory, territory_geojson_features[0])
             self.geometry_version += 1
             if not territory_geojson_features:
                 self.error_message = f"Could not load geometry for: {territory}"
@@ -395,11 +395,13 @@ class TerritoryMixin(rx.State, mixin=True):
                             if buffer_geojson_feat:
                                 self.buffer_geojson_features = [buffer_geojson_feat]
                                 # Cache by source so switching back to this
-                                # territory reuses the buffer (no recompute).
+                                # territory reuses the buffer (no recompute), and
+                                # persist it onto the registry entry.
                                 self.buffer_overlays_by_source = {
                                     **self.buffer_overlays_by_source,
                                     territory: buffer_geojson_feat,
                                 }
+                                self._save_buffer_to_active_entry(buffer_geojson_feat)
                                 self.geometry_version += 1
                             self.error_message = f"✅ Buffer ({buffer_km} km) created around {territory}"
                             logger.info(f"[TERRITORY_BG] Auto-buffer ready: {buffer_name}")

@@ -64,6 +64,16 @@ class UIMixin(rx.State, mixin=True):
         """Update sidebar width (constrained 200–500 px)."""
         self.sidebar_width = max(200, min(500, width))
 
+    # ---- Full-screen panels (map / results) -----------------------------
+
+    def toggle_fullscreen_map(self):
+        """Expand the map to fill the content area (toggle back to split)."""
+        self.fullscreen_panel = "" if self.fullscreen_panel == "map" else "map"
+
+    def toggle_fullscreen_results(self):
+        """Expand the results area to fill the content area (toggle to split)."""
+        self.fullscreen_panel = "" if self.fullscreen_panel == "results" else "results"
+
     # ---- Tutorial -------------------------------------------------------
 
     def toggle_tutorial(self):

@@ -17,6 +17,54 @@ def _export_slug(name: str) -> str:
     return re.sub(r"_+", "_", ascii_name).strip("_") or "unknown"
 
 
+def _nest_zip_bytes(out_zip, inner_bytes: bytes, prefix: str):
+    """Copy every entry of an in-memory ZIP into *out_zip* under *prefix*/."""
+    import io, zipfile
+    with zipfile.ZipFile(io.BytesIO(inner_bytes)) as inner:
+        for name in inner.namelist():
+            try:
+                out_zip.writestr(f"{prefix}/{name}", inner.read(name))
+            except Exception as e:
+                logger.warning(f"[DOWNLOAD-ALL] could not copy {name}: {e}")
+
+
+def _build_area_maps(entry: dict, y1: int, y2: int, aux_keys):
+    """Render the PNG map set for one registry area from its stored geometry."""
+    try:
+        from ..utils.map_export_service import create_map_set
+        from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+        feat = entry.get("geojson")
+        if not feat:
+            return {}
+        ee_geom = convert_geojson_to_ee_geometry(feat)
+        geojson = feat.get("geometry") if feat.get("type") == "Feature" else feat
+        buf = entry.get("buffer_geojson")
+        buf_geojson = None
+        if buf:
+            bg = convert_geojson_to_ee_geometry(buf)
+            if bg is not None:
+                try:
+                    buf_geojson = bg.getInfo()
+                except Exception:
+                    buf_geojson = buf.get("geometry") if buf.get("type") == "Feature" else buf
+        mb_years = [y1] if y1 == y2 else sorted({y1, y2})
+        aux_layers = [(k, y2) for k in aux_keys]
+        return create_map_set(
+            drawn_features=[],
+            territory_name=entry.get("label"),
+            active_mapbiomas_years=mb_years,
+            active_hansen_layers=None,
+            ee_geometry=ee_geom,
+            territory_geojson=geojson,
+            buffer_geojson=buf_geojson,
+            image_format="png",
+            active_aux_layers=aux_layers or None,
+        )
+    except Exception as e:
+        logger.warning(f"[DOWNLOAD-ALL] map build error: {e}")
+        return {}
+
+
 class ExportMixin(rx.State, mixin=True):
     """Event handlers for data and map export."""
 
@@ -322,3 +370,115 @@ class ExportMixin(rx.State, mixin=True):
             self.map_export_pending = False
             self.loading_message = ""
             logger.error(f"PDF map export error: {e}")
+
+    # ---- Combined download-all (data + viz + maps, every analyzed area) --
+
+    @rx.event(background=True)
+    async def download_all_results(self):
+        """Bundle data + viz + maps for EVERY analyzed area into one ZIP.
+
+        For each registered area with results: temporarily activates its result
+        bundle to reuse the existing ``collect_export_data_from_state`` +
+        ``create_export_zip`` machinery (data + figures), then renders its PNG
+        map set from the stored geometry/buffer. Areas land in their own
+        top-level folder. The originally-active result is restored at the end.
+        """
+        import asyncio
+        import io
+        import zipfile
+        from datetime import datetime
+
+        loop = asyncio.get_event_loop()
+        try:
+            async with self:
+                entries = [
+                    dict(e) for e in self.analysis_targets.values()
+                    if e.get("has_results")
+                ]
+                original_key = self.active_result_key
+                y1 = int(self.comparison_year1)
+                y2 = int(self.comparison_year2)
+                from ._advanced_viz import _AUX_KEY_MAP
+                aux_keys = tuple(k for attr, k in _AUX_KEY_MAP if getattr(self, attr, False))
+                self.export_pending = True
+                self.loading_message = f"Bundling {len(entries)} area(s)…"
+
+            if not entries:
+                async with self:
+                    self.export_pending = False
+                    self.loading_message = ""
+                    self.error_message = "No analyzed areas to download yet."
+                return
+
+            combined = io.BytesIO()
+            with zipfile.ZipFile(combined, "w", zipfile.ZIP_DEFLATED) as out:
+                for entry in entries:
+                    rk = entry.get("result_key") or ""
+                    label = entry.get("label") or rk or "area"
+                    slug = _export_slug(label)
+
+                    # 1) Data + figures (needs the area's result active in state)
+                    data = None
+                    try:
+                        async with self:
+                            if rk:
+                                self.switch_result(rk)
+                            self.loading_message = f"Collecting {label}…"
+                            from ..utils.export_service import collect_export_data_from_state
+                            data = collect_export_data_from_state(self)
+                    except Exception as ce:
+                        logger.warning(f"[DOWNLOAD-ALL] collect failed for {label}: {ce}")
+                    if data is not None:
+                        try:
+                            from ..utils.export_service import create_export_zip
+                            zbytes = await loop.run_in_executor(
+                                None, lambda d=data: create_export_zip(**d)
+                            )
+                            _nest_zip_bytes(out, zbytes, f"{slug}/analysis")
+                        except Exception as ze:
+                            logger.warning(f"[DOWNLOAD-ALL] zip failed for {label}: {ze}")
+
+                    # 2) PNG map set (generated fresh from stored geometry)
+                    try:
+                        async with self:
+                            self.loading_message = f"Rendering maps for {label}…"
+                        maps = await loop.run_in_executor(
+                            None, _build_area_maps, entry, y1, y2, aux_keys
+                        )
+                        for nm, b in (maps or {}).items():
+                            out.writestr(f"{slug}/maps/{slug}_{nm}.png", b)
+                    except Exception as me:
+                        logger.warning(f"[DOWNLOAD-ALL] maps failed for {label}: {me}")
+
+                out.writestr(
+                    "README.txt",
+                    "Yvynation — combined results export\n"
+                    f"Generated: {datetime.now().isoformat()}\n"
+                    f"Areas: {len(entries)}\n"
+                    f"MapBiomas years: {y1} / {y2}\n"
+                    "Each area folder holds analysis/ (data + figures) and maps/.\n",
+                )
+
+            # Restore the user's original active result
+            async with self:
+                if original_key:
+                    try:
+                        self.switch_result(original_key)
+                    except Exception:
+                        pass
+                self.export_pending = False
+                self.loading_message = ""
+
+            combined.seek(0)
+            ts = datetime.now().strftime("%Y%m%d_%H%M")
+            yield rx.download(
+                data=combined.read(),
+                filename=f"yvynation_all_results_{ts}.zip",
+            )
+
+        except Exception as e:
+            logger.error(f"[DOWNLOAD-ALL] failed: {e}", exc_info=True)
+            async with self:
+                self.export_pending = False
+                self.loading_message = ""
+                self.error_message = f"Download-all failed: {e}"

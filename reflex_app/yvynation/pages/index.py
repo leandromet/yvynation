@@ -55,16 +55,21 @@ def active_target_bar() -> rx.Component:
                 ),
                 rx.menu.content(
                     rx.text(
-                        "Active analysis target",
+                        "Active analysis area",
                         font_size="xs", font_weight="600", color="gray",
                         padding="0.25rem 0.5rem",
                     ),
-                    rx.foreach(
-                        AppState.active_target_options,
-                        lambda o: rx.menu.item(
-                            o["label"],
-                            on_click=lambda: AppState.set_active_target(o["kind"], o["ref"]),
+                    rx.cond(
+                        AppState.active_target_options.length() > 0,
+                        rx.foreach(
+                            AppState.active_target_options,
+                            lambda o: rx.menu.item(
+                                o["label"],
+                                on_click=lambda: AppState.set_active_target(o["id"]),
+                            ),
                         ),
+                        rx.menu.item("No areas yet — select a territory or draw one",
+                                     disabled=True),
                     ),
                 ),
             ),
@@ -81,6 +86,24 @@ def active_target_bar() -> rx.Component:
                 is_disabled=~AppState.has_active_target,
                 size="2", bg="#16A34A", color="white", font_weight="bold",
                 _hover={"bg": "#15803D"}, cursor="pointer",
+            ),
+            # Download-all (every analyzed area: data + viz + maps)
+            rx.cond(
+                AppState.analyzed_target_count > 0,
+                rx.button(
+                    rx.cond(
+                        AppState.export_pending,
+                        rx.hstack(rx.spinner(size="1"), rx.text("Bundling…"),
+                                  spacing="2", align_items="center"),
+                        rx.text("⬇️ Download all ("
+                                + AppState.analyzed_target_count.to(str) + ")"),
+                    ),
+                    on_click=AppState.download_all_results,
+                    is_disabled=AppState.export_pending,
+                    size="2", variant="outline", color_scheme="green",
+                    cursor="pointer",
+                ),
+                rx.fragment(),
             ),
             spacing="3", align_items="center",
         ),

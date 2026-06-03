@@ -44,7 +44,7 @@ class GeometryMixin(rx.State, mixin=True):
     # ---- Drawn feature CRUD ---------------------------------------------
 
     def set_selected_geometry(self, idx: int):
-        """Select a drawn geometry by its list index.
+        """Select a drawn geometry by its list index → make it the active area.
         Clears per-type geometry analysis results so stale data doesn't leak across geometries.
         """
         if 0 <= idx < len(self.drawn_features):
@@ -53,48 +53,113 @@ class GeometryMixin(rx.State, mixin=True):
                 self.geometry_glad_result = None
                 self.geometry_gfc_result = None
             self.selected_geometry_idx = idx
-            # Make this the active analysis subject (drives every run + top bar).
-            self.active_target_kind = "drawing"
+            f = self.drawn_features[idx]
+            label = f.get("name") or f.get("properties", {}).get("name") or f"Drawing {idx + 1}"
+            self._register_target("drawing", label, f)
             self.analysis_mode = "geometry"
             self._attach_buffer_for_active()
             self.geometry_version += 1
             logger.info(f"Selected geometry {idx}: {self.drawn_features[idx].get('type', 'Unknown')}")
 
-    # ---- Active analysis target ----------------------------------------
+    # ---- Active analysis target + area registry ------------------------
 
-    def set_active_target(self, kind: str, ref: str):
-        """Top-bar switcher entry point — make a territory or drawing active.
+    def _register_target(self, kind: str, label, geojson, buffer_geojson=None) -> str:
+        """Upsert an area into ``analysis_targets`` and make it active.
 
-        Aligns ``analysis_mode`` (the page), the selection refs, the attached
-        buffer, and zooms the map to the subject (``geometry_version`` bump →
-        ``build_map`` refits to ``active_fit_bounds``).
+        Territories are keyed by name, drawings by their stable ``_idx`` so the
+        same shape keeps one registry slot. Returns the entry id.
         """
         if kind == "territory":
-            if not ref:
-                return
-            self.active_target_kind = "territory"
-            self.selected_territory = ref
+            tid = "territory::" + str(label)
+        else:
+            _idx = (geojson or {}).get("_idx")
+            if _idx is None:
+                _idx = len(self.drawn_features)
+            tid = "drawing::" + str(_idx)
+        entry = dict(self.analysis_targets.get(tid, {}))
+        entry.update({"id": tid, "kind": kind, "label": str(label), "geojson": geojson})
+        entry.setdefault("buffer_geojson", None)
+        entry.setdefault("buffer_name", None)
+        entry.setdefault("result_key", "")
+        entry.setdefault("has_results", False)
+        if buffer_geojson is not None:
+            entry["buffer_geojson"] = buffer_geojson
+            entry["buffer_name"] = (
+                buffer_geojson.get("name") if isinstance(buffer_geojson, dict) else None
+            )
+        self.analysis_targets = {**self.analysis_targets, tid: entry}
+        self.active_target_id = tid
+        self.active_target_kind = kind
+        return tid
+
+    def _save_buffer_to_active_entry(self, buffer_feat):
+        """Persist the active subject's buffer overlay onto its registry entry."""
+        tid = self.active_target_id
+        if not tid or tid not in self.analysis_targets:
+            return
+        entry = dict(self.analysis_targets[tid])
+        entry["buffer_geojson"] = buffer_feat
+        entry["buffer_name"] = (
+            buffer_feat.get("name") if isinstance(buffer_feat, dict) else None
+        )
+        self.analysis_targets = {**self.analysis_targets, tid: entry}
+
+    def set_active_target(self, target_id: str):
+        """Top-bar switcher entry point — activate a registered area by id.
+
+        Restores that area's geometry (territory boundary or drawn shape), its
+        buffer, and its stored results; aligns ``analysis_mode`` (the page); and
+        zooms the map to it (``geometry_version`` bump → ``build_map`` refit).
+        """
+        entry = self.analysis_targets.get(target_id)
+        if not entry:
+            return
+        kind = entry.get("kind")
+        self.active_target_id = target_id
+        self.active_target_kind = kind
+
+        if kind == "territory":
+            self.selected_territory = entry.get("label")
+            geo = entry.get("geojson")
+            if geo:
+                self.territory_geojson_features = [geo]
             self.analysis_mode = "territory"
         elif kind == "drawing":
-            try:
-                idx = int(ref)
-            except (ValueError, TypeError):
-                return
-            if not (0 <= idx < len(self.drawn_features)):
-                return
-            if self.selected_geometry_idx != idx:
-                self.geometry_glad_result = None
-                self.geometry_gfc_result = None
-            self.active_target_kind = "drawing"
-            self.selected_geometry_idx = idx
+            gj = entry.get("geojson") or {}
+            target_idx = gj.get("_idx")
+            pos = None
+            for i, f in enumerate(self.drawn_features):
+                if f.get("_idx") == target_idx:
+                    pos = i
+                    break
+            if pos is None and self.drawn_features:
+                pos = 0
+            if pos is not None:
+                if self.selected_geometry_idx != pos:
+                    self.geometry_glad_result = None
+                    self.geometry_gfc_result = None
+                self.selected_geometry_idx = pos
             self.analysis_mode = "geometry"
         else:
             return
-        self._attach_buffer_for_active()
-        self.geometry_version += 1
-        logger.info(f"Active target → {kind}:{ref}")
 
-    def _active_source_name(self) -> Optional[str]:
+        # Buffer: prefer the entry's stored overlay, else (re)attach.
+        buf = entry.get("buffer_geojson")
+        if buf:
+            self.buffer_geojson_features = [buf]
+            self.current_buffer_for_analysis = entry.get("buffer_name")
+        else:
+            self._attach_buffer_for_active()
+
+        # Restore this area's stored analysis results, if any.
+        rk = entry.get("result_key")
+        if entry.get("has_results") and rk:
+            self.switch_result(rk)
+
+        self.geometry_version += 1
+        logger.info(f"Active target → {target_id}")
+
+    def _active_source_name(self):
         """Geometry name backing the active subject (buffer lookup / creation)."""
         if self.active_target_kind == "territory":
             return self.selected_territory
@@ -121,7 +186,7 @@ class GeometryMixin(rx.State, mixin=True):
 
         Reuses a cached overlay; else auto-creates one (when
         ``auto_buffer_enabled``); else clears the buffer so a stale ring never
-        leaks across subjects.
+        leaks across subjects.  Writes the result back onto the active entry.
         """
         name = self._active_source_name()
         if not name:
@@ -130,13 +195,16 @@ class GeometryMixin(rx.State, mixin=True):
         if cached:
             self.buffer_geojson_features = [cached]
             self.current_buffer_for_analysis = cached.get("name")
-            return
-        if self.auto_buffer_enabled:
+        elif self.auto_buffer_enabled:
             # create_buffer_from_geometry sets buffer_geojson_features + caches it
             self.create_buffer_from_geometry(name, self._buffer_distance_km())
         else:
             self.buffer_geojson_features = []
             self.current_buffer_for_analysis = None
+            self._save_buffer_to_active_entry(None)
+            return
+        if self.buffer_geojson_features:
+            self._save_buffer_to_active_entry(self.buffer_geojson_features[0])
 
     def add_drawn_feature(self, feature: Dict[str, Any]):
         """Append a newly drawn feature, stamping its index fields.
@@ -146,9 +214,14 @@ class GeometryMixin(rx.State, mixin=True):
         feature["_display_idx"] = len(self.drawn_features) + 1
         self.drawn_features.append(feature)
         self.all_drawn_features.append(feature)
-        # Always auto-select the newly added geometry and make it the active subject
+        # Always auto-select the newly added geometry and register it as an area
         self.selected_geometry_idx = len(self.drawn_features) - 1
-        self.active_target_kind = "drawing"
+        label = (
+            feature.get("name")
+            or feature.get("properties", {}).get("name")
+            or f"Drawing {self.selected_geometry_idx + 1}"
+        )
+        self._register_target("drawing", label, feature)
         self.analysis_mode = "geometry"
         # Expand the geometry section so the user sees the selection
         self.sidebar_geometry_expanded = True
@@ -269,6 +342,9 @@ class GeometryMixin(rx.State, mixin=True):
                     }
                     self.drawn_features.append(feature_obj)
                     self.all_drawn_features.append(feature_obj)
+                    # Register each captured drawing as its own area (no buffer
+                    # yet — attached once below for the last/active one).
+                    self._register_target("drawing", feature_obj["name"], feature_obj)
                     new_count += 1
                 except Exception as feature_err:
                     logger.warning(f"Error processing feature: {feature_err}")
@@ -279,9 +355,8 @@ class GeometryMixin(rx.State, mixin=True):
                     msg += f" ({duplicate_count} duplicate(s) skipped)"
                 msg += f" ({len(self.drawn_features)} total)"
                 self.error_message = msg
-                # Make the last captured drawing the active analysis subject.
+                # Last captured drawing stays active; attach its buffer + zoom.
                 self.selected_geometry_idx = len(self.drawn_features) - 1
-                self.active_target_kind = "drawing"
                 self.analysis_mode = "geometry"
                 self._attach_buffer_for_active()
                 self.geometry_version += 1
@@ -566,11 +641,12 @@ class GeometryMixin(rx.State, mixin=True):
                 # Replace any previous buffer overlay (keep only the active one)
                 self.buffer_geojson_features = [buffer_geojson_feat]
                 # Cache by source so switching the active target reuses it
-                # without another EE round-trip.
+                # without another EE round-trip, and persist onto the registry.
                 self.buffer_overlays_by_source = {
                     **self.buffer_overlays_by_source,
                     geometry_name: buffer_geojson_feat,
                 }
+                self._save_buffer_to_active_entry(buffer_geojson_feat)
                 self.geometry_version += 1
                 logger.info(f"[BUFFER] GeoJSON overlay added for {buffer_name}")
             except Exception as gjson_err:

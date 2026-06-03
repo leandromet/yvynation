@@ -63,18 +63,26 @@ def _ordered_pair(a: int, b: int):
     return (a, b) if a <= b else (b, a)
 
 
-def _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory):
+def _resolve_active_ee(active_feature, kind, sel_idx, terr_feats, drawn, territory):
     """Resolve ``(ee_geometry, geojson)`` for the **active analysis target**.
 
-    Honours ``active_target_kind`` so a drawn geometry is never silently
-    replaced by a stale territory (or vice-versa).  Falls back to a best-effort
-    territory→drawing order only when no explicit target is set, and to the EE
-    service when a territory geometry isn't cached locally.
+    Prefers the active registry entry's stored feature (canonical geometry), so
+    switching areas never analyses a stale subject.  Falls back to
+    ``active_target_kind`` (drawing vs territory), then best-effort order, then
+    the EE service when a territory geometry isn't cached locally.
     """
     from ..utils.buffer_utils import convert_geojson_to_ee_geometry
 
     def _drawn_at(i):
         return drawn[i] if (i is not None and 0 <= i < len(drawn)) else None
+
+    # 1) Canonical: the active registry entry's feature.
+    if active_feature:
+        ee_geom = convert_geojson_to_ee_geometry(active_feature)
+        if ee_geom is not None:
+            geojson = (active_feature.get("geometry")
+                       if active_feature.get("type") == "Feature" else active_feature)
+            return ee_geom, geojson
 
     src = None
     if kind == "drawing":
@@ -303,6 +311,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 territory = self.selected_territory
                 kind = self.active_target_kind
                 sel_idx = self.selected_geometry_idx
+                active_feature = self.active_geometry_feature
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
@@ -313,7 +322,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, geojson = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
+                ee_geom, geojson = _resolve_active_ee(active_feature, kind, sel_idx, terr_feats, drawn, territory)
                 buf_geojson = None
                 if buf_feats:
                     bg = convert_geojson_to_ee_geometry(buf_feats[0])
@@ -416,6 +425,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 territory = self.selected_territory
                 kind = self.active_target_kind
                 sel_idx = self.selected_geometry_idx
+                active_feature = self.active_geometry_feature
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
@@ -423,7 +433,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, _ = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
+                ee_geom, _ = _resolve_active_ee(active_feature, kind, sel_idx, terr_feats, drawn, territory)
                 buf_geom = convert_geojson_to_ee_geometry(buf_feats[0]) if buf_feats else None
                 return ee_geom, buf_geom
 
@@ -520,6 +530,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 territory = self.selected_territory
                 kind = self.active_target_kind
                 sel_idx = self.selected_geometry_idx
+                active_feature = self.active_geometry_feature
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
@@ -536,7 +547,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, _ = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
+                ee_geom, _ = _resolve_active_ee(active_feature, kind, sel_idx, terr_feats, drawn, territory)
                 buf_geom = convert_geojson_to_ee_geometry(buf_feats[0]) if buf_feats else None
                 # State code for the governor stripe — only meaningful for a
                 # real indigenous territory (drawings have no UF metadata).

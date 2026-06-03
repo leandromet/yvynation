@@ -191,7 +191,7 @@ def _plotly_safe(chart_var: rx.Var, min_height: str = "180px") -> rx.Component:
     """
     return rx.cond(
         chart_var != None,
-        rx.plotly(data=chart_var, use_resize_handler=True),
+        rx.plotly(data=chart_var, use_resize_handler=True, width="100%"),
         rx.box(
             rx.text("No data", font_size="xs", color="gray"),
             min_height=min_height,
