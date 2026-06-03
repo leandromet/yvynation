@@ -24,8 +24,8 @@ def geometry_selector() -> rx.Component:
             rx.vstack(
                 rx.foreach(
                     AppState.drawn_features,
-                    lambda feature: rx.cond(
-                        AppState.selected_geometry_idx == feature.get("_idx"),
+                    lambda feature, i: rx.cond(
+                        AppState.selected_geometry_idx == i,
                         # Selected geometry - highlight it
                         rx.box(
                             rx.hstack(
@@ -98,7 +98,7 @@ def geometry_selector() -> rx.Component:
                             border_radius="md",
                             width="100%",
                             cursor="pointer",
-                            on_click=lambda f=feature: AppState.set_selected_geometry(f.get("_idx")),
+                            on_click=lambda: AppState.set_active_target("drawing", i.to(str)),
                             _hover={"bg": "gray.50"},
                         ),
                     ),

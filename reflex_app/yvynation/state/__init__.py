@@ -128,6 +128,14 @@ class AppState(
     #: GeoJSON features for active buffer overlays on the map
     buffer_geojson_features: List[Dict[str, Any]] = []
 
+    # ---- Active analysis target (single source of truth) ----------------
+    #: Which subject every "Analyse" run + the top-bar switcher act on.
+    #: "territory" (→ selected_territory) | "drawing" (→ selected_geometry_idx) | ""
+    active_target_kind: str = ""
+    #: Cache of buffer overlay features keyed by source geometry name, so
+    #: switching the active target reuses a buffer without recomputing it.
+    buffer_overlays_by_source: Dict[str, Dict[str, Any]] = {}
+
     # Per-geometry analysis cache
     geometry_analysis_results: Dict[int, Dict[str, Any]] = {}
     geometry_analysis_type: str = "mapbiomas"   # "mapbiomas" | "hansen_glad" | "hansen_gfc"
@@ -329,6 +337,7 @@ class AppState(
                 show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,
                 show_gfc_tree_gain=self.show_hansen_gfc_tree_gain,
                 buffer_features=self.buffer_geojson_features or [],
+                fit_bounds=self.active_fit_bounds,
             )
 
         except Exception as e:
@@ -338,6 +347,114 @@ class AppState(
             m = folium.Map(location=[-10, -52], zoom_start=5, tiles="OpenStreetMap")
             folium.LayerControl().add_to(m)
             return m._repr_html_()
+
+    # ---- Active analysis target (drives every run + the top-bar switcher)
+
+    @rx.var
+    def active_geometry_feature(self) -> Dict[str, Any]:
+        """The GeoJSON feature for whatever is the active analysis subject."""
+        try:
+            if self.active_target_kind == "drawing":
+                idx = self.selected_geometry_idx
+                if idx is not None and 0 <= idx < len(self.drawn_features):
+                    return self.drawn_features[idx]
+            elif self.active_target_kind == "territory":
+                if self.territory_geojson_features:
+                    return self.territory_geojson_features[0]
+            return {}
+        except Exception:
+            return {}
+
+    @rx.var
+    def active_target_label(self) -> str:
+        """Human label for the active subject (top bar + menu button)."""
+        if self.active_target_kind == "drawing":
+            idx = self.selected_geometry_idx
+            if idx is not None and 0 <= idx < len(self.drawn_features):
+                f = self.drawn_features[idx]
+                return f.get("name") or ("Drawing " + str(idx + 1))
+            return "No drawing selected"
+        if self.active_target_kind == "territory":
+            return self.selected_territory or "No territory selected"
+        return "Nothing selected"
+
+    @rx.var
+    def active_target_kind_label(self) -> str:
+        if self.active_target_kind == "territory":
+            return "Territory"
+        if self.active_target_kind == "drawing":
+            return "Drawing"
+        return "—"
+
+    @rx.var
+    def active_buffer_label(self) -> str:
+        """Name of the buffer currently attached to the active subject."""
+        try:
+            if self.buffer_geojson_features:
+                return self.buffer_geojson_features[0].get("name") or "Buffer"
+        except Exception:
+            pass
+        return "—"
+
+    @rx.var
+    def has_active_target(self) -> bool:
+        return bool(self.active_geometry_feature)
+
+    @rx.var
+    def active_target_options(self) -> List[Dict[str, str]]:
+        """Switcher options: the selected territory + every drawn geometry.
+
+        ``ref`` is the territory name (territory) or the list position
+        (drawing), matched by ``set_active_target``.
+        """
+        opts: List[Dict[str, str]] = []
+        if self.selected_territory:
+            opts.append({
+                "label": "🗺️ " + self.selected_territory,
+                "kind": "territory",
+                "ref": self.selected_territory,
+            })
+        for i, f in enumerate(self.drawn_features):
+            nm = f.get("name") or ("Drawing " + str(i + 1))
+            opts.append({
+                "label": "✏️ " + nm,
+                "kind": "drawing",
+                "ref": str(i),
+            })
+        return opts
+
+    @rx.var
+    def active_fit_bounds(self) -> Optional[List]:
+        """``[[min_lat,min_lon],[max_lat,max_lon]]`` of the active subject.
+
+        Passed to ``build_map(fit_bounds=…)`` so the map frames the active
+        geometry instead of the union of all overlays.
+        """
+        feat = self.active_geometry_feature
+        if not feat:
+            return None
+        geom = feat.get("geometry") or feat
+        coords = geom.get("coordinates")
+        if not coords:
+            return None
+        acc: List = []
+
+        def _flat(c):
+            if c and isinstance(c[0], (int, float)):
+                acc.append(c[:2])
+            else:
+                for s in c:
+                    _flat(s)
+
+        try:
+            _flat(coords)
+            if not acc:
+                return None
+            lons = [p[0] for p in acc]
+            lats = [p[1] for p in acc]
+            return [[min(lats), min(lons)], [max(lats), max(lons)]]
+        except Exception:
+            return None
 
     # ---- Geometry selection helpers ------------------------------------
 

@@ -44,6 +44,7 @@ def build_map(
     show_gfc_tree_gain: bool = False,
     buffer_features: List[dict] = None,
     show_indigenous_lands: bool = False,
+    fit_bounds: Optional[list] = None,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -407,8 +408,12 @@ def build_map(
                         layers_added += 1
                         logger.info(f"Added drawn geometry overlay: {name}")
 
-                # Calculate bounds for zoom
-                if all_coords:
+                # Calculate bounds for zoom.  An explicit ``fit_bounds`` (the
+                # active analysis target) always wins so the map frames the
+                # active geometry instead of the union of every overlay.
+                if fit_bounds:
+                    bounds_to_fit = fit_bounds
+                elif all_coords:
                     lons = [c[0] for c in all_coords]
                     lats = [c[1] for c in all_coords]
                     bounds_to_fit = [[min(lats), min(lons)], [max(lats), max(lons)]]

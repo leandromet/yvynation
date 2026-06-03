@@ -63,22 +63,34 @@ def _ordered_pair(a: int, b: int):
     return (a, b) if a <= b else (b, a)
 
 
-def _features_to_ee(features, drawn, territory):
-    """Resolve an ``ee.Geometry`` + GeoJSON dict for the active selection.
+def _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory):
+    """Resolve ``(ee_geometry, geojson)`` for the **active analysis target**.
 
-    Prefers an explicit territory boundary, then a drawn/uploaded geometry, then
-    a slow fallback to the EE service keyed on the selected territory name.
-    Returns ``(ee_geometry, geojson_dict_or_None)``.
+    Honours ``active_target_kind`` so a drawn geometry is never silently
+    replaced by a stale territory (or vice-versa).  Falls back to a best-effort
+    territory→drawing order only when no explicit target is set, and to the EE
+    service when a territory geometry isn't cached locally.
     """
     from ..utils.buffer_utils import convert_geojson_to_ee_geometry
 
+    def _drawn_at(i):
+        return drawn[i] if (i is not None and 0 <= i < len(drawn)) else None
+
+    src = None
+    if kind == "drawing":
+        src = _drawn_at(sel_idx)
+    elif kind == "territory":
+        src = terr_feats[0] if terr_feats else None
+    else:
+        src = (terr_feats[0] if terr_feats else None) or _drawn_at(sel_idx) \
+            or (drawn[0] if drawn else None)
+
     ee_geom = None
     geojson = None
-    src = (features[0] if features else None) or (drawn[0] if drawn else None)
     if src is not None:
         ee_geom = convert_geojson_to_ee_geometry(src)
         geojson = src.get("geometry") if src.get("type") == "Feature" else src
-    if ee_geom is None and territory:
+    if ee_geom is None and kind != "drawing" and territory:
         try:
             from ..utils.ee_service_extended import get_ee_service
             ee_geom = get_ee_service().get_territory_geometry(territory)
@@ -236,6 +248,40 @@ class AdvancedVizMixin(rx.State, mixin=True):
         return bool(self.buffer_timeline_series)
 
     # =======================================================================
+    # Run-all dispatcher (top-bar "Run all analysis" button)
+    # =======================================================================
+    def run_all_analysis(self):
+        """Run every analysis on the active target in one click.
+
+        Dispatches the right MapBiomas/Hansen entry point for the active kind,
+        then the three new viz tabs (multi-window, timeline, maps). Each runs as
+        its own (background) task; pending flags are set here so spinners show.
+        """
+        if not (self.selected_territory or self.territory_geojson_features
+                or self.drawn_features):
+            self.error_message = "Select a territory or draw a geometry first"
+            return
+        self.error_message = ""
+        self.loading_message = "Running all analyses on the active target…"
+        self.mw_pending = True
+        self.timeline_pending = True
+        self.mapset_pending = True
+
+        events = []
+        if self.active_target_kind == "drawing":
+            self.geometry_analysis_pending = True
+            events.append(type(self).run_full_analysis_on_geometry)
+        else:
+            self.mapbiomas_analysis_pending = True
+            events.append(type(self).run_territory_comparison_bg)
+            events.append(type(self).run_hansen_glad_analysis_on_territory)
+            events.append(type(self).run_hansen_gfc_analysis_on_territory)
+        events.append(type(self).run_multi_window_analysis_bg)
+        events.append(type(self).run_deforestation_timeline_bg)
+        events.append(type(self).generate_map_set_bg)
+        return events
+
+    # =======================================================================
     # 1. PNG map set — generate + download
     # =======================================================================
     def generate_map_set(self):
@@ -255,17 +301,19 @@ class AdvancedVizMixin(rx.State, mixin=True):
         try:
             async with self:
                 territory = self.selected_territory
+                kind = self.active_target_kind
+                sel_idx = self.selected_geometry_idx
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
                 y1, y2 = int(self.comparison_year1), int(self.comparison_year2)
                 hansen_layers = list(self.hansen_displayed_layers)
                 aux_keys = [key for attr, key in _AUX_KEY_MAP if getattr(self, attr)]
-                name = self.territory_name or territory or "geometry"
+                name = self.active_target_label
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, geojson = _features_to_ee(terr_feats, drawn, territory)
+                ee_geom, geojson = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
                 buf_geojson = None
                 if buf_feats:
                     bg = convert_geojson_to_ee_geometry(buf_feats[0])
@@ -366,6 +414,8 @@ class AdvancedVizMixin(rx.State, mixin=True):
         try:
             async with self:
                 territory = self.selected_territory
+                kind = self.active_target_kind
+                sel_idx = self.selected_geometry_idx
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
@@ -373,7 +423,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, _ = _features_to_ee(terr_feats, drawn, territory)
+                ee_geom, _ = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
                 buf_geom = convert_geojson_to_ee_geometry(buf_feats[0]) if buf_feats else None
                 return ee_geom, buf_geom
 
@@ -468,6 +518,8 @@ class AdvancedVizMixin(rx.State, mixin=True):
         try:
             async with self:
                 territory = self.selected_territory
+                kind = self.active_target_kind
+                sel_idx = self.selected_geometry_idx
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
@@ -480,15 +532,16 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 )
                 gfc_result = self.geometry_gfc_result
                 buffer_gfc_result = self.buffer_gfc_result
-                name = self.territory_name or territory or ""
+                name = self.active_target_label
 
             def _resolve():
                 from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                ee_geom, _ = _features_to_ee(terr_feats, drawn, territory)
+                ee_geom, _ = _resolve_active_ee(kind, sel_idx, terr_feats, drawn, territory)
                 buf_geom = convert_geojson_to_ee_geometry(buf_feats[0]) if buf_feats else None
-                # State code for the governor stripe (indigenous service).
+                # State code for the governor stripe — only meaningful for a
+                # real indigenous territory (drawings have no UF metadata).
                 state_code = ""
-                if territory:
+                if kind == "territory" and territory:
                     try:
                         from ..utils.territory_service import get_territory_service
                         from ..utils.deforestation_timeline import first_state_code

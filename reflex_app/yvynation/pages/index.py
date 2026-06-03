@@ -18,6 +18,76 @@ from .portal import portal
 from .batch_processing import batch_processing_page
 
 
+def active_target_bar() -> rx.Component:
+    """Top-center active-analysis-target switcher + 'Run all' (shared by both pages).
+
+    Shows what every "Analyse" run will use (subject · buffer · years), lets the
+    user switch the active geometry (territory or any drawing — which also zooms
+    the map to it), and runs all analyses on it in one click.
+    """
+    return rx.cond(
+        AppState.analysis_mode != "portal",
+        rx.hstack(
+            # Active-target switcher
+            rx.menu.root(
+                rx.menu.trigger(
+                    rx.button(
+                        rx.hstack(
+                            rx.text("🎯", font_size="md"),
+                            rx.vstack(
+                                rx.text(
+                                    AppState.active_target_label,
+                                    font_size="sm", font_weight="700",
+                                    color="#1a472a", no_of_lines=1,
+                                ),
+                                rx.text(
+                                    AppState.active_target_kind_label
+                                    + "  ·  🔵 " + AppState.active_buffer_label,
+                                    font_size="xs", color="gray",
+                                ),
+                                spacing="0", align_items="flex-start",
+                            ),
+                            rx.icon("chevron-down", size=14),
+                            spacing="2", align_items="center",
+                        ),
+                        variant="outline", color_scheme="green", size="2",
+                    ),
+                ),
+                rx.menu.content(
+                    rx.text(
+                        "Active analysis target",
+                        font_size="xs", font_weight="600", color="gray",
+                        padding="0.25rem 0.5rem",
+                    ),
+                    rx.foreach(
+                        AppState.active_target_options,
+                        lambda o: rx.menu.item(
+                            o["label"],
+                            on_click=lambda: AppState.set_active_target(o["kind"], o["ref"]),
+                        ),
+                    ),
+                ),
+            ),
+            # Comparison years
+            rx.badge(
+                "MapBiomas " + AppState.comparison_year1.to(str)
+                + " → " + AppState.comparison_year2.to(str),
+                color_scheme="green", variant="soft", size="2",
+            ),
+            # Run-all button
+            rx.button(
+                "▶ Run all analysis",
+                on_click=AppState.run_all_analysis,
+                is_disabled=~AppState.has_active_target,
+                size="2", bg="#16A34A", color="white", font_weight="bold",
+                _hover={"bg": "#15803D"}, cursor="pointer",
+            ),
+            spacing="3", align_items="center",
+        ),
+        rx.fragment(),
+    )
+
+
 def navbar() -> rx.Component:
     """Modern top navigation bar."""
     return rx.hstack(
@@ -109,7 +179,9 @@ def navbar() -> rx.Component:
             align_items="center",
             spacing="2",
         ),
-        # Center spacer
+        # Center - active analysis target switcher + Run all
+        rx.spacer(),
+        active_target_bar(),
         rx.spacer(),
         # Right side - back button, clear button, and analysis indicator
         rx.hstack(
