@@ -30,12 +30,14 @@ from ._territory import TerritoryMixin
 from ._analysis import AnalysisMixin
 from ._export import ExportMixin
 from ._batch import BatchMixin
+from ._advanced_viz import AdvancedVizMixin
 
 logger = logging.getLogger(__name__)
 
 
 class AppState(
     BatchMixin,
+    AdvancedVizMixin,
     ExportMixin,
     AnalysisMixin,
     GeometryMixin,
@@ -1060,6 +1062,80 @@ class AppState(
             return fig
         except Exception as e:
             logger.error(f"Transition matrix error: {e}", exc_info=True)
+            return pgo.Figure()
+
+    # ---- Advanced viz: multi-window Sankey (ports batch visuals) --------
+
+    @rx.var(auto_deps=False, deps=["mw_result"])
+    def multi_window_sankey_chart(self) -> Figure:
+        """Multi-stage Sankey across the resolved multi-window years."""
+        return self._build_multi_window_sankey(self.mw_result)
+
+    @rx.var(auto_deps=False, deps=["buffer_mw_result"])
+    def buffer_multi_window_sankey_chart(self) -> Figure:
+        """Multi-stage Sankey for the external buffer ring."""
+        return self._build_multi_window_sankey(self.buffer_mw_result)
+
+    def _build_multi_window_sankey(self, mw_result) -> Figure:
+        try:
+            pairs = (mw_result or {}).get("pairs") or []
+            if not pairs:
+                return pgo.Figure()
+            from ..utils.visualization import create_multi_stage_sankey
+            stages = [
+                (p["year_from"], p["year_to"], p.get("transitions") or {})
+                for p in pairs
+            ]
+            return create_multi_stage_sankey(stages) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"multi_window_sankey_chart error: {e}", exc_info=True)
+            return pgo.Figure()
+
+    # ---- Advanced viz: deforestation timeline (Hansen + MapBiomas + Fire)
+
+    @rx.var(auto_deps=False, deps=["timeline_series", "timeline_state_code"])
+    def timeline_raw_chart(self) -> Figure:
+        return self._build_timeline_chart(self.timeline_series, "raw")
+
+    @rx.var(auto_deps=False, deps=["timeline_series", "timeline_state_code"])
+    def timeline_ma_chart(self) -> Figure:
+        return self._build_timeline_chart(self.timeline_series, "moving_avg")
+
+    @rx.var(auto_deps=False, deps=["timeline_series", "timeline_state_code"])
+    def timeline_deriv_chart(self) -> Figure:
+        return self._build_timeline_chart(self.timeline_series, "derivatives")
+
+    @rx.var(auto_deps=False, deps=["buffer_timeline_series", "timeline_state_code"])
+    def buffer_timeline_raw_chart(self) -> Figure:
+        return self._build_timeline_chart(self.buffer_timeline_series, "raw")
+
+    @rx.var(auto_deps=False, deps=["buffer_timeline_series", "timeline_state_code"])
+    def buffer_timeline_ma_chart(self) -> Figure:
+        return self._build_timeline_chart(self.buffer_timeline_series, "moving_avg")
+
+    @rx.var(auto_deps=False, deps=["buffer_timeline_series", "timeline_state_code"])
+    def buffer_timeline_deriv_chart(self) -> Figure:
+        return self._build_timeline_chart(self.buffer_timeline_series, "derivatives")
+
+    def _build_timeline_chart(self, series, variant: str) -> Figure:
+        try:
+            if not series:
+                return pgo.Figure()
+            from ..utils.visualization import create_deforestation_timeline_chart
+            fig = create_deforestation_timeline_chart(
+                series,
+                state_code=self.timeline_state_code or None,
+                year_start=self.timeline_year_start or self.comparison_year1,
+                year_end=self.timeline_year_end or self.comparison_year2,
+                variant=variant,
+                moving_window=5,
+                title_suffix=self.timeline_territory_name,
+                territory_name=self.timeline_territory_name,
+                territory_type=self.timeline_territory_type or "indigenous",
+            )
+            return fig or pgo.Figure()
+        except Exception as e:
+            logger.error(f"timeline chart ({variant}) error: {e}", exc_info=True)
             return pgo.Figure()
 
     # ---- Buffer comparison computed vars --------------------------------

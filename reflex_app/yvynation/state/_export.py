@@ -261,6 +261,26 @@ class ExportMixin(rx.State, mixin=True):
                 except Exception:
                     pass
 
+            # Buffer overlay (external ring) when one is active — parity with
+            # the batch PNG map set and the interactive Maps tab.
+            buffer_geojson = None
+            if self.buffer_geojson_features:
+                try:
+                    from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                    bg = convert_geojson_to_ee_geometry(self.buffer_geojson_features[0])
+                    if bg is not None:
+                        buffer_geojson = bg.getInfo()
+                except Exception:
+                    pass
+
+            # Auxiliary MapBiomas rasters selected on the Maps tab (rendered for
+            # comparison year 2; fire_frequency is full-period).
+            from ._advanced_viz import _AUX_KEY_MAP
+            aux_layers = [
+                (key, int(self.comparison_year2))
+                for attr, key in _AUX_KEY_MAP if getattr(self, attr, False)
+            ]
+
             maps = create_map_set(
                 drawn_features=self.drawn_features,
                 territory_name=self.territory_name or self.selected_territory,
@@ -268,6 +288,8 @@ class ExportMixin(rx.State, mixin=True):
                 active_hansen_layers=self.hansen_displayed_layers,
                 ee_geometry=ee_geometry,
                 territory_geojson=territory_geojson,
+                buffer_geojson=buffer_geojson,
+                active_aux_layers=aux_layers or None,
             )
 
             if not maps:

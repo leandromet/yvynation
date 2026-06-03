@@ -1941,6 +1941,332 @@ def about_tab() -> rx.Component:
 # Main: 6-tab layout
 # -----------------------------------------------------------------------
 
+# -----------------------------------------------------------------------
+# Advanced viz tabs (ported from Batch Processing) — Maps / Multi-window /
+# Deforestation timeline.  Config + on-demand Run controls live in-tab so the
+# sidebars stay untouched; both geometry & territory pages get them via
+# analysis_tabs().
+# -----------------------------------------------------------------------
+
+_ADV_ORANGE = "#EA580C"
+_ADV_ORANGE_DARK = "#C2410C"
+_ADV_ORANGE_LIGHT = "#FFF7ED"
+_ADV_ORANGE_BORDER = "#FDBA74"
+_ADV_GREEN = "#1a472a"
+
+
+def _adv_run_button(label: str, handler, pending_var: rx.Var,
+                    pending_label: str) -> rx.Component:
+    """Orange on-demand Run/Generate button with a busy state."""
+    return rx.cond(
+        pending_var,
+        rx.button(
+            rx.hstack(rx.spinner(size="2"), rx.text(pending_label), spacing="2",
+                      align_items="center"),
+            is_disabled=True, size="3", bg="#9CA3AF", color="white",
+            font_weight="bold",
+        ),
+        rx.button(
+            label, on_click=handler, size="3", bg=_ADV_ORANGE, color="white",
+            font_weight="bold", _hover={"bg": _ADV_ORANGE_DARK}, cursor="pointer",
+        ),
+    )
+
+
+def _adv_chart_section(title: str, chart_var: rx.Var,
+                       min_height: str = "420px") -> rx.Component:
+    return rx.vstack(
+        rx.text(title, font_size="sm", font_weight="700", color="#374151"),
+        _plotly_safe(chart_var, min_height),
+        spacing="1", width="100%",
+    )
+
+
+def maps_tab() -> rx.Component:
+    """PNG maps & charts: satellite + MapBiomas y1/y2 (+ aux rasters)."""
+    aux = (
+        ("🌳 Deforestation & secondary veg.", AppState.map_aux_deforestation,
+         AppState.toggle_map_aux_deforestation),
+        ("🔥 Annual burned area", AppState.map_aux_fire_scar,
+         AppState.toggle_map_aux_fire_scar),
+        ("📊 Fire frequency (1985–2024)", AppState.map_aux_fire_frequency,
+         AppState.toggle_map_aux_fire_frequency),
+        ("📅 Year of last fire", AppState.map_aux_fire_year_last,
+         AppState.toggle_map_aux_fire_year_last),
+        ("⛏️ Mining substances", AppState.map_aux_mining,
+         AppState.toggle_map_aux_mining),
+        ("🌾 Agriculture — cycles", AppState.map_aux_agriculture,
+         AppState.toggle_map_aux_agriculture),
+    )
+    return rx.vstack(
+        rx.hstack(
+            rx.heading("🗺️ Maps & Charts (satellite + MapBiomas y1/y2)",
+                       size="3", color=_ADV_GREEN),
+            rx.spacer(),
+            rx.badge(
+                AppState.comparison_year1.to(str) + " / " + AppState.comparison_year2.to(str),
+                color_scheme="orange", variant="soft",
+            ),
+            width="100%", align_items="center",
+        ),
+        rx.text(
+            "Render publication-quality PNG maps — satellite basemap and "
+            "MapBiomas land cover for the two comparison years, plus any "
+            "auxiliary rasters below. Buffer overlay is included when a buffer "
+            "zone is active. Preview inline and download as a ZIP.",
+            font_size="sm", color="#374151", line_height="1.6",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.text("Extra MapBiomas rasters (year 2)", font_size="xs",
+                        font_weight="600", color="#374151",
+                        text_transform="uppercase", letter_spacing="0.05em"),
+                rx.flex(
+                    *[
+                        rx.checkbox(lbl, checked=val, on_change=tog,
+                                    color_scheme="orange")
+                        for lbl, val, tog in aux
+                    ],
+                    wrap="wrap", gap="0.75rem 1.5rem",
+                ),
+                spacing="2", width="100%",
+            ),
+            padding="0.75rem", bg=_ADV_ORANGE_LIGHT,
+            border="1px solid " + _ADV_ORANGE_BORDER, border_radius="md",
+            width="100%",
+        ),
+        rx.hstack(
+            _adv_run_button("🗺️ Generate maps", AppState.generate_map_set,
+                            AppState.mapset_pending, "Generating maps…"),
+            rx.cond(
+                AppState.mapset_images.length() > 0,
+                rx.button(
+                    "⬇️ Download ZIP", on_click=AppState.download_map_set_zip,
+                    size="3", bg="#16A34A", color="white", font_weight="bold",
+                    _hover={"bg": "#15803D"}, cursor="pointer",
+                ),
+                rx.box(),
+            ),
+            spacing="3", width="100%",
+        ),
+        rx.divider(),
+        rx.cond(
+            AppState.mapset_images.length() > 0,
+            rx.grid(
+                rx.foreach(
+                    AppState.mapset_images,
+                    lambda m: rx.vstack(
+                        rx.text(m["name"], font_size="xs", font_weight="600",
+                                color="#374151"),
+                        rx.image(src=m["data_uri"], width="100%",
+                                 border="1px solid #e5e7eb", border_radius="md"),
+                        spacing="1", width="100%",
+                    ),
+                ),
+                columns="2", spacing="3", width="100%",
+            ),
+            _no_data_placeholder("Generate maps to preview them here"),
+        ),
+        spacing="3", width="100%", padding="0.5rem",
+    )
+
+
+def multi_window_tab() -> rx.Component:
+    """Multi-time-window MapBiomas: multi-stage Sankey + per-pair Sunbursts."""
+    return rx.vstack(
+        rx.heading("🌀 Multiple time-window MapBiomas (Sankey + Sunburst)",
+                   size="3", color=_ADV_GREEN),
+        rx.text(
+            "Chain MapBiomas land-cover transitions across 3–N years into a "
+            "single multi-stage Sankey, with one Sunburst per consecutive "
+            "year-pair. Buffer-ring variants render when a buffer is active.",
+            font_size="sm", color="#374151", line_height="1.6",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.hstack(
+                    rx.text("Mode:", font_size="xs", color="#6B7280", width="60px"),
+                    rx.select(["constant", "custom"], value=AppState.mw_mode,
+                              on_change=AppState.set_mw_mode, size="2", width="130px"),
+                    spacing="2", align_items="center",
+                ),
+                rx.cond(
+                    AppState.mw_mode == "constant",
+                    rx.hstack(
+                        rx.text("Step (years):", font_size="xs", color="#6B7280",
+                                width="100px"),
+                        rx.select(["1", "2", "4", "5", "8"], value=AppState.mw_step,
+                                  on_change=AppState.set_mw_step, size="2", width="80px"),
+                        rx.text("1985 → 2024 forced as last year", font_size="xs",
+                                color="#9CA3AF"),
+                        spacing="2", align_items="center",
+                    ),
+                    rx.vstack(
+                        rx.text("Custom years (3 or 4, comma-separated, 1985–2024)",
+                                font_size="xs", color="#6B7280"),
+                        rx.input(value=AppState.mw_custom_years,
+                                 on_change=AppState.set_mw_custom_years,
+                                 placeholder="1985, 2004, 2012, 2023", size="2",
+                                 width="100%"),
+                        spacing="1", width="100%",
+                    ),
+                ),
+                rx.text("Active years: " + AppState.mw_resolved_years.to(str),
+                        font_size="xs", color="#374151"),
+                spacing="2", width="100%",
+            ),
+            padding="0.75rem", bg=_ADV_ORANGE_LIGHT,
+            border="1px solid " + _ADV_ORANGE_BORDER, border_radius="md",
+            width="100%",
+        ),
+        _adv_run_button("🌀 Run multi-window analysis",
+                        AppState.run_multi_window_analysis,
+                        AppState.mw_pending, "Computing transitions…"),
+        rx.divider(),
+        rx.cond(
+            AppState.mw_has_result,
+            rx.vstack(
+                _adv_chart_section("🟠 Territory — multi-stage Sankey",
+                                   AppState.multi_window_sankey_chart, "440px"),
+                rx.cond(
+                    AppState.mw_sunburst_figs.length() > 0,
+                    rx.vstack(
+                        rx.text("Per-pair Sunbursts", font_size="sm",
+                                font_weight="700", color="#374151"),
+                        rx.grid(
+                            rx.foreach(
+                                AppState.mw_sunburst_figs,
+                                lambda f: rx.box(
+                                    rx.plotly(data=f, use_resize_handler=True),
+                                    width="100%",
+                                ),
+                            ),
+                            columns="2", spacing="3", width="100%",
+                        ),
+                        spacing="1", width="100%",
+                    ),
+                    rx.box(),
+                ),
+                rx.cond(
+                    AppState.mw_has_buffer,
+                    _buffer_box(
+                        rx.vstack(
+                            _adv_chart_section("🔵 Buffer — multi-stage Sankey",
+                                               AppState.buffer_multi_window_sankey_chart,
+                                               "440px"),
+                            rx.cond(
+                                AppState.buffer_mw_sunburst_figs.length() > 0,
+                                rx.grid(
+                                    rx.foreach(
+                                        AppState.buffer_mw_sunburst_figs,
+                                        lambda f: rx.box(
+                                            rx.plotly(data=f, use_resize_handler=True),
+                                            width="100%",
+                                        ),
+                                    ),
+                                    columns="2", spacing="3", width="100%",
+                                ),
+                                rx.box(),
+                            ),
+                            spacing="2", width="100%",
+                        )
+                    ),
+                    rx.box(),
+                ),
+                spacing="4", width="100%",
+            ),
+            _no_data_placeholder("Run multi-window analysis to see Sankey + Sunburst"),
+        ),
+        spacing="3", width="100%", padding="0.5rem",
+    )
+
+
+def timeline_tab() -> rx.Component:
+    """Deforestation timeline: Hansen + MapBiomas + Fire with policy context."""
+    incl = (
+        ("🌲 Hansen forest loss", AppState.tl_include_hansen,
+         AppState.toggle_tl_include_hansen),
+        ("🌳 MapBiomas primary defor.", AppState.tl_include_defor,
+         AppState.toggle_tl_include_defor),
+        ("🌱 Secondary regrowth", AppState.tl_include_secondary,
+         AppState.toggle_tl_include_secondary),
+        ("🔥 Fire scar", AppState.tl_include_fire,
+         AppState.toggle_tl_include_fire),
+    )
+    return rx.vstack(
+        rx.heading("📈 Deforestation timeline (Hansen + MapBiomas + Fire)",
+                   size="3", color=_ADV_GREEN),
+        rx.text(
+            "Annual deforestation, regrowth and fire indicators across the "
+            "comparison year range, framed by Brazilian political context "
+            "(president / governor stripes, top) and forest-policy milestones "
+            "(bottom). Three views: raw values, 5-year moving average, and "
+            "first/second derivatives.",
+            font_size="sm", color="#374151", line_height="1.6",
+        ),
+        rx.box(
+            rx.vstack(
+                rx.text("Indicators", font_size="xs", font_weight="600",
+                        color="#374151", text_transform="uppercase",
+                        letter_spacing="0.05em"),
+                rx.flex(
+                    *[
+                        rx.checkbox(lbl, checked=val, on_change=tog,
+                                    color_scheme="orange")
+                        for lbl, val, tog in incl
+                    ],
+                    wrap="wrap", gap="0.75rem 1.5rem",
+                ),
+                spacing="2", width="100%",
+            ),
+            padding="0.75rem", bg=_ADV_ORANGE_LIGHT,
+            border="1px solid " + _ADV_ORANGE_BORDER, border_radius="md",
+            width="100%",
+        ),
+        rx.text(
+            "ℹ️ Hansen loss uses the Hansen GFC result — run the Hansen GFC "
+            "analysis first for a non-zero forest-loss line.",
+            font_size="xs", color="#9CA3AF",
+        ),
+        _adv_run_button("📈 Run deforestation timeline",
+                        AppState.run_deforestation_timeline,
+                        AppState.timeline_pending, "Building timeline…"),
+        rx.divider(),
+        rx.cond(
+            AppState.timeline_has_data,
+            rx.vstack(
+                _adv_chart_section("Raw annual values", AppState.timeline_raw_chart),
+                _adv_chart_section("5-year moving average", AppState.timeline_ma_chart),
+                _adv_chart_section("Derivatives (1st & 2nd difference)",
+                                   AppState.timeline_deriv_chart),
+                rx.cond(
+                    AppState.timeline_has_buffer,
+                    _buffer_box(
+                        rx.vstack(
+                            rx.text("🔵 Buffer zone", font_size="sm",
+                                    font_weight="700", color="#1D4ED8"),
+                            _adv_chart_section("Raw annual values",
+                                               AppState.buffer_timeline_raw_chart),
+                            _adv_chart_section("5-year moving average",
+                                               AppState.buffer_timeline_ma_chart),
+                            _adv_chart_section("Derivatives",
+                                               AppState.buffer_timeline_deriv_chart),
+                            spacing="2", width="100%",
+                        )
+                    ),
+                    rx.box(),
+                ),
+                spacing="4", width="100%",
+            ),
+            _no_data_placeholder(
+                "Run the timeline to see Hansen + MapBiomas + Fire with "
+                "political/policy context"
+            ),
+        ),
+        spacing="3", width="100%", padding="0.5rem",
+    )
+
+
 def analysis_tabs() -> rx.Component:
     """
     Full analysis panel with 6 tabs matching the Streamlit app:
@@ -1954,6 +2280,9 @@ def analysis_tabs() -> rx.Component:
                 rx.tabs.trigger("Hansen GFC", value="gfc"),
                 rx.tabs.trigger("AAFC", value="aafc"),
                 rx.tabs.trigger(AppState.tr["compare_btn"], value="comparison"),
+                rx.tabs.trigger("🗺️ Maps", value="maps"),
+                rx.tabs.trigger("🌀 Multi-window", value="multiwindow"),
+                rx.tabs.trigger("📈 Timeline", value="timeline"),
                 rx.tabs.trigger(AppState.tr["about_tab"], value="about"),
             ),
             rx.tabs.content(mapbiomas_tab(), value="mapbiomas"),
@@ -1961,6 +2290,9 @@ def analysis_tabs() -> rx.Component:
             rx.tabs.content(hansen_gfc_tab(), value="gfc"),
             rx.tabs.content(aafc_tab(), value="aafc"),
             rx.tabs.content(comparison_tab(), value="comparison"),
+            rx.tabs.content(maps_tab(), value="maps"),
+            rx.tabs.content(multi_window_tab(), value="multiwindow"),
+            rx.tabs.content(timeline_tab(), value="timeline"),
             rx.tabs.content(about_tab(), value="about"),
             value=AppState.active_analysis_tab,
             on_change=AppState.set_active_analysis_tab,

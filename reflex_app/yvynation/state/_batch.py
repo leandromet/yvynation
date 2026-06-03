@@ -1226,8 +1226,11 @@ class BatchMixin(rx.State, mixin=True):
                                     async with self:
                                         self._batch_append_log(f"  ⚠ skipped buffer multi-window{rsuffix}")
 
-                        # Capture region data for per-quadrant maps + timeline
-                        region_map_data.append((region_name, region_ee_geom, gfc_result))
+                        # Capture region data for per-quadrant maps + timeline.
+                        # 4-tuple: (region_name, territory_geom, gfc_result, buffer_geom)
+                        # buffer_geom is the quadrant-clipped buffer (or full buffer for
+                        # non-split territories); None when buffer is not enabled.
+                        region_map_data.append((region_name, region_ee_geom, gfc_result, region_buf_geom))
 
                         # ─── Step 11: Write THIS region to master ZIP ───────
                         async with self:
@@ -1458,9 +1461,9 @@ class BatchMixin(rx.State, mixin=True):
                                     mb_years = [int(y1)] if y1 == y2 else [int(y1), int(y2)]
                                 glad_layers = [str(hy)] if do_glad else None
                                 aux_layers = [(k, int(y2)) for k in aux_keys]
-                                multi = any(rname for rname, _, __ in all_regions)
+                                multi = any(rname for rname, *_ in all_regions)
 
-                                for rname, region_geom, _ in all_regions:
+                                for rname, region_geom, *_ in all_regions:
                                     q_label = rname.upper() if rname else ""
                                     map_title = f"{terr} [{q_label}]" if q_label else terr
                                     fname_pre = f"{q_label}_" if q_label else ""
@@ -1621,7 +1624,7 @@ class BatchMixin(rx.State, mixin=True):
 
                                 # Territory — one pass per region/quadrant
                                 t_dir = f"territory/{t_slug}/deforestation_timeline"
-                                for rname, region_geom, region_gfc in all_regions:
+                                for rname, region_geom, region_gfc, region_buf_geom in all_regions:
                                     q_label = rname.upper() if rname else ""
                                     _write_region(
                                         f"_{q_label}" if q_label else "",
@@ -1631,17 +1634,27 @@ class BatchMixin(rx.State, mixin=True):
                                         title_extra=f" [{q_label}]" if q_label else "",
                                     )
 
-                                # Buffer (uses the territory's Hansen GFC fallback
-                                # only if buffer GFC isn't available — Hansen yearly
-                                # loss for the buffer is best-effort).
-                                if ben and buf_ee is not None:
+                                # Buffer — per quadrant when quadrant splitting was used,
+                                # one whole-buffer timeline otherwise.  Buffer geometry comes
+                                # from each entry's 4th element (quadrant-clipped or full).
+                                if ben:
                                     b_slug = _slug(f"{terr}_Buffer_{bkm:g}km")
                                     b_dir = f"buffer/{b_slug}/deforestation_timeline"
-                                    _write_region(
-                                        f"_Buffer_{bkm:g}km",
-                                        b_dir, buf_ee, None,
-                                        title_extra=f" — Buffer {bkm:g} km",
-                                    )
+                                    for rname, _, __, region_buf_geom in all_regions:
+                                        if region_buf_geom is None:
+                                            continue
+                                        q_label = rname.upper() if rname else ""
+                                        _write_region(
+                                            f"_Buffer_{bkm:g}km{'_' + q_label if q_label else ''}",
+                                            b_dir,
+                                            region_buf_geom,
+                                            None,
+                                            title_extra=(
+                                                f" — Buffer {bkm:g} km [{q_label}]"
+                                                if q_label else
+                                                f" — Buffer {bkm:g} km"
+                                            ),
+                                        )
 
                             except Exception as te:
                                 logger.warning(
