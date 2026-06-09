@@ -2181,6 +2181,103 @@ def multi_window_tab() -> rx.Component:
     )
 
 
+def treemap_tab() -> rx.Component:
+    """Faceted per-class transition treemaps.
+
+    Two views over the same transition data that feeds the Sankey/Sunburst:
+      • Whole period — from the year comparison (territory, + buffer if active).
+      • Per-step — one faceted treemap per consecutive year-pair, populated by
+        running the multi-window analysis (🌀 tab).
+    Each facet is a single class; its tiles are what that class *became*.
+    """
+    has_buffer = AppState.buffer_compare_result != None
+
+    return rx.vstack(
+        rx.heading("🟦 Transition treemaps by class", size="3", color=_ADV_GREEN),
+        rx.text(
+            "For each land-cover class, a treemap of what it became over the "
+            "period — the same transition data as the Sankey/Sunburst, packed "
+            "as area rectangles (facet titles report how much of the class "
+            "stayed). The whole-period view uses the year comparison; the "
+            "per-step views use the multi-window pairs (run the 🌀 Multi-window "
+            "tab to populate them).",
+            font_size="sm", color="#374151", line_height="1.6",
+        ),
+        rx.divider(),
+
+        # ── Whole period ─────────────────────────────────────────────────────
+        rx.text("Whole period", font_size="sm", font_weight="700", color="#374151"),
+        rx.cond(
+            AppState.comparison_available,
+            rx.cond(
+                has_buffer,
+                _compare_row(
+                    _compare_transition_block(
+                        "grid-3x3", "🟠 Territory",
+                        AppState.treemap_transitions_chart, "purple",
+                    ),
+                    _compare_transition_block(
+                        "grid-3x3", "🔵 Buffer Zone",
+                        AppState.buffer_treemap_chart, "#1D4ED8",
+                    ),
+                ),
+                _compare_transition_block(
+                    "grid-3x3", "Class transition treemaps",
+                    AppState.treemap_transitions_chart, "purple",
+                ),
+            ),
+            _no_data_placeholder("Run a year comparison to see whole-period treemaps"),
+        ),
+
+        rx.divider(),
+
+        # ── Per-step (multi-window) ──────────────────────────────────────────
+        rx.text("Per-step (multi-window)", font_size="sm", font_weight="700",
+                color="#374151"),
+        rx.cond(
+            AppState.mw_treemap_figs.length() > 0,
+            rx.vstack(
+                rx.grid(
+                    rx.foreach(
+                        AppState.mw_treemap_figs,
+                        lambda f: rx.box(
+                            rx.plotly(data=f, use_resize_handler=True),
+                            width="100%",
+                        ),
+                    ),
+                    columns="1", spacing="3", width="100%",
+                ),
+                rx.cond(
+                    AppState.mw_has_buffer & (AppState.buffer_mw_treemap_figs.length() > 0),
+                    _buffer_box(
+                        rx.vstack(
+                            rx.text("🔵 Buffer ring", font_size="sm",
+                                    font_weight="700", color="#1D4ED8"),
+                            rx.grid(
+                                rx.foreach(
+                                    AppState.buffer_mw_treemap_figs,
+                                    lambda f: rx.box(
+                                        rx.plotly(data=f, use_resize_handler=True),
+                                        width="100%",
+                                    ),
+                                ),
+                                columns="1", spacing="3", width="100%",
+                            ),
+                            spacing="2", width="100%",
+                        )
+                    ),
+                    rx.box(),
+                ),
+                spacing="3", width="100%",
+            ),
+            _no_data_placeholder(
+                "Run the 🌀 Multi-window analysis to see per-step treemaps"
+            ),
+        ),
+        spacing="3", width="100%", padding="0.5rem",
+    )
+
+
 def timeline_tab() -> rx.Component:
     """Deforestation timeline: Hansen + MapBiomas + Fire with policy context."""
     incl = (
@@ -2280,6 +2377,7 @@ def analysis_tabs() -> rx.Component:
                 rx.tabs.trigger("Hansen GFC", value="gfc"),
                 rx.tabs.trigger("AAFC", value="aafc"),
                 rx.tabs.trigger(AppState.tr["compare_btn"], value="comparison"),
+                rx.tabs.trigger("🟦 Treemaps", value="treemaps"),
                 rx.tabs.trigger("🗺️ Maps", value="maps"),
                 rx.tabs.trigger("🌀 Multi-window", value="multiwindow"),
                 rx.tabs.trigger("📈 Timeline", value="timeline"),
@@ -2290,6 +2388,7 @@ def analysis_tabs() -> rx.Component:
             rx.tabs.content(hansen_gfc_tab(), value="gfc"),
             rx.tabs.content(aafc_tab(), value="aafc"),
             rx.tabs.content(comparison_tab(), value="comparison"),
+            rx.tabs.content(treemap_tab(), value="treemaps"),
             rx.tabs.content(maps_tab(), value="maps"),
             rx.tabs.content(multi_window_tab(), value="multiwindow"),
             rx.tabs.content(timeline_tab(), value="timeline"),

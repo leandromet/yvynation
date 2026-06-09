@@ -1110,6 +1110,28 @@ class AppState(
             return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
+    def treemap_transitions_chart(self) -> Figure:
+        """Faceted per-class transition treemaps (whole comparison period)."""
+        try:
+            transitions = self.territory_transitions
+            if not transitions and self.mapbiomas_comparison_result:
+                transitions = self.mapbiomas_comparison_result.get("transitions")
+            if not transitions:
+                return pgo.Figure()
+
+            year1 = self.mapbiomas_comparison_result.get("year_start", self.comparison_year1) \
+                if self.mapbiomas_comparison_result else self.comparison_year1
+            year2 = self.mapbiomas_comparison_result.get("year_end", self.comparison_year2) \
+                if self.mapbiomas_comparison_result else self.comparison_year2
+
+            from ..utils.visualization import create_class_transition_treemaps
+
+            return create_class_transition_treemaps(transitions, year1, year2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Treemap chart error: {e}", exc_info=True)
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
     def transition_matrix_chart(self) -> Figure:
         try:
             transitions = self.territory_transitions
@@ -1597,6 +1619,25 @@ class AppState(
             return create_sunburst_transitions(transitions, y1, y2) or pgo.Figure()
         except Exception as e:
             logger.error(f"Buffer Sunburst chart error: {e}")
+            return pgo.Figure()
+
+    @rx.var(auto_deps=False, deps=["buffer_territory_transitions", "buffer_mapbiomas_comparison_result"])
+    def buffer_treemap_chart(self) -> Figure:
+        """Faceted per-class transition treemaps for the buffer ring."""
+        try:
+            transitions = self.buffer_territory_transitions
+            if not transitions:
+                return pgo.Figure()
+            y1 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_start", self.comparison_year1
+            )
+            y2 = (self.buffer_mapbiomas_comparison_result or {}).get(
+                "year_end", self.comparison_year2
+            )
+            from ..utils.visualization import create_class_transition_treemaps
+            return create_class_transition_treemaps(transitions, y1, y2) or pgo.Figure()
+        except Exception as e:
+            logger.error(f"Buffer treemap chart error: {e}")
             return pgo.Figure()
 
     @rx.var(auto_deps=False, deps=["buffer_territory_transitions", "buffer_mapbiomas_comparison_result"])

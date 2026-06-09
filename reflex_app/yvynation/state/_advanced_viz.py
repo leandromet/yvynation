@@ -149,6 +149,9 @@ class AdvancedVizMixin(rx.State, mixin=True):
     # Per-pair Sunbursts as real Figures so rx.foreach + rx.plotly type-check.
     mw_sunburst_figs: List[Figure] = []
     buffer_mw_sunburst_figs: List[Figure] = []
+    # Per-pair faceted transition treemaps (one figure per consecutive year-pair).
+    mw_treemap_figs: List[Figure] = []
+    buffer_mw_treemap_figs: List[Figure] = []
 
     # ── Results: deforestation timeline ────────────────────────────────────
     timeline_series: Dict[str, Any] = {}       # {indicator: {year: ha}}
@@ -479,25 +482,45 @@ class AdvancedVizMixin(rx.State, mixin=True):
                         logger.warning(f"[ADV-VIZ] mw sunburst build: {e}")
                 return figs
 
+            def _treemaps(pairs):
+                from ..utils.visualization import create_class_transition_treemaps
+                figs = []
+                for p in pairs:
+                    tr = p.get("transitions") or {}
+                    if not tr:
+                        continue
+                    try:
+                        fig = create_class_transition_treemaps(
+                            tr, p["year_from"], p["year_to"])
+                        if fig is not None:
+                            figs.append(fig)
+                    except Exception as e:
+                        logger.warning(f"[ADV-VIZ] mw treemap build: {e}")
+                return figs
+
             async with self:
                 self.loading_message = "Multi-window — territory transitions…"
             t_pairs = await loop.run_in_executor(None, _pairs, ee_geom)
             t_figs = await loop.run_in_executor(None, _sunbursts, t_pairs)
+            t_tree = await loop.run_in_executor(None, _treemaps, t_pairs)
 
-            b_pairs, b_figs = [], []
+            b_pairs, b_figs, b_tree = [], [], []
             if buf_geom is not None:
                 async with self:
                     self.loading_message = "Multi-window — buffer transitions…"
                 b_pairs = await loop.run_in_executor(None, _pairs, buf_geom)
                 b_figs = await loop.run_in_executor(None, _sunbursts, b_pairs)
+                b_tree = await loop.run_in_executor(None, _treemaps, b_pairs)
 
             async with self:
                 self.mw_result = {"years": years, "pairs": t_pairs}
                 self.mw_sunburst_figs = t_figs
+                self.mw_treemap_figs = t_tree
                 self.buffer_mw_result = (
                     {"years": years, "pairs": b_pairs} if b_pairs else {}
                 )
                 self.buffer_mw_sunburst_figs = b_figs
+                self.buffer_mw_treemap_figs = b_tree
                 self.mw_pending = False
                 self.loading_message = ""
                 self.active_analysis_tab = "multiwindow"

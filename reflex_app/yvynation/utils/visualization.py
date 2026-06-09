@@ -780,6 +780,188 @@ def create_sunburst_transitions(transitions_dict: Dict,
 
 
 # ---------------------------------------------------------------------------
+# Faceted per-class transition treemaps
+# ---------------------------------------------------------------------------
+
+def create_class_transition_treemaps(transitions_dict: Dict,
+                                     year_start: int,
+                                     year_end: int,
+                                     class_colors: Optional[Dict] = None,
+                                     class_names: Optional[Dict] = None,
+                                     top_n: int = 12,
+                                     min_transition_pct: float = 1.0,
+                                     max_cols: int = 3) -> Optional[go.Figure]:
+    """
+    Faceted per-class transition treemaps.
+
+    One small treemap per source class, laid out in a grid. Each facet shows
+    where that class went between ``year_start`` and ``year_end`` — its
+    destination classes (persistence excluded), sized by area. The persistence
+    share is reported in the facet title, mirroring the original matplotlib
+    ``create_class_transition_treemaps`` (where a bar carried persistence and
+    the treemap carried the changes).
+
+    Reuses the exact transition structure that feeds the Sankey/Sunburst
+    charts, so it can be driven from the same state.
+
+    Args:
+        transitions_dict: ``{source_id: {target_id: area_ha, ...}, ...}``.
+            Persistence flows (``src == tgt``) are tolerated and treated as
+            "stayed" rather than plotted as a transition tile.
+        year_start, year_end: period bounds (used for titles only).
+        class_colors: class_id -> hex color (defaults to MapBiomas palette).
+        class_names: class_id -> display name (defaults to MapBiomas labels).
+        top_n: maximum number of source classes (facets), by total area desc.
+        min_transition_pct: drop destinations below this percentage of the
+            class's *changed* area (filters visual noise).
+        max_cols: facets per row.
+
+    Returns:
+        Plotly Figure with one treemap subplot per class, or None when there
+        is no transition data to show.
+    """
+    if not transitions_dict:
+        logger.warning("Treemap: empty transitions dict received")
+        return None
+
+    if class_colors is None:
+        class_colors = _get_mapbiomas_colors()
+    if class_names is None:
+        class_names = _get_mapbiomas_labels()
+
+    def _resolve_label(class_id) -> str:
+        try:
+            int_id = int(class_id)
+            if int_id in class_names:
+                return class_names[int_id]
+        except (ValueError, TypeError):
+            pass
+        return class_names.get(class_id, str(class_id))
+
+    def _resolve_color(class_id) -> str:
+        try:
+            return class_colors.get(int(class_id), class_colors.get(class_id, '#cccccc'))
+        except (ValueError, TypeError):
+            return class_colors.get(class_id, '#cccccc')
+
+    def _same_class(a, b) -> bool:
+        """True when two class IDs refer to the same class (int or str keyed)."""
+        if a == b:
+            return True
+        try:
+            return int(a) == int(b)
+        except (ValueError, TypeError):
+            return False
+
+    # ---- Aggregate each source class: total / persisted / destinations ----
+    facets = []  # [{"label", "color", "pers_pct", "dests": [(label, area, pct, color)]}]
+    for src_id, tgt_dict in transitions_dict.items():
+        if not isinstance(tgt_dict, dict):
+            continue
+
+        total = sum(a for a in tgt_dict.values() if isinstance(a, (int, float)) and a > 0)
+        if total <= 0:
+            continue
+
+        persisted = 0.0
+        raw_dests = []  # (tgt_id, area)
+        for tgt_id, area in tgt_dict.items():
+            if not isinstance(area, (int, float)) or area <= 0:
+                continue
+            if _same_class(src_id, tgt_id):
+                persisted += area
+            else:
+                raw_dests.append((tgt_id, area))
+
+        changed = total - persisted
+        if changed <= 0 or not raw_dests:
+            continue  # class that only persisted — nothing to "become"
+
+        dests = []
+        for tgt_id, area in raw_dests:
+            pct = 100.0 * area / changed if changed > 0 else 0.0
+            if pct >= min_transition_pct:
+                dests.append((_resolve_label(tgt_id), float(area), pct, _resolve_color(tgt_id)))
+        if not dests:
+            continue
+        dests.sort(key=lambda d: -d[1])
+
+        facets.append({
+            "label": _resolve_label(src_id),
+            "color": _resolve_color(src_id),
+            "total": float(total),
+            "pers_pct": 100.0 * persisted / total if total > 0 else 0.0,
+            "dests": dests,
+        })
+
+    if not facets:
+        logger.warning("Treemap: no source classes with significant transitions")
+        return None
+
+    facets.sort(key=lambda f: -f["total"])
+    if len(facets) > top_n:
+        facets = facets[:top_n]
+
+    # ---- Lay facets out in a grid of treemap subplots ----------------------
+    import math
+    from plotly.subplots import make_subplots
+
+    n = len(facets)
+    cols = max(1, min(max_cols, n))
+    rows = math.ceil(n / cols)
+
+    subplot_titles = [
+        f"{f['label']} — {f['pers_pct']:.0f}% stayed" for f in facets
+    ]
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        specs=[[{"type": "domain"} for _ in range(cols)] for _ in range(rows)],
+        subplot_titles=subplot_titles,
+        horizontal_spacing=0.02,
+        vertical_spacing=max(0.04, 0.18 / rows),
+    )
+
+    for i, f in enumerate(facets):
+        r, c = i // cols + 1, i % cols + 1
+        labels = [d[0] for d in f["dests"]]
+        values = [d[1] for d in f["dests"]]
+        pcts = [d[2] for d in f["dests"]]
+        colors = [d[3] for d in f["dests"]]
+        fig.add_trace(
+            go.Treemap(
+                labels=labels,
+                parents=[""] * len(labels),
+                values=values,
+                customdata=pcts,
+                marker=dict(colors=colors, line=dict(color="white", width=1)),
+                texttemplate="%{label}<br>%{value:,.0f} ha<br>%{customdata:.0f}%",
+                hovertemplate=(
+                    "<b>%{label}</b><br>%{value:,.0f} ha"
+                    "<br>%{customdata:.1f}% of change<extra></extra>"
+                ),
+                textfont=dict(size=10),
+                tiling=dict(pad=1),
+                branchvalues="remainder",
+            ),
+            row=r, col=c,
+        )
+
+    fig.update_layout(
+        title=f"Land Cover Transition Treemaps by Class ({year_start}→{year_end})",
+        height=max(360, rows * 300),
+        template="plotly_white",
+        margin=dict(t=70, l=10, r=10, b=10),
+        font=dict(size=10),
+    )
+    # Smaller facet titles so they don't crowd the small treemaps.
+    for ann in fig.layout.annotations:
+        ann.font.size = 11
+
+    logger.info(f"Treemap: built {n} facet treemaps ({rows}x{cols})")
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher: choose chart from analysis_results dict
 # ---------------------------------------------------------------------------
 
