@@ -216,6 +216,7 @@ def _build_territory_figures(
     glad_records,
     gfc_dict,
     y1, y2, hansen_year,
+    run_treemap=True,
 ):
     """Build every plotly figure needed for the export ZIP (territory or buffer)."""
     import pandas as pd
@@ -285,19 +286,21 @@ def _build_territory_figures(
             figs["sunburst_chart"] = create_sunburst_transitions(transitions, y1, y2)
         except Exception as e:
             logger.warning(f"sunburst build failed: {e}")
-        try:
-            # Year-start area per class so the treemap persistence % is measured
-            # against each class's original area (correct for change-only dicts).
-            class_totals = {}
-            for row in (mb_y1_records or []):
-                cid, area = row.get("Class_ID"), row.get("Area_ha")
-                if cid is not None and isinstance(area, (int, float)):
-                    class_totals[cid] = float(area)
-            figs["treemap_chart"] = create_class_transition_treemaps(
-                transitions, y1, y2, class_totals=class_totals or None
-            )
-        except Exception as e:
-            logger.warning(f"treemap build failed: {e}")
+        if run_treemap:
+            try:
+                # Year-start area per class so the treemap persistence % is
+                # measured against each class's original area (correct for
+                # change-only dicts).
+                class_totals = {}
+                for row in (mb_y1_records or []):
+                    cid, area = row.get("Class_ID"), row.get("Area_ha")
+                    if cid is not None and isinstance(area, (int, float)):
+                        class_totals[cid] = float(area)
+                figs["treemap_chart"] = create_class_transition_treemaps(
+                    transitions, y1, y2, class_totals=class_totals or None
+                )
+            except Exception as e:
+                logger.warning(f"treemap build failed: {e}")
         try:
             figs["transition_matrix_chart"] = _build_transition_matrix_fig(transitions, y1, y2)
         except Exception as e:
@@ -374,6 +377,7 @@ class BatchMixin(rx.State, mixin=True):
     batch_buffer_enabled: bool = True
     batch_run_mapbiomas: bool = True
     batch_run_comparison: bool = True
+    batch_run_treemap: bool = True   # class-transition treemaps (compare + multi-window)
     batch_run_glad: bool = True
     batch_run_gfc: bool = True
     batch_run_pdf_maps: bool = True
@@ -591,6 +595,9 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_run_comparison(self, val: bool):
         self.batch_run_comparison = val
 
+    def batch_toggle_run_treemap(self, val: bool):
+        self.batch_run_treemap = val
+
     def batch_toggle_run_glad(self, val: bool):
         self.batch_run_glad = val
 
@@ -741,6 +748,7 @@ class BatchMixin(rx.State, mixin=True):
             buf_enabled = bool(self.batch_buffer_enabled)
             run_mb = bool(self.batch_run_mapbiomas)
             run_cmp = bool(self.batch_run_comparison)
+            run_treemap = bool(self.batch_run_treemap)
             run_glad = bool(self.batch_run_glad)
             run_gfc = bool(self.batch_run_gfc)
             run_maps = bool(self.batch_run_pdf_maps)
@@ -1261,6 +1269,7 @@ class BatchMixin(rx.State, mixin=True):
                             bmb=buf_mb_result, bcmp=buf_cmp_result,
                             bglad=buf_glad_result, bgfc=buf_gfc_result,
                             mw=multi_window_result, bmw=buf_multi_window_result,
+                            run_treemap=run_treemap,
                         ):
                             from ..utils.export_service import (
                                 _slug, _write_mapbiomas_section,
@@ -1291,6 +1300,7 @@ class BatchMixin(rx.State, mixin=True):
                                 glad_records=t_glad_records,
                                 gfc_dict=gfc,
                                 y1=y1, y2=y2, hansen_year=hy,
+                                run_treemap=run_treemap,
                             )
 
                             # Synthesize single-year results from comparison
@@ -1364,6 +1374,7 @@ class BatchMixin(rx.State, mixin=True):
                                     glad_records=b_glad_records,
                                     gfc_dict=bgfc,
                                     y1=y1, y2=y2, hansen_year=hy,
+                                    run_treemap=run_treemap,
                                 )
                                 if bmb or bcmp:
                                     # buf year1 single = bmb (run_mb path);
@@ -1420,6 +1431,7 @@ class BatchMixin(rx.State, mixin=True):
                                         zf, b_dir, t_slug,
                                         mw_result=bmw,
                                         name_suffix=b_suffix,
+                                        include_treemaps=run_treemap,
                                     )
 
                             # ── Multi-window MapBiomas (territory) ────
@@ -1428,6 +1440,7 @@ class BatchMixin(rx.State, mixin=True):
                                     zf, t_dir, t_slug,
                                     mw_result=mw,
                                     name_suffix=q_tag,
+                                    include_treemaps=run_treemap,
                                 )
 
                         await loop.run_in_executor(None, _write_region_to_zip)

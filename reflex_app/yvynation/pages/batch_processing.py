@@ -284,6 +284,19 @@ def config_panel() -> rx.Component:
                 color_scheme="orange",
             ),
             rx.checkbox(
+                "🟦 Class-transition treemaps (per-class + Others)",
+                checked=AppState.batch_run_treemap,
+                on_change=AppState.batch_toggle_run_treemap,
+                color_scheme="orange",
+            ),
+            rx.text(
+                "Adds a faceted treemap (one per class, smaller classes rolled "
+                "into “Others”) wherever transitions are produced — the "
+                "year comparison and each multi-window step.",
+                font_size="2xs", color="#9CA3AF", margin_left="1.75rem",
+                line_height="1.4",
+            ),
+            rx.checkbox(
                 "🌲 Hansen GLAD forest cover",
                 checked=AppState.batch_run_glad,
                 on_change=AppState.batch_toggle_run_glad,
@@ -362,7 +375,7 @@ def config_panel() -> rx.Component:
                 rx.box(),
             ),
             rx.checkbox(
-                "🌀 Multiple time-window MapBiomas (Sankey + Sunburst)",
+                "🌀 Multiple time-window MapBiomas (Sankey + Sunburst + Treemaps)",
                 checked=AppState.batch_run_multi_window,
                 on_change=AppState.batch_toggle_run_multi_window,
                 color_scheme="orange",

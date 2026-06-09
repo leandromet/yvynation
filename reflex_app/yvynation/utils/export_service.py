@@ -400,6 +400,7 @@ def _write_multi_window_section(
     *,
     mw_result: Optional[Dict] = None,
     name_suffix: str = "",
+    include_treemaps: bool = True,
 ) -> None:
     """Write the multi-time-window MapBiomas outputs.
 
@@ -494,16 +495,17 @@ def _write_multi_window_section(
                 )
         except Exception as e:
             logger.warning(f"multi-window sunburst {y_from}->{y_to} failed: {e}")
-        try:
-            tree_fig = create_class_transition_treemaps(tdict, y_from, y_to)
-            if tree_fig is not None:
-                _write_fig(
-                    zf,
-                    f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_class_transitions_treemap{sfx}",
-                    tree_fig,
-                )
-        except Exception as e:
-            logger.warning(f"multi-window treemap {y_from}->{y_to} failed: {e}")
+        if include_treemaps:
+            try:
+                tree_fig = create_class_transition_treemaps(tdict, y_from, y_to)
+                if tree_fig is not None:
+                    _write_fig(
+                        zf,
+                        f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_class_transitions_treemap{sfx}",
+                        tree_fig,
+                    )
+            except Exception as e:
+                logger.warning(f"multi-window treemap {y_from}->{y_to} failed: {e}")
 
 
 # ---------------------------------------------------------------------------
