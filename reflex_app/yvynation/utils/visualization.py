@@ -788,9 +788,10 @@ def create_class_transition_treemaps(transitions_dict: Dict,
                                      year_end: int,
                                      class_colors: Optional[Dict] = None,
                                      class_names: Optional[Dict] = None,
-                                     top_n: int = 12,
+                                     top_n: int = 8,
                                      min_transition_pct: float = 1.0,
-                                     max_cols: int = 3) -> Optional[go.Figure]:
+                                     max_cols: int = 3,
+                                     include_others: bool = True) -> Optional[go.Figure]:
     """
     Faceted per-class transition treemaps.
 
@@ -800,6 +801,11 @@ def create_class_transition_treemaps(transitions_dict: Dict,
     share is reported in the facet title, mirroring the original matplotlib
     ``create_class_transition_treemaps`` (where a bar carried persistence and
     the treemap carried the changes).
+
+    Only the largest ``top_n`` source classes get their own facet; the
+    remaining (smaller-area) source classes are rolled into a single trailing
+    **"Others"** facet whose tiles break those classes out individually (one
+    tile per class, sized by its changed area) so nothing is hidden.
 
     Reuses the exact transition structure that feeds the Sankey/Sunburst
     charts, so it can be driven from the same state.
@@ -811,14 +817,17 @@ def create_class_transition_treemaps(transitions_dict: Dict,
         year_start, year_end: period bounds (used for titles only).
         class_colors: class_id -> hex color (defaults to MapBiomas palette).
         class_names: class_id -> display name (defaults to MapBiomas labels).
-        top_n: maximum number of source classes (facets), by total area desc.
+        top_n: number of largest source classes to give their own facet,
+            clamped to the range [2, 8]. Smaller classes go to "Others".
         min_transition_pct: drop destinations below this percentage of the
             class's *changed* area (filters visual noise).
         max_cols: facets per row.
+        include_others: when True (default), append the detailed "Others"
+            facet for source classes beyond ``top_n``.
 
     Returns:
-        Plotly Figure with one treemap subplot per class, or None when there
-        is no transition data to show.
+        Plotly Figure with one treemap subplot per class (plus an optional
+        "Others" facet), or None when there is no transition data to show.
     """
     if not transitions_dict:
         logger.warning("Treemap: empty transitions dict received")
@@ -854,7 +863,7 @@ def create_class_transition_treemaps(transitions_dict: Dict,
             return False
 
     # ---- Aggregate each source class: total / persisted / destinations ----
-    facets = []  # [{"label", "color", "pers_pct", "dests": [(label, area, pct, color)]}]
+    facets = []  # [{"label","color","total","changed","title","dests":[(label,area,pct,color)]}]
     for src_id, tgt_dict in transitions_dict.items():
         if not isinstance(tgt_dict, dict):
             continue
@@ -886,11 +895,13 @@ def create_class_transition_treemaps(transitions_dict: Dict,
             continue
         dests.sort(key=lambda d: -d[1])
 
+        pers_pct = 100.0 * persisted / total if total > 0 else 0.0
         facets.append({
             "label": _resolve_label(src_id),
             "color": _resolve_color(src_id),
             "total": float(total),
-            "pers_pct": 100.0 * persisted / total if total > 0 else 0.0,
+            "changed": float(changed),
+            "title": f"{_resolve_label(src_id)} — {pers_pct:.0f}% stayed",
             "dests": dests,
         })
 
@@ -899,8 +910,29 @@ def create_class_transition_treemaps(transitions_dict: Dict,
         return None
 
     facets.sort(key=lambda f: -f["total"])
-    if len(facets) > top_n:
-        facets = facets[:top_n]
+
+    # ---- Keep the largest 2–8 classes; roll the rest into a detailed "Others"
+    top_n = max(2, min(8, int(top_n)))
+    keep = facets[:top_n]
+    rest = facets[top_n:]
+    if include_others and rest:
+        others_changed = sum(f["changed"] for f in rest) or 1.0
+        others_dests = sorted(
+            (
+                (f["label"], f["changed"], 100.0 * f["changed"] / others_changed, f["color"])
+                for f in rest
+            ),
+            key=lambda d: -d[1],
+        )
+        keep.append({
+            "label": "Others",
+            "color": "#9e9e9e",
+            "total": sum(f["total"] for f in rest),
+            "changed": others_changed,
+            "title": f"Others — {len(rest)} smaller classes",
+            "dests": others_dests,
+        })
+    facets = keep
 
     # ---- Lay facets out in a grid of treemap subplots ----------------------
     import math
@@ -910,9 +942,7 @@ def create_class_transition_treemaps(transitions_dict: Dict,
     cols = max(1, min(max_cols, n))
     rows = math.ceil(n / cols)
 
-    subplot_titles = [
-        f"{f['label']} — {f['pers_pct']:.0f}% stayed" for f in facets
-    ]
+    subplot_titles = [f["title"] for f in facets]
     fig = make_subplots(
         rows=rows, cols=cols,
         specs=[[{"type": "domain"} for _ in range(cols)] for _ in range(rows)],
@@ -953,9 +983,23 @@ def create_class_transition_treemaps(transitions_dict: Dict,
         margin=dict(t=70, l=10, r=10, b=10),
         font=dict(size=10),
     )
-    # Smaller facet titles so they don't crowd the small treemaps.
-    for ann in fig.layout.annotations:
-        ann.font.size = 11
+    # Paint each facet title with its source-class colour (as a chip, with an
+    # auto-contrast text colour so pale palette entries stay legible). The
+    # subplot-title annotations are emitted in facet order, so they zip 1:1.
+    def _text_on(hex_color: str) -> str:
+        try:
+            h = hex_color.lstrip('#')
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return '#000000' if (0.299 * r + 0.587 * g + 0.114 * b) > 140 else '#ffffff'
+        except Exception:
+            return '#000000'
+
+    for ann, f in zip(fig.layout.annotations, facets):
+        ann.font = dict(size=11, color=_text_on(f["color"]))
+        ann.bgcolor = f["color"]
+        ann.bordercolor = "#ffffff"
+        ann.borderwidth = 1
+        ann.borderpad = 3
 
     logger.info(f"Treemap: built {n} facet treemaps ({rows}x{cols})")
     return fig

@@ -191,6 +191,7 @@ def _write_mapbiomas_section(
     change_pct_chart=None,
     sankey_chart=None,
     sunburst_chart=None,
+    treemap_chart=None,
     transition_matrix_chart=None,
     name_suffix: str = "",
 ) -> None:
@@ -293,6 +294,8 @@ def _write_mapbiomas_section(
         _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sankey{sfx}", sankey_chart)
     if sunburst_chart is not None and y1 and y2:
         _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sunburst{sfx}", sunburst_chart)
+    if treemap_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_class_transitions_treemap{sfx}", treemap_chart)
     if transition_matrix_chart is not None and y1 and y2:
         _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix{sfx}", transition_matrix_chart)
 
@@ -454,10 +457,11 @@ def _write_multi_window_section(
             _df_to_csv_bytes(df),
         )
 
-    # ---- Figures (Sankey + per-pair sunbursts) --------------------------
+    # ---- Figures (Sankey + per-pair sunbursts + per-pair treemaps) ------
     try:
         from .visualization import (
             create_multi_stage_sankey, create_sunburst_transitions,
+            create_class_transition_treemaps,
         )
     except Exception as e:
         logger.warning(f"Could not import visualization helpers for multi-window: {e}")
@@ -490,6 +494,16 @@ def _write_multi_window_section(
                 )
         except Exception as e:
             logger.warning(f"multi-window sunburst {y_from}->{y_to} failed: {e}")
+        try:
+            tree_fig = create_class_transition_treemaps(tdict, y_from, y_to)
+            if tree_fig is not None:
+                _write_fig(
+                    zf,
+                    f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_class_transitions_treemap{sfx}",
+                    tree_fig,
+                )
+        except Exception as e:
+            logger.warning(f"multi-window treemap {y_from}->{y_to} failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +649,7 @@ def create_export_zip(
             change_pct_chart=territory_figures.get("change_pct"),
             sankey_chart=territory_figures.get("sankey"),
             sunburst_chart=territory_figures.get("sunburst"),
+            treemap_chart=territory_figures.get("treemap"),
             transition_matrix_chart=territory_figures.get("transition_matrix"),
         )
 
@@ -686,6 +701,7 @@ def create_export_zip(
                 change_pct_chart=buffer_figures.get("change_pct"),
                 sankey_chart=buffer_figures.get("sankey"),
                 sunburst_chart=buffer_figures.get("sunburst"),
+                treemap_chart=buffer_figures.get("treemap"),
                 transition_matrix_chart=buffer_figures.get("transition_matrix"),
                 name_suffix=buf_suffix,
             )
@@ -735,6 +751,8 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
             terr_figs["sankey"] = state.sankey_chart
         if state.sunburst_transitions_chart:
             terr_figs["sunburst"] = state.sunburst_transitions_chart
+        if state.treemap_transitions_chart:
+            terr_figs["treemap"] = state.treemap_transitions_chart
         if state.transition_matrix_chart:
             terr_figs["transition_matrix"] = state.transition_matrix_chart
         if state.glad_bar_chart:
@@ -763,6 +781,8 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
             buf_figs["sankey"] = state.buffer_sankey_chart
         if state.buffer_sunburst_chart:
             buf_figs["sunburst"] = state.buffer_sunburst_chart
+        if state.buffer_treemap_chart:
+            buf_figs["treemap"] = state.buffer_treemap_chart
         if state.buffer_transition_matrix_chart:
             buf_figs["transition_matrix"] = state.buffer_transition_matrix_chart
         if state.buffer_hansen_bar_chart:
