@@ -226,6 +226,7 @@ def _build_territory_figures(
             calculate_gains_losses,
             create_gains_losses_chart, create_change_percentage_chart,
             create_sankey_transitions, create_sunburst_transitions,
+            create_class_transition_treemaps,
             _create_gfc_summary_chart,
         )
     except Exception as e:
@@ -284,6 +285,19 @@ def _build_territory_figures(
             figs["sunburst_chart"] = create_sunburst_transitions(transitions, y1, y2)
         except Exception as e:
             logger.warning(f"sunburst build failed: {e}")
+        try:
+            # Year-start area per class so the treemap persistence % is measured
+            # against each class's original area (correct for change-only dicts).
+            class_totals = {}
+            for row in (mb_y1_records or []):
+                cid, area = row.get("Class_ID"), row.get("Area_ha")
+                if cid is not None and isinstance(area, (int, float)):
+                    class_totals[cid] = float(area)
+            figs["treemap_chart"] = create_class_transition_treemaps(
+                transitions, y1, y2, class_totals=class_totals or None
+            )
+        except Exception as e:
+            logger.warning(f"treemap build failed: {e}")
         try:
             figs["transition_matrix_chart"] = _build_transition_matrix_fig(transitions, y1, y2)
         except Exception as e:
@@ -1307,6 +1321,7 @@ class BatchMixin(rx.State, mixin=True):
                                 change_pct_chart=t_figs.get("change_pct_chart"),
                                 sankey_chart=t_figs.get("sankey_chart"),
                                 sunburst_chart=t_figs.get("sunburst_chart"),
+                                treemap_chart=t_figs.get("treemap_chart"),
                                 transition_matrix_chart=t_figs.get("transition_matrix_chart"),
                                 name_suffix=q_tag,
                             )
@@ -1379,6 +1394,7 @@ class BatchMixin(rx.State, mixin=True):
                                         change_pct_chart=b_figs.get("change_pct_chart"),
                                         sankey_chart=b_figs.get("sankey_chart"),
                                         sunburst_chart=b_figs.get("sunburst_chart"),
+                                        treemap_chart=b_figs.get("treemap_chart"),
                                         transition_matrix_chart=b_figs.get("transition_matrix_chart"),
                                         name_suffix=b_suffix,
                                     )

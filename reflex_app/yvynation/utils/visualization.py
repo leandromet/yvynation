@@ -791,7 +791,8 @@ def create_class_transition_treemaps(transitions_dict: Dict,
                                      top_n: int = 8,
                                      min_transition_pct: float = 1.0,
                                      max_cols: int = 3,
-                                     include_others: bool = True) -> Optional[go.Figure]:
+                                     include_others: bool = True,
+                                     class_totals: Optional[Dict] = None) -> Optional[go.Figure]:
     """
     Faceted per-class transition treemaps.
 
@@ -824,6 +825,13 @@ def create_class_transition_treemaps(transitions_dict: Dict,
         max_cols: facets per row.
         include_others: when True (default), append the detailed "Others"
             facet for source classes beyond ``top_n``.
+        class_totals: optional ``{class_id: original_area_ha}`` (e.g. the
+            year-start composition). When provided, the persistence percentage
+            in each facet title is computed against the class's *original*
+            area — correct even when ``transitions_dict`` only carries the
+            changed portion (no ``src == tgt`` flows). When omitted, the
+            percentage falls back to the in-dict total (which already includes
+            persistence for ``include_unchanged`` transition dicts).
 
     Returns:
         Plotly Figure with one treemap subplot per class (plus an optional
@@ -862,6 +870,17 @@ def create_class_transition_treemaps(transitions_dict: Dict,
         except (ValueError, TypeError):
             return False
 
+    def _resolve_total(class_id):
+        """Original-area lookup in ``class_totals`` tolerant of int/str keys."""
+        if not class_totals:
+            return None
+        if class_id in class_totals:
+            return class_totals[class_id]
+        try:
+            return class_totals.get(int(class_id), class_totals.get(str(class_id)))
+        except (ValueError, TypeError):
+            return class_totals.get(str(class_id))
+
     # ---- Aggregate each source class: total / persisted / destinations ----
     facets = []  # [{"label","color","total","changed","title","dests":[(label,area,pct,color)]}]
     for src_id, tgt_dict in transitions_dict.items():
@@ -882,7 +901,7 @@ def create_class_transition_treemaps(transitions_dict: Dict,
             else:
                 raw_dests.append((tgt_id, area))
 
-        changed = total - persisted
+        changed = total - persisted  # area that left the class (excl. persistence)
         if changed <= 0 or not raw_dests:
             continue  # class that only persisted — nothing to "become"
 
@@ -895,13 +914,21 @@ def create_class_transition_treemaps(transitions_dict: Dict,
             continue
         dests.sort(key=lambda d: -d[1])
 
-        pers_pct = 100.0 * persisted / total if total > 0 else 0.0
+        # Persistence % is relative to the class's ORIGINAL area. Prefer the
+        # supplied year-start total (works for change-only dicts); otherwise
+        # fall back to the in-dict total (correct when persistence flows are
+        # present, e.g. include_unchanged multi-window dicts).
+        original = _resolve_total(src_id)
+        if not isinstance(original, (int, float)) or original <= 0:
+            original = total
+        persisted_real = max(0.0, float(original) - changed)
+        pers_pct = 100.0 * persisted_real / original if original > 0 else 0.0
         facets.append({
             "label": _resolve_label(src_id),
             "color": _resolve_color(src_id),
             "total": float(total),
             "changed": float(changed),
-            "title": f"{_resolve_label(src_id)} — {pers_pct:.0f}% stayed",
+            "title": f"{_resolve_label(src_id)} — {pers_pct:.0f}% persistent",
             "dests": dests,
         })
 

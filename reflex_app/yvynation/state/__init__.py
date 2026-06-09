@@ -1126,10 +1126,32 @@ class AppState(
 
             from ..utils.visualization import create_class_transition_treemaps
 
-            return create_class_transition_treemaps(transitions, year1, year2) or pgo.Figure()
+            return create_class_transition_treemaps(
+                transitions, year1, year2,
+                class_totals=self._class_year1_totals(self.mapbiomas_comparison_result),
+            ) or pgo.Figure()
         except Exception as e:
             logger.error(f"Treemap chart error: {e}", exc_info=True)
             return pgo.Figure()
+
+    @staticmethod
+    def _class_year1_totals(comparison_result) -> dict:
+        """Build {Class_ID: original year-start area_ha} from a comparison result.
+
+        Used so the treemap persistence % is measured against each class's
+        full original area, even when the transitions dict only carries the
+        changed portion. Returns {} when no year-1 areas are available.
+        """
+        totals: dict = {}
+        try:
+            for row in (comparison_result or {}).get("data", []) or []:
+                cid = row.get("Class_ID")
+                area = row.get("Area_Year1")
+                if cid is not None and isinstance(area, (int, float)):
+                    totals[cid] = float(area)
+        except Exception:
+            pass
+        return totals
 
     @rx.var(auto_deps=False, deps=["territory_transitions", "mapbiomas_comparison_result"])
     def transition_matrix_chart(self) -> Figure:
@@ -1635,7 +1657,10 @@ class AppState(
                 "year_end", self.comparison_year2
             )
             from ..utils.visualization import create_class_transition_treemaps
-            return create_class_transition_treemaps(transitions, y1, y2) or pgo.Figure()
+            return create_class_transition_treemaps(
+                transitions, y1, y2,
+                class_totals=self._class_year1_totals(self.buffer_mapbiomas_comparison_result),
+            ) or pgo.Figure()
         except Exception as e:
             logger.error(f"Buffer treemap chart error: {e}")
             return pgo.Figure()
