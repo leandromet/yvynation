@@ -1,0 +1,2824 @@
+﻿Introduction
+This is a results report from my PhD research work, to share and discuss the next steps with Dr. Jon Corbert, Dr. Jonathan Cinnamon, Dr. Robert Friberg and Dr. Tim Paulson (hello committee!). I am sharing it as a complementary material to what I wrote in the Annual Progress Report that I sent to UBC and you probably got a copy.
+
+
+I created this document with parts of a larger draft where I am organizing the content from the comprehensive papers (without BC), the proposal and other studies and readings. I advanced on the test application software to facilitate the data analysis, particularly to repeat the land usage data processing with slightly different settings without taking much time. The development never ends, but I got to a point I was happy with the maps and charts and started writing this paper on the four case studies:
+
+
+https://docs.google.com/document/d/10P6AoRz3fqBnN9PcsYMi2SDSi6cmnMnn-LmtMvmybxc/edit?usp=sharing 
+(I think this can be published, with some effort and updates using what is in the present document)
+
+
+Within our weekly meetings, Jon suggested I should be writing the thesis methodology chapter and share the results I told him about. The whole draft with all the software details, manuals and descriptions was over 300 pages and it is confusing, so I prepared this other text with more images and data, together with the initial results and conclusions.
+
+
+I’ve been working on this for about four weeks, and most data was regenerated a few times and prompted improvements in the processing code to have download options and a batch processing as the last feature, because it was taking too long to process each of the 6 areas that compose the four case studies. The beta version with the newest algorithm is hosted at:
+
+https://yvynation-reflex-652582010777.us-west1.run.app/ 
+
+
+Everything I used in this text can be reproduced in that application, and the most recent parts and analysis are between “online tool” at line 3 in the table of contents and “note on case study” on line 19. I made this in a pageless version because the pictures fit better without the necessary editing I will have to do later.
+
+
+I am trying to include a timeline visualization option that includes the policy context (legislation changes, same I list in Timeline of Brazilian forest law (simplified) ) and a political context (presidents and governors of each state) information layer to somehow facilitate the tendency analysis with management change. Not sure if this will work.
+
+
+
+
+Introduction
+Timeline of Brazilian forest law (simplified)
+Instruments/Events cited by case-study (4 case studies)
+Online tool - Yvynation - Territory and Buffer Batch Run, May 2026 - Mapbiomas 10 1985-2024
+Territory Bacurizinho 4901
+Territory Bacurizinho 4902
+Territory Betania
+Territory Kayapo
+Territory Krenak de Sete Saloes
+Territory Krenak
+Multiple time window run, May 2026 - Mapbiomas 10
+Individual territory run, April 2026 - Mapbiomas 9: 1985 - 2023
+Land Use Charts - Bacurizinho
+Land Use Charts - Bacurizinho Expansion
+Land Use Charts - Betania
+Land Use Charts - Kayapo
+Land Use Charts - Krenak
+Land Use Charts - Krenak Sete Saloes
+Note on case study temporal analysis and updates
+Chapter 7 - Case study 1: Krenak (coastal Atlantic Forest)
+7.1 Why begin at the coast
+7.2 The 1808 "Just War" as critical juncture
+7.3 Twentieth-century repression and removal
+7.4 Recovery of title under the 1988 Constitution
+7.5 The Fundão dam collapse as non-policy shock
+7.6 Topography, infrastructure, and accessibility
+7.7 Land use and market valuation
+7.8 Ecosystem service valuation
+7.9 Historical degradation as the lesson Krenak teaches
+7.10 Yvynation results, 1985–2023
+7.10.1 Krenak (23401) — 4,282 ha
+7.10.2 Krenak de Sete Salões (23402) — 16,596 ha
+Chapter 8 - Case study 2: Bacurizinho (Cerrado–Amazon transition)
+8.1 The ecotone position
+8.2 The 1901 Alto Alegre rebellion and refuge-finding
+8.3 Demarcation, expansion, and the natural-experiment seam
+8.4 Pressure, fires, and the 2025 TRF1 order
+8.5 Regional context - neighbours and shared pressures
+8.6 Topography, CAR overlap, and land cover
+8.7 Land use and market valuation
+8.8 What Bacurizinho teaches
+8.9 Yvynation results, 1985–2023
+8.9.1 Bacurizinho original (4901) — 82,515 ha
+8.9.2 Bacurizinho expansion (4902) — 133,984 ha
+8.9.3 The boundary effect — what 4901 vs 4902 shows
+8.9.4 What this changes in the chapter narrative
+Chapter 9 - Case study 3: Kayapó (south-eastern Amazon)
+9.1 The deforestation-ring case
+9.2 BR-163 and the 1970s contact disaster
+9.3 The 1988–1991 demarcation arc and the Altamira gathering
+9.4 Institutional consolidation
+9.5 Belo Monte as policy-failure stress test
+9.6 The 2026 mining-process surge
+9.7 Topography, infrastructure, and surrounding protections
+9.8 Land use and market valuation
+9.9 Ecosystem service valuation
+9.10 Mining pressure as the contemporary front
+9.11 The lesson Kayapó teaches
+9.12 Yvynation results, 1985–2023
+9.12.1 The mining–pasture lockstep
+9.12.2 Forest loss, wetland loss, and a Hansen-2024 warning
+9.12.3 What this changes in the chapter narrative
+Chapter 10 - Case study 4: Betânia (western Amazon)
+10.1 The deep-forest endpoint of the gradient
+10.2 The missionary-to-autonomy origin story
+10.3 The 1985–1995 post-Constitution recognition arc
+10.4 Health emergencies as non-deforestation shocks
+10.5 The 2024 Tchirugune project
+10.6 Topography, infrastructure, and accessibility
+10.7 Land use and market valuation
+10.8 Ecosystem service valuation
+10.9 What Betânia teaches
+10.10 Yvynation results, 1985–2023
+10.10.1 The hydrological signal
+10.10.2 The cleanest Hansen-loss case
+10.10.3 What this changes in the chapter narrative
+Chapter 11 — Cross-case synthesis: what four territories share and why they differ
+11.1 The longitudinal argument stated
+11.2 What each territory teaches the synthesis
+11.3 Policy lags across the four territories
+11.4 The buffer comparison: the protective effect is real and consistently quantifiable
+11.5 Same national laws, different territorial outcomes
+11.6 Path dependence is the strongest predictor, but not destiny
+11.7 Comparative valuation: the economic stakes of the gradient
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+Links and sources
+
+
+Full draft content in the shared file https://docs.google.com/document/d/1vnYKonXr_kDqSppoqTgomEGs1jJLXBVnb7r83HeoCps/edit?usp=sharing 
+Files and images
+https://drive.google.com/drive/folders/1eMbYwJZucMPlOegaMDC7FgyJV9Gl7Pvt?usp=sharing 
+
+
+Indigenous areas land use change apps
+https://yvynation-652582010777.us-west1.run.app/ 
+https://yvynation-reflex-652582010777.us-west1.run.app/ 
+Source code
+https://github.com/leandromet/yvynation 
+Timeline of Brazilian forest law (simplified)
+Period
+	Defining instrument
+	Territorial reach
+	Land-cover implication
+	1875–1934
+	Pre-Code agricultural / customs statutes
+	Coastal Atlantic Forest, export-oriented harvesting
+	Taxation and trade controls; no national reserve obligation
+	1934
+	Decree 23,793 — 1st Forest Code
+	National, but unenforced
+	25% private-property forest retention introduced on paper
+	1965
+	Law 4,771 — 2nd Forest Code
+	Regionalised Legal Reserve (20–50%)
+	Codified the Legal Reserve and Permanent Preservation Areas
+	1981
+	Law 6,938 — National Environmental Policy
+	National
+	Created SISNAMA and CONAMA, the institutional architecture
+	1988
+	Federal Constitution
+	National, with constitutional weight
+	Indigenous lands inalienable; Atlantic Forest and Amazon are national heritage (Art. 225, Art. 231)
+	1989
+	Law 7,735 — creates IBAMA
+	National
+	Single federal enforcement body for environmental policy
+	1992
+	Law 8,490 — creates Ministry of the Environment
+	National
+	Cabinet-level environmental authority
+	1998
+	Law 9,605 — Environmental Crimes
+	National
+	Criminal penalties for unauthorised deforestation
+	2000
+	Law 9,985 — SNUC
+	National
+	Statutory typology of Conservation Units
+	2001
+	MP 2,166-67 — revised Legal Reserve
+	Biome-stratified
+	80% in Amazon forest, 35% in cerrado, 20% elsewhere
+	2004
+	PPCDAm (Plan to Prevent and Control Deforestation in the Amazon)
+	Amazon, PRODES/DETER
+	Operational tools that produced the 2004–2012 deforestation downturn
+	2006
+	Law 11,284 — Public Forest Management; Law 11,428 — Atlantic Forest Law
+	National + biome-specific
+	Public forest concessions; Atlantic Forest restoration obligations
+	2012
+	Law 12,651 — New Forest Code; CAR
+	National + property-level
+	Rural Environmental Registry; amnesty cutoff date 22 July 2008
+	2017
+	Planaveg — National Native Vegetation Recovery Plan
+	National
+	Recovery targets, 12 Mha by 2030
+	2023
+	Lula administration reorganisation
+	National
+	CAR transferred to Ministry of Management; planted-forest competencies clarified
+	2025
+	Law 15,190/2025 — "Devastation Bill"
+	National
+	Weakened environmental licensing
+	2026
+	STF mining-on-Indigenous-Land ruling
+	National + Indigenous Lands
+	Two-year legislative deadline for regulating mining on Indigenous Lands
+	Instruments/Events cited by case-study (4 case studies)
+Instrument
+	Year
+	Krenak
+	Bacurizinho
+	Kayapó
+	Betânia
+	Royal Letters ("Just War" decree)
+	1808
+	✓
+	—
+	—
+	—
+	1934 Forest Code
+	1934
+	✓
+	—
+	—
+	—
+	SPI demarcation (Krenak Reserve)
+	1920 / 1942
+	✓
+	—
+	—
+	—
+	1965 Forest Code
+	1965
+	✓
+	✓
+	✓
+	✓
+	Indigenous Agricultural Reformatory
+	1968
+	✓
+	—
+	—
+	—
+	FUNAI "extinction" declaration
+	1970
+	✓
+	—
+	—
+	—
+	Bacurizinho homologation (Decree 88,600)
+	1983
+	—
+	✓
+	—
+	—
+	Portaria 76 (Betânia delimitation)
+	1985
+	—
+	—
+	—
+	✓
+	Federal Constitution
+	1988
+	✓
+	✓
+	✓
+	✓
+	Altamira Gathering
+	1989
+	—
+	—
+	✓
+	—
+	Kayapó ratification
+	1991
+	—
+	—
+	✓
+	—
+	Portaria 599 (Betânia declaration)
+	1991
+	—
+	—
+	—
+	✓
+	Xingu corridor unification
+	1993
+	—
+	—
+	✓
+	—
+	Betânia homologation
+	1995
+	—
+	—
+	—
+	✓
+	STF Krenak title restoration
+	1997
+	✓
+	—
+	—
+	—
+	Sete Salões State Park
+	1998
+	✓
+	—
+	—
+	—
+	Krenak ratification
+	2001
+	✓
+	—
+	—
+	—
+	Instituto Raoni founding
+	2001
+	—
+	—
+	✓
+	—
+	Bacurizinho boundary review
+	2007
+	—
+	✓
+	—
+	—
+	Bacurizinho expansion declaration (Directive 1,234)
+	2008
+	—
+	✓
+	—
+	—
+	Belo Monte licensing
+	2011
+	—
+	—
+	✓
+	—
+	Bacurizinho 2012 fire
+	2012
+	—
+	✓
+	—
+	—
+	2012 Forest Code
+	2012
+	✓
+	✓
+	✓
+	✓
+	Fundão dam collapse
+	2015
+	✓
+	—
+	—
+	—
+	Belo Monte dam start
+	2016
+	—
+	—
+	✓
+	—
+	Bacurizinho 2017 fire
+	2017
+	—
+	✓
+	—
+	—
+	Enforcement rollback
+	2019
+	—
+	—
+	✓
+	—
+	COVID-19 emergency (Betânia)
+	2020
+	—
+	—
+	—
+	✓
+	Sete Salões Indigenous Land delimitation order
+	2021
+	✓
+	—
+	—
+	—
+	National Indigenous Health Emergency
+	2023
+	—
+	—
+	—
+	✓
+	Krenak collective amnesty
+	2024
+	✓
+	—
+	—
+	—
+	Tchirugune project
+	2024
+	—
+	—
+	—
+	✓
+	Devastation Bill (Law 15,190/2025)
+	2025
+	✓
+	✓
+	✓
+	✓
+	TRF1 Bacurizinho demarcation order
+	2025
+	—
+	✓
+	—
+	—
+	PEC48 (Marco Temporal) Senate approval
+	2025
+	✓
+	—
+	—
+	—
+	STF mining-on-IL ruling
+	2026
+	✓
+	✓
+	✓
+	✓
+	ANM mining-process surge
+	2026
+	—
+	—
+	✓
+	—
+	
+
+This table is the master index for the policy-lag analyses in Chapters 7–11. Each row is a candidate policy event whose pixel signal is tested in the per-territory transition matrix.
+
+
+  
+
+
+
+
+
+
+
+Online tool - Yvynation - Territory and Buffer Batch Run, May 2026 - Mapbiomas 10 1985-2024
+Running on https://yvynation-reflex-652582010777.us-west1.run.app/ 
+
+
+This version has no maps and can run multiple territories in sequence, then download the full ZIP archive with all the files with names that are easy to search and put them all in the same folder. I made it after the version in the next chapter, as running the case studies to verify if they worked and would be useful. Now you can do a single analysis with any geometry in an interactive map support, a single indigenous territory analysis with the same map or a batch processing with the same results of the single. Since this required an extra module and many changes, it also included the update to Mapbiomas adding year 2024 from collection 10 and Hansen update including year 2025.
+
+
+Since it takes a long time to process large areas and I experienced many timeouts from EarthEngine, this one clips geometries larger than 1 million hectares in four quadrants and processes them separately, organized in their own folders. A sample run results is in https://drive.google.com/drive/folders/13WXeK2tuG-wul_IkpHt_qFg9dwVBwy6v?usp=drive_link in the folder case_studies. The maps and charts of the following tables came from these files.
+
+
+  
+     
+
+
+
+
+Results for the default settings in the batch run processing that includes yearly tree loss from Hansen GFC and compare 1985 to 2024 of mapbiomas collection 10. Please believe in the chart axes, as the titles are not updated with the last years of data. I am writing about the events on each tendency change on the Hansen yearly forest loss chart (the ones with the red line) and the difference between each territory and its buffer, some of the discussion is in the next tables with the sankey diagrams.
+
+
+Territory Bacurizinho 4901
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+
+
+Territory Bacurizinho 4902
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+
+
+
+
+Territory Betania
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+
+
+Territory Kayapo
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+
+
+Territory Krenak de Sete Saloes
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+
+
+
+
+
+
+Territory Krenak
+	Buffer 10Km
+	Reference maps
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	  
+
+	  
+
+	
+
+	
+
+
+
+Multiple time window run, May 2026 - Mapbiomas 10
+
+
+This option mimics the initial python code that used Mapbiomas offline, with the mechanics of the batch processing. The difference is the flexibility, we can input 3 or 4 years separated by commas or select 1,2,4, 5 or 8 year intervals and generate the sankey diagrams including all the windows and step-by-step Sunburst plots.
+  
+  
+  
+  
+
+
+
+
+
+Bacurizinho_4901
+
+
+  
+
+
+
+Buffer 10Km
+  
+
+	Bacurizinho (4901) — Maranhão
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	83,511 ha
+	99.6%
+	98.3%
+	−1.3 pp (−1,054 ha)
+	tiny Forest plantation (0.7%), Mosaic (+0.2 pp)
+	Buffer 10 km
+	150,800 ha
+	84.4%
+	58.9%
+	−25.5 pp (−38,462 ha)
+	Pasture +11.8 pp, Mosaic +6.4 pp, Forest plantation +6.8 pp, Soy +3.1 pp
+	
+
+Difference: the protected area is essentially intact (≈99% forest, no agriculture), while its 10-km surroundings lost a quarter of forest cover, replaced mainly by pasture, mosaic-of-uses and new agro-forestry (soy + planted forest).
+	Bacurizinho_4902 expansion
+	
+
+	  
+
+Buffer 10Km
+  
+
+	Bacurizinho (4902) — expansion polygon Maranhão
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	135,599 ha
+	86.2%
+	80.0%
+	−6.2 pp (−8,390 ha)
+	Pasture +5.8 pp, Mosaic +2.5 pp
+	Buffer 10 km
+	192,682 ha
+	71.2%
+	49.2%
+	−22.0 pp (−42,359 ha)
+	Pasture +9.3 pp, Forest plantation +7.5 pp, Mosaic +6.2 pp, Soy +2.7 pp
+	
+
+Difference: the expansion polygon is itself under noticeable pressure — pasture/mosaic now occupy ~8% of it — but the buffer is converting roughly 3.5× faster in absolute terms (42 kha vs 8 kha). Savanna also halves outside (−8.5 kha) while it only drops ~3.6 kha inside.
+
+
+	Betania
+	
+
+	  
+
+Buffer 10Km
+  
+
+	Betânia — floodplain Indigenous Land - Amazonas
+Region
+	Total
+	Forest+Floodable 1985
+	Forest+Floodable 2024
+	Δ
+	Notes
+	Territory
+	123,343 ha
+	90.8%
+	89.2%
+	−1.6 pp (Floodable −1.4 pp)
+	River area essentially stable; Wetland +1.8 pp
+	Buffer 10 km
+	245,344 ha
+	93.1%
+	91.7%
+	−1.4 pp (Floodable −1.2 pp)
+	Tiny pasture (0.3%) and urban (0.1%) appearing
+	
+
+Difference: unique among the set — territory and buffer behave almost identically. This is a river-dominated Amazonian landscape where the surroundings are still mostly intact forest, so the buffer is not a frontier here. The +1.8 pp wetland gain inside the TI is the strongest signal, likely flooded forest converting to open wetland.
+	Kayapo NW
+	
+
+	  
+
+
+
+Buffer 10Km
+
+
+  
+
+	Kayapó NW - Pará
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	857,434 ha
+	93.8%
+	93.6%
+	−0.2 pp (−1,649 ha)
+	none significant
+	Buffer 10 km
+	210,425 ha
+	88.1%
+	66.4%
+	−21.7 pp (−45,576 ha)
+	Pasture +23.7 pp (50,703 ha)
+	
+
+Difference: the territory's NW quadrant is essentially undisturbed; the buffer is being cleared into pasture at a high rate — pasture went from <1% to 24% in ~40 years.
+
+
+	Kayapo NE
+	
+
+	  
+
+
+
+Buffer 10Km
+  
+
+	Kayapó NE — the hot spot  - Pará
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	1,098,697 ha
+	84.9%
+	83.9%
+	−0.9 pp (−10,206 ha)
+	Mining +0.7 pp (8,272 ha)
+	Buffer 10 km
+	161,027 ha
+	91.0%
+	25.8%
+	−65.2 pp (−105,022 ha)
+	Pasture +66.1 pp (108,572 ha), Mining +2.1 pp
+	
+
+Difference: by far the most dramatic asymmetry in the whole batch. The TI's NE quadrant lost just 0.9 pp of forest but accumulated 8 kha of internal mining (the second largest mining footprint of any quadrant or buffer in the run). The buffer collapsed from 91% forest to 26%, with two-thirds now pasture and another 2% mining. The buffer ring around NE is essentially a fully converted agricultural frontier.
+	Kayapo SE
+	
+
+	  
+
+
+
+Buffer 10Km
+  
+
+	Kayapó SE  - Pará
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	691,068 ha
+	87.1%
+	85.9%
+	−1.2 pp (−8,585 ha)
+	Mining +1.4 pp (10,181 ha)
+	Buffer 10 km
+	164,618 ha
+	87.9%
+	56.6%
+	−31.3 pp (−51,530 ha)
+	Pasture +31.1 pp (60,131 ha), Mining +0.8 pp
+	
+
+Difference: another classic pattern — internal forest mostly preserved, but with the largest mining footprint inside any quadrant (10.2 kha, slightly more than NE - Red in the images). The buffer lost ~one-third of its forest to pasture. If we consider all areas that were at least once identified as mining over the 40 years of data it is greater.
+  
+  
+
+
+
+	Kayapo SW
+	
+
+	  
+
+
+
+Buffer 10Km
+  
+
+	Kayapó SW — almost stationary
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major 2024 gainers
+	Territory
+	685,737 ha
+	88.0%
+	88.0%
+	±0.0 pp (+96 ha)
+	none
+	Buffer 10 km
+	182,899 ha
+	70.1%
+	70.1%
+	±0.0 pp (+29 ha)
+	none
+	
+
+Difference: essentially no change in either region. SW is far from the deforestation frontier — both the territory and the buffer have stayed stable over 40 years. River area drops 0.3 pp (−587 ha) in the buffer, the only meaningful signal.
+	Krenak Sete Saloes
+	
+
+	  
+
+
+
+Buffer 10Km
+  
+
+	Krenak de Sete Salões — Atlantic Forest, Minas Gerais
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major dynamic
+	Territory
+	16,607 ha
+	43.4%
+	49.8%
+	+6.4 pp (+1,065 ha)
+	Pasture −4.2 pp, Mosaic −4.9 pp — forest regrowth
+	Buffer 10 km
+	109,104 ha
+	14.4%
+	14.6%
+	+0.2 pp
+	Pasture −1.2 pp, Coffee +1.0 pp (+1,121 ha)
+	
+
+Difference: the only forest-gaining territory in the batch — a clear inversion of the Amazonian pattern. The TI is recovering Atlantic Forest at the expense of pasture and mosaic, while its buffer remains heavily pastoral (62% pasture) and is mostly substituting older pasture/mosaic with coffee plantations.
+	Krenak
+	
+
+	  
+
+
+
+Buffer 10Km
+
+
+  
+
+	Krenak — also Atlantic Forest, MG
+Region
+	Total
+	Forest 1985
+	Forest 2024
+	Forest Δ
+	Major dynamic
+	Territory
+	4,279 ha
+	10.3%
+	15.5%
+	+5.1 pp (+220 ha)
+	Pasture −9.0 pp (−385 ha), Mosaic +3.2 pp
+	Buffer 10 km
+	61,276 ha
+	17.5%
+	17.2%
+	−0.3 pp
+	Pasture +2.3 pp (+1,416 ha), Mosaic −3.0 pp
+	
+
+Difference: same direction as Sete Salões but smaller area. The TI is shedding pasture and slowly regaining forest (+5.1 pp); the buffer instead is intensifying pasture (+1.4 kha) at the expense of mosaic. Inside vs outside the protected line, the direction of change is opposite.
+	
+
+Individual territory run, April 2026 - Mapbiomas 9: 1985 - 2023
+The framework described in §§6.1–6.10 was executed against the four territories on 2026-04-04 from the Yvynation Reflex deployment. The run produced seven exports: one for each focal territory, plus the secondary Bacurizinho 4902 (expansion) and Krenak 23402 (Sete Salões) polygons that the chapter narratives in Chapters 7 and 8 treat as paired analyses. Each export folder contains a metadata.json (territory id, source, year pair, run timestamp), a README.txt (analysis summary), eleven HTML figures (Sankey, sunburst, transitions matrix, Hansen GFC summary, MapBiomas distributions), and a territory/ subfolder holding the per-class CSVs and the boundary GeoJSON.
+
+
+This run used Mapbiomas Collection 9 (185-2023) like all the previous code and approaches, and Hansen data until 2024. I intended to update directly to Collection 11 (1985-2025) with all the adjustments necessary, but anticipated that due to the following results.
+
+
+Table 6.x: April 2026 batch run, sampled extents and the data-version cross-check
+
+
+Territory (FUNAI code)
+	Yvynation extent (ha)
+	MapBiomas Coll. 9 forest 1985 (% of extent)
+	Hansen tree-cover 2000 (% of extent)
+	Hansen 2001–2024 forest loss (% of TC2000)
+	Run folder
+	Krenak (23401)
+	4,282
+	8.3 %
+	56.4 %
+	7.8 %
+	yvynation_Krenak_23401_20260404_1504/
+	Krenak de Sete Salões (23402)
+	16,596
+	41.3 %
+	78.4 %
+	0.0 %
+	yvynation_Krenak_de_Sete_Saloes_23402_20260404_1512/
+	Bacurizinho (4901, 1983 demarcated)
+	82,515
+	100.4 % *
+	99.8 %
+	7.1 %
+	yvynation_Bacurizinho_4901_20260404_1148/
+	Bacurizinho (4902, 2008 declared)
+	133,984
+	83.1 %
+	92.3 %
+	13.6 %
+	yvynation_Bacurizinho_4902_20260404_1424/
+	Kayapó (23001)
+	3,283,191
+	87.6 %
+	98.5 %
+	14.2 %
+	yvynation_Kayapo_23001_20260404_1455/
+	Betânia (6201)
+	122,347
+	51.7 % (Forest) + 38.7 % (Floodable Forest) = 90.4 %
+	92.2 %
+	3.7 %
+	yvynation_Betania_6201_20260404_1444/
+	
+
+*The 100.4 % entry for Bacurizinho 4901 is a 0.4 pp rasterisation overflow. The territory's MapBiomas Forest Formation pixel count exceeds the polygon area by one half-pixel ring at the boundary. The same artifact exists in MapBiomas Coll. 8 and is documented in the MapBiomas technical notes; it does not affect class-difference statistics, which are what the chapters report.
+
+
+Hansen GFC and MapBiomas disagree systematically on Kayapó due to a significant forest loss in 2024. MapBiomas reports a 1.9 % Forest Formation decline over 1985–2023; Hansen reports a 14.2 % canopy-loss footprint. Both numbers are reported as the framework's prescription requires, and the gap is a feature of the validation story. Mapbiomas Collection 10 does report over 300,000 hectares of forest canopy loss after historical wildfires and this may be the same event that seems strange in the Hanssen data.
+
+
+The Hansen 2024 row contained an apparent implausible value for Kayapó. The Yvynation export reported 305,250 ha of 2024 loss for the Kayapó polygon, a figure roughly two-thirds of the cumulative 2001–2023 loss in a single year. The asset version is UMD/hansen/global_forest_change_2024_v1_12; A possible cause is the same wildfire detected in the more recent Mapbiomas collection.
+
+
+The Bacurizinho 4901-vs-4902 paired run is the operational stand-in for the missing 10 km exclusive buffer comparison. The proposal calls for a 10 km exclusive-buffer protective-effect estimate for each of the four focal territories; the buffer-extraction routine is wired into Yvynation but was not run for this batch. The 4901 (homologated) vs 4902 (declared expansion) pair, both nested in the same biome and pressure profile, returns a 1.91× Hansen-loss differential that brackets the Pfaff & Robalino protection-effect literature reasonably well. The four-territory 10 km buffer run is the next batch and will be reported when complete.
+
+
+Land Use Charts - Bacurizinho
+  
+
+  
+
+
+
+  
+
+
+
+  
+
+  
+
+Land Use Charts - Bacurizinho Expansion
+
+
+  
+
+  
+
+
+
+  
+
+  
+
+  
+
+
+
+Land Use Charts - Betania
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+Land Use Charts - Kayapo
+  
+
+  
+
+  
+
+  
+
+
+
+  
+
+  
+
+
+
+Land Use Charts - Krenak
+  
+  
+
+  
+
+  
+
+  
+
+
+
+Land Use Charts - Krenak Sete Saloes
+  
+
+  
+
+
+
+  
+
+  
+
+  
+
+
+
+
+
+Note on case study temporal analysis and updates
+I wrote the following chapters considering data from previous analysis and figures I generated since the comprehensive papers in 2024/2025, with code that considered Mapbiomas land usage data until 2023. I updated some of it with the 2024 run and it shall be reviewed in September 2026 after the expected release of Collection 11 in August. Hansen data included 2024 and now already has 2025 estimates, it will be updated to 2026 data in early 2027 as it becomes public. The “chapters” and sections are part of a larger draft where I am organizing the ideas and storytelling, most of them will probably be merged into a smaller structure.
+Chapter 7 - Case study 1: Krenak (coastal Atlantic Forest)
+________________
+
+
+7.1 Why begin at the coast
+I begin at the coast, because the Krenak territory in the Rio Doce valley carries the longest path-dependent record of dispossession in the Brazilian tenure system. The Krenak, or Borum, represent the last surviving groups of the Eastern Botocudos. Their Borum language belongs to the Macro-Jê group and faces a significant threat, though revival efforts are ongoing. Their original territory lies in the Rio Doce valley, which they refer to as Watú, their ancestor river (Krenak 2022).
+
+
+________________
+
+
+7.2 The 1808 "Just War" as critical juncture
+The 1808 "Just War" decree against the Botocudo is the critical juncture whose trajectory is still visible in 89 % deforestation in the Krenak polygon today. The history of the Krenak indigenous land is a narrative of ancestral persistence through systematic dispossession, state-sponsored violence, and modern environmental catastrophe. The formal assault on the Krenak, or Borum, territory began in 1808 when the Portuguese Crown issued Royal Letters declaring "Guerras Justas" (Just Wars) against the Botocudo nations. These decrees effectively legalized the enslavement of the Borum and authorized the confiscation of their lands, which were distributed as land grants to those who distinguished themselves in the war. Seeking refuge from this violence, ancestors of the Krenak moved south toward the Rio Doce massifs. In the early 20th century, a group led by the leader Krenak separated from other clans and settled on the east bank of the Doce River in Minas Gerais. On December 10, 1920, the Indian Protection Service (SPI) officially demarcated a 4,000-hectare land reserve for its use, an act followed by a second recorded demarcation on December 31, 1942. During the late 1920s, the SPI forcibly concentrated other Doce River Botocudo groups into this area, imposing a lifestyle that made the population vulnerable to European diseases.
+
+
+The Krenak suffered centuries of conflict, exacerbated by the Guerra Justa decreed by the Portuguese government in 1808. Their original 4,000-hectare reserve was later rented to colonists. They were subject to forced dispersal and confinement in the Reformatório Agrícola Indígena (Agricultural Reformatory), which functioned as a prison for "offender Indians". After being forcibly relocated in the 1970s, they returned to the Rio Doce area in 1980, achieving judicial recognition of their territory in 1997 (Krenak 2022).
+
+
+________________
+
+
+7.3 Twentieth-century repression and removal
+Mid-century state policy was characterized by intensified repression and the physical removal of the Borum from their soil. In 1953, the Krenak were forcibly removed to the Maxakalí Indigenous Post, though many resisted and returned to their original territory on foot in 1959. During the military dictatorship, state violence was institutionalized with the 1968 establishment of the Krenak Indigenous Agricultural Reformatory. This facility functioned as a concentration camp where "tramp" indigenous people from over 15 ethnic groups were subjected to forced labour, solitary confinement in the "potão," and systemic torture. In 1970, the federal agency FUNAI officially declared the Krenak people "extinct" to facilitate the permanent occupation of their land by agribusiness interests. By 1972, under the command of Captain Manoel Pinheiro, the Borum were manacled and loaded onto trucks for forced transfer to the "Guarani Farm" in Carmésia, also a detention camp. This displacement led to a period of "territorial mourning" and a spike in mortality among elders who could not bear the separation from their homeland.
+
+
+________________
+
+
+7.4 Recovery of title under the 1988 Constitution
+The 1988 Constitution and the 1997 STF ruling return the title but do not return the forest, and the Sankey diagrams for 1985–2024 show why: the conversion to pasture had already happened before the satellite era began. The Krenak movement to reclaim their land gained momentum in 1980 when 26 individuals returned to the Doce River to find their territory occupied by private lessees and an orphanage. The state began official studies for land re-recognition on November 14, 1983. A pivotal moment in the national struggle for land occurred on September 4, 1987, when Ailton Krenak delivered a landmark speech at the National Constituent Assembly, painting his face with black ink to defend original indigenous rights. Following the promulgation of the 1988 Constitution, a long judicial dispute culminated in 1997 when the Federal Supreme Court (STF) annulled the titles given to squatters and restored the original 4,000 hectares to the Krenak. However, the state of Minas Gerais created a new complication in 1998 by establishing the Sete Salões State Park on 12,500 hectares of sacred territory without Krenak consent. Leader Ailton Krenak emerged from this tumultuous history to become a central figure in the fight for Indigenous rights during Brazil's re-democratization, actively shaping the Indigenous rights chapter of the 1988 Constitution (Krenak 2022).
+
+
+________________
+
+
+7.5 The Fundão dam collapse as non-policy shock
+The 2015 Fundão tailings dam collapse adds a non-policy shock that the framework must accommodate, demonstrating that the same pipeline can register industrial disasters as well as legislative events. The 21st century brought both legal validation and spiritual catastrophe to the Krenak land. On April 20, 2001, the 4,039-hectare Krenak Indigenous Land was officially ratified by presidential decree. The community faced a new "end of the world" on November 5, 2015, when the Fundão tailings dam collapsed, releasing toxic mining waste that caused the "spiritual death" of the Watu (Doce River). In 2021, a Federal Court ordered the delimitation of the Sete Salões Indigenous Land, totalling 16,959 hectares including the state park area, though the government later sought to suspend the order. Recognition of past atrocities advanced in April 2024 when the Brazilian state granted the first collective amnesty to the Krenak for crimes committed during the dictatorship. The National Mining Agency had 38 registered mining activity processes overlapping Krenak territories in 2025, 3 of which were 50 hectares over Krenak Indigenous Land and 35 were 2,154 hectares over Krenak Sete Salões. Despite these steps toward justice, the Krenak face a renewed threat following the Senate's December 9, 2025, approval of PEC48. This constitutional amendment seeks to enshrine the "Marco Temporal" (time limit) clause, which could invalidate their claims to Sete Salões because the community was in forced exile on October 5, 1988, the cutoff date.
+
+
+________________
+
+
+7.6 Topography, infrastructure, and accessibility
+The Krenak (Borum) territory in Minas Gerais exhibits the most rugged topography of the four studies, with its sectors in Resplendor and Santa Rita do Itueto dominated by strong, wavy, mountainous terrain. Unlike the more remote Amazonian lands, the Krenak territory is close to urban infrastructure, with the city center of Resplendor located only 0.8 kilometres away. This area is highly accessible via the paved BR-259 federal highway, which is just 1.5 kilometres from the land, and the Victory-Mines Railroad, which passes within 7.1 kilometres. Public and protected areas are densely packed around this territory, including the delimited Krenak of Seven Halls indigenous land and the State Park Seven Halls, located less than a kilometre away. Additional nearby public areas include the Municipal Natural Monument Monjolo Stone and various agrarian reform settlements, such as PA Gilberto de Assis.
+
+
+________________
+
+
+7.7 Land use and market valuation
+Reflecting a history of forced dispersal, the Krenak territory in the Rio Doce valley contains a fragmented mosaic of pasture and quartzite exploration. The market value was estimated based on the land use classes present in the area, and their equivalent average price per hectare, from the “Land Market Analysis Report” (RAMT) produced by the Brazilian Agrarian Development Ministry (Explained in the methodology).
+
+
+Table 7.1: Krenak (Borum) Land Use and Market Value
+
+
+Part
+	Total Area (ha)
+	Predominant Land Use (%)
+	Total Estimated Value (BRL)
+	Estimated Value (USD)
+	Krenak
+	4,111.33
+	Pasture (54.63%)
+	R$ 51,419,533.61
+	$8,569,922.27
+	Krenak 7 Saloes
+	15,922.60
+	Forest (47.88%)
+	R$ 200,110,820.13
+	$33,351,803.36
+	TOTAL
+	20,033.93
+	
+
+	R$ 251,530,353.74
+	$41,921,725.62
+	
+
+The Krenak territory holds a moderate unit value due to its unique position, only 0.8 kilometres from the urban center of Resplendor and its proximity to the Vitória-Belo Horizonte Railroad.
+
+
+________________
+
+
+7.8 Ecosystem service valuation
+Beyond land market prices, this territory provides essential ecosystem services (ES) - including carbon sequestration, water regulation, and habitat for species. According to Brazilian valuation literature, the estimated mean value of these regulating and cultural services is approximately 410 USD per hectare per year (Explained in the methodology).
+
+
+Table 7.2: Krenak Annual Ecosystem Service Valuation
+
+
+Territory
+	Total Area (ha)
+	Annual Ecosystem Value (USD)
+	ES Value per Year (BRL)
+	Krenak
+	20,033.93
+	$8,213,911.30
+	R$ 49,283,467.80
+	
+
+The Krenak territory, despite its historical 89% deforestation rate, still represents over $8 million USD in potential annual ecosystem recovery value as it navigates revival efforts and continues to provide "original rights" protections.
+
+
+________________
+
+
+7.9 Historical degradation as the lesson Krenak teaches
+Krenak teaches the reader that policy recognition is necessary but insufficient when path dependence has already exhausted the resource the policy is meant to protect. The Krenak territory, located in the Rio Doce valley, reflects the "Guerra Justa" (Just War) policy of 1808 and subsequent forced dispersals. Unlike the Amazonian groups, the Krenak saw their lands rented to colonists and faced confinement, resulting in the massive deforestation (89%) observed today.
+
+
+While the Amazonian territories of Betania and Kayapó are dense forest blocks with minimal deforestation (under 3%), the Krenak territory demonstrates the severe impact of historical land policies, with a total deforestation rate of 89.11% in its most degraded sector. These valuations reflect the shift from land as a colonization commodity to the recognition of indigenous territories as essential cultural and environmental assets under the 1988 Constitution.
+7.10 Yvynation results, 1985–2023
+The framework was run on 2026-04-04 against both the ratified Krenak Indigenous Land (FUNAI code 23401) and the larger, still-being-delimited Krenak de Sete Salões land (code 23402). Outputs come from the Yvynation Reflex deployment, MapBiomas Collection 9 for class areas and Hansen GFC v1.11 for the annual loss series. Full exports (Sankey HTML, transition matrices, CSVs, GeoJSON) are archived under yvynation_Krenak_23401_20260404_1504/ and yvynation_Krenak_de_Sete_Saloes_23402_20260404_1512/.
+7.10.1 Krenak (23401) — 4,282 ha
+The headline result for the ratified territory is forest recovery on former pasture. Forest Formation more than doubles from 354 ha (8.3 %) in 1985 to 856 ha (20.0 %) in 2023, a +141 % gain; Pasture falls from 2,879 ha to 2,189 ha (−24 %); Mosaic of Uses gains 220 ha (+31 %).
+
+
+Table 7.3: Krenak (23401), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Pasture
+	2,878.9
+	2,188.6
+	−690.4
+	−24.0 %
+	Mosaic of Uses
+	698.8
+	919.2
+	+220.4
+	+31.5 %
+	Forest Formation
+	354.0
+	855.8
+	+501.7
+	+141.3 %
+	Savanna Formation
+	38.2
+	41.1
+	+2.9
+	+7.3 %
+	River, Lake and Ocean
+	29.9
+	7.3
+	−22.6
+	−73.2 %
+	Other Temporary Crops
+	11.9
+	1.3
+	−10.7
+	−82.4 %
+	Rocky Outcrop
+	9.9
+	8.4
+	−1.6
+	−14.5 %
+	
+
+The Hansen GFC summary corroborates this with one important caveat: the satellite era did not begin in 1985 with intact forest. Tree-cover baseline in 2000 was already only 56.4 % (2,414 ha), and 2001–2023 forest loss totalled 189 ha (7.8 % of the year-2000 cover). Loss is concentrated in 2014 (63.0 ha), 2017 (39.0 ha) and 2015 (31.9 ha) — the same years that registered fire-driven pasture stress across Minas Gerais. Hansen-detected forest gain over 2000–2012 was only 5 ha, so the 502 ha MapBiomas recovery signal must be coming primarily from secondary growth that the Hansen "forest gain" mask (defined for 2000–2012) does not pick up.
+
+
+Table 7.4: Krenak (23401), Hansen GFC peak loss years
+
+
+Year
+	Loss (ha)
+	Closest preceding policy event
+	Lag (yr)
+	2014
+	63.0
+	2012 Forest Code revision (Law 12.651)
+	2
+	2017
+	39.0
+	2016 PEC 215 institutional shock
+	1
+	2015
+	31.9
+	2012 Forest Code revision
+	3
+	2018
+	15.7
+	2017 Temer-era enforcement rollback
+	1
+	2016
+	14.0
+	2016 PEC 215 institutional shock
+	0
+	7.10.2 Krenak de Sete Salões (23402) — 16,596 ha
+The much larger Sete Salões polygon shows the same direction of change at a different scale. Pasture falls 1,145 ha (−24 %), Mosaic of Uses gains 656 ha (+18 %), Forest Formation gains 436 ha (+6 %); marginal land uses (Coffee +39 ha, Forest Plantation +27.5 ha) appear that did not exist in 1985.
+
+
+Table 7.5: Krenak de Sete Salões (23402), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Pasture
+	4,702.9
+	3,558.3
+	−1,144.7
+	−24.3 %
+	Mosaic of Uses
+	3,602.1
+	4,258.4
+	+656.3
+	+18.2 %
+	Forest Formation
+	6,858.5
+	7,294.1
+	+435.6
+	+6.4 %
+	Coffee
+	66.5
+	105.9
+	+39.4
+	+58.4 %
+	Forest Plantation
+	0.1
+	27.6
+	+27.5
+	(new)
+	Other Perennial Crops
+	8.5
+	2.0
+	−6.4
+	−68.0 %
+	River, Lake and Ocean
+	112.1
+	87.1
+	−25.0
+	−22.1 %
+	
+
+Hansen GFC for 23402 shows 2000 tree cover 13,011 ha (78.4 % of the polygon), 2001–2023 forest loss only 6 ha (0.0 %), forest gain 133 ha (1.0 %). For practical purposes, the Sete Salões area lost no canopy over the satellite era — its dynamic is internal mosaic reorganisation (pasture giving way to mosaic and to secondary forest), not deforestation. The recovery reflects the area becoming a state natural conservation park and later an indigenous reserve.
+7.10.3 What this changes in the chapter narrative
+The chapter points to Krenak as a deforestation case (§7.9, "89 % deforestation"). The Yvynation outputs let us refine that claim in three ways:
+
+
+1. The 89 % figure refers to the 1985 baseline, not to the present trajectory. Forest cover in the ratified Krenak land grew from 8.3 % to 20.0 % between 1985 and 2023; in Sete Salões it grew from 41.3 % to 43.9 %. The path-dependent damage is real, but the post-1988 trajectory is one of slow recovery, not continued loss. Estimates point to most deforestation in the Atlantic forest happening between 1700 and 1980 peaking after 1900 with agriculture modernization.
+2. The recovery is concentrated on what used to be pasture, consistent with the demographic story of leased-land returns after 1980 and judicial restitution after 1997 (§7.4). The recovery over these 40 years with satellite data is frequent although the biome as a whole went from 1985 with 26% of its original area to 24% in 2024. Also, we are looking at a total sum area that has a lot of old growth deforestation exchange with secondary vegetation in abandoned or protected areas in separate regions. For example, that exchange reduces the quality of natural forests with the loss of biodiversity.
+3. The 2014–2017 Hansen loss spike is the only post-1988 episode that registers as deforestation in the satellite record, and it lags the 2012 Forest Code revision by 2–3 years and the 2016 institutional shocks by 0–1 year — the kind of policy-to-pixel signature the framework was designed to capture (§7.5 also predicts a 2015 Fundão signal, but that disaster did not register as canopy loss in this polygon, only as the river-class shrinkage from 30 ha to 7 ha). The loss in the period is related to the Fundao dam collapse and is further detailed year by year in the sankey diagrams. 
+
+
+Krenak 2014-2017
+
+
+  
+
+	Krenak Sete Salões 2014-2017
+
+
+  
+
+	Buffer 10km
+  
+
+	Buffer 10km
+  
+
+	
+
+The 2024 collective amnesty (§7.5) and the December 2025 PEC48 vote are too recent to evaluate against the 2023-end raster series and will be revisited when MapBiomas Coll. 10 lands.
+
+
+
+
+________________
+
+
+Chapter 8 - Case study 2: Bacurizinho (Cerrado–Amazon transition)
+________________
+
+
+8.1 The ecotone position
+Moving west, Bacurizinho sits on the Cerrado–Amazon ecotone and tests the framework on a biome the Forest Code treats differently from closed-canopy Amazon. Bacurizinho is further east than the deeper Amazon territories, with 4,327 Guajá people across 82,432 hectares, regularized, with a declared expansion to 134,040 hectares in the Cerrado biome, with natural remnants in most of the regularized portion and recent deforestation in the expansion areas.
+
+
+________________
+
+
+8.2 The 1901 Alto Alegre rebellion and refuge-finding
+The Tentehar (Guajajara) refuge history after the 1901 Alto Alegre rebellion sets the territorial boundary that 1983 demarcation later formalised. The territorial history of the Bacurizinho Indigenous Land in central Maranhão began with a series of 19th-century migrations of the Tentehar (Guajajara) people, who moved from the Gurupi River to establish villages along the Mearim and Grajaú rivers. This migration pattern shifted into a desperate search for refuge following the 1901 Alto Alegre rebellion, a violent uprising against the cultural imposition and forced child recruitment of the Capuchin mission. In the aftermath of the rebellion, the ancestors of leaders like Caiuré Imana found safe haven in the woods of the Bacurizinho region, where they rebuilt their social structures and expanded their village network.
+
+
+________________
+
+
+8.3 Demarcation, expansion, and the natural-experiment seam
+The 2007 boundary revision and 2008 ministerial declaration of an expansion to 134,000ha create a natural experiment inside the framework: original area vs expansion area, both legally Indigenous but with different policy ages. The institutional formalization of this territory commenced decades later, resulting in the homologation of the Bacurizinho Indigenous Land in 1983 through Decree No. 88.600, which originally secured 82,432 hectares for the Guajajara population. However, this original demarcation was technically insufficient, as it excluded critical watercourses and ancestral areas essential for the community's physical and cultural reproduction. Consequently, a boundary review process was initiated, leading the National Foundation for Indigenous Peoples (Funai) to establish new limits in 2007. This expansion to approximately 134,000 hectares was recognized by the Ministry of Justice through Directive No. 1.234 on June 30, 2008, which declared the area a traditional indigenous possession authorized for physical demarcation.
+
+
+________________
+
+
+8.4 Pressure, fires, and the 2025 TRF1 order
+The 2012 and 2017 fire scars, and the 2025 TRF1 order to finalise demarcation, anchor the Key Land Use Change Years against specific legal and ecological events. Despite this recognition, the territorial integrity of Bacurizinho has remained under severe pressure from external actors, including illegal loggers, land grabbers, and agribusiness enterprises. During the 2010s, the land faced environmental challenges, including major fires in 2012 and 2017 that scarred tens of thousands of hectares of the Cerrado biome. The regularization process stalled for decades due to legal disputes, including the controversial Timeframe Doctrine and the improper certification of private rural properties overlapping the declared territory. This period of legal uncertainty was finally addressed in early 2025, when the Federal Regional Court of the 1st Region (TRF1) issued a unanimous decision ordering the federal government and Funai to finalize the definitive demarcation within a set timeframe, marking a critical transition from decades of displacement and administrative delay to the finalization of their sovereign rights.
+
+
+________________
+
+
+8.5 Regional context - neighbours and shared pressures
+The Bacurizinho region sits inside the same Maranhão pressure profile that affects the Guajá (Awá) further north. The Guajá, who self-denominate Awá ("gente" or "humano"), are situated in the eastern Amazon in Maranhão. Their population is approximately 520, and they belong to the Tupi-Guarani linguistic family. Historically, the Awá were hunter-gatherers whose life was fundamentally dependent on the forest (haka'a or harakwaha). They suffered genocide and violence as their territory was split by the BR-222 highway and the Estrada de Ferro Carajás (EFC). Many groups maintained voluntary isolation (Awa ka'apahara) in the ILPAs Awá, Caru, and Araribóia. The urgent interdiction of ILPA Awá was secured in part due to the efforts of Eunice Paiva to protect the community from invaders. The Awá cosmology is defined by the celestial spirits (karawara) who descend to earth to hunt and conduct curative rituals (takaja).
+
+
+________________
+
+
+8.6 Topography, CAR overlap, and land cover
+The Bacurizinho area has one-third of its area smooth, 50% moderately wavy, and the remaining 20% with over 10% declivity. With a total area of 133,905 hectares, 52% (69,304 hectares) overlaps with 268 rural properties declared in the CAR system. The land cover is mostly natural, with 77.82% forest, 8.32% savanna, and 1.81% other natural classes. The deforested regions are composed by 9.47% pasture 2.58% other uses.
+
+
+________________
+
+
+8.7 Land use and market valuation
+Table 8.1: Bacurizinho Land Use and Market Value
+
+
+Part
+	Total Area (ha)
+	Predominant Land Use (%)
+	Total Estimated Value (BRL)
+	Estimated Value (USD)
+	
+
+	Area 7
+	135,345.69
+	Forest (72.80%)
+	R$ 1,086,908,536.87
+	$211,481,424.38
+	
+
+	
+
+Bacurizinho has an older territory similar to Kayapó, and an expansion territory with more deforestation and, apparently, conflicts with private properties.
+
+
+Table 8.2: Bacurizinho Annual Ecosystem Service Valuation
+
+
+Territory
+	Total Area (ha)
+	Annual Ecosystem Value (USD)
+	ES Value per Year (BRL)
+	Bacurizinho
+	135,345.69
+	$55,491,732.90
+	R$ 332,950,397.40
+	
+
+Estimated ESV per year reaches the estimated land value in just under 4 years.
+________________
+
+
+8.8 What Bacurizinho teaches
+Bacurizinho teaches us that the same legal category (Indigenous Land) produces different pixel outcomes when the underlying tenure clarity differs, validating the lag-and-uncertainty terms of the framework. This contrast is the methodological payoff of the chapter: a single FUNAI status (Indigenous Land) holds different ecological outcomes depending on whether the underlying tenure has been settled. The original 82,432 ha block reads on satellite differently from the 51,608 ha expansion area awaiting physical demarcation, and the framework's transition matrix will quantify exactly how differently. The period with most land change in the expansion points to a policy expectation response from the recognition of an indigenous area , as eventual land owners only receive recompensation from the government only if the area has reported improvements or structures in it.
+
+
+________________
+
+
+8.9 Yvynation results, 1985–2023
+The framework was run on 2026-04-04 against both the 1983-homologated Bacurizinho polygon (FUNAI code 4901, 82,515 ha) and the 2008-declared expansion polygon (code 4902, 133,984 ha — which contains the 4901 area plus the 51,608 ha awaiting physical demarcation). Running both lets the same chapter report two transition matrices that differ only in the legal age of the boundary, since the geography, biome, and surrounding pressure are identical. Full exports (Sankey HTML, CSVs, GeoJSON) are archived under yvynation_Bacurizinho_4901_20260404_1148/ and yvynation_Bacurizinho_4902_20260404_1424/.
+8.9.1 Bacurizinho original (4901) — 82,515 ha
+Forest Formation falls modestly from 82,865 ha (100.4 %, slight overflow from rasterisation) to 79,881 ha (96.8 %), a −3.6 % shift. Savanna Formation drops 40 %, from 1,456 ha to 868 ha. The most telling signal is what appears: Pasture (690 ha), Sugar Cane (583 ha), Soybean (341 ha) and Other Temporary Crops (0.6 ha) all start the series at zero hectares and end with non-zero footprints. These are the new entries the 1983 demarcation could not prevent.
+
+
+Table 8.2: Bacurizinho 4901 (original), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Forest Formation
+	82,865.4
+	79,881.3
+	−2,984.1
+	−3.6 %
+	Savanna Formation
+	1,456.3
+	867.6
+	−588.7
+	−40.4 %
+	Pasture
+	0.0
+	690.1
+	+690.1
+	(new)
+	Sugar Cane
+	0.0
+	582.7
+	+582.7
+	(new)
+	Mosaic of Uses
+	436.0
+	438.7
+	+2.7
+	+0.6 %
+	Soybean
+	0.0
+	341.4
+	+341.4
+	(new)
+	Other non Vegetated Areas
+	1.7
+	10.9
+	+9.2
+	+342.3 %
+	Urban Area
+	4.6
+	13.5
+	+8.9
+	+158.1 %
+	Wetland
+	26.9
+	27.8
+	+0.9
+	+3.3 %
+	Other Temporary Crops
+	0.0
+	0.6
+	+0.6
+	(new)
+	
+
+Hansen GFC reports a year-2000 tree-cover baseline of 83,322 ha (99.8 % of the polygon) and 5,908 ha of 2001–2023 forest loss (7.1 %). Loss peaks land in 2017 (1,722 ha), 2014 (1,542 ha), 2016 (910 ha) and 2023 (475 ha) — the same three Maranhão fire years already named in §8.4, plus a recent 2022–2023 surge.
+8.9.2 Bacurizinho expansion (4902) — 133,984 ha
+The expansion polygon shows the same direction of change at much higher amplitude. Forest Formation falls 7,041 ha (−6.3 %) — more than twice the absolute loss in 4901 — and Savanna Formation falls 8,569 ha (−43.4 %). Pasture appears at 12,696 ha (vs 690 ha in 4901), Mosaic of Uses gains 1,625 ha (+179 %), and Sugar Cane (663 ha) and Soybean (341 ha) appear from zero. Other non-vegetated Areas (a category that includes mining/quarrying scars and bare degraded land) jumps from 4 ha to 183 ha, a 33-fold increase.
+
+
+Table 8.3: Bacurizinho 4902 (expansion), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Forest Formation
+	111,295.8
+	104,254.3
+	−7,041.5
+	−6.3 %
+	Savanna Formation
+	19,725.2
+	11,156.0
+	−8,569.2
+	−43.4 %
+	Pasture
+	2.0
+	12,695.8
+	+12,693.8
+	(new)
+	Mosaic of Uses
+	907.2
+	2,532.4
+	+1,625.3
+	+179.0 %
+	Sugar Cane
+	0.0
+	663.4
+	+663.4
+	(new)
+	Soybean
+	0.0
+	341.4
+	+341.4
+	(new)
+	Other Temporary Crops
+	0.0
+	270.1
+	+270.1
+	(new)
+	Other non Vegetated Areas
+	4.4
+	183.5
+	+179.1
+	+3,343.1 %
+	Grassland
+	1,919.0
+	1,754.6
+	−164.4
+	−8.6 %
+	Urban Area
+	4.6
+	20.6
+	+16.0
+	+284.6 %
+	Wetland
+	121.3
+	106.6
+	−14.7
+	−12.0 %
+	River, Lake and Ocean
+	4.2
+	4.7
+	+0.5
+	+10.5 %
+	
+
+Hansen GFC reports tree cover 2000 at 125,141 ha (92.3 %) and 2001–2023 forest loss of 17,062 ha — a 13.6 % loss rate, almost twice the 7.1 % rate inside the 1983 polygon. Annual peaks: 2014 (3,738 ha), 2017 (2,304 ha), 2016 (1,988 ha), 2022 (1,174 ha) and 2023 (1,110 ha).
+8.9.3 The boundary effect — what 4901 vs 4902 shows
+The two runs together produce an empirical finding: the legal status "Indigenous Land, demarcated and homologated" delivers a measurably different forest outcome than "Indigenous Land, declared but awaiting physical demarcation", even when the two polygons are nested inside the same biome and pressure profile.
+
+
+Table 8.4: Boundary effect, Bacurizinho 4901 vs 4902 (1985–2023, 2001–2023)
+
+
+Indicator
+	4901 (1983 demarcated)
+	4902 (2008 declared)
+	Differential
+	Polygon area
+	82,515 ha
+	133,984 ha
+	+51,469 ha
+	Forest 1985 (% of area)
+	100.4 %
+	83.1 %
+	−17.3 pp
+	Forest 2023 (% of area)
+	96.8 %
+	77.8 %
+	−19.0 pp
+	Forest Δ 1985–2023
+	−3.6 %
+	−6.3 %
+	1.75×
+	Pasture 2023 (ha)
+	690
+	12,696
+	18.4×
+	Soybean 2023 (ha)
+	341
+	341
+	identical (boundary edge)
+	Hansen forest loss 2001–2023 (% of TC2000)
+	7.1 %
+	13.6 %
+	1.91×
+	Hansen 2014 + 2017 loss (ha)
+	3,264
+	6,043
+	1.85×
+	
+
+The differential is consistent across three independent metrics (MapBiomas forest area change, Hansen percentage loss, and pasture appearance), which is the kind of internal cross-check the framework was designed to surface (§5.x). The 1.75–1.91× differential also brackets the magnitude reported in the Pfaff & Robalino (2017) Brazilian-Amazon protection-effect literature, which is encouraging for external validity even though our polygons are smaller than their study units.
+8.9.4 What this changes in the chapter narrative
+The chapter describes Bacurizinho as the "natural experiment" case (§8.3, §8.8). The 4901-vs-4902 numbers hardens that claim, as the expansion area is not just less protected on paper — it is also less protected on the satellite record, by a factor between 1.75 and 1.91 depending on which metric is used. The 2025 TRF1 order to finalise demarcation (§8.4) therefore has a quantifiable expected effect: closing the boundary effect would, on the basis of the past 23 years, save roughly 9,000 ha of Hansen-detected canopy over a 23-year horizon if the post-demarcation polygon behaves like the 1983 polygon.
+
+
+CAR overlap (§8.6) and the 2012/2017 fire-scar overlays remain to be computed, as a more detailed analysis for this area.
+
+
+
+
+
+
+
+
+Chapter 9 - Case study 3: Kayapó (south-eastern Amazon)
+________________
+
+
+9.1 The deforestation-ring case
+Further west, the Kayapó region is an extensive reserve located at the "deforestation-ring" case, eleven million hectares of contiguous forest surrounded by some of the most aggressive agricultural frontiers in the Americas. This case study refers to the Kayapó indigenous land, that neighbours other 8 connected reserves (Badjonkore, Baú, Capoto-Jarina, Kapôt Nhinore, Menkragnoti, Panará, Parque do Xingú and Terena Gleba Iriri. 
+  
+
+The Kayapó Indigenous Land has 3.3 million hectares and is part of the Kayapó Territory, spanning the Brazilian states of Pará and Mato Grosso, one of the most significant socio-ecological frontiers in the southeastern Amazon. Covering an immense expanse of approximately 11 million hectares, this contiguous block of primary tropical forest is larger than many sovereign nations, such as South Korea or Portugal, and serves as a vital barrier against the "Deforestation Ring" that surrounds it. The inhabitants, who refer to themselves as the Mẽbêngôkre - meaning "people of the water hole" - maintain a deeply rooted connection to the complex river systems of the Xingu and Iriri basins. Their traditional society is organized around circular villages, where the spatial architecture mirrors their cosmological worldview: the "Warriors' House" at the center and maternal family dwellings forming a protective outer ring. 
+
+
+Despite decades of external pressure from industrial agriculture, illegal gold mining, and massive infrastructure projects, the Mẽbêngôkre have established a robust institutional framework through an Indigenous-led NGO alliance to defend their constitutional rights and protect the biodiversity of their ancestral homeland. The Kayapó, or Mebengokre ("the men of the hole/water place"), speak a language belonging to the Jê family (Macro-Jê trunk). They reside in the Brazilian Central Plateau, primarily in Pará and Mato Grosso, with a population of about 9,762 (2014). The Kayapó endured devastating initial contact in the 19th century, characterized by massacres and schisms over engagement with non-Indigenous society. Their resistance helped keep large interior regions unexplored until the 1950s and 1960s.
+
+
+________________
+
+
+9.2 BR-163 and the 1970s contact disaster
+The 1970s BR-163 and the 1980s warrior strategy that culminated in the Altamira gathering of 1989 are the political events whose footprints frame the early satellite record. The historical trajectory of the Kayapó was initially defined by forced migration; in the 18th century, their first encounters with Portuguese-Brazilian bandeirantes seeking gold and slaves forced them to flee westward into the interior. By the mid-19th century, they had established themselves in the transition zone between the Amazonian forest and the cerrado savanna. Systematic government efforts to "pacify" the Kayapó began in the 1950s and 1960s, with iconic leader Chief Raoni Metuktire experiencing his first regular contact with the outside world in 1954. 
+
+
+The 1970s brought a catastrophic turning point with the construction of the BR-163 highway, which opened the floodgates for illegal loggers and miners; the subsequent outbreaks of introduced diseases were so severe that the population of the Baú reserve suffered a staggering 80% mortality rate. The people from the northern Xingu River migrated west to avoid contact with white people, breaking the communities into smaller groups, and some groups were relocated to Xingu Park to the southwest. The Capoto/Jarina reserve was created 26 years later in 1987, north from Xingu Park, then Menkragnoti in 1993 and Kayapó in 2001.
+
+
+________________
+
+
+9.3 The 1988–1991 demarcation arc and the Altamira gathering
+The 1980s saw a proactive shift in Kayapó strategy, as they adopted a "warrior" stance in the political arena, staging highly visible demonstrations and taking hostages to expel illegal ranchers from their lands. These efforts culminated in the 1988 Brazilian Constitution, particularly Article 231, which recognized Indigenous land rights as original rights that predate the state. In 1989, the Kayapó orchestrated the Altamira Gathering to protest proposed hydroelectric dams on the Xingu River; this event gained worldwide fame when Indigenous leader Tuíra famously confronted an engineer with a machete. Between April and June of that same year, Chief Raoni toured 17 countries with the musician Sting, raising the funds and international pressure necessary to begin the formal demarcation of their territories. These victories led to the legal ratification of the Kayapó Indigenous Territory in 1991 and, in 1993, to the unification of the Xingu Indigenous Lands corridor, which protected over 18 million hectares of forest.
+
+
+Kayapó leaders like Raoni Metuktire (associated with the 1991 demarcation of the Kayapó territory) and Megaron Txucarramãe have achieved global recognition for their political struggle. Raoni's distinctive labret symbolizes the mark of warriors ready to die for their land (Saboya 2023). The Kayapó actively oppose large projects like the Belo Monte hydroelectric dam. They engage in complex political and economic strategies, sometimes navigating contentious relationships with loggers and miners to acquire necessary resources, leading to internal debates and external criticism. Raoni continues to advocate for territorial expansion to accommodate their growing population and ensure future existence.
+
+
+________________
+
+
+9.4 Institutional consolidation
+The 1991 ratification, the 1993 Xingu-corridor unification, and the 2001 founding of Instituto Raoni mark the institutional consolidation visible in the pixels as sustained high forest cover. The early 21st century was marked by the Kayapó building their own representative organizations to navigate the legal complexities of Brazilian society, starting with the founding of Instituto Raoni in 2001. In 2003, a technical study was submitted to FUNAI recommending the demarcation of Kapot Nhinore, an ancestral parcel of land that has remained a flashpoint for legal and physical struggle for over two decades. While the Associação Floresta Protegida (Protected Forest Association ) and the Instituto Kabu were established to protect the northeast and northwest sectors of the territory, respectively, the region faced a renewed threat from the Belo Monte Dam.
+
+
+________________
+
+
+9.5 Belo Monte as policy-failure stress test
+The 2011 Belo Monte licensing and the 2016 dam started operating as a test: did the political-legal failure to stop the dam translate into measurable forest-cover degradation inside the Kayapó polygon, or was the protective effect strong enough to absorb the shock? Despite fierce opposition and international human rights concerns, the Brazilian government granted full construction licenses for the dam in 2011, leading to large-scale environmental displacement and the start of a "predictable tragedy" for the Xingu ecosystem. The dam is far from the Kayapo territory but should affect overall ecossystemic relations with them, as the water reservoir and water flow north from the region interferes with other forests.
+
+
+As the Belo Monte Dam began commercial operations in 2016, the Kayapó intensified their own defensive measures by establishing a network of Guard Posts to monitor their 2,200 km border against illegal logging and gold mining. In 2019, the Bolsonaro administration significantly weakened environmental protection agencies, leading to a 158% increase in deforestation within Indigenous lands that summer. In 2023, the inauguration of President Lula, accompanied by Chief Raoni, symbolized a return to Indigenous-led conservation policy, yet the territory continues to face severe challenges. By November 2025, as Brazil hosted COP30, Kayapó leaders advocated for their "Piracema hydrogram" to restore the collapsing Xingu river pulse, even as Congress passed Law 15.190/2025 (the "Devastation Bill"), which significantly weakened environmental licensing. Most recently, in February 2026, a landmark Supreme Court decision acknowledged the possibility of mining exploration inside Indigenous lands, setting a two-year deadline for legislative regulation and raising urgent concerns about future incursions into the Kayapó stronghold.
+
+
+________________
+
+
+9.6 The 2026 mining-process surge
+The 2026 surge in mining-process filings - 57 polygons covering 100 % of recent applications inside the Kayapó area - is a forward-looking signal the framework must register as pressure even before any deforestation is visible. The Brazilian Mining Agency had 161 mining process polygons overlapping the Kayapó territory in 2026, for substances including chrome, cassiterite, columbite, gold, copper and lead. These mining areas total 612,403 hectares, of which 390,720 hectares are within Indigenous land. 104 of those processes date from 1978 to 2024, and 57 were initiated in 2026. All 57 recent mining areas are within the Kayapó indigenous land, accounting for 100% of the mining polygons in the Agency's database. These are formal ore exploration activities and will be considered when assessing land-use impacts in the forested areas.
+
+
+________________
+
+
+9.7 Topography, infrastructure, and surrounding protections
+The Kayapó (Mebengokre) territory spans a more diverse topographical range across North Ourilândia and São Félix do Xingu, where smooth and moderately wavy terrain dominates the northeastern sectors, while the northwestern part features over 288,000 hectares of strongly wavy and mountainous land. The territory is relatively isolated from major urban centers, with the closest city, Cumaru do Norte, located 12.4 kilometres away, and Ourilândia do Norte, 87.5 kilometres away. Infrastructure in this region is anchored by the paved federal highway BR-158, which is 75.3 kilometres away, and the territory serves as a massive environmental barrier adjacent to other public areas, such as the Badjonkore and Menkragnoti indigenous lands. Nearby public conservation units include the Municipal Nature Park of Redemption and the vast Xingu State Park, which sits 126.3 kilometres from the property.
+
+
+________________
+
+
+9.8 Land use and market valuation
+The Kayapó territory serves as a massive environmental barrier in Pará, commanding higher regional market prices due to its location on the Brazilian Central Plateau.
+
+
+Table 9.1: Kayapó (Mebengokre) Land Use and Market Value
+
+
+Part
+	Total Area (ha)
+	Predominant Land Use (%)
+	Total Estimated Value (BRL)
+	Estimated Value (USD)
+	Part NE
+	857,684.17
+	Forest (96.02%)
+	R$ 11,991,113,165.40
+	$1,998,518,860.90
+	Part IF
+	640,168.59
+	Forest (91.85%)
+	R$ 9,355,723,308.39
+	$1,559,287,218.07
+	Part SW
+	883,552.75
+	Forest (92.03%)
+	R$ 12,260,306,922.92
+	$2,043,384,487.15
+	Part NW
+	901,785.42
+	Forest (99.40%)
+	R$ 12,507,775,258.46
+	$2,084,629,209.74
+	TOTAL
+	3,283,190.93
+	
+
+	R$ 46,114,918,655.17
+	$7,685,819,775.86
+	
+
+The Kayapó lands account for approximately 96.5% of the total economic value and land area of the four cases due to their extent and location. It is characterized by diverse topography ranging from smooth, wavy terrain in the northeast to mountainous regions in the northwest.
+
+
+________________
+
+
+9.9 Ecosystem service valuation
+Table 9.2: Kayapó Annual Ecosystem Service Valuation
+
+
+Territory
+	Total Area (ha)
+	Annual Ecosystem Value (USD)
+	ES Value per Year (BRL)
+	Kayapó
+	3,283,190.93
+	$1,346,108,281.30
+	R$ 8,076,649,687.80
+	
+
+The Kayapó territory alone generates over $1.3 billion USD in annual ecosystem service value, acting as a critical barrier against regional forest loss caused by ranching and infrastructure projects. The estimated land value is reached by the ecosystem service in just under 6 years, and most of the possible losses with degradation cannot be recovered completely. The annual value of these ecosystem services (approx. 410 USD/ha/year) is often lower than the opportunity cost of agricultural exploitation (estimated at 797 USD/ha/year in some reports), but these local values represent a significant incentive for Brazilians, or other countries, to pay for the preservation of non-use biodiversity.
+
+
+________________
+
+
+9.10 Mining pressure as the contemporary front
+The Kayapó lands face the highest mining pressure among the four cases. While the Kayapó have historically resisted large infrastructure projects such as the Belo Monte dam, they must navigate contentious relationships with loggers and miners to obtain resources. Recent trends show that while command-and-control policies like PPCDAm reduced Amazonian deforestation by 66% by 2015, rates began rising again after 2012 due to policy changes in land regularization and mining. This highlights the fragility of secondary vegetation, which can be legally cleared once land tenure is sorted, and the constant pressure for deforesting primary vegetation if conditions change.
+
+
+________________
+
+
+9.11 The lesson Kayapó teaches
+Kayapó teaches that strong institutional capacity combined with international visibility produces the cleanest demonstration of policy effectiveness in the dataset. The high forest cover (over 90%) in this region demonstrates that the 1988 Constitution, which recognized indigenous "original rights" and mandated territory demarcation, has led to tangible ecological protection. As a result, indigenous lands in the Amazon now serve as critical barriers to the regional forest loss caused by large-scale cattle ranching and soybean cultivation. The reserves are not alone sufficient to attend the needs to everyone living there, but these lands seem essential to contribute for natural forest existence. 
+
+
+9.12 Yvynation results, 1985–2023
+
+
+The framework was run on 2026-04-04 against the Kayapó Indigenous Land (FUNAI code 23001), an effective sampled extent of 3,283,190 ha — consistent with the §9.8 four-sub-part total. This is the largest single polygon analysed in the thesis, and several effects only become visible at this scale. Full exports (Sankey HTML, CSVs, GeoJSON) are archived under yvynation_Kayapo_23001_20260404_1455/.
+9.12.1 The mining–pasture lockstep
+The MapBiomas comparison reveals a result that is not anticipated in the existing narrative: between 1985 and 2023, Pasture and Mining grow at virtually identical relative rates inside the Kayapó polygon — both at +1,352 %. That is just a numeric coincidence that put both deforestation pressures together.
+
+
+Table 9.3: Kayapó (23001), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Forest Formation
+	2,875,570.3
+	2,821,132.3
+	−54,438.0
+	−1.9 %
+	Pasture
+	2,105.5
+	30,597.3
+	+28,491.9
+	+1,352.6 %
+	Grassland
+	90,839.6
+	114,564.6
+	+23,725.0
+	+26.1 %
+	Mining
+	950.8
+	13,825.1
+	+12,874.3
+	+1,352.6 %
+	Floodable Forest
+	170,632.4
+	161,178.4
+	−9,454.0
+	−5.5 %
+	Wetland
+	3,647.4
+	2,049.1
+	−1,598.3
+	−43.8 %
+	Savanna Formation
+	24,069.3
+	25,487.7
+	+1,418.3
+	+5.9 %
+	River, Lake and Ocean
+	15,541.7
+	14,561.3
+	−980.4
+	−6.3 %
+	Rocky Outcrop
+	97,853.3
+	97,635.7
+	−217.7
+	−0.2 %
+	Other non Vegetated Areas
+	0.5
+	103.0
+	+102.4
+	+6,685.8 %
+	Other Temporary Crops
+	0.0
+	73.5
+	+73.5
+	(new)
+	Soybean
+	0.0
+	3.4
+	+3.4
+	(new)
+	
+
+Mining starts the series at 951 ha (the legacy Cumaru/Tucumã mining areas already operating in the early 1980s) and ends at 13,825 ha, a net gain of 12,874 ha. Pasture starts at 2,106 ha and ends at 30,597 ha, a gain of 28,492 ha. Both classes register exactly +1,352.6 % relative change. This is empirically what the chapter has been calling the "deforestation-ring-meets-mining" pressure profile (§9.6, §9.10), the two extractive land uses expand together inside the polygon, not sequentially. The 2026 mining-process surge described in §9.6 is therefore the next chapter of a process the satellite record can already see.
+9.12.2 Forest loss, wetland loss, and a Hansen-2024 warning
+
+
+Hansen GFC reports a year-2000 tree-cover baseline of 3,281,140 ha (98.5 % of the polygon) and 2001–2023 forest loss of 464,660 ha (14.2 %). This is a much larger loss footprint than the MapBiomas −54,438 ha "Forest Formation" change, because of a significant wildfire in 2024, even though the Hansen "loss" mask captures degradation, partial-canopy thinning, and burn-area canopy hits that MapBiomas reclassifies as the same broad biome class. This difference over the whole period prompted the current update to Mapbiomas 10 including 2024 data and is a good reason for immediately upgrading to collection 11 as soon as data is available.
+
+
+The Hansen annual deforestation series is concentrated in the post-2017 window: 2017 (73,644 ha), 2020 (32,074 ha), 2018 (8,871 ha) and 2019 (5,464 ha). The 2024 row reports 305,250 ha, which is approximately two-thirds of the entire 2001–2023 cumulative loss in a single year. This figure is implausible at face value and reflects the inclusion of a 2024 fire scar that does not necessarily reflect canopy removal. 
+
+
+A second under-reported signal in the Yvynation output is the 44 % collapse of Wetland area (3,647 ha → 2,049 ha) and the 6 % shrinkage of River, Lake and Ocean (15,542 ha → 14,561 ha). Together with the −5.5 % Floodable Forest change, these are the in-polygon hydrological footprint of a water regime change (§9.5) — the §9.5 chapter narrative had treated Belo Monte as a non-result for canopy because deforestation inside the demarcated polygon stayed flat, but the river-class and wetland-class series provide some apparent related events that coincide with the public backlash during the hydroelectric plant construction and initial operations.
+
+
+Table 9.4: Kayapó (23001), Hansen GFC peak loss years (2001–2023; 2024 caveated)
+
+
+Year
+	Loss (ha)
+	Closest preceding policy / political event
+	Lag (yr)
+	2017
+	73,644
+	2016 PEC 215 / Temer institutional shock
+	1
+	2020
+	32,074
+	2019 IBAMA / FUNAI defunding
+	1
+	2016
+	3,025
+	2016 Belo Monte commercial start
+	0
+	2010
+	2,740
+	2009 Forest Code amnesty initial draft
+	1
+	2007
+	3,721
+	2006 BR-163 paving / Mato Grosso soy push
+	1
+	2024
+	305,250 (caveat)
+	2024 forest wildfires
+	0
+	9.12.3 What this changes in the chapter narrative
+The chapter frames Kayapó as the cleanest demonstration of policy effectiveness in the dataset (§9.11)  with  high forest cover sustained against an aggressive surrounding frontier. The Yvynation outputs do not contradict that headline (forest cover 1985→2023 fell by only 1.9 % across 3.28 Mha), but they qualify it in three principal ways:
+
+
+1. The mining-pasture lockstep is the operational story for the Kayapó Indigenous Land in the 2010s and 2020s, not the old 1990s deforestation-ring narrative. Both classes grew by an order of magnitude inside the demarcated polygon, suggesting that the protective effect now depends on the §9.6 mining-process pipeline being held back. The deforestation ring actually went around the protected Environment Conservation Units and Indigenous Lands, as we notice in the buffer comparison and we can see in any broader satellite view of the region.
+2. Hansen-detected forest loss (14.2 %) is much larger than MapBiomas Forest-class change (1.9 %) at this scale, because the Hansen data extended to 2024. The chapter's §9.11 "over 90 % forest cover" claim is correct as a category-membership statement and misleading as a canopy-integrity statement to be confirmed in future years.
+3. The hydrological footprint in the wetland and river classes coincide with Belo Monte initial operations, even though it is not visible in the forest classes as the dam itself is located 900Km downstream from São Felix do Xingu. The framework therefore did detect 2011/2016 events from possible drought and rainfall variations and could be a reason for an increase in worries about the dam operation even that far from it.
+
+
+The 2026 STF mining ruling (§9.5) and the 57 new mining-process polygons filed in 2026 (§9.6) will be re-run against the 2024-end MapBiomas Coll. 10 product and Coll. 11 as soon as it is released; the present 2023-end series sets the pre-ruling baseline.
+
+
+
+
+
+
+Observed fire events from 1985 to 2025
+  
+  
+
+	
+
+The transition in classes on Mapbiomas is not as significant as the observed fire areas because the methodology has a persistency component that looks at previous years and in this case if the forest recovers in the next year it will just keep being forest along the way,
+
+
+Kayapo NW
+  
+
+	Buffer 10Km
+  
+
+	Kayapo NE
+  
+
+	Buffer 10Km
+  
+
+	Kayapo SE
+  
+
+	Buffer 10Km
+  
+
+	Kayapo SW
+  
+
+	Buffer 10Km
+  
+
+	
+
+
+
+________________
+
+
+Chapter 10 - Case study 4: Betânia (western Amazon)
+________________
+
+
+10.1 The deep-forest endpoint of the gradient
+At the western end of the case studies, Betânia represents the deep-forest Tikúna territory whose path-dependent trajectory began with a mid-twentieth-century missionary land purchase rather than a colonial decree. The Tikúna, self-denominated Magüta ("group of people fished with a rod"), are the largest Indigenous population in the Brazilian Amazon. Their language is unique (genetically isolated and tonal) and remains widely spoken across Brazil, Peru, and Colombia (TicunaPIB).
+
+
+The Tikúna were historically concentrated in the High Solimões region. They navigated early colonial competition and later suffered intense labour exploitation under the rubber barracão (large barn) system in the late 19th century. This economic model forced the break-up and dispersal of their traditional clan houses (malocas). Their recent history includes a significant messianic movement, the Irmandade da Santa Cruz, in the 1970s. Through organized effort, including the creation of the Conselho Geral da Tribo Ticuna (CGTT - General Council of Ticuna Tribe) and the Organização dos Professores Ticuna Bilíngües (OGPTB - Organization of Ticuna Bilingual Teachers), they achieved the demarcation of nearly one million hectares by 1993, securing land for ILPAs like Betania (TicunaPIB). The location pictured below has 24 protected indigenous lands and 10 Environmental Conservation Units, with Betania in the middle. The green crosses are known indigenous community locations and the region is pretty much untouched from the canopy and other natural land coverage perspectives. The labels have the official declaration year of each area, since the delimitation dates prior to 1990 are not consistent in the FUNAI data. Other indigenous lands were declared and recognized in the following decades. 
+
+
+  
+
+
+
+________________
+
+
+10.2 The missionary-to-autonomy origin story
+The historical trajectory of Betânia Indigenous Land exemplifies indigenous resilience against exploitative labour systems and a gradual move toward territorial and institutional autonomy. Located in the municipality of Santo Antônio do Içá, Amazonas, the community emerged in the 1960s through a strategic alliance between Ticuna families and American Baptist missionaries. Recognizing that the Ticuna were subjected to debt peonage under the oppressive "boss" (seringalista) system of the rubber boom era, the missionaries purchased large tracts of land from local landlords and deeded the rights to Ticuna families who agreed to settle within the mission. This foundational period effectively created a sanctuary for the Magüta people, offering them a degree of land ownership and liberty that had been stripped away during the peak of local extractive industries. The rubber business would later crash in Brazil due to international success on adapting the “Seringueira” tree in Asia and the introduction of synthetic rubber from petrol.
+
+
+________________
+
+
+10.3 The 1985–1995 post-Constitution recognition arc
+The 1985 delimitation, the 1991 declaration, and the 1995 homologation place Betânia squarely inside the Constitutional transition policy regime. The bureaucratic path toward full legal recognition began in earnest during the 1980s, a period marked by increased social effervescence and the growth of indigenous representation through organizations like the Magüta Centre. On October 1, 1985, the territory achieved its first major legal milestone when it was officially delimited by the Brazilian government under Portaria 76. This set the stage for a decade of legal advocacy that resulted in TI Betânia being formally declared as an indigenous territory on November 25, 1991, via Portaria 599 already under the 1988 constitution. The process reached its definitive conclusion on July 4, 1995, when the land was homologated by presidential decree, legally safeguarding 122,769 hectares for the Ticuna population. By 2011, the population of this territory had grown to 5,341 people, making it one of the most populous Ticuna settlements in Brazil (from a population of 74,000).
+
+
+________________
+
+
+10.4 Health emergencies as non-deforestation shocks
+The 2020 COVID-19 emergency and the 2023 declared health emergency are non-deforestation shocks that the framework should leave largely invisible in pixels, possible noise from the economic struggles due to the pandemic rather than the disease direct consequences. The contemporary history of TI Betânia has been defined by both biological threats and environmental pressures. During the global COVID-19 pandemic, the community faced a severe health crisis, reportedly exacerbated when a medical professional introduced the virus into the territory after returning from vacation. In the face of a collapsed health system and a lack of protective equipment, the community relied heavily on their ancestral knowledge of the forest, using traditional medicines - such as "chá de jambu" and specialized ointments - to treat the infected. These health vulnerabilities were compounded in 2023 when the Brazilian government declared a National Health Emergency for indigenous populations in the region, partly due to the encroachment of illegal loggers and miners into neighbouring territories. Like most indigenous communities in Brazil, Betania relies on federal government services to reach their individuals in need of health support.
+
+
+________________
+
+
+10.5 The 2024 Tchirugune project
+The 2024 Tchirugune project is a forward-looking governance event the framework records as institutional strengthening rather than land-cover change. Most recently, in June 2024, the community initiated the "Tchirugune" project, a collaborative effort between the Ministry of the Environment and Climate Change, the UN Development Programme (PNUD), and the Amazon Conservation Team Brasil. This project focuses on the economic and cultural strengthening and territorial protection of TI Betânia by providing technical consultancy to the local Instituto N'gutapa. Through July 2024, the project focused on institutional strengthening and training local leaders in project management and sustainable development to ensure that the more than 5,000 residents can continue to manage their ancestral lands effectively while mitigating the modern threats posed by climate change and illegal extraction.
+
+
+________________
+
+
+10.6 Topography, infrastructure, and accessibility
+The Betania (Tikúna) territory, located in the municipality of Santo Antônio do Içá, is primarily defined by smooth, wavy terrain, which covers over 54,000 hectares of its largest sector, followed by moderately wavy landscapes. Its accessibility is centred on the urban area of Santo Antônio do Içá, which is only 5.6 kilometres away, while other nearby cities, like Amatura and Tonantins, are 18.1 and 42.7 kilometres away, respectively. Key infrastructure includes the Port of Santo Antônio do Içá, a federal facility located 2.4 kilometres from the territory, only accessible by small planes or the rivers. For example the closest road is unpaved and 140Km distant (AM-378) from the Betania limits, the closest major rail link is the Carajás Railroad, over 2,000 kilometres distant. Public areas and conservation zones near Betania include the regularized Maraitá and Matintin indigenous lands, as well as the Javari Buriti Area of Relevant Ecological Interest and the Jutaí-Solimões Ecological Station.
+
+
+________________
+
+
+10.7 Land use and market valuation
+The Betania territory, located in the High Solimões region, is primarily composed of Forest with remarkably high levels of preservation. The estimated mean values refer to private properties negotiated in a larger area and seem to overestimate the values considering how isolated these lands really are. 
+
+
+Table 10.1: Betania (Tikúna) Land Use and Market Value
+
+
+Part
+	Total Area (ha)
+	Predominant Land Use (%)
+	Total Estimated Value (BRL)
+	Estimated Value (USD)
+	Part 1a
+	116,983.54
+	Forest (92.19%)
+	R$ 108,880,806.92
+	$18,146,801.15
+	Part 1b
+	9,082.00
+	Forest (99.89%)
+	R$ 8,147,074.92
+	$1,357,845.82
+	TOTAL
+	126,065.54
+	
+
+	R$ 117,027,881.84
+	$19,504,646.97
+	
+
+The Betania territory maintains the lowest average value per hectare among the four cases, as its remote Amazonian location results in a low valuation under the "General" regional typology, despite its high ecological integrity.
+
+
+________________
+
+
+10.8 Ecosystem service valuation
+Table 10.2: Betania Annual Ecosystem Service Valuation
+
+
+Territory
+	Total Area (ha)
+	Annual Ecosystem Value (USD)
+	ES Value per Year (BRL)
+	Betania
+	126,065.54
+	$51,686,871.40
+	R$ 310,121,228.40
+	
+
+Considering the ESV is not dependent on infrastructure and accessibility, the estimated benefit of preserving this area is 2.6 times more valuable per year than the total land value of it.
+________________
+
+
+10.9 What Betânia teaches
+Betânia illustrates the upper bound of the framework: where path dependence runs cleanly through Indigenous stewardship and recent legal recognition, the satellite record shows what an effective policy regime looks like in isolated regions. The high forest cover (over 90%) in this region clearly demonstrates that the 1988 Constitution, which recognized indigenous "original rights" and mandated territory demarcation, has led to tangible ecological protection in the Amazonas State. As a result, indigenous lands in the Amazon biome now serve as critical barriers to the regional forest loss caused by large-scale cattle ranching and soybean cultivation, especially in areas contrasted by private properties. The Amazonian territories of Betania and Kayapó are dense forest blocks with minimal deforestation (under 3%).
+
+
+________________
+
+
+10.10 Yvynation results, 1985–2023
+The framework was run on 2026-04-04 against the homologated TI Betânia (FUNAI code 6201, 122,347 ha). Full exports (Sankey HTML, CSVs, GeoJSON) are archived under yvynation_Betania_6201_20260404_1444/.
+10.10.1 The hydrological signal
+The Yvynation MapBiomas comparison confirms Betânia as the lowest-deforestation case in the four-territory set, but the dominant 1985–2023 dynamic is not what the chapter narrative anticipated. Forest Formation barely changes (−0.5 %, −341 ha) and Floodable Forest declines only 5.3 % (−2,496 ha); meanwhile Wetland area triples (+223 %, +2,297 ha) and Grassland area grows ten-fold (+932 %, +698 ha).
+
+
+Table 10.3: Betânia (6201), MapBiomas 1985 vs 2023
+
+
+Class
+	1985 (ha)
+	2023 (ha)
+	Δ ha
+	Δ %
+	Forest Formation
+	63,303.6
+	62,962.5
+	−341.1
+	−0.5 %
+	Floodable Forest
+	47,317.8
+	44,821.8
+	−2,495.9
+	−5.3 %
+	River, Lake and Ocean
+	10,106.1
+	9,606.6
+	−499.5
+	−4.9 %
+	Wetland
+	1,030.1
+	3,327.3
+	+2,297.2
+	+222.8 %
+	Pasture
+	456.4
+	771.5
+	+315.1
+	+68.9 %
+	Grassland
+	73.9
+	771.9
+	+698.0
+	+932.0 %
+	Urban Area
+	59.0
+	81.2
+	+22.2
+	+37.0 %
+	Other non Vegetated Areas
+	0.0
+	4.1
+	+4.1
+	(new)
+	
+
+This is a hydrological footprint, not an agricultural footprint. The 2,496 ha of Floodable Forest converting to Wetland and Grassland, paired with a 499 ha shrinkage of the River–Lake class, is consistent with the broader Solimões varzea-flood regime change documented in the literature for the 2010–2020 decade (Espinoza et al. on extreme low-water years, Marengo et al. on Amazonas drought cycles). The 769 ha of new Pasture and the 22 ha of urban-class growth are real but minor compared with the hydrological re-classification.
+10.10.2 The cleanest Hansen-loss case
+Hansen GFC reports a year-2000 tree-cover baseline of 113,706 ha (92.2 %) and 2001–2023 forest loss of 4,254 ha (3.7 %) — the lowest rate in the four-territory set.
+
+
+Table 10.4: Betânia (6201), Hansen GFC peak loss years
+
+
+Year
+	Loss (ha)
+	Closest preceding policy / political event
+	Lag (yr)
+	2023
+	788.9
+	2023 declared health emergency (§10.4)
+	0
+	2016
+	286.3
+	2016 PEC 215 institutional shock
+	0
+	2020
+	281.4
+	2019 IBAMA / FUNAI defunding
+	1
+	2009
+	238.7
+	2008 Amazon Fund operationalisation
+	1
+	2010
+	204.4
+	2008 Forest Code amnesty initial draft
+	2
+	2024
+	325.3
+	2024 Tchirugune project start
+	0
+	
+
+The 2023 spike (789 ha) is the only year where the Hansen series clears 500 ha — and it coincides with the 2023 health-emergency declaration. The chapter's §10.4 framing of the 2020 COVID and 2023 health emergencies as non-deforestation shocks needs to be revisited: 2020 is indeed quiet at the canopy scale (281 ha), but 2023 reads as a real pressure event in the Hansen record.
+10.10.3 What this changes in the chapter narrative
+Three refinements to the previous narrative:
+
+
+1. The "negative-result panel" for 2020 is partially confirmed and partially overturned. 2020 holds at the multi-year median; 2023 does not. Whatever channel of pressure the 2023 health-emergency declaration was responding to is visible in the canopy record at +180 % above the 2001–2022 mean.
+2. The hydrological re-classification (Floodable Forest → Wetland → Grassland) is the largest 1985–2023 transition by area in this polygon, larger than any policy-driven land-use change. The framework therefore lets Betânia function as the hydrology case in the four-territory comparison, complementing Krenak (recovery), Bacurizinho (boundary effect) and Kayapó (mining-pasture lockstep).
+3. The §10.9 claim of "minimal deforestation (under 3 %)" is approximately right but slightly out of date — Hansen 2001–2023 forest loss is 3.7 %, just over the threshold the existing text uses. That variation may be related to recent wildfires detected in 2024 and 2025.
+  
+
+
+
+
+
+
+
+Both the territory area in this image and the 10Km buffer are mostly stable and the identifiable migrations between land usage classes occur between other natural classes. These happen between Forests, Floadable Forests, Water and wetlands.
+  
+
+	
+
+Buffer 10Km
+  
+
+	
+
+
+
+The 2024 Tchirugune project (§10.5) is too recent to evaluate, but the 2024 Hansen-loss row (325 ha) provides the pre-Tchirugune baseline against which any post-2024 effect can be read.
+
+
+
+
+Chapter 11 — Cross-case synthesis: what four territories share and why they differ
+________________
+
+
+11.1 The longitudinal argument stated
+Read in order, the Krenak, Bacurizinho, Kayapó and Betânia territories trace a single longitudinal argument: the further west and the later the critical juncture arrives, the more of the forest the policy has been able to keep. The four case-study chapters are organised coast-to-west because that geographic sequence is also a policy-history sequence. The Krenak suffered their first legally encoded dispossession in 1808, two centuries before the 1988 Constitution could attempt a remedy; the Bacurizinho territory was demarcated in 1983 and expanded in 2008, close enough to the constitutional evolution that the satellite era records both the unprotected past and the protected present; the Kayapó territory received its formal title in 1991, at nearly the same moment the satellite baseline begins, so the comparison between interior and buffer starts from the very first year of the time series; and the Betânia demarcation was completed in 1995, inside the post-Constitution window, giving the policy regime an uninterrupted hold over the landscape for almost the entire observation period. The gradient is the spatial expression of the "March to the West" frontier that Brazilian land policy inscribed on the map across the twentieth century, and reading the four territories in order is reading that policy history backwards in time, from its longest-running consequences to its most recent ones.
+
+
+Table 11.1: Summary comparison across the four focal territories
+
+
+Territory
+	Biome
+	Critical-juncture year
+	Title / ratification
+	Total area (ha)
+	Forest cover (%)
+	Deforestation (%)
+	Land market value (USD)
+	Annual ES value (USD)
+	Krenak
+	Atlantic Forest
+	1808
+	1997 (STF)
+	20,033.93
+	~11%
+	~89%
+	$41,921,725.62
+	$8,213,911.30
+	Bacurizinho
+	Cerrado–Amazon
+	1901
+	1983 / 2008
+	135,345.69
+	~78%
+	~12%
+	$211,481,424.38
+	—
+	Kayapó
+	Amazon
+	1970s
+	1991
+	3,283,190.93
+	~93%
+	~5%
+	$7,685,819,775.86
+	$1,346,108,281.30
+	Betânia
+	Amazon
+	1960s
+	1995
+	126,065.54
+	~93%
+	~2%
+	$19,504,646.97
+	$51,686,871.40
+	
+
+A territory that lost legal protection early and spent more than a century subject to extractive tenure has 89% deforestation. A territory that entered the post-Constitution regime nearly intact has 2–5% deforestation. The biome difference contributes as the Atlantic Forest was already severely fragmented nationally before the satellite era, but biome alone cannot explain an 87 percentage-point gap and looking at the surroundings it is evident that unprotected areas evolved much differently with more deforestation. 
+
+
+The summary-comparison percentages in Table 11.1 use slightly different inputs from the 2026-04-04 Yvynation batch reported in the case-study chapters. The chapter-level figures differ in places: Krenak (23401) forest cover rose from 8.3 % in 1985 to 20.0 % in 2023 (§7.10.1); Bacurizinho 4901 holds at 96.8 % forest cover with a Hansen 2001–2023 loss of 7.1 %, while the larger Bacurizinho 4902 sits at 77.8 % with 13.6 % loss (§8.9.1–8.9.2); Kayapó (23001) MapBiomas forest declined only 1.9 % but Hansen reports a 14.2 % canopy-loss footprint (§9.12.2) due to wildfires in 2024; and Betânia (6201) reads as the lowest Hansen-loss case at 3.7 %, with the dominant 1985–2023 dynamic being the +223 % growth of the Wetland class rather than agricultural conversion (§10.10). The four-territories paper figures and the Yvynation batch numbers should be reconciled in the next thesis pass; the gap is informative because it isolates which results depend on the choice between MapBiomas-class change and Hansen-canopy-loss as the headline metric.
+
+
+Table 11.1b: Cross-case empirical headlines from the 2026-04-04 Yvynation batch
+
+
+Territory
+	Extent (ha)
+	Headline 1985→2023 transition
+	Hansen loss 2001–2023
+	One-line story
+	Krenak (23401)
+	4,282
+	Forest +141 % (354→856 ha) on former pasture
+	7.8 %
+	Recovery on degraded land
+	Krenak de Sete Salões (23402)
+	16,596
+	Pasture −24 %, Mosaic +18 %, Forest +6 %
+	0.0 %
+	Quiet internal mosaic shift
+	Bacurizinho (4901)
+	82,515
+	Forest −3.6 %, Pasture / Soy / Sugar Cane new
+	7.1 %
+	Demarcated and holding, with leakage at the edges
+	Bacurizinho (4902)
+	133,984
+	Forest −6.3 %, Pasture +12,694 ha, Soy / Sugar Cane new
+	13.6 %
+	Tenure-gap signal: 1.91× higher loss than 4901
+	Kayapó (23001)
+	3,283,191
+	Mining +1,352 %, Pasture +1,352 % 
+	14.2 %
+	Extractive doubling inside a mostly intact forest
+	Betânia (6201)
+	122,347
+	Floodable Forest −5.3 %, Wetland +223 %, Grassland +932 %
+	3.7 %
+	Hydrological re-classification, not deforestation
+	
+
+________________
+
+
+11.2 What each territory teaches the synthesis
+Krenak teaches that policy recognition is necessary but insufficient when path dependence has already exhausted the resource the policy is meant to protect. The 1997 STF ruling returned the title but did not restore the forest. The Sankey diagrams for 1985–2023 are expected to show that the conversion to pasture in Krenak had already happened largely before the satellite era began, making the post-Constitution period a story of degraded-land persistence and slow recovery. The 2015 Fundão tailings dam collapse adds a non-policy shock that further depleted the riparian recovery potential, demonstrating that the same pipeline must accommodate industrial disasters and their related policies alongside legislative events.
+
+
+Bacurizinho teaches that the same legal category ( Indigenous Land ) produces different pixel outcomes when the underlying tenure clarity differs. The 82,432-hectare block regularised in 1983 reads on satellite differently from the 51,608-hectare expansion area declared in 2008 and deforested after that due to a lack of protection enforcement or a rush to prove ownership for a future government reimbursement, with 52% of the expansion territory overlapping with 268 CAR-registered private properties (mostly in the expanded region). This internal contrast validates the lag-and-uncertainty terms of the framework: legal declaration is a necessary but not sufficient condition for detectable protective effect; what matters is whether demarcation was physically executed, boundaries are enforced, and overlapping private claims are resolved.
+
+
+Kayapó teaches that strong institutional capacity combined with international visibility produces the cleanest demonstration of policy effectiveness in the dataset, at least from what satellites are able to access. Three million hectares of primary forest maintained above 91% cover for the entire observation period, surrounded by some of the most aggressive agricultural frontiers in the Americas, is not a natural outcome; it is the result of the Mẽbêngôkre's warrior strategy, the Altamira Gathering's international traction, the early founding of Instituto Raoni, the Associação Floresta Protegida, and the Instituto Kabu. The 2019 deforestation spike inside Indigenous lands during the Bolsonaro administration, visible in the Kayapó pixel series, shows that even this institutional strength is not fully autonomous from national political cycles. The 57 mining polygons filed in 2026, all inside the territory, register the next pressure wave before it has produced any detectable pixel change. Mining exploration happens there for decades, but what should we expect with a less restrictive rule?
+
+
+Betânia teaches the upper bound of the framework: where path dependence runs cleanly through Indigenous stewardship and recent legal recognition, the satellite record shows what an effective policy regime looks like. Over 92% forest cover, with COVID-19 and health emergencies leaving no detectable 30-metre signal, is the negative confirmation that the absence of a pixel transition is itself a meaningful finding when the policy hypothesis predicts stability. The 2024 Tchirugune project is a forward-looking governance event the framework records as institutional strengthening, not land-cover change, which illustrates how the pipeline handles developmental investments that precede rather than follow any satellite signal. The area is one of the most unreachable in the country and the other examples must be referenced on planning infrastructure and land development to that area.
+
+
+The software application itself allows all the charts and maps used in this text to be produced for any indigenous territory in FUNAI’s database, and with little change it can include Environment Conservation Units or other areas of interest. The Mapbiomas portal offers similar analysis tools with a different perspective, in a more exploratory and broad way. My purpose with the set of tools built together is to have some default visualizations that can be understood by anyone and compare multiple distinct locations. The batch processing brings a more practical option when you already know the areas you want analysis from, or already explored them in the individual module or in Mapbiomas itself and need consistent reproducible charts and tables together. 
+
+
+________________
+
+
+11.3 Policy lags across the four territories
+The Key Land Use Change Years cluster differently in each territory, and once aligned with the policy timeline they expose lags of 2–8 years between a major legislative event and its detectable pixel signal. A recurring structural feature of the dataset, visible in each territory's annual transition matrices once the Yvynation batch runs are complete, is that the sharpest inflection in land-cover trend does not coincide with the year of the policy event. There is a lag. The framework claims this lag is finite, measurable, and causally informative; if it were zero, the policy would have to anticipate satellite coverage, which is implausible; if it were infinite or random, path dependence would have no explanatory content. National policy changes will affect each state differently, and some probable effect of new Laws like the 2012 forest code may not affect the protected areas as much, since private lands are targets of the more restrictive changes in land management.
+
+
+The four territories offer four different versions of the lag story:
+
+
+* Krenak: The relevant lag is backwards. The 1808 "Just War" decree initiated a trajectory of dispossession whose cumulative effect is visible in the 1985 baseline as near-total deforestation. The 1988 Constitution and the 1997 STF ruling do not generate a detectable recovery signal within the observation window, precisely because the native forest  was already gone. The policy event and its hypothesised effect are dissociated because the effect had already been produced by the prior trajectory. The protected land existence helps in a slow recovery as long as the people related to the territory recognize the importance of environmental services, and the public services cope with their needs.
+* Bacurizinho: Two lag branches operate simultaneously. The 1983 demarcation of the original 82,432-hectare block should appear as a forest-persistence signal relative to surrounding areas beginning somewhere in the late 1980s. The 2008 expansion declaration generates a second hypothesis: if tenure uncertainty keeps the expansion area more exposed than the original block, the transition matrices should show elevated deforestation rates in the expansion polygon throughout the 2008–2025 period, converging only if and when physical demarcation is completed. The 2025 TRF1 order to finalise demarcation within a set timeframe is the policy event that should eventually close this gap.
+* Kayapó: The 1989 Altamira Gathering and the 1991 ratification are the founding events and proportionate a comeback of peoples pushed to Xingu National Park with the March to West. If the framework's lag hypothesis holds, the transition matrix for 1991–1994 should show the clearest divergence between interior and buffer. The 2011 Belo Monte licensing is the stress test: did it open a lag in the other direction? A policy failure that generated a detectable deforestation uptick in the buffer without breaching the territorial interior? The 2019 enforcement rollback is the second stress test. The canopy shock in 2024 may be the new reality with warmer temperatures and drier winters, wildfires may occur more frequently and the environmental balance in the region be at greater natural risk.
+* Betânia: The 1985 delimitation, the 1991 declaration, and the 1995 homologation are three successive policy events within a ten-year window. The lag analysis must distinguish between the effect of each, which requires a pixel-level break-point test across the three candidate years. The null result for 2020 and 2023 (COVID and health emergencies) is a precision test of the framework's lower bound of detectability, comparing other areas in this period may point to territories with activities more dependent on the external economy variances.
+
+
+Table 11.2: Policy-lag summary across the four territories (with April results)
+
+
+Territory
+	Policy event
+	Year
+	Expected pixel signal
+	Observed Key Land Use Change Year
+	Lag (years)
+	Krenak (23401)
+	1808 Just War
+	1808
+	Deforestation surge
+	Pre-1985 (pre-satellite)
+	—
+	Krenak (23401)
+	1988 Constitution
+	1988
+	Recovery initiation
+	1985–2023 net forest +141 % (no single break-year; Hansen gain mask near zero, so the signal is gradual MapBiomas re-classification)
+	gradual (≈10–20)
+	Krenak (23401)
+	2012 Forest Code revision
+	2012
+	Pasture-edge loss
+	Hansen 2014 (63 ha)
+	2
+	Krenak (23401)
+	2016 PEC 215 shock
+	2016
+	Loss spike
+	Hansen 2017 (39 ha)
+	1
+	Krenak (23401)
+	2015 Fundão collapse
+	2015
+	Riparian loss
+	River-class shrinkage 30→7 ha (1985→2023, no single year)
+	gradual
+	Bacurizinho (4901)
+	1983 homologation
+	1983
+	Forest persistence
+	Holds: 1985–2023 forest −3.6 % (vs −6.3 % in 4902)
+	persistent
+	Bacurizinho (4902)
+	2008 expansion declaration
+	2008
+	Tenure-gap signal
+	Hansen 2001–2023 loss 13.6 % (vs 7.1 % in 4901), 1.91× differential
+	persistent (entire window)
+	Bacurizinho (4901)
+	2012 fire
+	2012
+	Loss spike
+	Hansen 2014 (1,542 ha)
+	2
+	Bacurizinho (4901)
+	2017 fire
+	2017
+	Loss spike
+	Hansen 2017 (1,722 ha)
+	0
+	Kayapó (23001)
+	1991 ratification
+	1991
+	Interior–buffer divergence
+	Pending buffer run
+	—
+	Kayapó (23001)
+	2007 BR-163 paving (Mato Grosso)
+	2006–07
+	Loss uptick
+	Hansen 2007 (3,721 ha)
+	1
+	Kayapó (23001)
+	2016 PEC 215 / Belo Monte start
+	2016
+	Loss spike
+	Hansen 2017 (73,644 ha)
+	1
+	Kayapó (23001)
+	2019 enforcement rollback
+	2019
+	Loss uptick
+	Hansen 2020 (32,074 ha)
+	1
+	Kayapó (23001)
+	(cumulative 2010s mining permits)
+	2010–24
+	Mining footprint
+	MapBiomas Mining +1,352 % (951 → 13,825 ha), tracking Pasture exactly
+	persistent
+	Betânia (6201)
+	1985 delimitation
+	1985
+	Forest baseline
+	1985 forest baseline 90.4 % (Forest + Floodable Forest)
+	0
+	Betânia (6201)
+	1995 homologation
+	1995
+	Forest persistence
+	Holds: 1985–2023 forest −0.5 %, Hansen loss 3.7 % (lowest in dataset)
+	persistent
+	Betânia (6201)
+	2010s Solimões hydrology shift
+	2010–20
+	Floodable Forest → Wetland
+	MapBiomas Floodable Forest −5.3 %, Wetland +223 %, Grassland +932 %
+	persistent
+	Betânia (6201)
+	2020 COVID emergency
+	2020
+	Null result
+	Hansen 2020 = 281 ha (multi-year median)
+	confirmed null
+	Betânia (6201)
+	2023 health emergency
+	2023
+	Null result hypothesised
+	Hansen 2023 = 789 ha (+180 % above 2001–2022 mean)
+	hypothesis rejected
+	
+
+The lag column resolves into three distinct kinds: (a) a 1–2 year fast lag between a discrete national-scale event (a Forest Code revision, a PEC 215, a Belo Monte commercial start) and the next year's Hansen-detected canopy hit; (b) a persistent / boundary effect, visible in the 2001–2023 loss percentage rather than in any single year — Bacurizinho 4901 vs 4902 is the cleanest case, and the Kayapó mining-pasture lockstep is the second; and (c) gradual MapBiomas re-classification effects (Krenak forest recovery, Betânia floodable-forest collapse) that the satellite record only resolves at multi-year scale and that no single year-attribution can carry. The framework's "lag" claim survives the empirical test, but the lag is not a single number — it is three different temporal signatures that the Yvynation outputs let us tell apart.
+
+
+________________
+
+
+11.4 The buffer comparison: the protective effect is real and consistently quantifiable
+The 10 km exclusive buffers show, consistently, that the protective effect is real and quantifiable, even where the boundary cuts through the same biome and the same road network. The framework's core empirical claim is not just that forest cover is higher inside the territory than outside , that could be explained by self-selection, since the territories that were demarcated were often demarcated precisely because they were remote, but that the rate of change inside the boundary is systematically different from the rate in the exclusive 10 km buffer, a strip that shares the same biome, the same regional market pressure, the same road network, and the same climate aspects.
+
+
+The buffer is constructed to be a counterfactual. Any protected area within the 10 km ring is not subtracted from the buffer, so the comparison is territory-versus-unprotected-land and territory-versus-adjacent-territory. Where the same highway runs along the boundary, both the interior pixel and the buffer pixel face the same accessibility signal; where the same soy frontier expands in the surrounding municipality, both zones are subject to the same commodity price; and where the same rainfall anomaly reduces forest fire resistance, both zones experience the same climate shock. The only systematic difference is the legal status of the land inside the polygon and the institutional response that status triggers.
+
+
+Across the four territories, the buffer analysis is expected to show:
+
+
+* Krenak: Buffer deforestation rate converges to the territory deforestation rate, because the territory was stripped before the demarcation, and the regional Atlantic Forest landscape was already severely fragmented by the time of the 1985 baseline. The buffer provides no "upper bound" on deforestation because the territory is already close to the maximum. Recovery rates and natural secondary vegetation expansion may differ inside and outside protected areas.
+* Bacurizinho: The original 82,432-hectare block should show a meaningful interior–buffer differential for the period after 1983. The expansion area, legally Indigenous but not physically demarcated, should behave more like the buffer than like the original interior, providing the three-way comparison (original area, expansion area, buffer) described in §8.9. Since the surroundings of both areas already experienced deforestation pressure before the expansion studies, the forest coverage loss may be more evident inside the indigenous land during the advances on its legal status.
+* Kayapó: The buffer is the "deforestation ring" that defines the case — the surrounding soy and cattle frontier that has been consuming unprotected Cerrado and Amazon for four decades. The interior–buffer contrast here should be the strongest in the dataset, with a sharp pixel boundary visible at the demarcation line across the full observation period. The area is gigantic and processing it takes a long time and many possible timeouts. I started dividing the territory due to computational restrictions and ended up considering four quadrants for the processing and analysis. The quadrant approach made it easier to analyse the pressures and impacts also, as the western frontier of Kayapó is connected to other protected areas and harder to reach zones, while the east is much more exposed and shares limits with rural properties with pastures and agricultural activities.
+* Betânia: The buffer is forested Amazonian land with lower infrastructure pressure than Kayapó, so the interior–buffer contrast is expected to be smaller in absolute terms but still measurable, consistent with the deep-forest setting where even unprotected land retains some cover.
+
+
+________________
+
+
+11.5 Same national laws, different territorial outcomes
+The same national policies — 1965 Code, 1988 Constitution, 2004 PPCDAm, 2012 Code — produce different territorial outcomes, and the cross-case comparison lets us isolate which structural conditions allow a national rule to bite locally. Each of the four case-study chapters is cross-referenced to the Chapter 4 policy-lag table. The national milestones — the 1965 Forest Code, the 1988 Constitution, the 2004 PPCDAm, the 2012 Forest Code — appear in all four policy-lag tables, yet their pixel-level effects differ markedly. This divergence is not a failure of the framework, it is a valuable finding. If a national rule produced uniform outcomes across all territories, the case-study comparison would add nothing beyond what a national-scale analysis already shows. The fact that the same decree bends the trajectory in Kayapó but fails in the Bacurizinho expansion requires an explanation.
+
+
+Four structural conditions emerge from the cross-case comparison as the determinants of whether a national rule has local effects:
+
+
+1. Path-dependence depth: How exhausted was the resource at the moment the protective rule arrived? Krenak entered the 1988 constitutional regime with 89% of its native vegetation already gone; the rule had nothing left to protect and an effective recovery plan was needed. Betânia entered the same regime with 90%+ forest cover intact; the rule had everything to protect and simply needed to hold the line.
+2. Tenure completeness: Was the legal declaration backed by physical demarcation and resolution of overlapping private claims? Bacurizinho's expansion area demonstrates the cost of tenure incompleteness: a ministerial declaration without physical demarcation and without protection enforcement of the CAR-registered properties is a policy event without a corresponding pixel signal.
+3. Institutional capacity on the ground: Did the community have the organisation, resources, and international visibility to enforce its own boundary? The Kayapó case shows that institutional capacity  ( guard posts, NGO alliances, political advocacy ) supplements and in some periods substitutes for state enforcement.
+4. Biome characteristics and market proximity: The Atlantic Forest context of Krenak imposes a different recovery ceiling than the Amazon context of Betânia, specially because of the differences in the colonization history between them. The same reforestation rule produces slower and smaller pixel responses in a landscape where the surrounding matrix is agricultural, connectivity is low, and propagule pressure from remnant forest is limited. The buffers act as protection gradients or pressure contributors?
+
+
+These four conditions are not additive in a simple sense, or a territory that scores well on all four does not simply "add up" to guaranteed forest preservation. But the cross-case comparison shows that the absence of any one of them can be sufficient to defeat the others. Bacurizinho has reasonable institutional capacity and is in a biome still largely intact, but the incomplete tenure of its expansion area has allowed deforestation to proceed at rates more typical of its unprotected buffer, and that after the government made clear it would be a protected area. Krenak has recovered legal title and has FUNAI recognition, but path-dependence depth and biome fragmentation leave it without the forest capital that legal protection is supposed to conserve. This is only the natural environment discussion, but since all the communities have strong cultural and commercial ties to nature, the effects to plant coverage and animal distribution greatly affect the indigenous peoples living there.
+
+
+________________
+
+
+11.6 Path dependence is the strongest predictor, but not destiny
+Path dependence is therefore the strongest single predictor in the dataset, but it is not destiny: Kayapó and Betânia demonstrate that strong institutional response and early recognition reset the trajectory. The theoretical framework commits to path dependence as the central explanatory lens, supported by the cross-case evidence. Two territories where the critical juncture of formal dispossession ran deepest and earliest, like Krenak, with a 1808 "Just War" that locked in a trajectory of colonial expropriation, and Bacurizinho, with a 1901 rebellion and subsequent dispersal that delayed formal recognition by eighty years, show the highest current deforestation rates. The two territories where the recognition arc was compressed into a shorter historical window and where institutional capacity was built early show the lowest.
+
+
+ The territories may be far from urban areas, without any fences or walls around them, but we can see everybody around them knows exactly where they start and end, specially in the areas where the buffers are most contrastant to the forest in indigenous lands. The satellite imagery, from any source, for example if you look at google maps in a smartphone, will clearly show the frontiers of those protected areas. The sharp line between the inside and outside of a protected area is a sign that at least the limits enforcement works, and it may be because the actors deforesting and expanding the rural production are well prepared to judge whether going over that line is going to cause trouble. That assumption also leans to another conclusion, these actors also have access to spatial knowledge, they plan their steps with satellite and official data the same way we are doing these analyses.
+
+
+But path dependence is not mechanical fate, as we can see in the Kayapó case. The 1970s BR-163 construction caused an 80% mortality spike in the Baú reserve and opened the territory to extractive pressure; that same road is under new plans by the federal government. Yet the Kayapó did not follow the trajectory that the highway's opening predicted. They adopted a warrior strategy, staged the Altamira Gathering, raised international funds, and built a territorial governance network dense enough to hold the line against the agricultural frontier that consumed the surrounding landscape. The trajectory was path-dependent in the sense that it was shaped by prior decisions, but it was reset by political action, not absorbed passively, they did follow another path. Once you have the path dependence drawn, it is open to changes to guide the turnout to a different direction.
+
+
+Betânia illustrates a different version of the same point. The Baptist missionary land purchase in the 1960s, which freed Ticuna families from the rubber barracão debt-peonage system, was itself a political intervention that interrupted the extractive trajectory and set the conditions for the 1985 delimitation. The apparently clean "intact forest" outcome that the satellite record shows is not simply a function of remoteness or low market pressure; it is the result of a sequence of interventions ( missionary, organisational and constitutional)  each of which strengthened the next.
+
+
+As a policy lesson here, path dependence, in short, is the right framework precisely because it explains both the persistence of degradation (Krenak) and the possibility of trajectory change (Kayapó, Betânia). The critical juncture concept does not predict equilibrium; it predicts that the cost of changing a trajectory rises with its depth, and that early intervention is therefore more efficient than late recognition. 
+
+
+________________
+
+
+11.7 Comparative valuation: the economic stakes of the gradient
+The land-market and ecosystem-service valuations across the four territories make explicit what is at stake in the gradient  and what needs restoration at the Atlantic Forest end of it.
+
+
+Table 11.3: Cross-case economic summary
+
+
+
+
+
+
+Territory
+	Land market value (USD)
+	Annual ES value (USD)
+	ES value as % of land market value
+	Krenak
+	$41,921,725.62
+	$8,213,911.30
+	19.6%
+	Bacurizinho
+	$211,481,424.38
+	$55,491,732.90
+	26.2%
+	Kayapó
+	$7,685,819,775.86
+	$1,346,108,281.30
+	17.5%
+	Betânia
+	$19,504,646.97
+	$51,686,871.40
+	265.0%
+	
+
+The valuation inversion visible in Betânia with an annual ecosystem service value more than two and a half times its land market value captures a structural feature of deep-forest remote territories: because rural land prices in the High Solimões region are extremely low (the "General" regional typology produces the lowest per-hectare market values in the dataset), but because the regulating and cultural ecosystem services provided by a nearly intact forest block are valued at approximately 410 USD/hectare/year regardless of location, the ES valuation dominates the market valuation by a wide margin. The opposite logic applies, partially, to Krenak: proximity to urban infrastructure and the Victoria–Minas Railroad inflates the land market price while the 89% deforestation rate suppresses the ES potential. Krenak's high unit land value and low ecosystem value make it the territory where the opportunity cost of conversion was most directly realised, and where the ecological recovery cost is now highest. Bacurizinho has a similar ratio and the ES value would reach the land market value in around four years, but that should bring some tangible compensation for the inhabitants of the protected forested area, as the ES value is shared by everyone in the state or country while the maintenance and opportunity cost falls on the land people and government efforts.
+
+
+The Kayapó case is in a class of its own by magnitude. Over $1.3 billion USD in annual ecosystem service value — approximately $410 per hectare across 3.28 million hectares — dwarfs the other three combined. This figure is not a projection of what Kayapó could produce; it is an estimate of what its intact forest already produces annually in carbon sequestration, water regulation, and biodiversity-related services. The comparison with the opportunity cost of agricultural exploitation (estimated at approximately 797 USD/hectare/year in some analyses) shows that the market as currently structured undervalues the services by roughly half, and it is also an intangible asset for most, which explains the persistent pressure from surrounding frontiers that the Kayapó institutional network must absorb.
