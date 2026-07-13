@@ -558,6 +558,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 drawn = list(self.drawn_features)
                 buf_feats = list(self.buffer_geojson_features)
                 y_start, y_end = _ordered_pair(self.comparison_year1, self.comparison_year2)
+                ttype = self.territory_type
                 inc = dict(
                     hansen=self.tl_include_hansen,
                     defor=self.tl_include_defor,
@@ -577,9 +578,13 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 state_code = ""
                 if kind == "territory" and territory:
                     try:
-                        from ..utils.territory_service import get_territory_service
                         from ..utils.deforestation_timeline import first_state_code
-                        info = get_territory_service().get_territory_info(territory) or {}
+                        if ttype == "conservation":
+                            from ..utils.conservation_service import get_conservation_unit_service
+                            info = get_conservation_unit_service().get_territory_info(territory) or {}
+                        else:
+                            from ..utils.territory_service import get_territory_service
+                            info = get_territory_service().get_territory_info(territory) or {}
                         sc = first_state_code(info.get("uf_sigla"))
                         state_code = sc or ""
                     except Exception as e:
@@ -622,7 +627,9 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 self.timeline_year_start = y_start
                 self.timeline_year_end = y_end
                 self.timeline_territory_name = name
-                self.timeline_territory_type = "indigenous"
+                # Only real territory selections carry a type; drawings default
+                # to indigenous-style rendering (no demarcation/creation rows).
+                self.timeline_territory_type = ttype if kind == "territory" else "indigenous"
                 self.timeline_pending = False
                 self.loading_message = ""
                 self.active_analysis_tab = "timeline"

@@ -401,6 +401,9 @@ The map will center on your selected region.""",
         "territory_search": "Search Territory",
         "search_territory": "Search territory by name...",
         "country": "Country",
+        "territory_type": "Territory Type",
+        "indigenous_lands_btn": "🪶 Indigenous",
+        "conservation_units_btn": "🌿 Conservation",
         
         # Other
         "no_results": "No results found",
@@ -800,6 +803,9 @@ O mapa sera centralizado na regiao selecionada.""",
         "territory_search": "Pesquisar Territorio",
         "search_territory": "Pesquise territorio por nome...",
         "country": "Pais",
+        "territory_type": "Tipo de Territorio",
+        "indigenous_lands_btn": "🪶 Indigenas",
+        "conservation_units_btn": "🌿 Conservacao",
         
         # Other
         "no_results": "Nenhum resultado encontrado",
@@ -1108,6 +1114,9 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
         "territory_search": "Buscar Territorio",
         "search_territory": "Busque territorio por nombre...",
         "country": "Pais",
+        "territory_type": "Tipo de Territorio",
+        "indigenous_lands_btn": "🪶 Indigenas",
+        "conservation_units_btn": "🌿 Conservacion",
         
         # Other
         "no_results": "No se encontraron resultados",

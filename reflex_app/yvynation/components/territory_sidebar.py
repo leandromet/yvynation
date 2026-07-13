@@ -48,7 +48,7 @@ def _territory_tools_section() -> rx.Component:
                     color="gray.600",
                 ),
                 rx.text(
-                    "🎯 Tip: Toggle the indigenous lands layer to see all territories on the map.",
+                    "🎯 Tip: Toggle the territory layer to see all indigenous lands or conservation units on the map.",
                     font_size="9px",
                     color="blue.600",
                     font_weight="500",
@@ -91,6 +91,33 @@ def _territory_tools_section() -> rx.Component:
                 on_change=AppState.set_country,
                 size="1",
                 width="100%",
+            ),
+            spacing="2",
+            width="100%",
+        ),
+
+        # Territory type selector (indigenous lands vs conservation units)
+        rx.vstack(
+            rx.text(AppState.tr["territory_type"], font_size="sm", font_weight="600"),
+            rx.hstack(
+                rx.button(
+                    AppState.tr["indigenous_lands_btn"],
+                    on_click=lambda: AppState.set_territory_type("indigenous"),
+                    size="1",
+                    variant=rx.cond(AppState.territory_type == "indigenous", "solid", "outline"),
+                    color_scheme="violet",
+                    flex="1",
+                ),
+                rx.button(
+                    AppState.tr["conservation_units_btn"],
+                    on_click=lambda: AppState.set_territory_type("conservation"),
+                    size="1",
+                    variant=rx.cond(AppState.territory_type == "conservation", "solid", "outline"),
+                    color_scheme="green",
+                    flex="1",
+                ),
+                width="100%",
+                spacing="1",
             ),
             spacing="2",
             width="100%",

@@ -109,6 +109,9 @@ class AppState(
     # ====================================================================
     selected_territory: Optional[str] = None
     selected_country: str = "Brazil"
+    #: "indigenous" | "conservation" — which GeoPackage backs the interactive
+    #: territory selector + map overlay (same contract as batch_territory_type)
+    territory_type: str = "indigenous"
     territory_filter_state: Optional[str] = None
     available_territories: List[str] = []
     territory_search_query: str = ""
@@ -287,7 +290,7 @@ class AppState(
             "geometry_version", "show_geometries_on_map",
             "show_change_mask", "change_mask_year1", "change_mask_year2",
             "territory_geojson_features", "show_indigenous_lands",
-            "available_territories",
+            "available_territories", "territory_type",
             "analysis_tile_layers",
             "show_hansen_gfc_tree_cover", "show_hansen_gfc_tree_loss",
             "show_hansen_gfc_tree_gain",
@@ -342,6 +345,7 @@ class AppState(
                 change_mask_years=change_years,
                 change_mask_geometry=change_geom,
                 show_indigenous_lands=show_il,
+                territory_type=self.territory_type,
                 analysis_tile_layers=self.analysis_tile_layers or [],
                 show_gfc_tree_cover=self.show_hansen_gfc_tree_cover,
                 show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,

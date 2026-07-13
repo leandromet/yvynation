@@ -11,6 +11,19 @@ import reflex as rx
 logger = logging.getLogger(__name__)
 
 
+def _get_service(territory_type: str):
+    """Return the GeoPackage service backing *territory_type*.
+
+    Both services share the same public API (display keys, GeoJSON, bounds,
+    EE geometry, info), so callers can use the result interchangeably.
+    """
+    if territory_type == "conservation":
+        from ..utils.conservation_service import get_conservation_unit_service
+        return get_conservation_unit_service()
+    from ..utils.territory_service import get_territory_service
+    return get_territory_service()
+
+
 class TerritoryMixin(rx.State, mixin=True):
     """Event handlers for territory selection and management."""
 
@@ -103,15 +116,16 @@ class TerritoryMixin(rx.State, mixin=True):
         """
         import asyncio
 
+        async with self:
+            ttype = self.territory_type
+
         try:
             # ------------------------------------------------------------------
             # Load territory display-keys from local GeoPackage — instant after
             # the first call (singleton loads the file ~20 MB once).
             # ------------------------------------------------------------------
             def _load_local():
-                from ..utils.territory_service import get_territory_service
-                svc = get_territory_service()
-                return svc.get_all_display_keys()
+                return _get_service(ttype).get_all_display_keys()
 
             try:
                 territory_list = await asyncio.get_event_loop().run_in_executor(
@@ -177,6 +191,40 @@ class TerritoryMixin(rx.State, mixin=True):
     def set_territory_filter(self, state: Optional[str]):
         """Filter territories by administrative state/region."""
         self.territory_filter_state = state
+
+    def set_territory_type(self, territory_type: str):
+        """Switch the selector between indigenous lands and conservation units.
+
+        Clears the current selection (display keys from the other dataset are
+        meaningless) and reloads ``available_territories`` from the matching
+        GeoPackage service; the map overlay follows via ``territory_type`` in
+        the ``map_html`` deps.
+        """
+        if territory_type not in ("indigenous", "conservation"):
+            return
+        if territory_type == self.territory_type:
+            return
+
+        self.territory_type = territory_type
+        self.selected_territory = None
+        self.pending_territory = None
+        self.territory_name = ""
+        self.territory_search_query = ""
+        self.territory_geojson_features = []
+        self.map_zoom_bounds = {}
+        self.territory_geometry_displayed = False
+        self.buffer_geojson_features = []
+        self.current_buffer_for_analysis = None
+        self.available_territories = []
+        self.geometry_version += 1
+        self.error_message = ""
+        self.loading_message = (
+            "Loading conservation units…"
+            if territory_type == "conservation"
+            else "Loading indigenous lands…"
+        )
+        self.loading_type = "territory"
+        return type(self).load_territories_background()
 
     # ---- Selection ------------------------------------------------------
 
@@ -269,6 +317,7 @@ class TerritoryMixin(rx.State, mixin=True):
         # --- Read the vars we need under lock (snapshot) ---------------------
         async with self:
             territory = self.selected_territory
+            ttype = self.territory_type
             buffer_km = float(self.auto_buffer_km)
             buffer_enabled = bool(self.auto_buffer_enabled)
 
@@ -279,8 +328,7 @@ class TerritoryMixin(rx.State, mixin=True):
         # Phase 1+2 – GeoJSON + bounds from local GeoPackage (no EE calls)
         # ------------------------------------------------------------------
         def _load_local_geom_data():
-            from ..utils.territory_service import get_territory_service
-            svc = get_territory_service()
+            svc = _get_service(ttype)
             geojson = svc.get_geojson_for_key(territory)
             bounds = svc.get_bounds_for_key(territory)
             return geojson, bounds
@@ -430,10 +478,12 @@ class TerritoryMixin(rx.State, mixin=True):
     def add_territory_geometry(self, territory_name: str):
         """Add a territory as a drawable geometry feature for custom analysis."""
         try:
-            from ..utils.ee_service_extended import get_ee_service
-
-            ee_service = get_ee_service()
-            territory_geom = ee_service.get_territory_geometry(territory_name)
+            if self.territory_type == "conservation":
+                territory_geom = _get_service("conservation").get_ee_geometry(territory_name)
+            else:
+                from ..utils.ee_service_extended import get_ee_service
+                ee_service = get_ee_service()
+                territory_geom = ee_service.get_territory_geometry(territory_name)
             if territory_geom is None:
                 logger.warning(f"Could not load geometry for: {territory_name}")
                 self.error_message = f"Failed to load geometry for {territory_name}"
@@ -506,16 +556,19 @@ class TerritoryMixin(rx.State, mixin=True):
                 except Exception as e:
                     logger.warning(f"[TERRITORY_GEOM] Failed to reconstruct from cache: {e}")
 
-        # Slow path: re-fetch from EE service (more reliable)
+        # Slow path: re-fetch from the backing GeoPackage service
         if not self.selected_territory:
             return None
         try:
-            from ..utils.ee_service_extended import get_ee_service
-            ee_service = get_ee_service()
-            geom = ee_service.get_territory_geometry(self.selected_territory)
+            if self.territory_type == "conservation":
+                geom = _get_service("conservation").get_ee_geometry(self.selected_territory)
+            else:
+                from ..utils.ee_service_extended import get_ee_service
+                ee_service = get_ee_service()
+                geom = ee_service.get_territory_geometry(self.selected_territory)
             if geom:
-                logger.info(f"[TERRITORY_GEOM] Re-fetched from EE service: {self.selected_territory}")
+                logger.info(f"[TERRITORY_GEOM] Re-fetched from service: {self.selected_territory}")
             return geom
         except Exception as e:
-            logger.error(f"[TERRITORY_GEOM] EE service fallback failed: {e}")
+            logger.error(f"[TERRITORY_GEOM] Service fallback failed: {e}")
             return None

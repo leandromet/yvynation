@@ -44,6 +44,7 @@ def build_map(
     show_gfc_tree_gain: bool = False,
     buffer_features: List[dict] = None,
     show_indigenous_lands: bool = False,
+    territory_type: str = "indigenous",
     fit_bounds: Optional[list] = None,
 ) -> str:
     """
@@ -114,18 +115,47 @@ def build_map(
             control=True
         ).add_to(display_map)
         
-        # ADD INDIGENOUS LANDS LAYER — local GeoPackage, no EE round-trip
+        # ADD TERRITORY BOUNDARIES LAYER — local GeoPackage, no EE round-trip.
+        # Backed by the indigenous-lands or conservation-units service depending
+        # on territory_type; both expose the same popup → hidden-button bridge.
         if show_indigenous_lands or indigenous_lands_tile_url:
             try:
-                from .territory_service import get_territory_service
-                svc = get_territory_service()
+                is_conservation = territory_type == "conservation"
+                if is_conservation:
+                    from .conservation_service import get_conservation_unit_service
+                    svc = get_conservation_unit_service()
+                    layer_label = "Conservation Units (Interactive)"
+                    # Green scheme to distinguish from indigenous purple
+                    base_style = {
+                        "fillColor": "#166534", "color": "#22C55E",
+                        "weight": 1.2, "opacity": 0.4, "fillOpacity": 0.05,
+                    }
+                    highlight_style = {
+                        "fillColor": "#15803D", "color": "#4ADE80",
+                        "weight": 2.5, "opacity": 0.8, "fillOpacity": 0.2,
+                    }
+                    accent = "#166534"
+                else:
+                    from .territory_service import get_territory_service
+                    svc = get_territory_service()
+                    layer_label = "Indigenous Lands (Interactive)"
+                    base_style = {
+                        "fillColor": "#4B0082", "color": "#8B5CF6",
+                        "weight": 1.2, "opacity": 0.4, "fillOpacity": 0.05,
+                    }
+                    highlight_style = {
+                        "fillColor": "#6D28D9", "color": "#A78BFA",
+                        "weight": 2.5, "opacity": 0.8, "fillOpacity": 0.2,
+                    }
+                    accent = "#4B0082"
+
                 territories_geojson = svc.get_all_geojson_fc()  # cached after first call
                 territory_count = len(territories_geojson.get("features", []))
-                logger.info(f"Building interactive indigenous lands layer: {territory_count} features")
+                logger.info(f"Building interactive {layer_label}: {territory_count} features")
 
                 if territories_geojson.get("features"):
                     interactive_fg = folium.FeatureGroup(
-                        name="Indigenous Lands (Interactive)",
+                        name=layer_label,
                         show=True,
                     )
 
@@ -135,19 +165,25 @@ def build_map(
                             props = feat.get("properties", {})
                             # display_key is the canonical selection key (matches available_territories)
                             display_key = props.get("display_key", "Unknown")
-                            terrai_nom = props.get("terrai_nom", display_key)
                             geom = feat.get("geometry", {})
 
                             if not geom or geom.get("type") not in ["Polygon", "MultiPolygon"]:
                                 continue
 
+                            if is_conservation:
+                                display_name = props.get("nome_uc", display_key)
+                                subtitle = f"{props.get('categoria','')} &bull; {props.get('uf','')}"
+                            else:
+                                display_name = props.get("terrai_nom", display_key)
+                                subtitle = f"{props.get('fase_ti','')} &bull; {props.get('uf_sigla','')}"
+
                             # Popup with JS bridge that calls the hidden Reflex button
                             safe_key = display_key.replace("'", "\\'").replace('"', '\\"')
                             popup_html = f"""
                             <div style="font-family:Arial;width:240px;">
-                                <b style="font-size:14px;color:#4B0082">{terrai_nom}</b><br>
+                                <b style="font-size:14px;color:{accent}">{display_name}</b><br>
                                 <span style="font-size:11px;color:#555;">
-                                    {props.get('fase_ti','')} &bull; {props.get('uf_sigla','')}
+                                    {subtitle}
                                     {f"&bull; {props.get('superficie',0):,.0f} ha" if props.get('superficie') else ""}
                                 </span><br>
                                 <button onclick="
@@ -163,7 +199,7 @@ def build_map(
                                     }} catch(e) {{
                                         console.error('[Popup] error:', e);
                                     }}
-                                " style="margin-top:8px;padding:6px 12px;background:#4B0082;color:white;
+                                " style="margin-top:8px;padding:6px 12px;background:{accent};color:white;
                                          border:none;border-radius:3px;cursor:pointer;font-weight:bold;font-size:12px;">
                                     &#9654; Select for Analysis
                                 </button>
@@ -173,22 +209,10 @@ def build_map(
                             geojson_layer = folium.GeoJson(
                                 {"type": "Feature", "geometry": geom,
                                  "properties": {"display_key": display_key}},
-                                style_function=lambda _: {
-                                    "fillColor": "#4B0082",
-                                    "color": "#8B5CF6",
-                                    "weight": 1.2,
-                                    "opacity": 0.4,
-                                    "fillOpacity": 0.05,
-                                },
-                                highlight_function=lambda _: {
-                                    "fillColor": "#6D28D9",
-                                    "color": "#A78BFA",
-                                    "weight": 2.5,
-                                    "opacity": 0.8,
-                                    "fillOpacity": 0.2,
-                                },
+                                style_function=lambda _, s=base_style: s,
+                                highlight_function=lambda _, s=highlight_style: s,
                                 popup=folium.Popup(popup_html, max_width=260, sticky=True),
-                                tooltip=folium.Tooltip(terrai_nom, sticky=True),
+                                tooltip=folium.Tooltip(display_name, sticky=True),
                             )
                             geojson_layer.add_to(interactive_fg)
                             features_added += 1
@@ -202,7 +226,7 @@ def build_map(
                     else:
                         logger.warning("No interactive territory features added")
             except Exception as il_err:
-                logger.warning(f"Could not add indigenous lands layer: {il_err}")
+                logger.warning(f"Could not add territory boundaries layer: {il_err}")
                 import traceback
                 traceback.print_exc()
 
