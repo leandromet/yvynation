@@ -2042,11 +2042,12 @@ def create_deforestation_timeline_chart(
     # Layout budget (height=1170, t=180, b=650 → plot area 340 px = 1 paper unit):
     #   x-axis ticks + "Year" title   ≈ −0.15  (50 px below plot)
     #   trace legend (raw/ma5)        y=−0.17  (58 px, safely below axis title)
-    #   ENSO strip   top −0.26 → −0.48 (ONI seasonal bars, 75 px)
-    #   policy rows  top_y=−0.54 → end at −0.74; arrows at −0.765
-    #   context key  top_y=−0.81 → key rows end at −1.03
-    #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.70
-    #                1.70 × 340 = 578 px  (<  650 px margin ✓)
+    #   ENSO strip   top −0.26 → −0.48 (ONI seasonal bars, 75 px),
+    #                own legend caption at −0.495
+    #   policy rows  top_y=−0.58 → end at −0.78; arrows at −0.805
+    #   context key  top_y=−0.85 → key rows end at −1.07
+    #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.74
+    #                1.74 × 340 = 592 px  (<  663 px margin ✓)
     # When the ENSO series is unavailable the strip is skipped and everything
     # keeps its original (unshifted) position.
     subtitle = ""
@@ -2060,7 +2061,8 @@ def create_deforestation_timeline_chart(
     demar_row_label = "UC Status" if territory_type == "conservation" else "Demarcation"
 
     enso_shapes, enso_annots = _enso_shapes_and_annots(years, top_y=-0.26, height=0.22)
-    enso_shift = 0.22 if enso_shapes else 0.0
+    # Strip (0.22) + its legend caption row (0.04) push everything below down
+    enso_shift = 0.26 if enso_shapes else 0.0
 
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
     pcy_shapes, pcy_annots = _policy_shapes_and_annots(
