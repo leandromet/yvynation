@@ -2296,8 +2296,9 @@ def timeline_tab() -> rx.Component:
         rx.text(
             "Annual deforestation, regrowth and fire indicators across the "
             "comparison year range, framed by Brazilian political context "
-            "(president / governor stripes, top) and forest-policy milestones "
-            "(bottom). Three views: raw values, 5-year moving average, and "
+            "(president / governor stripes, top), the ENSO Oceanic Niño Index "
+            "(El Niño / La Niña strip) and forest-policy milestones (bottom). "
+            "Three views: raw values, 5-year moving average, and "
             "first/second derivatives.",
             font_size="sm", color="#374151", line_height="1.6",
         ),

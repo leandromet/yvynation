@@ -1813,6 +1813,132 @@ def _context_legend_shapes_and_annots(
     return shapes, annots
 
 
+# ---------------------------------------------------------------------------
+# ENSO — Oceanic Niño Index strip (NOAA CPC), drawn between the main plot
+# and the policy colour table. Colours/thresholds match the reference
+# implementation in prototipos/ana/dashboard-enso.jsx.
+# ---------------------------------------------------------------------------
+
+_ENSO_COLOR = {"elnino": "#c8602a", "lanina": "#1f5fa8", "neutral": "#c8d2de"}
+_ONI_THRESHOLD = 0.5
+
+_ENSO_SERIES_CACHE: Optional[List[Dict]] = None
+
+
+def _load_enso_series() -> List[Dict]:
+    """Seasonal ONI rows from ``enso_oni.json`` (cached after first read).
+
+    Each row: ``{season, year, month (1–12), sstTotal, anomaly}``.
+    Returns [] when the file is missing or unreadable.
+    """
+    global _ENSO_SERIES_CACHE
+    if _ENSO_SERIES_CACHE is None:
+        import json
+        import os
+
+        path = os.path.join(os.path.dirname(__file__), "enso_oni.json")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                _ENSO_SERIES_CACHE = json.load(fh).get("series", []) or []
+        except Exception as exc:
+            logger.warning(f"ENSO ONI series load failed: {exc}")
+            _ENSO_SERIES_CACHE = []
+    return _ENSO_SERIES_CACHE
+
+
+def _enso_shapes_and_annots(
+    years: List[int],
+    top_y: float = -0.26,
+    height: float = 0.22,
+) -> Tuple[list, list]:
+    """ONI anomaly bar strip in paper coordinates below the main plot.
+
+    One bar per ONI season (12/year) centred on the calendar year cell used
+    by the policy rows (year ± 0.5). Bars ≥ +0.5 °C are El Niño orange,
+    ≤ −0.5 °C La Niña blue, otherwise neutral grey; dotted guides mark the
+    ±0.5 °C CPC thresholds. Returns ([], []) when no data covers *years*.
+    """
+    series = [r for r in _load_enso_series() if years[0] <= r.get("year", 0) <= years[-1]]
+    if not series:
+        return [], []
+
+    y_top = top_y
+    y_bot = top_y - height
+    y_mid = (y_top + y_bot) / 2
+    half = height / 2
+    max_abs = max(2.2, max(abs(float(r.get("anomaly") or 0.0)) for r in series))
+
+    def y_of(v: float) -> float:
+        return y_mid + (v / max_abs) * half
+
+    shapes: list = []
+    annots: list = []
+
+    # Zero baseline + ±0.5 °C threshold guides across the year range
+    x_lo, x_hi = years[0] - 0.5, years[-1] + 0.5
+    for v in (0.0, _ONI_THRESHOLD, -_ONI_THRESHOLD):
+        line = {"width": 0.8, "color": "#c8d2de" if v == 0 else "#b0bcc9"}
+        if v != 0:
+            line["dash"] = "dot"
+        shapes.append({
+            "type": "line", "xref": "x", "yref": "paper",
+            "x0": x_lo, "x1": x_hi, "y0": y_of(v), "y1": y_of(v),
+            "line": line, "layer": "above",
+        })
+
+    # Seasonal anomaly bars (month 1 = DJF at the year's left edge)
+    bar_w = 1.0 / 12
+    for r in series:
+        anom = float(r.get("anomaly") or 0.0)
+        active = abs(anom) >= _ONI_THRESHOLD
+        if active:
+            color = _ENSO_COLOR["elnino"] if anom >= 0 else _ENSO_COLOR["lanina"]
+        else:
+            color = _ENSO_COLOR["neutral"]
+        x0 = r["year"] - 0.5 + (int(r.get("month", 1)) - 1) * bar_w
+        shapes.append({
+            "type": "rect", "xref": "x", "yref": "paper",
+            "x0": x0, "x1": x0 + bar_w,
+            "y0": min(y_of(0.0), y_of(anom)), "y1": max(y_of(0.0), y_of(anom)),
+            "fillcolor": color, "line": {"width": 0},
+            "opacity": 0.85 if active else 0.7, "layer": "above",
+        })
+
+    # Left row label (mirrors the policy-row labels)
+    annots.append({
+        "x": 0, "y": y_mid,
+        "xref": "paper", "yref": "paper",
+        "text": "ENSO (ONI)",
+        "showarrow": False,
+        "xanchor": "right", "yanchor": "middle",
+        "font": {"size": 9, "color": "#444"},
+    })
+    # Threshold labels on the right edge
+    for v in (_ONI_THRESHOLD, -_ONI_THRESHOLD):
+        annots.append({
+            "x": 1.0, "y": y_of(v),
+            "xref": "paper", "yref": "paper",
+            "text": f"{v:+.1f}°C",
+            "showarrow": False,
+            "xanchor": "left", "yanchor": "middle",
+            "font": {"size": 8, "color": "#7a8694"},
+        })
+    # Compact legend caption below the strip (its own row, clear of the
+    # main graph's trace legend above)
+    annots.append({
+        "x": 0.005, "y": y_bot - 0.015,
+        "xref": "paper", "yref": "paper",
+        "text": ("<span style='color:#c8602a'>■</span> El Niño ≥ +0.5°C   "
+                 "<span style='color:#1f5fa8'>■</span> La Niña ≤ −0.5°C   "
+                 "— Niño 3.4 SST anomaly (NOAA CPC)"),
+        "showarrow": False,
+        "xanchor": "left", "yanchor": "top",
+        "font": {"size": 8, "color": "#7a8694"},
+    })
+
+    return shapes, annots
+
+
 def create_deforestation_timeline_chart(
     timeline_data: Dict[str, Dict[int, float]],
     state_code: Optional[str],
@@ -1913,14 +2039,16 @@ def create_deforestation_timeline_chart(
         return None
 
     # Build context shapes / annotations.
-    # Layout budget (height=1080, t=180, b=560 → plot area 340 px = 1 paper unit):
+    # Layout budget (height=1170, t=180, b=650 → plot area 340 px = 1 paper unit):
     #   x-axis ticks + "Year" title   ≈ −0.15  (50 px below plot)
     #   trace legend (raw/ma5)        y=−0.17  (58 px, safely below axis title)
-    #   blank gap × 2 rows            0.084 paper units
-    #   policy rows  top_y=−0.32 → end at −0.52; arrows at −0.545
-    #   context key  top_y=−0.59 → key rows end at −0.81
-    #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.48
-    #                1.48 × 340 = 503 px  (<  560 px margin ✓)
+    #   ENSO strip   top −0.26 → −0.48 (ONI seasonal bars, 75 px)
+    #   policy rows  top_y=−0.54 → end at −0.74; arrows at −0.765
+    #   context key  top_y=−0.81 → key rows end at −1.03
+    #   milestones   2-col, 21 rows × 0.030 = 0.63 span → last at ≈−1.70
+    #                1.70 × 340 = 578 px  (<  650 px margin ✓)
+    # When the ENSO series is unavailable the strip is skipped and everything
+    # keeps its original (unshifted) position.
     subtitle = ""
     if territory_name and territory_type == "conservation":
         demar_colors, subtitle, demar_milestones = _conservation_unit_demar_info(territory_name, years)
@@ -1931,14 +2059,17 @@ def create_deforestation_timeline_chart(
 
     demar_row_label = "UC Status" if territory_type == "conservation" else "Demarcation"
 
+    enso_shapes, enso_annots = _enso_shapes_and_annots(years, top_y=-0.26, height=0.22)
+    enso_shift = 0.22 if enso_shapes else 0.0
+
     pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
     pcy_shapes, pcy_annots = _policy_shapes_and_annots(
-        years, top_y=-0.32, milestone_limit=12,
+        years, top_y=-0.32 - enso_shift, milestone_limit=12,
         territory_demar_colors=demar_colors or None,
         demar_row_label=demar_row_label,
     )
     leg_shapes, leg_annots = _context_legend_shapes_and_annots(
-        years, top_y=-0.59, milestone_limit=50,
+        years, top_y=-0.59 - enso_shift, milestone_limit=50,
         demar_milestones=demar_milestones or None,
         territory_type=territory_type,
     )
@@ -1967,14 +2098,17 @@ def create_deforestation_timeline_chart(
         }
         right_margin = 30
 
+    # Extra bottom margin absorbs the ENSO strip's downward shift so the
+    # plot area stays exactly 340 px (1 paper unit) either way.
+    extra_px = int(round(enso_shift * 340 + (15 if enso_shift else 0)))
     fig.update_layout(
         title=title,
         template="plotly_white",
-        height=1080,
-        margin={"t": 180, "b": 560, "l": 100, "r": right_margin},
+        height=1080 + extra_px,
+        margin={"t": 180, "b": 560 + extra_px, "l": 100, "r": right_margin},
         legend=legend_cfg,
-        shapes=pol_shapes + pcy_shapes + leg_shapes,
-        annotations=pol_annots + pcy_annots + leg_annots,
+        shapes=pol_shapes + enso_shapes + pcy_shapes + leg_shapes,
+        annotations=pol_annots + enso_annots + pcy_annots + leg_annots,
         xaxis={"title": "Year",
                 "range": [year_start - 0.5, year_end + 0.5],
                 "dtick": 5, "tickfont": {"size": 11}},
