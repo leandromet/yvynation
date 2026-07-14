@@ -28,7 +28,7 @@ AppState(
 | Idioma | `language` ("en"/"pt"/"es"), `auto_detect_enabled` |
 | Mapa | `map_center`, `map_zoom`, `map_bounds`, `selected_base_layer` |
 | Camadas | `mapbiomas_year`, `hansen_year`, `show_hansen_gfc_tree_cover`, `_tree_loss`, `_tree_gain` |
-| Território | `selected_territory`, `territory_search_query`, `available_territories`, `territory_filter_state` |
+| Território | `selected_territory`, `territory_type` ("indigenous"/"conservation"), `territory_search_query`, `available_territories`, `territory_filter_state` |
 | Geometrias | `drawn_features`, `buffer_geometries`, `current_buffer_for_analysis` |
 | Análise | `analysis_results`, `all_analysis_results`, `active_target_kind`, `active_target_id` |
 | Sidebar | `sidebar_open`, `sidebar_width`, `sidebar_*_expanded`, `is_resizing_sidebar` |
@@ -50,10 +50,13 @@ AppState(
 - `set_base_layer(layer)`
 
 **TerritoryMixin (`_territory.py`)**:
-- `select_territory(name)` — seleciona TI + carrega geometria EE
-- `filter_territories_by_state(state)`
-- `search_territory(query)` — busca fuzzy
-- `load_territory_geometry()`
+- `set_territory_type(t)` — alterna "indigenous" ↔ "conservation"; limpa a
+  seleção e recarrega `available_territories` do serviço certo (`_get_service`)
+- `set_selected_territory(name)` — seleciona área + despacha carga de geometria
+  em background (GeoPackage local, sem EE)
+- `select_territory_from_map(name)` — bridge JS do popup do mapa
+- `set_territory_search_query(query)` — filtro reativo da lista
+- `load_territory_geometry_bg()` — GeoJSON + bounds + auto-buffer
 
 **GeometryMixin (`_geometry.py`)**:
 - `save_drawing()` — salva feature desenhada + deduplica
@@ -65,14 +68,30 @@ AppState(
 **AnalysisMixin (`_analysis.py`)**:
 - `run_analysis(kind, source, year)` — executa MapBiomas/Hansen
 - `run_comparison_analysis()` — comparação entre anos
-- `_store_result(key, result)` — cache de resultados
-- `switch_result(key)`, `remove_result(key)`
-- `run_all_analysis()` — batch de análises pendentes
-- `set_active_target()`, `set_analysis_target()`
+- `_store_result(key, result)` — bundle por área em `all_analysis_results`
+  (merge: preserva payloads de timeline/multi-window já salvos)
+- `_save_adv_to_bundle(field, payload)` — anexa resultados de advanced-viz
+  ("timeline" / "mw") ao bundle da área ativa
+- `switch_result(key)` — reativa um bundle: resultado + comparação + timeline +
+  multi-window (reconstrói as figuras por par)
+- `remove_result(key)`, `set_active_target()`
+
+**AdvancedVizMixin (`_advanced_viz.py`)**:
+- `run_all_analysis()` — botão "Run all": despacha comparação + GLAD + GFC +
+  multi-window + timeline + map set sobre o alvo ativo
+- `run_multi_window_analysis_bg()` — transições multi-janela (Sankey multi-estágio,
+  sunbursts/treemaps por par) para território e buffer
+- `run_deforestation_timeline_bg()` — série anual Hansen/MapBiomas/fogo; a figura
+  (em `visualization.create_deforestation_timeline_chart`) inclui faixas políticas,
+  faixa ENSO (ONI) e tabela de políticas; `territory_type` muda demarcação → criação de UC
+- `generate_map_set_bg()` — conjunto de mapas PNG (satélite + MapBiomas + aux)
 
 **ExportMixin (`_export.py`)**:
-- `start_csv_export()`, `start_zip_export()`, `download_map_pdf()`
-- `download_all_results()` — ZIP com todas as áreas analisadas
+- `export_analysis_zip()`, `export_pdf_maps()`, CSVs por dataset
+- `download_all_results()` — ZIP com TODAS as áreas analisadas (dados + figuras +
+  mapas + timeline + multi-window, uma pasta por área), montado direto em disco
+- Entrega: ZIPs grandes vão para `uploaded_files/exports/` e baixam via
+  `rx.download(url=rx.get_upload_url(...))` — nunca data-URI (ver CLAUDE.md)
 
 ---
 
@@ -152,8 +171,8 @@ Funções Python que retornam `rx.Component`. Sem estado próprio — leem do Ap
 
 | Módulo | Tamanho | Propósito |
 |---|---|---|
-| `visualization.py` | 72 KB | Geração de gráficos Plotly (barras, sankey, área acumulada, tendências) |
-| `export_service.py` | 35 KB | Export multi-formato: CSV, ZIP (geometria + análise + gráficos + mapa) |
+| `visualization.py` | ~80 KB | Gráficos Plotly (barras, sankey, sunburst, treemap, matriz); timeline de desmatamento com contexto político + faixa ENSO (lê `enso_oni.json`) + tabela de políticas |
+| `export_service.py` | ~45 KB | Estrutura do ZIP de export (seções mapbiomas/glad/gfc/multi-window/timeline); entrega via `uploaded_files/exports/` (`get_export_dir`, `save_export_to_upload_dir`, `DirExportWriter`, `zip_directory`, `prune_old_exports`) |
 | `map_export_service.py` | 24 KB | Captura Leaflet + PNG (Kaleido) + layout PDF com metadados |
 | `map_builder.py` | 39 KB | Construção de mapas Leaflet: tile layers, WMS, GeoJSON styling, Leaflet-Draw |
 
@@ -210,16 +229,23 @@ Análise:
     → _store_result() → all_analysis_results dict
 
 Export:
-    AppState._export.start_zip_export()
-    → export_service.py
-    → map_export_service.py (PNG do mapa)
-    → ZIP bundle (CSV + PNG + PDF + GeoJSON)
-    → download no browser via Reflex
+    AppState._export.export_analysis_zip() / download_all_results()
+    → export_service.collect_export_data_from_state() + create_export_zip()
+      (mapbiomas + hansen_glad + hansen_gfc + mapbiomas_multi_window +
+       deforestation_timeline, território e buffer)
+    → uploaded_files/exports/*.zip
+    → rx.download(url=rx.get_upload_url(...)) — HTTP streaming, sem limite de tamanho
 
 Batch:
-    pages/batch_processing.py
-    → BatchMixin (state/_batch.py)
-    → loop sobre territory_service.get_display_keys()
-    → run_analysis() por território
-    → download_all_results() → ZIP final
+    pages/batch_processing.py  (lista colável/upload → auto-seleção;
+                                fontes: indigenous | conservation)
+    → BatchMixin.run_batch_processing (state/_batch.py)
+    → DirExportWriter grava arquivos AO VIVO em
+      uploaded_files/exports/yvynation_batch_{YYYYMMDD_HHMMSS}/
+      (navegável durante a execução; sem compressão no loop)
+    → zip_directory() ao final (inclusive no "Stop after current")
+      → yvynation_batch_{ts}.zip; pasta removida após sucesso
+    → download_batch_zip() via rx.get_upload_url
+    Regra: prune_old_exports() só apaga pasta se existir o .zip homônimo
+    (pasta sem zip = run em andamento ou crashed — nunca tocar)
 ```

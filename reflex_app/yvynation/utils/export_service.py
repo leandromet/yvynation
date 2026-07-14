@@ -81,8 +81,6 @@ logger = logging.getLogger(__name__)
 
 #: Trailing "_YYYYMMDD_HHMM…zip" — stripped to group exports by kind
 _EXPORT_TS_RE = re.compile(r"_\d{8}_\d{4}.*\.zip$")
-#: Same, for live run folders (no .zip suffix)
-_EXPORT_DIR_TS_RE = re.compile(r"_\d{8}_\d{4}.*$")
 
 
 class DirExportWriter:
@@ -139,25 +137,34 @@ def get_export_dir():
     return export_dir
 
 
-def prune_old_exports(keep_per_prefix: int = 2, keep_dirs_per_prefix: int = 1) -> None:
-    """Delete older export ZIPs and live run folders.
+def prune_old_exports(keep_per_prefix: int = 2) -> None:
+    """Delete older export ZIPs and leftover run folders.
 
-    Keeps the newest *keep_per_prefix* ZIPs and *keep_dirs_per_prefix* folders
-    of each kind (kind = name with the trailing ``_YYYYMMDD_HHMM`` stripped),
-    so e.g. interactive exports never evict a freshly built batch archive, and
-    the browsable folder of the most recent batch run survives until the next
-    one."""
+    ZIPs: keeps the newest *keep_per_prefix* of each kind (kind = name with
+    the trailing ``_YYYYMMDD_HHMM`` stripped), so interactive exports never
+    evict a freshly built batch archive.
+
+    Folders: deleted ONLY when their completed marker — a same-name ``.zip``
+    — exists (the batch normally removes its own folder after compressing;
+    this just sweeps leftovers). A folder without a matching ZIP is NEVER
+    touched: it is either a run still in progress (deleting it mid-run would
+    silently empty that run's final archive — mtime is no indicator, a run
+    folder's root mtime never updates while files land in subfolders) or a
+    crashed run kept for manual salvage.
+    """
     import shutil
 
     try:
         export_dir = get_export_dir()
         zip_groups: Dict[str, list] = {}
-        dir_groups: Dict[str, list] = {}
+        completed_dirs: list = []
         for p in export_dir.iterdir():
             if p.is_file() and p.suffix == ".zip":
                 zip_groups.setdefault(_EXPORT_TS_RE.sub("", p.name), []).append(p)
-            elif p.is_dir():
-                dir_groups.setdefault(_EXPORT_DIR_TS_RE.sub("", p.name), []).append(p)
+            elif p.is_dir() and (export_dir / f"{p.name}.zip").exists():
+                completed_dirs.append(p)
+        for d in completed_dirs:
+            shutil.rmtree(d, ignore_errors=True)
         for files in zip_groups.values():
             files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             for old in files[keep_per_prefix:]:
@@ -165,10 +172,6 @@ def prune_old_exports(keep_per_prefix: int = 2, keep_dirs_per_prefix: int = 1) -
                     old.unlink()
                 except OSError:
                     pass
-        for dirs in dir_groups.values():
-            dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            for old in dirs[keep_dirs_per_prefix:]:
-                shutil.rmtree(old, ignore_errors=True)
     except Exception as e:
         logger.warning(f"export prune failed: {e}")
 

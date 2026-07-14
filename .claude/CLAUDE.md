@@ -56,9 +56,14 @@ Detalhes de arquitetura em [ARCHITECTURE.md](ARCHITECTURE.md); comandos e ambien
 | Arquivo | Descrição | Tamanho |
 |---|---|---|
 | `utils/indigenous_lands_br202605.gpkg` | 657 TIs FUNAI (EPSG:4326) | 3,5 MB |
-| `utils/environment_conservation_br202605.gpkg` | Unidades de conservação BR | 10 MB |
+| `utils/environment_conservation_br202605.gpkg` | 3.247 UCs CNUC (EPSG:4326) | 10 MB |
+| `utils/enso_oni.json` | NOAA CPC Oceanic Niño Index 1950–presente (faixa ENSO na timeline) | pequeno |
 
-Ambos são carregados uma vez em memória via `territory_service.py` e `conservation_service.py` (singletons).
+Os GeoPackages são carregados uma vez em memória via `territory_service.py` e
+`conservation_service.py` (singletons de API idêntica). Tanto a análise
+interativa (`AppState.territory_type`) quanto o batch
+(`batch_territory_type`) alternam entre `"indigenous"` e `"conservation"` —
+seleção, overlay do mapa, análises e timeline funcionam igual para ambos.
 
 ## Datasets Earth Engine
 
@@ -74,5 +79,14 @@ Ambos são carregados uma vez em memória via `territory_service.py` e `conserva
 - Estado reativo: **sempre usar mixins** — cada domínio tem seu `_mixin.py` em `state/`.
 - Componentes Reflex: funções que retornam `rx.Component`, sem estado próprio.
 - Multi-idioma: strings de UI em `utils/translations.py` (EN/PT/ES) — **nunca hardcodar texto de UI**.
+- `rx.select` com itens string exige `value` string de verdade: use um computed
+  var `*_str` (ex. `comparison_year1_str`) — `.to(str)` NÃO converte em runtime
+  e deixa o dropdown vazio.
+- **Exports grandes**: nunca `rx.download(data=...)` (data-URI via websocket
+  falha acima de ~50 MB). Gravar em `uploaded_files/exports/` e baixar com
+  `rx.download(url=rx.get_upload_url(...))` — helpers em `utils/export_service.py`
+  (`get_export_dir`, `save_export_to_upload_dir`, `DirExportWriter`, `zip_directory`).
+  **Nunca apagar pasta de run sem o `.zip` homônimo existir** (run em andamento
+  ou crashed — `prune_old_exports` já respeita isso).
 - Não commitar/push sem pedido explícito. Mensagens de commit em inglês.
 - GeoPackages locais não vão para git (ver `.gitignore`).

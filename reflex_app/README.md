@@ -17,11 +17,15 @@ This is a complete rewrite of Yvynation from Streamlit to **Reflex** for superio
 
 ### 📦 Features
 
-- 🌍 **Multiple Earth Engine Datasets**: MapBiomas, Hansen Global Forest Change
-- 🗺️ **Interactive Leaflet Maps**: Draw, import, and analyze custom geometries
-- 📊 **Real-time Analysis**: Land cover classification, forest loss detection
+- 🌍 **Multiple Earth Engine Datasets**: MapBiomas Collection 10.1 (1985–2024), Hansen/GLAD, Hansen Global Forest Change
+- 🪶 **Two territory sources**: FUNAI indigenous lands (657 TIs) and CNUC conservation units (3,247 UCs), switchable in both the interactive sidebar and batch mode (local GeoPackages, no EE round-trip for boundaries)
+- 🗺️ **Interactive Leaflet Maps**: click-to-select territory boundaries, draw/import custom geometries, auto-buffer rings
+- 📊 **Real-time Analysis**: land cover classification, year comparison with transition Sankey/sunburst/treemap/matrix, forest loss detection
+- 📈 **Deforestation timeline**: annual Hansen loss + MapBiomas deforestation/regrowth + fire scars, framed by Brazilian political stripes, an ENSO (ONI) El Niño/La Niña strip, and forest-policy milestone rows
+- 🌀 **Multi-window transitions**: multi-stage Sankey + per-pair sunbursts across 3–N years
+- 🏭 **Batch processing** (`/batch`): run the full analysis suite over dozens of areas — paste/upload a name list to auto-select; results appear live as files while the run progresses and are packed into a single ZIP (1 GB+ supported, streamed over HTTP)
+- 📤 **Structured exports**: per-area folder trees with CSVs, Plotly figures (PNG + HTML), boundary GeoJSON, and PNG map sets — identical naming between interactive and batch exports so they merge cleanly
 - 🌐 **Multi-language Support**: English, Portuguese, Spanish
-- 📱 **Responsive Design**: Mobile-friendly interface
 - ☁️ **Cloud-optimized**: Deploys to Google Cloud Run in seconds
 
 ### 🛠️ Tech Stack
@@ -74,19 +78,36 @@ gcloud run deploy yvynation \
 
 ```
 yvynation/
-├── state.py              # Reactive state management (replaces session_state)
-├── config.py             # Configuration & constants
-├── components/
-│   ├── sidebar.py        # Layer & territory controls
-│   ├── map.py            # Map display
-│   ├── analysis.py       # Analysis tabs
-│   └── leaflet.py        # Leaflet integration
-├── pages/
-│   └── index.py          # Main layout
+├── state/                 # Reactive state: AppState + 8 domain mixins
+│   ├── __init__.py        #   all state vars + computed vars (charts, tables)
+│   ├── _territory.py      #   territory selection (indigenous/conservation)
+│   ├── _analysis.py       #   analysis runs + per-area result bundles
+│   ├── _advanced_viz.py   #   map sets, multi-window, deforestation timeline
+│   ├── _batch.py          #   batch pipeline (live folder → final ZIP)
+│   ├── _export.py         #   CSV / ZIP / PDF / download-all
+│   └── _map.py, _geometry.py, _ui.py
+├── components/            # rx.Component functions (sidebars, map, analysis tabs)
+├── pages/                 # / (index), /batch, /portal, …
+├── config/                # EE asset IDs, palettes, region of interest
 └── utils/
-    ├── ee_service.py     # Earth Engine operations
-    └── translations.py   # i18n support
+    ├── territory_service.py       # indigenous_lands_br202605.gpkg (singleton)
+    ├── conservation_service.py    # environment_conservation_br202605.gpkg
+    ├── mapbiomas_analysis.py / hansen_analysis.py
+    ├── visualization.py           # Plotly charts incl. timeline + ENSO strip
+    ├── export_service.py          # export ZIP structure + exports dir helpers
+    ├── enso_oni.json              # NOAA CPC Oceanic Niño Index (1950–present)
+    └── translations.py            # i18n (EN/PT/ES)
 ```
+
+### 📥 Exports & downloads
+
+Large archives are never shipped through the websocket: they are written under
+`uploaded_files/exports/` and downloaded over HTTP via Reflex's `/_upload`
+mount (no practical size limit — 1 GB+ batch archives work). Batch runs write
+plain files into a live `yvynation_batch_{timestamp}/` folder you can browse
+while the run is in progress; the folder is compressed into the final ZIP at
+the end (including on "Stop after current") and then removed. A folder without
+its same-name `.zip` is an in-progress or crashed run and is never auto-deleted.
 
 ### 🔄 Migration from Streamlit
 

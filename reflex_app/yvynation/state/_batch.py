@@ -915,7 +915,9 @@ class BatchMixin(rx.State, mixin=True):
         from ..utils.export_service import (
             DirExportWriter, get_export_dir, prune_old_exports, zip_directory,
         )
-        run_name = f"yvynation_batch_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        # Seconds in the name: concurrent runs (e.g. two browsers) must never
+        # share a folder
+        run_name = f"yvynation_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         zip_filename = f"{run_name}.zip"
         zip_path = get_export_dir() / zip_filename
         work_dir = get_export_dir() / run_name
@@ -1891,6 +1893,12 @@ class BatchMixin(rx.State, mixin=True):
         try:
             zip_size = await loop.run_in_executor(
                 None, zip_directory, work_dir, zip_path
+            )
+            # Archive built — the live folder is now redundant; remove it so
+            # exports/ holds only ZIPs (crashed runs keep theirs for salvage).
+            import shutil
+            await loop.run_in_executor(
+                None, lambda: shutil.rmtree(work_dir, ignore_errors=True)
             )
         except Exception as ze:
             logger.error(f"[BATCH] final ZIP compression failed: {ze}", exc_info=True)

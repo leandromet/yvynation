@@ -110,6 +110,21 @@ gcloud run deploy yvynation \
 | Docker local | Reflex prod | 8080 | Env vars |
 | Cloud Run | Reflex prod single-port | $PORT (8080) | `EE_PRIVATE_KEY` env var |
 
+## Exports (interativo e batch)
+
+Diretório: `reflex_app/uploaded_files/exports/` — servido por HTTP no mount
+`/_upload` do Reflex (streaming, sem limite de tamanho; arquivos de 1 GB+ OK).
+
+- **Batch**: grava arquivos ao vivo em `yvynation_batch_{YYYYMMDD_HHMMSS}/`
+  (navegável durante a execução — o log mostra o caminho); ao final comprime
+  em `.zip` homônimo e remove a pasta. "Stop after current" também gera o zip
+  parcial. Rodar batches em paralelo (browsers diferentes) é seguro.
+- **Interativo**: "Download all" e "Export ZIP" gravam o zip direto no diretório
+  e baixam via URL.
+- **Limpeza**: `prune_old_exports()` mantém os 2 zips mais novos por tipo e só
+  apaga pastas cujo `.zip` homônimo existe. Pasta sem zip = run em andamento ou
+  crashed (mantida para resgate manual) — **nunca apagar**.
+
 ## Git
 
 ```bash
@@ -133,6 +148,10 @@ git diff HEAD
 - **Renderização condicional**: `rx.cond(var, true_component, false_component)`
 - **Loops**: `rx.foreach(state_list, lambda item: component_fn(item))`
 - **Computed vars**: `@rx.var` decorador para derivações de estado
+- **`rx.select` com itens string**: o `value` precisa ser string de verdade —
+  criar computed var `*_str` (ex. `comparison_year1_str`); `.to(str)` só faz
+  cast de tipo no compilador e deixa o dropdown renderizar vazio
+- **Downloads grandes**: nunca `rx.download(data=bytes)` — ver seção Exports
 
 ## Localização dos serviços externos
 
