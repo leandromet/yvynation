@@ -156,6 +156,73 @@ def territory_selector() -> rx.Component:
             ),
             width="100%", align_items="center",
         ),
+        # Paste / upload a list of names → auto-select
+        rx.box(
+            rx.vstack(
+                rx.text(
+                    "📋 Paste a list of names (one per line) or upload a .txt/.csv "
+                    "to select them automatically:",
+                    font_size="xs", color="#6B7280", font_weight="600",
+                ),
+                rx.text_area(
+                    placeholder="Apinayé\nApucarana\nBacurizinho\n…",
+                    value=AppState.batch_paste_text,
+                    on_change=AppState.batch_set_paste_text,
+                    width="100%",
+                    rows="4",
+                    size="1",
+                ),
+                rx.hstack(
+                    rx.button(
+                        "✓ Select from list",
+                        on_click=AppState.batch_select_from_list,
+                        size="1",
+                        color_scheme="orange",
+                    ),
+                    rx.upload(
+                        rx.button(
+                            "📁 Upload list",
+                            size="1",
+                            variant="outline",
+                            color_scheme="gray",
+                        ),
+                        id="batch_list_upload",
+                        multiple=False,
+                        accept={"text/plain": [".txt"], "text/csv": [".csv"]},
+                        on_drop=AppState.batch_upload_territory_list,
+                        border="none",
+                        padding="0",
+                    ),
+                    rx.button(
+                        "Clear",
+                        on_click=AppState.batch_clear_paste,
+                        size="1",
+                        variant="ghost",
+                        color_scheme="gray",
+                    ),
+                    spacing="2",
+                    align_items="center",
+                ),
+                rx.cond(
+                    AppState.batch_paste_feedback != "",
+                    rx.text(AppState.batch_paste_feedback, font_size="xs", color="#374151"),
+                    rx.box(),
+                ),
+                rx.cond(
+                    AppState.batch_paste_unmatched.length() > 0,
+                    rx.text(
+                        "⚠ Not found: " + AppState.batch_paste_unmatched.join(", "),
+                        font_size="xs", color="#B45309",
+                    ),
+                    rx.box(),
+                ),
+                spacing="2", width="100%",
+            ),
+            padding="0.5rem",
+            border="1px dashed #D1D5DB",
+            border_radius="md",
+            width="100%",
+        ),
         # Scrollable list
         rx.box(
             rx.foreach(
@@ -418,7 +485,7 @@ def config_panel() -> rx.Component:
                                 rx.input(
                                     value=AppState.batch_multi_window_custom_years,
                                     on_change=AppState.batch_set_multi_window_custom_years,
-                                    placeholder="1985, 2004, 2012, 2023",
+                                    placeholder="1985, 1994, 2004, 2014, 2024",
                                     size="2", width="100%",
                                 ),
                                 spacing="1", width="100%",

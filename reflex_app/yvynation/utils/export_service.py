@@ -37,7 +37,7 @@ single directory without name collisions:
   │       │   └── figures/
   │       │       ├── {slug}_hansen_gfc_summary.png + .html
   │       │       └── {slug}_hansen_gfc_loss_by_year.png + .html
-  │       └── mapbiomas_multi_window/     (optional, batch only)
+  │       └── mapbiomas_multi_window/     (when the multi-window analysis ran)
   │           ├── {slug}_mapbiomas_multi_window_{years}_transitions.csv
   │           └── figures/
   │               ├── {slug}_mapbiomas_multi_window_{years}_sankey.png + .html
@@ -59,6 +59,128 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Export delivery via the upload dir (HTTP download instead of data-URI)
+# ---------------------------------------------------------------------------
+#
+# ``rx.download(data=...)`` ships the whole archive as a base64 data-URI over
+# the websocket — unreliable beyond a few tens of MB and ~3× the RAM.  Large
+# exports are therefore written under ``uploaded_files/exports/`` and served
+# by Reflex's ``/_upload`` static mount (streamed from disk, no size cap):
+#
+#     rel = save_export_to_upload_dir(zip_bytes, filename)
+#     return rx.download(url=rx.get_upload_url(rel), filename=filename)
+#
+# For very large archives, build the ZIP directly on disk instead of BytesIO:
+#
+#     path = get_export_dir() / filename
+#     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf: ...
+#     prune_old_exports()
+
+#: Trailing "_YYYYMMDD_HHMM…zip" — stripped to group exports by kind
+_EXPORT_TS_RE = re.compile(r"_\d{8}_\d{4}.*\.zip$")
+#: Same, for live run folders (no .zip suffix)
+_EXPORT_DIR_TS_RE = re.compile(r"_\d{8}_\d{4}.*$")
+
+
+class DirExportWriter:
+    """``zipfile.ZipFile``-compatible ``writestr()`` that writes straight to a
+    folder instead of an archive.
+
+    Used by the batch pipeline so every CSV/PNG/HTML becomes visible on disk
+    (and downloadable via the ``/_upload`` mount) the moment it is produced,
+    instead of being locked inside a growing, unreadable ZIP. No compression
+    happens during the run — the folder is deflated once at the end with
+    :func:`zip_directory`.
+    """
+
+    def __init__(self, root):
+        from pathlib import Path
+
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def writestr(self, arcname: str, data) -> None:
+        path = self.root / arcname
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        path.write_bytes(data)
+
+    # Context-manager protocol so it can replace ``with zipfile.ZipFile(...)``
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+def zip_directory(src_dir, zip_path) -> int:
+    """Deflate *src_dir* recursively into *zip_path*; returns the ZIP size."""
+    from pathlib import Path
+
+    src_dir = Path(src_dir)
+    zip_path = Path(zip_path)
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(src_dir.rglob("*")):
+            if p.is_file():
+                zf.write(p, p.relative_to(src_dir).as_posix())
+    return zip_path.stat().st_size
+
+
+def get_export_dir():
+    """Return (and create) ``uploaded_files/exports/`` as a ``Path``."""
+    import reflex as rx
+
+    export_dir = rx.get_upload_dir() / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    return export_dir
+
+
+def prune_old_exports(keep_per_prefix: int = 2, keep_dirs_per_prefix: int = 1) -> None:
+    """Delete older export ZIPs and live run folders.
+
+    Keeps the newest *keep_per_prefix* ZIPs and *keep_dirs_per_prefix* folders
+    of each kind (kind = name with the trailing ``_YYYYMMDD_HHMM`` stripped),
+    so e.g. interactive exports never evict a freshly built batch archive, and
+    the browsable folder of the most recent batch run survives until the next
+    one."""
+    import shutil
+
+    try:
+        export_dir = get_export_dir()
+        zip_groups: Dict[str, list] = {}
+        dir_groups: Dict[str, list] = {}
+        for p in export_dir.iterdir():
+            if p.is_file() and p.suffix == ".zip":
+                zip_groups.setdefault(_EXPORT_TS_RE.sub("", p.name), []).append(p)
+            elif p.is_dir():
+                dir_groups.setdefault(_EXPORT_DIR_TS_RE.sub("", p.name), []).append(p)
+        for files in zip_groups.values():
+            files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            for old in files[keep_per_prefix:]:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+        for dirs in dir_groups.values():
+            dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            for old in dirs[keep_dirs_per_prefix:]:
+                shutil.rmtree(old, ignore_errors=True)
+    except Exception as e:
+        logger.warning(f"export prune failed: {e}")
+
+
+def save_export_to_upload_dir(zip_bytes: bytes, filename: str) -> str:
+    """Write *zip_bytes* to the export dir and return the upload-relative path
+    (``exports/<filename>``) for ``rx.get_upload_url``."""
+    path = get_export_dir() / filename
+    path.write_bytes(zip_bytes)
+    prune_old_exports()
+    logger.info(f"Export saved: {path} ({len(zip_bytes) // 1024} KB)")
+    return f"exports/{filename}"
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +631,98 @@ def _write_multi_window_section(
 
 
 # ---------------------------------------------------------------------------
+# Deforestation timeline section
+# ---------------------------------------------------------------------------
+
+def _write_timeline_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    series: Optional[Dict[str, Dict]] = None,
+    year_start: int = 0,
+    year_end: int = 0,
+    state_code: Optional[str] = None,
+    territory_name: str = "",
+    territory_type: str = "indigenous",
+    title_extra: str = "",
+    name_suffix: str = "",
+) -> None:
+    """Write the deforestation-timeline CSV + 3 chart variants.
+
+    Mirrors the batch pipeline naming so interactive and batch exports merge
+    cleanly::
+
+        deforestation_timeline/{slug}_deforestation_timeline_{y1}_{y2}{sfx}.csv
+        deforestation_timeline/figures/
+            {slug}_deforestation_timeline_{y1}_{y2}_{raw|ma5|derivatives}{sfx}.png/.html
+
+    ``series`` is ``{indicator: {year: ha}}`` from
+    ``deforestation_timeline.collect_timeline``. Figures are rebuilt here (not
+    taken from state) so the export always carries the full context chart —
+    political stripes, ENSO strip, and policy rows included.
+    """
+    if not series or not year_start or not year_end:
+        return
+    y1, y2 = int(year_start), int(year_end)
+    if y2 < y1:
+        y1, y2 = y2, y1
+    tl_dir = f"{base_dir}/deforestation_timeline"
+    sfx = name_suffix
+
+    # Wide CSV: one row per year, one column per indicator (int or str year keys)
+    years = list(range(y1, y2 + 1))
+    rows: List[Dict[str, Any]] = []
+    for y in years:
+        row: Dict[str, Any] = {"year": y}
+        for k, ser in series.items():
+            try:
+                val = (ser or {}).get(y, (ser or {}).get(str(y), 0.0))
+                row[k] = float(val or 0.0)
+            except Exception:
+                row[k] = 0.0
+        rows.append(row)
+    zf.writestr(
+        f"{tl_dir}/{slug}_deforestation_timeline_{y1}_{y2}{sfx}.csv",
+        _df_to_csv_bytes(pd.DataFrame(rows)),
+    )
+
+    try:
+        from .visualization import create_deforestation_timeline_chart
+    except Exception as e:
+        logger.warning(f"timeline visualization import failed: {e}")
+        return
+
+    fig_dir = f"{tl_dir}/figures"
+    for variant, suffix in (
+        ("raw", "raw"),
+        ("moving_avg", "ma5"),
+        ("derivatives", "derivatives"),
+    ):
+        try:
+            fig = create_deforestation_timeline_chart(
+                series,
+                state_code=state_code,
+                year_start=y1,
+                year_end=y2,
+                variant=variant,
+                moving_window=5,
+                title_suffix=f"{territory_name}{title_extra}",
+                territory_name=territory_name,
+                territory_type=territory_type,
+            )
+            if fig is not None:
+                _write_fig(
+                    zf,
+                    f"{fig_dir}/{slug}_deforestation_timeline_{y1}_{y2}_{suffix}{sfx}",
+                    fig,
+                    png_width=1400, png_scale=2.0,
+                )
+        except Exception as e:
+            logger.warning(f"timeline figure ({variant}) failed: {e}")
+
+
+# ---------------------------------------------------------------------------
 # Main export function
 # ---------------------------------------------------------------------------
 
@@ -541,6 +755,12 @@ def create_export_zip(
     buffer_gfc_result: Optional[Dict[str, Any]] = None,
     # Buffer figures
     buffer_figures: Optional[Dict[str, Any]] = None,
+    # Advanced viz: multi-window transitions + deforestation timeline
+    mw_result: Optional[Dict[str, Any]] = None,
+    buffer_mw_result: Optional[Dict[str, Any]] = None,
+    #: {"series", "buffer_series", "state_code", "year_start", "year_end",
+    #:  "territory_type"} — from the interactive timeline run
+    timeline: Optional[Dict[str, Any]] = None,
     # Legacy parameter (ignored, kept for backwards compat)
     plotly_figures: Optional[Dict[str, Any]] = None,
 ) -> bytes:
@@ -569,6 +789,8 @@ def create_export_zip(
             "year_comparison": territory_year2,
             "source": territory_source,
             "has_comparison": comparison_result is not None,
+            "has_multi_window": bool((mw_result or {}).get("pairs")),
+            "has_timeline": bool((timeline or {}).get("series")),
             "has_buffer": bool(buffer_name),
             "buffer_name": buffer_name or None,
             "buffer_slug": b_slug if buffer_name else None,
@@ -596,12 +818,14 @@ def create_export_zip(
             "",
             "```",
             "territory/{slug}/",
-            "  mapbiomas/          ← land-cover CSVs + figures",
-            "  hansen_glad/        ← forest-cover snapshot CSVs + figures",
-            "  hansen_gfc/         ← annual loss/gain CSVs + figures",
-            "  boundary.geojson    ← territory polygon",
-            "buffer/{slug}/        ← same sub-structure for the buffer ring",
-            "geometries.geojson    ← any manually drawn features",
+            "  mapbiomas/                ← land-cover CSVs + figures",
+            "  hansen_glad/              ← forest-cover snapshot CSVs + figures",
+            "  hansen_gfc/               ← annual loss/gain CSVs + figures",
+            "  mapbiomas_multi_window/   ← multi-year Sankey/Sunburst transitions (when run)",
+            "  deforestation_timeline/   ← annual indicators + political/ENSO context (when run)",
+            "  boundary.geojson          ← territory polygon",
+            "buffer/{slug}/              ← same sub-structure for the buffer ring",
+            "geometries.geojson          ← any manually drawn features",
             "```",
             "",
             "## File naming convention",
@@ -670,12 +894,32 @@ def create_export_zip(
             loss_chart=territory_figures.get("gfc_loss"),
         )
 
+        # ── Territory multi-window MapBiomas transitions ─────────────────────
+        _write_multi_window_section(
+            zf, terr_base, t_slug,
+            mw_result=mw_result,
+        )
+
+        # ── Territory deforestation timeline ─────────────────────────────────
+        if timeline and timeline.get("series"):
+            _write_timeline_section(
+                zf, terr_base, t_slug,
+                series=timeline.get("series"),
+                year_start=timeline.get("year_start") or 0,
+                year_end=timeline.get("year_end") or 0,
+                state_code=timeline.get("state_code") or None,
+                territory_name=territory_name,
+                territory_type=timeline.get("territory_type") or "indigenous",
+            )
+
         # ── Buffer sections (only when buffer data exists) ───────────────────
         if any([
             buffer_mapbiomas_result,
             buffer_mapbiomas_comparison_result,
             buffer_hansen_result,
             buffer_gfc_result,
+            buffer_mw_result,
+            (timeline or {}).get("buffer_series"),
         ]):
             buf_base = f"buffer/{b_slug}"
 
@@ -724,6 +968,27 @@ def create_export_zip(
                 loss_chart=buffer_figures.get("gfc_loss"),
                 name_suffix=buf_suffix,
             )
+
+            # Buffer multi-window MapBiomas transitions
+            _write_multi_window_section(
+                zf, buf_base, t_slug,
+                mw_result=buffer_mw_result,
+                name_suffix=buf_suffix,
+            )
+
+            # Buffer deforestation timeline
+            if timeline and timeline.get("buffer_series"):
+                _write_timeline_section(
+                    zf, buf_base, t_slug,
+                    series=timeline.get("buffer_series"),
+                    year_start=timeline.get("year_start") or 0,
+                    year_end=timeline.get("year_end") or 0,
+                    state_code=timeline.get("state_code") or None,
+                    territory_name=territory_name,
+                    territory_type=timeline.get("territory_type") or "indigenous",
+                    title_extra=f" — {buffer_name}" if buffer_name else " — Buffer",
+                    name_suffix=buf_suffix,
+                )
 
     buf.seek(0)
     return buf.read()
@@ -829,6 +1094,27 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # ── Advanced viz: multi-window + deforestation timeline ─────────────────
+    mw_result = None
+    buffer_mw_result = None
+    timeline = None
+    try:
+        if (state.mw_result or {}).get("pairs"):
+            mw_result = state.mw_result
+        if (state.buffer_mw_result or {}).get("pairs"):
+            buffer_mw_result = state.buffer_mw_result
+        if state.timeline_series:
+            timeline = {
+                "series": state.timeline_series,
+                "buffer_series": state.buffer_timeline_series or None,
+                "state_code": state.timeline_state_code or None,
+                "year_start": state.timeline_year_start,
+                "year_end": state.timeline_year_end,
+                "territory_type": state.timeline_territory_type or "indigenous",
+            }
+    except Exception as e:
+        logger.warning(f"Error collecting advanced-viz results: {e}")
+
     return {
         "territory_name": state.territory_name or state.selected_territory or "",
         "territory_year": state.territory_year or state.mapbiomas_current_year,
@@ -854,4 +1140,8 @@ def collect_export_data_from_state(state) -> Dict[str, Any]:
         "buffer_hansen_result": state.buffer_hansen_result,
         "buffer_gfc_result": state.buffer_gfc_result,
         "buffer_figures": buf_figs or None,
+        # Advanced viz
+        "mw_result": mw_result,
+        "buffer_mw_result": buffer_mw_result,
+        "timeline": timeline,
     }

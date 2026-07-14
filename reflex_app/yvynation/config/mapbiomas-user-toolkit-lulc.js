@@ -57,7 +57,7 @@
  *    1.27.0 - Loads mapbiomas-chile collection 1.0
  *    1.28.0 - Loads mapbiomas-argentina collection 1.0
  *    1.29.0 - Loads mapbiomas-bolivia collection 2.0
- *    1.30.0 - Loads mapbiomas-brasil collection 9.0
+ *    1.30.0 - Loads mapbiomas-brasil Collection 10.0
  *    1.31.0 - Loads mapbiomas-amazon collection 6.0
  *    1.32.0 - Loads mapbiomas-venezuela collection 2.0
  *    1.33.0 - Loads mapbiomas-ecuador collection 2.0

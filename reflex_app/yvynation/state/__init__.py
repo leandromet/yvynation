@@ -195,7 +195,7 @@ class AppState(
     territory_name_property: str = "name"
 
     # Comparison year selection
-    comparison_year1: int = 2019
+    comparison_year1: int = 1985
     comparison_year2: int = 2024  # Collection 10.1 includes 2024
 
     # Territory analysis storage
@@ -911,6 +911,14 @@ class AppState(
     @rx.var(auto_deps=False, deps=["geometry_analysis_year"])
     def geometry_analysis_year_str(self) -> str:
         return str(self.geometry_analysis_year) if self.geometry_analysis_year else "2024"
+
+    @rx.var(auto_deps=False, deps=["change_mask_year1"])
+    def change_mask_year1_str(self) -> str:
+        return str(self.change_mask_year1)
+
+    @rx.var(auto_deps=False, deps=["change_mask_year2"])
+    def change_mask_year2_str(self) -> str:
+        return str(self.change_mask_year2)
 
     # ---- Comparison charts ---------------------------------------------
 

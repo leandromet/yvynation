@@ -398,7 +398,7 @@ def geometry_section() -> rx.Component:
             rx.hstack(
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
-                    value=AppState.change_mask_year1.to(str),
+                    value=AppState.change_mask_year1_str,
                     on_change=AppState.set_change_mask_year1,
                     size="1",
                     flex="1",
@@ -406,7 +406,7 @@ def geometry_section() -> rx.Component:
                 rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
                 rx.select(
                     [str(y) for y in range(1985, 2024)],
-                    value=AppState.change_mask_year2.to(str),
+                    value=AppState.change_mask_year2_str,
                     on_change=AppState.set_change_mask_year2,
                     size="1",
                     flex="1",

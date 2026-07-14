@@ -2106,7 +2106,7 @@ def multi_window_tab() -> rx.Component:
                                 font_size="xs", color="#6B7280"),
                         rx.input(value=AppState.mw_custom_years,
                                  on_change=AppState.set_mw_custom_years,
-                                 placeholder="1985, 2004, 2012, 2023", size="2",
+                                 placeholder="1985, 1994, 2004, 2014, 2024", size="2",
                                  width="100%"),
                         spacing="1", width="100%",
                     ),

@@ -57,6 +57,44 @@ def _str_keys(d):
     return {str(k): _str_keys(v) for k, v in d.items()}
 
 
+def build_mw_sunbursts(pairs):
+    """Per-pair Sunburst figures from multi-window transition pairs.
+
+    Shared by the background runner and ``switch_result`` (which rebuilds the
+    figure lists when re-activating an area's stored multi-window result).
+    """
+    from ..utils.visualization import create_sunburst_transitions
+    figs = []
+    for p in pairs or []:
+        tr = p.get("transitions") or {}
+        if not tr:
+            continue
+        try:
+            fig = create_sunburst_transitions(tr, p["year_from"], p["year_to"])
+            if fig is not None:
+                figs.append(fig)
+        except Exception as e:
+            logger.warning(f"[ADV-VIZ] mw sunburst build: {e}")
+    return figs
+
+
+def build_mw_treemaps(pairs):
+    """Per-pair faceted transition treemaps from multi-window pairs."""
+    from ..utils.visualization import create_class_transition_treemaps
+    figs = []
+    for p in pairs or []:
+        tr = p.get("transitions") or {}
+        if not tr:
+            continue
+        try:
+            fig = create_class_transition_treemaps(tr, p["year_from"], p["year_to"])
+            if fig is not None:
+                figs.append(fig)
+        except Exception as e:
+            logger.warning(f"[ADV-VIZ] mw treemap build: {e}")
+    return figs
+
+
 def _ordered_pair(a: int, b: int):
     """Return ``(low, high)`` so callers never pass an inverted year range."""
     a, b = int(a), int(b)
@@ -116,17 +154,17 @@ class AdvancedVizMixin(rx.State, mixin=True):
     """On-demand interactive ports of the three batch visualization groups."""
 
     # ── Config: PNG map set ────────────────────────────────────────────────
-    map_aux_deforestation: bool = False
-    map_aux_fire_scar: bool = False
-    map_aux_fire_frequency: bool = False
-    map_aux_fire_year_last: bool = False
-    map_aux_mining: bool = False
-    map_aux_agriculture: bool = False
+    map_aux_deforestation: bool = True
+    map_aux_fire_scar: bool = True
+    map_aux_fire_frequency: bool = True
+    map_aux_fire_year_last: bool = True
+    map_aux_mining: bool = True
+    map_aux_agriculture: bool = True
 
     # ── Config: multi-window ───────────────────────────────────────────────
     mw_mode: str = "custom"                 # "constant" | "custom"
     mw_step: str = "8"                      # constant-mode step in years
-    mw_custom_years: str = "1985, 2004, 2012, 2023"
+    mw_custom_years: str = "1985, 1994, 2004, 2014, 2024"
 
     # ── Config: deforestation timeline ─────────────────────────────────────
     tl_include_hansen: bool = True
@@ -466,51 +504,19 @@ class AdvancedVizMixin(rx.State, mixin=True):
                     })
                 return out
 
-            def _sunbursts(pairs):
-                from ..utils.visualization import create_sunburst_transitions
-                figs = []
-                for p in pairs:
-                    tr = p.get("transitions") or {}
-                    if not tr:
-                        continue
-                    try:
-                        fig = create_sunburst_transitions(
-                            tr, p["year_from"], p["year_to"])
-                        if fig is not None:
-                            figs.append(fig)
-                    except Exception as e:
-                        logger.warning(f"[ADV-VIZ] mw sunburst build: {e}")
-                return figs
-
-            def _treemaps(pairs):
-                from ..utils.visualization import create_class_transition_treemaps
-                figs = []
-                for p in pairs:
-                    tr = p.get("transitions") or {}
-                    if not tr:
-                        continue
-                    try:
-                        fig = create_class_transition_treemaps(
-                            tr, p["year_from"], p["year_to"])
-                        if fig is not None:
-                            figs.append(fig)
-                    except Exception as e:
-                        logger.warning(f"[ADV-VIZ] mw treemap build: {e}")
-                return figs
-
             async with self:
                 self.loading_message = "Multi-window — territory transitions…"
             t_pairs = await loop.run_in_executor(None, _pairs, ee_geom)
-            t_figs = await loop.run_in_executor(None, _sunbursts, t_pairs)
-            t_tree = await loop.run_in_executor(None, _treemaps, t_pairs)
+            t_figs = await loop.run_in_executor(None, build_mw_sunbursts, t_pairs)
+            t_tree = await loop.run_in_executor(None, build_mw_treemaps, t_pairs)
 
             b_pairs, b_figs, b_tree = [], [], []
             if buf_geom is not None:
                 async with self:
                     self.loading_message = "Multi-window — buffer transitions…"
                 b_pairs = await loop.run_in_executor(None, _pairs, buf_geom)
-                b_figs = await loop.run_in_executor(None, _sunbursts, b_pairs)
-                b_tree = await loop.run_in_executor(None, _treemaps, b_pairs)
+                b_figs = await loop.run_in_executor(None, build_mw_sunbursts, b_pairs)
+                b_tree = await loop.run_in_executor(None, build_mw_treemaps, b_pairs)
 
             async with self:
                 self.mw_result = {"years": years, "pairs": t_pairs}
@@ -524,6 +530,11 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 self.mw_pending = False
                 self.loading_message = ""
                 self.active_analysis_tab = "multiwindow"
+                # Persist per-area so switch_result / Download-all restore it
+                self._save_adv_to_bundle("mw", {
+                    "mw": self.mw_result,
+                    "buffer_mw": self.buffer_mw_result,
+                })
         except Exception as e:
             logger.error(f"[ADV-VIZ] multi-window failed: {e}", exc_info=True)
             async with self:
@@ -633,6 +644,16 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 self.timeline_pending = False
                 self.loading_message = ""
                 self.active_analysis_tab = "timeline"
+                # Persist per-area so switch_result / Download-all restore it
+                self._save_adv_to_bundle("timeline", {
+                    "series": self.timeline_series,
+                    "buffer_series": self.buffer_timeline_series,
+                    "state_code": self.timeline_state_code,
+                    "year_start": self.timeline_year_start,
+                    "year_end": self.timeline_year_end,
+                    "name": self.timeline_territory_name,
+                    "territory_type": self.timeline_territory_type,
+                })
         except Exception as e:
             logger.error(f"[ADV-VIZ] timeline failed: {e}", exc_info=True)
             async with self:

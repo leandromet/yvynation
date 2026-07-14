@@ -60,7 +60,7 @@ def about_section() -> rx.Component:
             rx.vstack(
                 rx.heading("📊 Data Sources", size="4", color="#2d5a3d"),
                 rx.unordered_list(
-                    rx.list_item("MapBiomas: Brazilian land cover (1985-2023, 30m resolution)"),
+                    rx.list_item("MapBiomas: Brazilian land cover (1985-2024, 30m resolution)"),
                     rx.list_item("Hansen/GFC: Global forest change detection"),
                     rx.list_item("AAFC: Canadian agricultural and forest classification"),
                     rx.list_item("Google Earth Engine: Cloud-based geospatial analysis"),

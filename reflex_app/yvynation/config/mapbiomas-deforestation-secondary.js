@@ -15,7 +15,7 @@
  *    1.2.0 - Data from collection 7.0
  *    1.3.0 - Data from collection 7.1
  *    1.4.0 - Data from collection 8.0
- *    1.5.0 - Data from collection 9.0
+ *    1.5.0 - Data from Collection 10.0
  * 
  * @see
  *      Get the MapBiomas exported data in your "Google Drive/MAPBIOMAS-EXPORT" folder

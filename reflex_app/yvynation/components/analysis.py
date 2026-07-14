@@ -13,7 +13,7 @@ def mapbiomas_analysis_tab() -> rx.Component:
     return rx.vstack(
         rx.heading("MapBiomas Land Cover Analysis", size="3"),
         rx.text(
-            "Analyze land cover changes from 1985-2023",
+            "Analyze land cover changes from 1985-2024",
             font_size="1",
             color="gray",
         ),

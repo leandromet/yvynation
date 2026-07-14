@@ -25,8 +25,14 @@ class AnalysisMixin(rx.State, mixin=True):
         comparison: Dict[str, Any] = None,
         geojson_feature: Dict[str, Any] = None,
     ):
-        """Persist an analysis bundle under *key* and activate it."""
-        bundle = {"result": result, "comparison": comparison, "geojson": geojson_feature}
+        """Persist an analysis bundle under *key* and activate it.
+
+        Merges into any existing bundle so advanced-viz payloads saved by
+        ``_save_adv_to_bundle`` (timeline / multi-window) survive a re-run of
+        the core analysis.
+        """
+        bundle = dict(self.all_analysis_results.get(key) or {})
+        bundle.update({"result": result, "comparison": comparison, "geojson": geojson_feature})
         self.all_analysis_results[key] = bundle
         if key not in self.result_keys_list:
             self.result_keys_list = self.result_keys_list + [key]
@@ -34,6 +40,28 @@ class AnalysisMixin(rx.State, mixin=True):
         self.analysis_results = result
         if comparison:
             self.mapbiomas_comparison_result = comparison
+
+    def _save_adv_to_bundle(self, field: str, payload: Dict[str, Any]):
+        """Attach an advanced-viz payload (``"timeline"`` / ``"mw"``) to the
+        active area's result bundle.
+
+        Creates the bundle if the core analysis hasn't stored one yet, and
+        flags the registry entry so ``switch_result`` and Download-all can
+        restore + export the payload per area.
+        """
+        key = self.active_result_key
+        entry = self.analysis_targets.get(self.active_target_id) or {}
+        if not key:
+            key = entry.get("result_key") or ""
+        if not key and entry.get("label"):
+            kind = "geometry" if entry.get("kind") == "drawing" else "territory"
+            key = f"{kind}::{entry['label']}"
+        if not key:
+            return
+        bundle = dict(self.all_analysis_results.get(key) or {})
+        bundle[field] = payload
+        self.all_analysis_results[key] = bundle
+        self._mark_target_analyzed(key)
 
     def switch_result(self, key: str):
         """Activate a previously stored result and zoom to its geometry."""
@@ -43,6 +71,30 @@ class AnalysisMixin(rx.State, mixin=True):
         self.active_result_key = key
         self.analysis_results = bundle.get("result", {})
         self.mapbiomas_comparison_result = bundle.get("comparison")
+
+        # Advanced-viz payloads stored per area (empty when never run for it)
+        tl = bundle.get("timeline") or {}
+        self.timeline_series = tl.get("series") or {}
+        self.buffer_timeline_series = tl.get("buffer_series") or {}
+        self.timeline_state_code = tl.get("state_code") or ""
+        self.timeline_year_start = int(tl.get("year_start") or 0)
+        self.timeline_year_end = int(tl.get("year_end") or 0)
+        self.timeline_territory_name = tl.get("name") or ""
+        self.timeline_territory_type = tl.get("territory_type") or "indigenous"
+
+        mw = bundle.get("mw") or {}
+        self.mw_result = mw.get("mw") or {}
+        self.buffer_mw_result = mw.get("buffer_mw") or {}
+        try:
+            from ._advanced_viz import build_mw_sunbursts, build_mw_treemaps
+            t_pairs = (self.mw_result or {}).get("pairs") or []
+            b_pairs = (self.buffer_mw_result or {}).get("pairs") or []
+            self.mw_sunburst_figs = build_mw_sunbursts(t_pairs) if t_pairs else []
+            self.mw_treemap_figs = build_mw_treemaps(t_pairs) if t_pairs else []
+            self.buffer_mw_sunburst_figs = build_mw_sunbursts(b_pairs) if b_pairs else []
+            self.buffer_mw_treemap_figs = build_mw_treemaps(b_pairs) if b_pairs else []
+        except Exception as e:
+            logger.warning(f"[SWITCH_RESULT] mw figure rebuild failed: {e}")
 
         geojson = bundle.get("geojson")
         if geojson:

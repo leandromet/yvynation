@@ -1,6 +1,6 @@
 """
 MapBiomas-specific analysis for Yvynation Reflex app.
-Handles Brazil land cover analysis 1985-2023.
+Handles Brazil land cover analysis 1985-2024.
 Ported from mapbiomas_analysis.py, adapted for Reflex.
 """
 

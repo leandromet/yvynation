@@ -228,7 +228,7 @@ The map will center on your selected region.""",
    - Double-click or click the first point again to complete a polygon
 
 2. **Select Data Layers** (left sidebar):
-   - **MapBiomas**: Brazilian land cover (1985-2023, 62 classes, 30m resolution)
+   - **MapBiomas**: Brazilian land cover (1985-2024, 62 classes, 30m resolution)
    - **Hansen/GLAD**: Global forest change (2000-2020, 256 classes, 30m resolution)
    - **Hansen GFC**: Global Forest Change (2000-2024, 30m resolution)
    - Toggle multiple years to enable comparisons
@@ -331,8 +331,8 @@ The map will center on your selected region.""",
         "step6_data_understanding_intro": "Learn about data sources and how to interpret results:",
         "step6_content": """**Data Sources:**
 
-**MapBiomas Collection 9** (Brazil):
-- Coverage: All of Brazil, 1985-2023
+**MapBiomas Collection 10** (Brazil):
+- Coverage: All of Brazil, 1985-2024
 - Resolution: 30 meters (Landsat-based)
 - Classes: 62 land cover types (forest, savanna, agriculture, urban, etc.)
 - Accuracy: ~90% overall (varies by class and region)
@@ -364,7 +364,7 @@ The map will center on your selected region.""",
         "yvynation_meaning": '"Yvy" (Tupi-Guarani) means land, earth, or territory - emphasizing the ground we walk on and our sacred connection to nature. It often relates to the concept of "Yvy marae\'y" (Land without evil).',
         "nation_meaning": '"Nation" refers to a self-governing community or people with shared culture, history, language, and land. It signifies self-determination and governance.',
         "data_sources_title": "Data Sources",
-        "mapbiomas_desc": "MapBiomas Collection 9 - Resolution: 30m, Period: 1985-2023 (annual), 62 land cover categories, CC BY 4.0",
+        "mapbiomas_desc": "MapBiomas Collection 10 - Resolution: 30m, Period: 1985-2024 (annual), 62 land cover categories, CC BY 4.0",
         "territories_desc": "700+ Brazilian territories with vector boundaries and attributes - MapBiomas Territories Project",
         "features_title": "Features",
         "tech_title": "Technologies",
@@ -630,7 +630,7 @@ O mapa sera centralizado na regiao selecionada.""",
    - Clique duplo ou clique no primeiro ponto novamente para completar
 
 2. **Selecione Camadas de Dados** (barra lateral esquerda):
-   - **MapBiomas**: Cobertura do solo brasileira (1985-2023, 62 classes, 30m)
+   - **MapBiomas**: Cobertura do solo brasileira (1985-2024, 62 classes, 30m)
    - **Hansen/GLAD**: Mudancas florestais globais (2000-2020, 256 classes, 30m)
    - **Hansen GFC**: Mudancas Florestais Globais (2000-2024, 30m)
    - Alterne varios anos para habilitar comparacoes
@@ -733,8 +733,8 @@ O mapa sera centralizado na regiao selecionada.""",
         "step6_data_understanding_intro": "Saiba sobre as fontes de dados e como interpretar resultados:",
         "step6_content": """**Fontes de Dados:**
 
-**MapBiomas Collection 9** (Brasil):
-- Cobertura: Todo o Brasil, 1985-2023
+**MapBiomas Collection 10** (Brasil):
+- Cobertura: Todo o Brasil, 1985-2024
 - Resolucao: 30 metros (baseado em Landsat)
 - Classes: 62 tipos de cobertura (floresta, savana, agricultura, urbano, etc.)
 - Precisao: ~90% no geral (varia por classe e regiao)
@@ -766,7 +766,7 @@ O mapa sera centralizado na regiao selecionada.""",
         "yvynation_meaning": '"Yvy" (Tupi-Guarani) significa terra, solo ou territorio - enfatizando o chao que pisamos e nossa conexao sagrada com a natureza. Frequentemente se relaciona ao conceito de "Yvy marae\'y" (Terra sem mal).',
         "nation_meaning": '"Nacao" refere-se a uma comunidade auto-governada ou povo com cultura, historia, lingua e terra compartilhadas. Significa autodeterminacao e governanca.',
         "data_sources_title": "Fontes de Dados",
-        "mapbiomas_desc": "MapBiomas Collection 9 - Resolucao: 30m, Periodo: 1985-2023 (anual), 62 categorias de cobertura, CC BY 4.0",
+        "mapbiomas_desc": "MapBiomas Collection 10 - Resolucao: 30m, Periodo: 1985-2024 (anual), 62 categorias de cobertura, CC BY 4.0",
         "territories_desc": "700+ territorios brasileiros com limites vetoriais e atributos - Projeto Territorios MapBiomas",
         "features_title": "Funcionalidades",
         "tech_title": "Tecnologias",
@@ -1030,7 +1030,7 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
    - Doble clic o clic en el primer punto para completar
 
 2. **Seleccione Capas de Datos** (barra lateral):
-   - **MapBiomas**: Cobertura del suelo brasilena (1985-2023, 62 clases, 30m)
+   - **MapBiomas**: Cobertura del suelo brasilena (1985-2024, 62 clases, 30m)
    - **Hansen/GLAD**: Cambios forestales globales (2000-2020, 256 clases, 30m)
    - **Hansen GFC**: Cambios Forestales Globales (2000-2024, 30m)
 
@@ -1062,7 +1062,7 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
 
         "step_data_understanding": "Paso 6: Entendiendo los Datos",
         "step6_data_understanding_intro": "Fuentes de datos e interpretacion de resultados:",
-        "step6_content": """MapBiomas Collection 9 (Brasil, 1985-2023, 30m, 62 clases). Hansen/GLAD (Global, 30m, 256 clases). Area en hectares, pixels de 900m2, cambios positivos/negativos.""",
+        "step6_content": """MapBiomas Collection 10 (Brasil, 1985-2024, 30m, 62 clases). Hansen/GLAD (Global, 30m, 256 clases). Area en hectares, pixels de 900m2, cambios positivos/negativos.""",
 
         # About section
         "about_title": "Acerca de",
@@ -1077,7 +1077,7 @@ Use los botones de region (Brasil / Canada) en la barra lateral:
         "yvynation_meaning": '"Yvy" (Tupi-Guarani) significa tierra, suelo o territorio.',
         "nation_meaning": '"Nacion" se refiere a una comunidad autogobernada con cultura, historia, lengua y tierra compartidas.',
         "data_sources_title": "Fuentes de Datos",
-        "mapbiomas_desc": "MapBiomas Collection 9 - Resolucion: 30m, Periodo: 1985-2023, 62 categorias, CC BY 4.0",
+        "mapbiomas_desc": "MapBiomas Collection 10 - Resolucion: 30m, Periodo: 1985-2024, 62 categorias, CC BY 4.0",
         "territories_desc": "700+ territorios brasilenios con limites vectoriales - Proyecto Territorios MapBiomas",
         "features_title": "Caracteristicas",
         "tech_title": "Tecnologias",

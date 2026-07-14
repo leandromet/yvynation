@@ -273,9 +273,14 @@ class ExportMixin(rx.State, mixin=True):
             ts = datetime.now().strftime("%Y%m%d_%H%M")
             filename = f"yvynation_{territory}_{ts}.zip".replace(" ", "_")
 
+            # Serve from the exports dir over HTTP — reliable at any size
+            # (a base64 data-URI over the websocket is not).
+            from ..utils.export_service import save_export_to_upload_dir
+            rel = save_export_to_upload_dir(zip_bytes, filename)
+
             self.export_pending = False
             self.loading_message = ""
-            return rx.download(data=zip_bytes, filename=filename)
+            return rx.download(url=rx.get_upload_url(rel), filename=filename)
 
         except Exception as e:
             self.error_message = f"Export failed: {e}"
@@ -382,13 +387,22 @@ class ExportMixin(rx.State, mixin=True):
         ``create_export_zip`` machinery (data + figures), then renders its PNG
         map set from the stored geometry/buffer. Areas land in their own
         top-level folder. The originally-active result is restored at the end.
+
+        The combined ZIP is written directly to ``uploaded_files/exports/``
+        (memory stays flat regardless of area count) and downloaded over HTTP
+        via the ``/_upload`` mount — a websocket data-URI would fail beyond a
+        few tens of MB.
         """
         import asyncio
-        import io
         import zipfile
         from datetime import datetime
 
+        from ..utils.export_service import get_export_dir, prune_old_exports
+
         loop = asyncio.get_event_loop()
+        ts = datetime.now().strftime("%Y%m%d_%H%M")
+        zip_filename = f"yvynation_all_results_{ts}.zip"
+        zip_path = get_export_dir() / zip_filename
         try:
             async with self:
                 entries = [
@@ -410,8 +424,7 @@ class ExportMixin(rx.State, mixin=True):
                     self.error_message = "No analyzed areas to download yet."
                 return
 
-            combined = io.BytesIO()
-            with zipfile.ZipFile(combined, "w", zipfile.ZIP_DEFLATED) as out:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as out:
                 for entry in entries:
                     rk = entry.get("result_key") or ""
                     label = entry.get("label") or rk or "area"
@@ -459,6 +472,8 @@ class ExportMixin(rx.State, mixin=True):
                     "Each area folder holds analysis/ (data + figures) and maps/.\n",
                 )
 
+            prune_old_exports()
+
             # Restore the user's original active result
             async with self:
                 if original_key:
@@ -469,15 +484,17 @@ class ExportMixin(rx.State, mixin=True):
                 self.export_pending = False
                 self.loading_message = ""
 
-            combined.seek(0)
-            ts = datetime.now().strftime("%Y%m%d_%H%M")
             yield rx.download(
-                data=combined.read(),
-                filename=f"yvynation_all_results_{ts}.zip",
+                url=rx.get_upload_url(f"exports/{zip_filename}"),
+                filename=zip_filename,
             )
 
         except Exception as e:
             logger.error(f"[DOWNLOAD-ALL] failed: {e}", exc_info=True)
+            try:
+                zip_path.unlink(missing_ok=True)
+            except OSError:
+                pass
             async with self:
                 self.export_pending = False
                 self.loading_message = ""

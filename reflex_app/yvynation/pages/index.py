@@ -266,7 +266,7 @@ def active_layers_summary() -> rx.Component:
                 rx.text(AppState.tr["compare_label"], font_size="xs", color="gray"),
                 rx.select(
                     [str(y) for y in range(1985, 2025)],
-                    value=AppState.comparison_year1.to(str),
+                    value=AppState.comparison_year1_str,
                     on_change=AppState.set_comparison_year1,
                     size="1",
                     width="80px",
@@ -274,7 +274,7 @@ def active_layers_summary() -> rx.Component:
                 rx.text(AppState.tr["vs_label"], font_size="xs", color="gray"),
                 rx.select(
                     [str(y) for y in range(1985, 2025)],
-                    value=AppState.comparison_year2.to(str),
+                    value=AppState.comparison_year2_str,
                     on_change=AppState.set_comparison_year2,
                     size="1",
                     width="80px",

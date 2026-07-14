@@ -27,7 +27,7 @@ OUTPUT_SCALE = 30  # Export resolution in meters
 MAPBIOMAS_COLLECTIONS = {
     # Collection 10.1 — latest (2024 data, Brazil LULC)
     'v10_1': 'projects/mapbiomas-public/assets/brazil/lulc/collection10_1/mapbiomas_brazil_collection10_1_coverage_v1',
-    # Collection 9 — kept for backward compatibility
+    # Collection 10 — kept for backward compatibility
     'v9': 'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1',
     'v8': 'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1',
 }

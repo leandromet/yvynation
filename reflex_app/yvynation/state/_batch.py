@@ -38,8 +38,9 @@ import reflex as rx
 
 logger = logging.getLogger(__name__)
 
-# Module-level storage for the batch ZIP bytes (too large to keep in Reflex state)
-_batch_zip_bytes: Optional[bytes] = None
+# NOTE: the batch ZIP used to be held here as a module-level bytes blob and
+# shipped through rx.download(data=...). It is now written straight to
+# ``uploaded_files/exports/`` and downloaded over HTTP (see download_batch_zip).
 
 # ---------------------------------------------------------------------------
 # Quadrant splitting
@@ -402,15 +403,21 @@ class BatchMixin(rx.State, mixin=True):
     # Step in years for the constant mode (one of 1, 2, 4, 5, 8).
     batch_multi_window_step: str = "8"
     # Custom mode: 3 or 4 user-selected years, comma-separated.
-    batch_multi_window_custom_years: str = "1985, 2004, 2012, 2023"
+    batch_multi_window_custom_years: str = "1985, 1994, 2004, 2014, 2024"
     batch_territory_search: str = ""
     # "indigenous" | "conservation" — which GeoPackage backs the selector
     batch_territory_type: str = "indigenous"
+    # ---- Paste/upload a name list to auto-select areas ------------------------
+    batch_paste_text: str = ""
+    batch_paste_feedback: str = ""
+    batch_paste_unmatched: List[str] = []
 
     # ---- Runtime status ------------------------------------------------------
     batch_running: bool = False
     batch_done: bool = False
     batch_zip_ready: bool = False
+    #: Upload-relative path of the finished ZIP (e.g. "exports/yvynation_batch_….zip")
+    batch_zip_relpath: str = ""
     batch_current_territory: str = ""
     batch_current_step: str = ""
     batch_completed: List[str] = []      # successfully processed
@@ -544,6 +551,91 @@ class BatchMixin(rx.State, mixin=True):
             # Clear selection to avoid mixing territory types
             self.batch_selected_territories = []
             self.batch_territory_search = ""
+            self.batch_paste_feedback = ""
+            self.batch_paste_unmatched = []
+
+    # ---- Paste/upload list → auto-select -------------------------------------
+
+    def batch_set_paste_text(self, txt: str):
+        self.batch_paste_text = txt
+
+    def batch_clear_paste(self):
+        self.batch_paste_text = ""
+        self.batch_paste_feedback = ""
+        self.batch_paste_unmatched = []
+
+    def batch_select_from_list(self):
+        """Match the pasted name list against the active source and select hits.
+
+        Matching is accent-stripped and case-insensitive (so "Apinaye" finds
+        "Apinayé", and conservation-unit names match regardless of casing).
+        A name that equals the base of duplicate display keys — e.g.
+        "{nome} (cod)" pairs — selects every key sharing that base name.
+        Matches are ADDED to the current selection; misses are listed.
+        """
+        import re
+        import unicodedata
+
+        def _norm(s: str) -> str:
+            s = unicodedata.normalize("NFD", str(s)).encode("ascii", "ignore").decode("ascii")
+            return re.sub(r"\s+", " ", s).strip().lower()
+
+        names = [
+            p.strip()
+            for chunk in self.batch_paste_text.replace(";", "\n").splitlines()
+            for p in [chunk]
+            if p.strip()
+        ]
+        if not names:
+            self.batch_paste_feedback = "Paste one name per line first."
+            self.batch_paste_unmatched = []
+            return
+
+        keys = list(self.batch_available_territories)
+        exact = {_norm(k): k for k in keys}
+        base_map: Dict[str, List[str]] = {}
+        for k in keys:
+            base = re.sub(r"\s*\([^)]*\)\s*$", "", k)
+            base_map.setdefault(_norm(base), []).append(k)
+
+        current = set(self.batch_selected_territories)
+        matched = 0
+        unmatched: List[str] = []
+        for name in names:
+            n = _norm(name)
+            if n in exact:
+                current.add(exact[n])
+                matched += 1
+            elif n in base_map:
+                current.update(base_map[n])
+                matched += 1
+            else:
+                unmatched.append(name)
+
+        self.batch_selected_territories = sorted(current)
+        self.batch_paste_unmatched = unmatched
+        src = "conservation units" if self.batch_territory_type == "conservation" else "indigenous lands"
+        self.batch_paste_feedback = (
+            f"✓ Matched {matched} of {len(names)} names against {src} — "
+            f"{len(self.batch_selected_territories)} selected total."
+        )
+
+    async def batch_upload_territory_list(self, files: List[rx.UploadFile]):
+        """Read an uploaded .txt/.csv name list into the paste box and select."""
+        try:
+            if not files:
+                return
+            data = await files[0].read()
+            text = data.decode("utf-8", errors="replace")
+            # CSV convenience: keep only the first column
+            lines = []
+            for ln in text.splitlines():
+                lines.append(ln.split(",")[0] if "," in ln else ln)
+            self.batch_paste_text = "\n".join(lines)
+            self.batch_select_from_list()
+        except Exception as e:
+            logger.error(f"[BATCH] list upload failed: {e}", exc_info=True)
+            self.error_message = f"List upload failed: {e}"
 
     def batch_toggle_territory(self, territory: str):
         """Add or remove a territory from the batch selection."""
@@ -698,18 +790,19 @@ class BatchMixin(rx.State, mixin=True):
     # ---- Download -----------------------------------------------------------
 
     def download_batch_zip(self):
-        """Download the completed batch ZIP."""
-        global _batch_zip_bytes
-        if not _batch_zip_bytes:
+        """Download the completed batch ZIP (streamed over HTTP from the
+        exports dir — no websocket data-URI, so size is unbounded)."""
+        if not self.batch_zip_relpath:
             self.error_message = "Batch ZIP not ready yet"
             return
-        ts = datetime.now().strftime("%Y%m%d_%H%M")
-        return rx.download(data=_batch_zip_bytes, filename=f"yvynation_batch_{ts}.zip")
+        return rx.download(
+            url=rx.get_upload_url(self.batch_zip_relpath),
+            filename=self.batch_zip_relpath.rsplit("/", 1)[-1],
+        )
 
     def batch_reset(self):
         """Reset batch state for a new run."""
-        global _batch_zip_bytes
-        _batch_zip_bytes = None
+        self.batch_zip_relpath = ""
         self.batch_running = False
         self.batch_done = False
         self.batch_zip_ready = False
@@ -732,8 +825,6 @@ class BatchMixin(rx.State, mixin=True):
         the async event loop.  State is mutated only inside ``async with self``
         blocks so Reflex can push WebSocket deltas to the frontend.
         """
-        global _batch_zip_bytes
-
         # ── Snapshot configuration ──────────────────────────────────────────
         async with self:
             territories = list(self.batch_selected_territories)
@@ -775,6 +866,7 @@ class BatchMixin(rx.State, mixin=True):
             self.batch_running = True
             self.batch_done = False
             self.batch_zip_ready = False
+            self.batch_zip_relpath = ""
             self.batch_total = len(territories)
             self.batch_completed = []
             self.batch_failed = []
@@ -815,11 +907,26 @@ class BatchMixin(rx.State, mixin=True):
             logger.error(f"EE init failed in batch: {ee_err}", exc_info=True)
             return
 
-        # Master ZIP buffer
-        master_buf = io.BytesIO()
+        # Results are written as plain files into a live run folder under
+        # uploaded_files/exports/ — visible (and downloadable via /_upload) the
+        # moment each one is produced, with no inline compression slowing the
+        # per-territory loop. The folder is deflated into the final ZIP once,
+        # at the end of the run. Memory stays flat at any archive size.
+        from ..utils.export_service import (
+            DirExportWriter, get_export_dir, prune_old_exports, zip_directory,
+        )
+        run_name = f"yvynation_batch_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        zip_filename = f"{run_name}.zip"
+        zip_path = get_export_dir() / zip_filename
+        work_dir = get_export_dir() / run_name
         batch_summary: List[Dict] = []
 
-        with zipfile.ZipFile(master_buf, "w", zipfile.ZIP_DEFLATED) as master_zf:
+        async with self:
+            self._batch_append_log(
+                f"📂 Files appear live in uploaded_files/exports/{run_name}/"
+            )
+
+        with DirExportWriter(work_dir) as master_zf:
             for territory in territories:
                 # ── Check stop flag ────────────────────────────────────────────
                 async with self:
@@ -1773,20 +1880,38 @@ class BatchMixin(rx.State, mixin=True):
 
             await loop.run_in_executor(None, _write_summary)
 
-        # Store bytes in module-level variable
-        zip_bytes = master_buf.getvalue()
-        _batch_zip_bytes = zip_bytes
+        # Deflate the live folder into the final ZIP (single compression pass).
+        # Runs on the stop-after-current path too, so a partial run still
+        # yields a downloadable archive; the folder itself stays browsable
+        # until the next batch run prunes it.
+        async with self:
+            self.batch_current_step = "🗜 Compressing final ZIP…"
+            self._batch_append_log("🗜 Compressing results into the final ZIP…")
+        zip_size = 0
+        try:
+            zip_size = await loop.run_in_executor(
+                None, zip_directory, work_dir, zip_path
+            )
+        except Exception as ze:
+            logger.error(f"[BATCH] final ZIP compression failed: {ze}", exc_info=True)
+            async with self:
+                self._batch_append_log(
+                    f"❌ Final ZIP failed ({ze}) — files remain in "
+                    f"uploaded_files/exports/{run_name}/"
+                )
+        prune_old_exports()
 
         async with self:
             self.batch_running = False
             self.batch_done = True
-            self.batch_zip_ready = bool(zip_bytes)
+            self.batch_zip_ready = zip_size > 0
+            self.batch_zip_relpath = f"exports/{zip_filename}" if zip_size > 0 else ""
             self.batch_current_territory = ""
             self.batch_current_step = STEPS["done"]
             n_ok = len(self.batch_completed)
             n_fail = len(self.batch_failed)
             self._batch_append_log(
                 f"🏁 Batch complete: {n_ok} OK, {n_fail} failed — "
-                f"ZIP size {len(zip_bytes)//1024} KB"
+                f"ZIP size {zip_size // 1024} KB"
             )
             logger.info(f"Batch processing complete: {n_ok}/{len(territories)} territories")
