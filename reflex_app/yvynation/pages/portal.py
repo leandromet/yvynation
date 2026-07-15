@@ -6,6 +6,7 @@ Allows users to choose between geometry or indigenous territory analysis.
 
 import reflex as rx
 from ..state import AppState
+from ..components.language_selector import language_selector
 
 
 def portal_navbar() -> rx.Component:
@@ -23,12 +24,7 @@ def portal_navbar() -> rx.Component:
         ),
         rx.spacer(),
         rx.hstack(
-            rx.select(
-                {"🇬🇧 English": "en", "🇧🇷 Português": "pt", "🇪🇸 Español": "es"},
-                value=AppState.language,
-                on_change=AppState.set_language,
-                width="300px",
-            ),
+            language_selector(),
             spacing="2",
         ),
         padding="0.75rem 1.5rem",
@@ -44,27 +40,22 @@ def about_section() -> rx.Component:
     """Section explaining the application with enhanced styling."""
     return rx.box(
         rx.vstack(
-            rx.heading("🌍 About Yvynation", size="3", color="#1a472a"),
+            rx.heading("🌍 " + AppState.tr["about_section"], size="3", color="#1a472a"),
             rx.text(
-                AppState.tr.get(
-                    "about_description",
-                    "Yvynation is a comprehensive platform for indigenous land monitoring and analysis. "
-                    "It combines satellite imagery, geospatial analysis tools, and forest change detection "
-                    "to provide insights into land use changes and ecosystem dynamics.",
-                ),
+                AppState.tr["about_description"],
                 font_size="md",
                 line_height="1.8",
                 color="#333",
             ),
             rx.divider(border_color="#d0e8d8"),
             rx.vstack(
-                rx.heading("📊 Data Sources", size="4", color="#2d5a3d"),
+                rx.heading("📊 " + AppState.tr["data_sources_title"], size="4", color="#2d5a3d"),
                 rx.unordered_list(
-                    rx.list_item("MapBiomas: Brazilian land cover (1985-2024, 30m resolution)"),
-                    rx.list_item("Hansen/GFC: Global forest change detection"),
-                    rx.list_item("AAFC: Canadian agricultural and forest classification"),
-                    rx.list_item("Google Earth Engine: Cloud-based geospatial analysis"),
-                    rx.list_item("Custom geometries: Draw or upload your own features"),
+                    rx.list_item(AppState.tr["portal_ds_mapbiomas"]),
+                    rx.list_item(AppState.tr["portal_ds_hansen"]),
+                    rx.list_item(AppState.tr["portal_ds_aafc"]),
+                    rx.list_item(AppState.tr["portal_ds_gee"]),
+                    rx.list_item(AppState.tr["portal_ds_custom"]),
                     font_size="sm",
                     line_height="1.8",
                     color="#444",
@@ -87,10 +78,9 @@ def analysis_choice_section() -> rx.Component:
     """Section to choose between analysis types with enhanced styling."""
     return rx.box(
         rx.vstack(
-            rx.heading("🚀 Choose Your Analysis Path", size="2", text_align="center", color="#1a472a"),
+            rx.heading(AppState.tr["portal_choose_title"], size="2", text_align="center", color="#1a472a"),
             rx.text(
-                "Select the analysis type that best fits your workflow. Both paths provide access to the same "
-                "tools and datasets, optimized for your use case.",
+                AppState.tr["portal_choose_desc"],
                 font_size="md",
                 text_align="center",
                 color="#555",
@@ -101,13 +91,13 @@ def analysis_choice_section() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.heading(
-                            "🔷 Geometry Analysis",
+                            AppState.tr["geometry_analysis_label"],
                             size="3",
                             text_align="center",
                             color="#1e40af",
                         ),
                         rx.text(
-                            "Draw & analyze custom areas",
+                            AppState.tr["portal_geometry_sub"],
                             font_size="sm",
                             text_align="center",
                             color="#666",
@@ -115,17 +105,17 @@ def analysis_choice_section() -> rx.Component:
                         ),
                         rx.divider(border_color="#bfdbfe"),
                         rx.unordered_list(
-                            rx.list_item("Draw polygons on the map"),
-                            rx.list_item("Upload GeoJSON/Shapefiles/KML"),
-                            rx.list_item("Create buffer zones"),
-                            rx.list_item("Analyze land cover changes"),
+                            rx.list_item(AppState.tr["portal_geometry_i1"]),
+                            rx.list_item(AppState.tr["portal_geometry_i2"]),
+                            rx.list_item(AppState.tr["portal_geometry_i3"]),
+                            rx.list_item(AppState.tr["portal_geometry_i4"]),
                             font_size="sm",
                             color="#333",
                             line_height="1.8",
                         ),
                         rx.spacer(),
                         rx.button(
-                            "→ Start Geometry Analysis",
+                            AppState.tr["portal_geometry_btn"],
                             on_click=lambda: AppState.go_to_geometry_analysis(),
                             size="2",
                             color_scheme="blue",
@@ -146,13 +136,13 @@ def analysis_choice_section() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.heading(
-                            "🗺️  Territory Analysis",
+                            AppState.tr["territory_analysis_label"],
                             size="3",
                             text_align="center",
                             color="#15803d",
                         ),
                         rx.text(
-                            "Monitor indigenous lands",
+                            AppState.tr["portal_territory_sub"],
                             font_size="sm",
                             text_align="center",
                             color="#666",
@@ -160,17 +150,17 @@ def analysis_choice_section() -> rx.Component:
                         ),
                         rx.divider(border_color="#bbf7d0"),
                         rx.unordered_list(
-                            rx.list_item("Select from 700+ territories"),
-                            rx.list_item("Search by name"),
-                            rx.list_item("Track forest changes (1985-2024)"),
-                            rx.list_item("Compare multiple years"),
+                            rx.list_item(AppState.tr["portal_territory_i1"]),
+                            rx.list_item(AppState.tr["portal_territory_i2"]),
+                            rx.list_item(AppState.tr["portal_territory_i3"]),
+                            rx.list_item(AppState.tr["portal_territory_i4"]),
                             font_size="sm",
                             color="#333",
                             line_height="1.8",
                         ),
                         rx.spacer(),
                         rx.button(
-                            "→ Start Territory Analysis",
+                            AppState.tr["portal_territory_btn"],
                             on_click=lambda: AppState.go_to_territory_analysis(),
                             size="2",
                             color_scheme="green",
@@ -191,13 +181,13 @@ def analysis_choice_section() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.heading(
-                            "🔶 Batch Processing",
+                            AppState.tr["batch_title"],
                             size="3",
                             text_align="center",
                             color="#C2410C",
                         ),
                         rx.text(
-                            "Process multiple territories at once",
+                            AppState.tr["portal_batch_sub"],
                             font_size="sm",
                             text_align="center",
                             color="#666",
@@ -205,17 +195,17 @@ def analysis_choice_section() -> rx.Component:
                         ),
                         rx.divider(border_color="#FDBA74"),
                         rx.unordered_list(
-                            rx.list_item("Select any number of territories"),
-                            rx.list_item("Run MapBiomas, Hansen GLAD & GFC"),
-                            rx.list_item("Territory + buffer automatically"),
-                            rx.list_item("Download one ZIP with all data"),
+                            rx.list_item(AppState.tr["portal_batch_i1"]),
+                            rx.list_item(AppState.tr["portal_batch_i2"]),
+                            rx.list_item(AppState.tr["portal_batch_i3"]),
+                            rx.list_item(AppState.tr["portal_batch_i4"]),
                             font_size="sm",
                             color="#333",
                             line_height="1.8",
                         ),
                         rx.spacer(),
                         rx.button(
-                            "→ Start Batch Processing",
+                            AppState.tr["portal_batch_btn"],
                             on_click=lambda: AppState.go_to_batch_processing(),
                             size="2",
                             bg="#EA580C",
@@ -254,30 +244,30 @@ def footer_section() -> rx.Component:
         rx.hstack(
             rx.box(
                 rx.vstack(
-                    rx.heading("📚 Resources", size="4", color="#1a472a"),
-                    rx.link("Documentation", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("Methods & Research", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("Data Sources", href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.heading(AppState.tr["portal_resources"], size="4", color="#1a472a"),
+                    rx.link(AppState.tr["documentation"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["portal_link_methods"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["data_sources_title"], href="#", color="#15803d", font_weight="500", is_external=True),
                     spacing="2",
                 ),
                 flex="1",
             ),
             rx.box(
                 rx.vstack(
-                    rx.heading("🎓 Support", size="4", color="#1a472a"),
-                    rx.link("Tutorial & Guide", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("FAQ", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("Contact & Feedback", href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.heading(AppState.tr["portal_support"], size="4", color="#1a472a"),
+                    rx.link(AppState.tr["portal_link_tutorial"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["portal_link_faq"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["portal_link_contact"], href="#", color="#15803d", font_weight="500", is_external=True),
                     spacing="2",
                 ),
                 flex="1",
             ),
             rx.box(
                 rx.vstack(
-                    rx.heading("ℹ️ About", size="4", color="#1a472a"),
-                    rx.link("Project Overview", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("Team & Contributors", href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link("How to Cite", href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.heading("ℹ️ " + AppState.tr["about_title"], size="4", color="#1a472a"),
+                    rx.link(AppState.tr["about_overview"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["portal_link_team"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.link(AppState.tr["portal_link_cite"], href="#", color="#15803d", font_weight="500", is_external=True),
                     spacing="2",
                 ),
                 flex="1",

@@ -14,6 +14,7 @@ from ..components.geometry_popup import geometry_info_popup
 from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
 from ..components.loading_indicator import loading_indicator
+from ..components.language_selector import language_selector
 from .portal import portal
 from .batch_processing import batch_processing_page
 
@@ -55,7 +56,7 @@ def active_target_bar() -> rx.Component:
                 ),
                 rx.menu.content(
                     rx.text(
-                        "Active analysis area",
+                        AppState.tr["active_analysis_area"],
                         font_size="xs", font_weight="600", color="gray",
                         padding="0.25rem 0.5rem",
                     ),
@@ -68,7 +69,7 @@ def active_target_bar() -> rx.Component:
                                 on_click=lambda: AppState.set_active_target(o["id"]),
                             ),
                         ),
-                        rx.text("No areas yet — select a territory or draw one",
+                        rx.text(AppState.tr["no_areas_yet"],
                                 font_size="xs", color="gray",
                                 padding="0.25rem 0.5rem"),
                     ),
@@ -82,7 +83,7 @@ def active_target_bar() -> rx.Component:
             ),
             # Run-all button
             rx.button(
-                "▶ Run all analysis",
+                AppState.tr["run_all_analysis"],
                 on_click=AppState.run_all_analysis,
                 is_disabled=~AppState.has_active_target,
                 size="2", bg="#16A34A", color="white", font_weight="bold",
@@ -94,9 +95,9 @@ def active_target_bar() -> rx.Component:
                 rx.button(
                     rx.cond(
                         AppState.export_pending,
-                        rx.hstack(rx.spinner(size="1"), rx.text("Bundling…"),
+                        rx.hstack(rx.spinner(size="1"), rx.text(AppState.tr["bundling"]),
                                   spacing="2", align_items="center"),
-                        rx.text("⬇️ Download all ("
+                        rx.text(AppState.tr["download_all"] + " ("
                                 + AppState.analyzed_target_count.to(str) + ")"),
                     ),
                     on_click=AppState.download_all_results,
@@ -121,8 +122,8 @@ def navbar() -> rx.Component:
                 rx.button(
                     rx.cond(
                         AppState.sidebar_open,
-                        "☰ Hide",
-                        "☰ Show",
+                        AppState.tr["nav_hide"],
+                        AppState.tr["nav_show"],
                     ),
                     on_click=AppState.toggle_sidebar,
                     size="1",
@@ -139,7 +140,7 @@ def navbar() -> rx.Component:
                             size="1",
                             variant="ghost",
                             padding="0.25rem 0.5rem",
-                            title="Narrow",
+                            title=AppState.tr["sidebar_narrow"],
                         ),
                         rx.button(
                             "resize",
@@ -147,7 +148,7 @@ def navbar() -> rx.Component:
                             size="1",
                             variant="ghost",
                             padding="0.25rem 0.5rem",
-                            title="Normal",
+                            title=AppState.tr["sidebar_normal"],
                         ),
                         rx.button(
                             "▶",
@@ -155,7 +156,7 @@ def navbar() -> rx.Component:
                             size="1",
                             variant="ghost",
                             padding="0.25rem 0.5rem",
-                            title="Wide",
+                            title=AppState.tr["sidebar_wide"],
                         ),
                         spacing="1",
                         font_size="xs",
@@ -176,8 +177,8 @@ def navbar() -> rx.Component:
                             rx.text(
                                 rx.cond(
                                     AppState.analysis_mode == "geometry",
-                                    "🔷 Geometry Analysis",
-                                    "🗺️ Territory Analysis",
+                                    AppState.tr["geometry_analysis_label"],
+                                    AppState.tr["territory_analysis_label"],
                                 ),
                                 font_size="sm",
                                 color="#1a472a",
@@ -207,22 +208,23 @@ def navbar() -> rx.Component:
         rx.spacer(),
         active_target_bar(),
         rx.spacer(),
-        # Right side - back button, clear button, and analysis indicator
+        # Right side - language, back button, clear button, and analysis indicator
         rx.hstack(
+            language_selector(),
             rx.button(
-                "← Back to Portal",
+                AppState.tr["back_to_portal"],
                 on_click=lambda: AppState.go_to_portal(),
                 size="1",
                 variant="outline",
                 color_scheme="green",
             ),
             rx.button(
-                "🔄 Clear",
+                AppState.tr["clear_btn"],
                 on_click=AppState.clear_all_state(),
                 size="1",
                 variant="outline",
                 color_scheme="red",
-                title="Clear all analysis data and start fresh",
+                title=AppState.tr["clear_btn_title"],
             ),
             rx.cond(
                 (AppState.analysis_results != {}) & (AppState.analysis_results != None),
@@ -445,15 +447,15 @@ def main_content_area() -> rx.Component:
                 rx.vstack(
                     # Results header with full-screen toggle
                     rx.hstack(
-                        rx.text("📊 Results", font_size="sm", font_weight="700",
+                        rx.text(AppState.tr["results_label"], font_size="sm", font_weight="700",
                                 color="#1a472a"),
                         rx.spacer(),
                         rx.button(
                             rx.cond(AppState.fullscreen_panel == "results",
-                                    "⛶ Exit full results", "⛶ Full results"),
+                                    AppState.tr["exit_full_results"], AppState.tr["full_results"]),
                             on_click=AppState.toggle_fullscreen_results,
                             size="1", variant="outline", color_scheme="gray",
-                            title="Toggle full-screen results",
+                            title=AppState.tr["toggle_full_results_title"],
                         ),
                         width="100%", align_items="center",
                         padding="0.25rem 0.5rem",

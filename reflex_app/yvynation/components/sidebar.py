@@ -425,7 +425,7 @@ def geometry_section() -> rx.Component:
 # ---------------------------------------------------------------------------
 
 def quick_settings() -> rx.Component:
-    """Compact language + region row with EN/PT/ES."""
+    """Compact language + region row with EN/PT/ES/FR."""
     return rx.hstack(
         # Language
         rx.hstack(
@@ -449,6 +449,13 @@ def quick_settings() -> rx.Component:
                 size="1",
                 variant=rx.cond(AppState.language == "es", "solid", "outline"),
                 color_scheme=rx.cond(AppState.language == "es", "green", "gray"),
+            ),
+            rx.button(
+                "FR",
+                on_click=lambda: AppState.set_language("fr"),
+                size="1",
+                variant=rx.cond(AppState.language == "fr", "solid", "outline"),
+                color_scheme=rx.cond(AppState.language == "fr", "green", "gray"),
             ),
             spacing="1",
         ),

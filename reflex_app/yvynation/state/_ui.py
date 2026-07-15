@@ -14,8 +14,34 @@ class UIMixin(rx.State, mixin=True):
     # ---- Language -------------------------------------------------------
 
     def set_language(self, lang: str):
-        """Change application language."""
+        """Change application language (manual choice wins over auto-detect)."""
         self.language = lang
+        self.language_user_set = True
+
+    def detect_browser_language(self):
+        """On page load, ask the browser for its preferred language.
+
+        Runs client-side via navigator.language (no permission prompt, unlike
+        geolocation) and feeds the result to apply_browser_language. Skipped
+        when the user has already picked a language or disabled auto-detect.
+        """
+        if self.language_user_set or not self.auto_detect_enabled:
+            return
+        yield rx.call_script(
+            "navigator.language || 'en'",
+            callback=type(self).apply_browser_language,
+        )
+
+    def apply_browser_language(self, browser_lang: str):
+        """Map a BCP-47 browser tag (pt-BR, fr-CA, es-419…) to a supported language."""
+        from ..utils.translations import TRANSLATIONS
+
+        if self.language_user_set or not self.auto_detect_enabled:
+            return
+        code = (browser_lang or "").lower()[:2]
+        if code in TRANSLATIONS and code != self.language:
+            self.language = code
+            logger.info("Auto-detected browser language: %s -> %s", browser_lang, code)
 
     # ---- Country --------------------------------------------------------
 

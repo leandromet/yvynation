@@ -72,8 +72,11 @@ class AppState(
     # ====================================================================
     # Language & preferences
     # ====================================================================
-    language: str = "en"  # "en" | "pt" | "es"
+    language: str = "en"  # "en" | "pt" | "es" | "fr"
     auto_detect_enabled: bool = True
+    #: True once the user picks a language manually — blocks auto-detection
+    #: from overriding their choice on later loads in the same session.
+    language_user_set: bool = False
 
     # ====================================================================
     # Map view
@@ -270,10 +273,14 @@ class AppState(
 
     @rx.var(auto_deps=False, deps=["language"])
     def tr(self) -> Dict[str, str]:
-        """Current translations dict, reactive to language changes."""
-        from ..utils.translations import TRANSLATIONS
+        """Current translations dict, reactive to language changes.
 
-        return TRANSLATIONS.get(self.language, TRANSLATIONS["en"])
+        Merged over the English dict so a key missing from pt/es falls
+        back to the English string instead of rendering blank.
+        """
+        from ..utils.translations import get_translations
+
+        return get_translations(self.language)
 
     @rx.var
     def filtered_territories(self) -> List[str]:

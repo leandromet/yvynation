@@ -33,5 +33,5 @@ app.add_page(
     index,
     route="/",
     title="Yvynation - Indigenous Land Monitoring",
-    on_load=AppState.initialize_app,
+    on_load=[AppState.detect_browser_language, AppState.initialize_app],
 )
