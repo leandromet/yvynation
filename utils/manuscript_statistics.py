@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import sys
 import textwrap
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -134,6 +135,14 @@ class Reporter:
         self.lines: list[str] = []
         self.results: dict = {"dataset": ds.key, "label": ds.label, "steps": {}}
         self._step = 0
+        self.pvals: list[dict] = []  # pre-specified test p-values for FDR
+
+    def register_p(self, family, label, p, test="", primary=True):
+        """Record a p-value so the multiplicity step can FDR-adjust the family."""
+        if p is None or (isinstance(p, float) and np.isnan(p)):
+            return
+        self.pvals.append({"family": family, "label": label, "test": test,
+                           "p": float(p), "primary": bool(primary)})
 
     def h(self, text, level=2):
         self.lines.append(f"\n{'#'*level} {text}\n")
@@ -178,6 +187,53 @@ def _fmt_p(p):
     return "<0.001" if p < 1e-3 else f"{p:.3f}"
 
 
+def _fmt_ci(lo, hi, dec=2):
+    if lo is None or np.isnan(lo) or np.isnan(hi):
+        return "n/a"
+    return f"[{lo:.{dec}f}, {hi:.{dec}f}]"
+
+
+def benjamini_hochberg(pvals):
+    """Benjamini–Hochberg FDR-adjusted p-values (q-values), monotone, clipped."""
+    p = np.asarray(pvals, float)
+    n = len(p)
+    if n == 0:
+        return p
+    order = np.argsort(p)
+    ranked = p[order]
+    q = ranked * n / np.arange(1, n + 1)
+    q = np.minimum.accumulate(q[::-1])[::-1]  # enforce monotonicity
+    out = np.empty(n)
+    out[order] = np.clip(q, 0, 1)
+    return out
+
+
+def boot_ci(stat_fn, *samples, B=2000, alpha=0.05, seed=42, paired=False):
+    """Percentile bootstrap CI for an effect size.
+
+    paired=True resamples one shared index across all arrays (matched pairs);
+    otherwise each sample is resampled independently."""
+    rng = np.random.default_rng(seed)
+    samples = [np.asarray(s, float) for s in samples]
+    vals = []
+    for _ in range(B):
+        if paired:
+            idx = rng.integers(0, len(samples[0]), len(samples[0]))
+            rs = [s[idx] for s in samples]
+        else:
+            rs = [s[rng.integers(0, len(s), len(s))] for s in samples]
+        try:
+            vals.append(float(stat_fn(*rs)))
+        except Exception:  # noqa: BLE001
+            vals.append(np.nan)
+    vals = np.asarray(vals, float)
+    vals = vals[np.isfinite(vals)]
+    if len(vals) < 2:
+        return (np.nan, np.nan)
+    lo, hi = np.percentile(vals, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    return float(lo), float(hi)
+
+
 def hedges_g(a, b):
     a, b = np.asarray(a, float), np.asarray(b, float)
     n1, n2 = len(a), len(b)
@@ -199,6 +255,29 @@ def eta_omega(aov: pd.DataFrame, factor: str):
     return float(eta), float(omega)
 
 
+def _eta_boot_ci(sub, outcome, factor, B=1000, seed=42):
+    """Percentile bootstrap CI for eta^2 (resample rows, refit one-way ANOVA)."""
+    rng = np.random.default_rng(seed)
+    sub = sub[[outcome, factor]].dropna().reset_index(drop=True)
+    n = len(sub)
+    vals = []
+    for _ in range(B):
+        rs = sub.iloc[rng.integers(0, n, n)]
+        if rs[factor].nunique() < 2 or (rs.groupby(factor).size() < 2).any():
+            continue
+        try:
+            m = smf.ols(f"Q('{outcome}') ~ C(Q('{factor}'))", data=rs).fit()
+            av = anova_lm(m, typ=2)
+            ss = av["sum_sq"]
+            vals.append(float(ss.iloc[0] / ss.sum()))
+        except Exception:  # noqa: BLE001
+            continue
+    if len(vals) < 2:
+        return (np.nan, np.nan)
+    lo, hi = np.percentile(vals, [2.5, 97.5])
+    return float(lo), float(hi)
+
+
 def two_group(rep, sub, res, outcome, factor):
     levels = sub[factor].dropna().unique().tolist()
     a = sub.loc[sub[factor] == levels[0], outcome].dropna()
@@ -206,16 +285,21 @@ def two_group(rep, sub, res, outcome, factor):
     t, pt = st.ttest_ind(a, b, equal_var=False)          # Welch
     u, pu = st.mannwhitneyu(a, b, alternative="two-sided")
     g = hedges_g(a, b)
+    g_lo, g_hi = boot_ci(hedges_g, a.values, b.values)
     rep.p(f"**{OUTCOMES.get(outcome, outcome)}** — {factor}: "
           f"*{levels[0]}* (n={len(a)}, mean={a.mean():.2f}) vs "
           f"*{levels[1]}* (n={len(b)}, mean={b.mean():.2f}).")
     rep.code(
         f"Welch t-test:      t = {t:.3f}, p = {_fmt_p(pt)}\n"
         f"Mann-Whitney U:    U = {u:.1f}, p = {_fmt_p(pu)}  (non-parametric)\n"
-        f"Hedges g:          g = {g:.3f}  ({_g_word(g)} effect)")
+        f"Hedges g:          g = {g:.3f}  95% CI {_fmt_ci(g_lo, g_hi)}  "
+        f"({_g_word(g)} effect)")
     res[outcome] = dict(test="welch_t+mwu", levels=levels,
                         mean=[a.mean(), b.mean()], n=[len(a), len(b)],
-                        t=t, p_welch=pt, U=u, p_mwu=pu, hedges_g=g)
+                        t=t, p_welch=pt, U=u, p_mwu=pu,
+                        hedges_g=g, hedges_g_ci=[g_lo, g_hi])
+    rep.register_p("group_comparison", f"{outcome} ~ {factor} (Welch t)", pt,
+                   test="welch_t")
 
 
 def _g_word(g):
@@ -238,6 +322,7 @@ def oneway(rep, sub, res, outcome, factor):
     F = aov.loc[fac_row, "F"]; p = aov.loc[fac_row, "PR(>F)"]
     df1 = aov.loc[fac_row, "df"]; df2 = aov.loc["Residual", "df"]
     eta, omega = eta_omega(aov.rename(index={fac_row: factor}), factor)
+    eta_lo, eta_hi = _eta_boot_ci(sub, outcome, factor)
     lev = st.levene(*groups, center="median")
     sh = st.shapiro(model.resid)
     kw = st.kruskal(*groups)
@@ -247,17 +332,21 @@ def oneway(rep, sub, res, outcome, factor):
     rep.table(means)
     rep.code(
         f"One-way ANOVA:     F({df1:.0f},{df2:.0f}) = {F:.3f}, p = {_fmt_p(p)}\n"
-        f"  eta^2 = {eta:.3f}   omega^2 = {omega:.3f}   ({_eta_word(eta)})\n"
+        f"  eta^2 = {eta:.3f} 95% CI {_fmt_ci(eta_lo, eta_hi, 3)}   "
+        f"omega^2 = {omega:.3f}   ({_eta_word(eta)})\n"
         f"Levene (var eq.):  W = {lev.statistic:.3f}, p = {_fmt_p(lev.pvalue)}  "
         f"{'(homogeneous)' if lev.pvalue>=.05 else '(HETEROGENEOUS -> read Kruskal)'}\n"
         f"Shapiro (resid.):  W = {sh.statistic:.3f}, p = {_fmt_p(sh.pvalue)}  "
         f"{'(normal)' if sh.pvalue>=.05 else '(non-normal -> read Kruskal)'}\n"
         f"Kruskal-Wallis:    H = {kw.statistic:.3f}, p = {_fmt_p(kw.pvalue)}  (non-parametric)")
     res[outcome] = dict(test="oneway_anova", F=F, df=[df1, df2], p=p,
-                        eta_sq=eta, omega_sq=omega,
+                        eta_sq=eta, eta_sq_ci=[eta_lo, eta_hi], omega_sq=omega,
                         levene_p=lev.pvalue, shapiro_p=sh.pvalue,
                         kruskal_H=kw.statistic, kruskal_p=kw.pvalue,
                         means=means.reset_index().to_dict("records"))
+    # register the more conservative of the parametric/non-parametric omnibus p
+    rep.register_p("anova", f"{outcome} ~ {factor} (one-way ANOVA)", max(p, kw.pvalue),
+                   test="anova_or_kruskal")
     # Tukey post-hoc when omnibus (ANOVA or KW) is significant
     if min(p, kw.pvalue) < 0.05 and sub[factor].nunique() > 2:
         tuk = pairwise_tukeyhsd(sub[outcome], sub[factor])
@@ -282,16 +371,21 @@ def paired_core_buffer(rep, res, df):
         diff = d[b_col] - d[a_col]
         tt = st.ttest_rel(d[b_col], d[a_col])
         w = st.wilcoxon(d[b_col], d[a_col])
-        dz = diff.mean() / diff.std(ddof=1) if diff.std(ddof=1) else np.nan
+        _dz = lambda x: x.mean() / x.std(ddof=1) if x.std(ddof=1) else np.nan
+        dz = _dz(diff.values)
+        dz_lo, dz_hi = boot_ci(_dz, diff.values, paired=True)
         rep.p(f"**{name}** — buffer mean {d[b_col].mean():.2f} vs core mean "
               f"{d[a_col].mean():.2f} (mean paired diff {diff.mean():+.2f}, n={len(d)}):")
         rep.code(
             f"Paired t-test:     t = {tt.statistic:.3f}, p = {_fmt_p(tt.pvalue)}\n"
             f"Wilcoxon signed:   W = {w.statistic:.1f}, p = {_fmt_p(w.pvalue)}\n"
-            f"Cohen dz:          dz = {dz:.3f}")
+            f"Cohen dz:          dz = {dz:.3f}  95% CI {_fmt_ci(dz_lo, dz_hi)}")
         res[name] = dict(buffer_mean=d[b_col].mean(), core_mean=d[a_col].mean(),
                          mean_diff=diff.mean(), t=tt.statistic, p_t=tt.pvalue,
-                         wilcoxon_p=w.pvalue, cohen_dz=dz, n=len(d))
+                         wilcoxon_p=w.pvalue, cohen_dz=dz, cohen_dz_ci=[dz_lo, dz_hi],
+                         n=len(d))
+        rep.register_p("paired_core_buffer", f"{name} (paired t)", tt.pvalue,
+                       test="paired_t")
 
 
 def two_way(rep, res, df, f1, f2, outcome="gap"):
@@ -316,6 +410,8 @@ def two_way(rep, res, df, f1, f2, outcome="gap"):
         eta, omega = eta_omega(aov2, term)
         res.setdefault("effects", {})[term] = dict(
             F=aov2.loc[term, "F"], p=aov2.loc[term, "PR(>F)"], eta_sq=eta, omega_sq=omega)
+        rep.register_p("two_way", f"{outcome} ~ {term} (two-way ANOVA)",
+                       aov2.loc[term, "PR(>F)"], test="two_way_anova")
 
 
 def ols_robust(rep, res, df, formula):
@@ -343,6 +439,24 @@ def _formula_vars(formula, df):
     return list(dict.fromkeys(cols))
 
 
+def _cluster_ols(formula, data, groups, drop_dummies=True):
+    """Fit an OLS with territory-clustered SE; return (model, coef_table).
+
+    With absorbed fixed effects the cluster-robust vcov is rank-deficient on the
+    (dropped) dummy rows, which statsmodels flags with a sqrt-of-negative warning;
+    the coefficients of interest are unaffected, so we silence just that noise."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        model = smf.ols(formula, data=data).fit(
+            cov_type="cluster", cov_kwds={"groups": groups})
+        # force the lazy sqrt(vcov) here, inside the warning guard
+        ct = pd.DataFrame({"coef": model.params, "cluster_se": model.bse,
+                           "z": model.tvalues, "p": model.pvalues})
+    if drop_dummies:  # hide the many territory/year fixed-effect rows from the report
+        ct = ct[~ct.index.str.startswith(("C(territory)", "C(year)"))]
+    return model, ct
+
+
 def panel_model(rep, res, ds: DS):
     p = ds.d / "data" / "governance_rate_panel.csv"
     if not p.is_file():
@@ -350,23 +464,111 @@ def panel_model(rep, res, ds: DS):
     pan = pd.read_csv(p)
     pan = pan.dropna(subset=["hansen_loss_rate"])
     multi_region = pan["region"].nunique() > 1
-    rhs = "C(scope) + C(posture)" + (" + C(region)" if multi_region else "")
+    n_clusters = int(pan["territory"].nunique())
+    res["panel"] = {}
+
+    # --- Model A: baseline pooled panel (scope + posture [+ region]) ---------
+    rhsA = "C(scope) + C(posture)" + (" + C(region)" if multi_region else "")
     try:
-        model = smf.ols(f"hansen_loss_rate ~ {rhs}", data=pan).fit(
-            cov_type="cluster", cov_kwds={"groups": pan["territory"]})
+        mA, ctA = _cluster_ols(f"hansen_loss_rate ~ {rhsA}", pan, pan["territory"])
     except Exception as e:  # noqa: BLE001
         rep.p(f"Panel model skipped ({type(e).__name__}: {e}).")
         return
-    rep.p(f"Territory x year x scope governance panel (N={int(model.nobs)} "
-          f"observations, SE clustered by territory, {pan['territory'].nunique()} clusters). "
-          f"Outcome = annual Hansen loss rate (% of area).")
-    rep.code(f"hansen_loss_rate ~ {rhs}   [cluster-robust]\nR^2 = {model.rsquared:.3f}")
-    ct = pd.DataFrame({"coef": model.params, "cluster_se": model.bse,
-                       "z": model.tvalues, "p": model.pvalues})
-    rep.table(ct)
-    res["panel"] = dict(formula=f"hansen_loss_rate ~ {rhs}", n=int(model.nobs),
-                        n_clusters=int(pan["territory"].nunique()), r2=model.rsquared,
-                        coef=ct.reset_index().rename(columns={"index": "term"}).to_dict("records"))
+    rep.p(f"**Model A — pooled governance panel.** Territory × year × scope panel "
+          f"(N={int(mA.nobs)} obs, SE clustered by territory, {n_clusters} clusters). "
+          f"Outcome = annual Hansen loss rate (% of area). This is the descriptive "
+          f"baseline and it *reproduces the front-loading confound* — hostile "
+          f"'Opposed/mixed' posture appears with lower annual loss because most "
+          f"legacy clearing predates the satellite window.")
+    rep.code(f"hansen_loss_rate ~ {rhsA}   [cluster-robust]\nR^2 = {mA.rsquared:.3f}")
+    rep.table(ctA)
+    res["panel"]["model_A"] = dict(
+        formula=f"hansen_loss_rate ~ {rhsA}", n=int(mA.nobs), n_clusters=n_clusters,
+        r2=mA.rsquared, coef=ctA.reset_index().rename(columns={"index": "term"}).to_dict("records"))
+
+    # --- Model B: two-way (territory + year) fixed effects -------------------
+    # Year FE absorb the national front-loading trend; territory FE absorb every
+    # time-invariant area trait, so scope + posture are identified *within* area
+    # and year. This is the confound-robust upgrade of Model A.
+    rhsB = "C(scope) + C(posture) + C(year) + C(territory)"
+    try:
+        mB, ctB = _cluster_ols(f"hansen_loss_rate ~ {rhsB}", pan, pan["territory"])
+        rep.p(f"**Model B — two-way fixed effects (territory + year).** Same panel, "
+              f"now netting out every time-invariant area trait *and* the common "
+              f"annual trend, so the scope and posture coefficients are identified "
+              f"from *within-area, within-year* variation only (fixed-effect dummy "
+              f"rows suppressed for readability).")
+        rep.code(f"hansen_loss_rate ~ {rhsB}   [cluster-robust]\n"
+                 f"within R^2 = {mB.rsquared:.3f}   N = {int(mB.nobs)}")
+        rep.table(ctB)
+        for term in ctB.index:
+            if term.startswith("C(posture)") or term.startswith("C(scope)"):
+                rep.register_p("panel", f"[FE panel] {term}", ctB.loc[term, "p"],
+                               test="twoway_fe_ols")
+        res["panel"]["model_B"] = dict(
+            formula=f"hansen_loss_rate ~ {rhsB}", n=int(mB.nobs), n_clusters=n_clusters,
+            r2=mB.rsquared,
+            coef=ctB.reset_index().rename(columns={"index": "term"}).to_dict("records"))
+    except Exception as e:  # noqa: BLE001
+        rep.p(f"Model B (two-way FE) skipped ({type(e).__name__}: {e}).")
+
+    # --- Model C: rates on continuous pressure + change window ---------------
+    # Explicit panel-level H1/H2 test, on the MapBiomas rate series (which start
+    # ~1987 and are less front-loaded than Hansen), one model per rate.
+    rep.p("**Model C — explicit H1/H2 panel test.** Annual MapBiomas rates on the "
+          "continuous `combined_pressure` (H2) and the `change_window` flag (H1), "
+          "with scope and year FE and territory-clustered SE. Coefficients are pp of "
+          "area/yr per +1 pressure unit / per change window.")
+    res["panel"]["model_C"] = {}
+    for rate, name in [("mb_defor_primary_rate", "Primary deforestation"),
+                       ("mb_fire_scar_rate", "Fire scars")]:
+        sub = pan.dropna(subset=[rate, "combined_pressure", "change_window"])
+        if sub.empty:
+            continue
+        try:
+            mC, ctC = _cluster_ols(
+                f"{rate} ~ combined_pressure + C(change_window) + C(scope) + C(year)",
+                sub, sub["territory"])
+            rep.p(f"*{name}* (N={int(mC.nobs)}):")
+            rep.table(ctC)
+            for term in ctC.index:
+                if term.startswith(("combined_pressure", "C(change_window)")):
+                    rep.register_p("panel", f"[{name}] {term}", ctC.loc[term, "p"],
+                                   test="rate_panel_ols")
+            res["panel"]["model_C"][rate] = dict(
+                n=int(mC.nobs), r2=mC.rsquared,
+                coef=ctC.reset_index().rename(columns={"index": "term"}).to_dict("records"))
+        except Exception as e:  # noqa: BLE001
+            rep.p(f"Model C ({name}) skipped ({type(e).__name__}: {e}).")
+
+
+def multiplicity(rep, res, out: Path):
+    """Benjamini–Hochberg FDR across the pre-specified primary tests."""
+    prim = [r for r in rep.pvals if r["primary"]]
+    if not prim:
+        rep.p("No pre-specified p-values were registered — nothing to adjust.")
+        return
+    df = pd.DataFrame(prim)
+    df["q_bh"] = benjamini_hochberg(df["p"].values)
+    df["sig_raw"] = df["p"] < 0.05
+    df["sig_fdr"] = df["q_bh"] < 0.05
+    df = df.sort_values("p").reset_index(drop=True)
+    n_raw, n_fdr = int(df["sig_raw"].sum()), int(df["sig_fdr"].sum())
+    rep.p(f"""
+        The battery above evaluates {len(df)} pre-specified primary hypothesis tests
+        (paired core–buffer contrasts, primary- and secondary-factor comparisons,
+        any two-way and timing tests, and the fixed-effect panel coefficients).
+        Because they are few and pre-specified rather than screened, the main text
+        reports uncorrected p-values; here we additionally control the false-discovery
+        rate (Benjamini–Hochberg). **{n_raw}** tests are significant at raw α = 0.05 and
+        **{n_fdr}** survive FDR control at q < 0.05 — the gap between the two is the
+        honest multiplicity exposure of this dataset.
+    """)
+    show = df[["family", "label", "test", "p", "q_bh", "sig_fdr"]].copy()
+    rep.table(show.set_index(["family", "label"]))
+    show.to_csv(out / "tables" / "fdr_correction.csv", index=False)
+    res.update(n_tests=len(df), n_sig_raw=n_raw, n_sig_fdr=n_fdr,
+               table=df.to_dict("records"))
 
 
 # --------------------------------------------------------------------------- #
@@ -515,6 +717,8 @@ def run(ds: DS):
             f"OLS slope  = {slope:.3f} pp/yr (SE {se:.3f}), p = {_fmt_p(pv)}")
         s.update(dict(pearson_r=r, pearson_p=pr, spearman_rho=rho, spearman_p=prho,
                       slope=slope, slope_p=pv, n=len(d)))
+        rep.register_p("timing_trend", f"{ds.trend_var} vs gap (OLS slope)", pv,
+                       test="linregress")
 
     # Step 7 — OLS
     s = rep.step("ols", "Cross-sectional OLS (robust SE)")
@@ -529,6 +733,10 @@ def run(ds: DS):
     s = rep.step("panel", "Panel econometric model (cluster-robust)")
     panel_model(rep, s, ds)
 
+    # Step 9 — multiplicity correction across the pre-specified family
+    s = rep.step("multiplicity", "Multiplicity correction (Benjamini–Hochberg FDR)")
+    multiplicity(rep, s, out)
+
     rep.h("Reproducibility", level=2)
     rep.p(f"""
         Re-run with `.venv_stats/bin/python utils/manuscript_statistics.py {ds.key}`.
@@ -536,7 +744,13 @@ def run(ds: DS):
         `data/governance_rate_panel.csv`. Outputs in `statistics/`
         (`STATISTICS_REPORT.md`, `results.json`, `tables/`, `figures/`).
         Significance threshold alpha = 0.05 throughout; effect-size conventions:
-        Hedges g / Cohen dz (0.2/0.5/0.8), eta^2 (0.01/0.06/0.14).
+        Hedges g / Cohen dz (0.2/0.5/0.8), eta^2 (0.01/0.06/0.14). Effect sizes carry
+        percentile bootstrap 95% CIs (2,000 resamples for g/dz, 1,000 for eta^2;
+        seed 42). The panel step fits three specifications — (A) pooled scope+posture,
+        (B) two-way territory+year fixed effects, (C) MapBiomas rates on continuous
+        combined_pressure + change_window — all with territory-clustered SE. A final
+        Benjamini-Hochberg step FDR-adjusts the pre-specified primary tests
+        (`tables/fdr_correction.csv`).
     """)
 
     rep.save(out)
