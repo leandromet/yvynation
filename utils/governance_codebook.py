@@ -162,6 +162,28 @@ def president_table() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+STATE_TO_REGION = {s: r for r, states in political.REGIONS.items() for s in states}
+REGION_ORDER = ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"]
+_IDEO_LABEL = {l: w for l, w, _ in IDEOLOGY_LEVELS}
+
+
+def governor_table() -> pd.DataFrame:
+    """Full hand-coded governor roster (all states, 1985–2024) for verification."""
+    rows = []
+    for state, entries in political.GOVERNORS.items():
+        for name, party, start, end, ideo, notes in entries:
+            rows.append({
+                "region": STATE_TO_REGION.get(state, ""), "state": state,
+                "start_year": start, "end_year": end, "governor": name,
+                "party": party, "ideology": ideo,
+                "ideology_label": _IDEO_LABEL.get(ideo, ""), "notes": notes,
+            })
+    df = pd.DataFrame(rows)
+    df["_r"] = df["region"].map({r: i for i, r in enumerate(REGION_ORDER)}).fillna(99)
+    df = df.sort_values(["_r", "state", "start_year"]).drop(columns="_r").reset_index(drop=True)
+    return df
+
+
 def governor_ideology_distribution() -> pd.DataFrame:
     """How the hand-coded governor-years distribute across the ideology scale."""
     pol = political.build_political_context()
@@ -480,14 +502,34 @@ def write_markdown(root: Path, tables: dict, figs: dict) -> Path:
             _md_table(tables["coverage"], index=True),
             "",
         ]
+    gov = tables["governors"]
+    L += [
+        "## 7. Full governor roster (verification)",
+        "",
+        f"Every hand-coded state-governor entry ({len(gov)} rows across "
+        f"{gov['state'].nunique()} states + DF, 1985–2024), grouped by macro-region so "
+        "the ideology coding can be audited against the electoral record. `ideology` "
+        "uses the same −1…2 scale as §1; `end_year` is the last calendar year of tenure "
+        "(short <6-month acting periods are folded into the neighbour). Released as "
+        "`data/codebook_governor_ideology.csv`.",
+        "",
+    ]
+    show_cols = ["state", "start_year", "end_year", "governor", "party",
+                 "ideology", "ideology_label", "notes"]
+    for region in REGION_ORDER:
+        sub = gov[gov["region"] == region]
+        if sub.empty:
+            continue
+        L += [f"### {region}", "", _md_table(sub[show_cols]), ""]
+
     L += [
         "---",
         "",
         "### Reproducibility",
         "",
         "Re-run with `.venv/bin/python utils/governance_codebook.py`. Outputs: this "
-        "file, `data/codebook_*.csv` (variable registry, president/policy/posture/"
-        "recognition crosswalks, panel coverage, legal milestones) and "
+        "file, `data/codebook_*.csv` (variable registry, president/governor/policy/"
+        "posture/recognition crosswalks, panel coverage, legal milestones) and "
         "`figures/codebook_*.png`. The coding rules live in "
         "`reflex_app/yvynation/utils/political_context_brazil.py` and "
         "`policy_context_brazil.py`; this script only reads them.",
@@ -512,6 +554,7 @@ def main() -> int:
     (root / "figures").mkdir(parents=True, exist_ok=True)
 
     presidents = president_table()
+    governors = governor_table()
     gov_dist = governor_ideology_distribution()
     policy_year = policy_by_year_table()
     posture = posture_bin_table()
@@ -523,6 +566,7 @@ def main() -> int:
     # crosswalk CSVs
     registry.to_csv(root / "data" / "codebook_variables.csv", index=False)
     presidents.to_csv(root / "data" / "codebook_president_ideology.csv", index=False)
+    governors.to_csv(root / "data" / "codebook_governor_ideology.csv", index=False)
     policy_year.to_csv(root / "data" / "codebook_policy_scores_by_year.csv", index=False)
     posture.to_csv(root / "data" / "codebook_posture_bins.csv", index=False)
     recognition.to_csv(root / "data" / "codebook_recognition_tiers.csv", index=False)
@@ -533,16 +577,16 @@ def main() -> int:
     figs = {"heatmap": fig_policy_heatmap(root), "pressure": fig_pressure_timeline(root)}
 
     tables = {
-        "presidents": presidents, "gov_dist": gov_dist, "posture": posture,
-        "recognition": recognition, "coverage": coverage,
+        "presidents": presidents, "governors": governors, "gov_dist": gov_dist,
+        "posture": posture, "recognition": recognition, "coverage": coverage,
         "n_milestones": len(milestones),
     }
     md = write_markdown(root, tables, figs)
 
     print(f"Wrote codebook → {md}")
     print(f"  variables registry rows: {len(registry)}")
-    print(f"  presidents: {len(presidents)}   governor state-years coded: "
-          f"{int(gov_dist['governor_state_years'].sum())}")
+    print(f"  presidents: {len(presidents)}   governor entries: {len(governors)} "
+          f"({int(gov_dist['governor_state_years'].sum())} governor state-years)")
     print(f"  policy years: {len(policy_year)}   legal milestones: {len(milestones)}")
     if coverage is not None:
         print(f"  panel coverage: {coverage.loc['All', 'All']} core territory-years")
