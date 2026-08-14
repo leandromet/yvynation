@@ -466,10 +466,27 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_howto_7_body": "Cuando termine la ejecución, haga clic en 'Descargar ZIP' para obtener todas las tablas, transiciones y figuras de cada territorio en un único archivo.",
     "batch_start_btn": "🚀 Iniciar Procesamiento por Lotes",
     "territories_word": "territorios",
+    "batch_large_run_warning": "Selección grande — considere dividirla en varias ejecuciones más pequeñas (p. ej., 20-25 territorios cada una) para mantener la ejecución confiable. Si se interrumpe, los resultados parciales siguen disponibles en la página Ejecuciones Anteriores.",
     "batch_processing_ellipsis": "Procesando…",
     "batch_stop_btn": "⏹ Detener tras el actual",
     "batch_download_zip": "⬇️ Descargar ZIP",
     "batch_new_batch": "🔄 Nuevo Lote",
     "batch_territories_selected_suffix": " territorios seleccionados",
     "batch_no_territories": "Ningún territorio seleccionado",
+
+    # =====================================================================
+    # Página Ejecuciones Anteriores (previous_runs.py)
+    # =====================================================================
+    "previous_runs_title": "Ejecuciones Anteriores",
+    "previous_runs_subtitle": "Recupere exportaciones por lotes finalizadas o interrumpidas",
+    "previous_runs_intro": "Cada ejecución por lotes/exportación aparece aquí, incluidas las interrumpidas por una caída o un proceso detenido — nada se elimina hasta que usted lo descargue o lo borre manualmente.",
+    "previous_runs_refresh": "Actualizar",
+    "previous_runs_status_zip": "✅ Finalizada",
+    "previous_runs_status_partial": "⚠ Parcial — recuperable",
+    "previous_runs_download": "Descargar",
+    "previous_runs_zip_download": "Comprimir y Descargar",
+    "previous_runs_zipping": "Comprimiendo…",
+    "previous_runs_delete": "Eliminar",
+    "previous_runs_files_suffix": "archivos",
+    "previous_runs_empty": "Aún no hay ejecuciones anteriores — las descargas de lotes/exportaciones aparecerán aquí.",
 }

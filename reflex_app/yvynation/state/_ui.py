@@ -181,6 +181,12 @@ class UIMixin(rx.State, mixin=True):
         self.analysis_mode = "portal"
         self.show_indigenous_lands = False  # Hide on portal
 
+    def go_to_previous_runs(self):
+        """Navigate to the Previous Runs page and refresh its listing."""
+        self.analysis_mode = "previous_runs"
+        self.show_indigenous_lands = False
+        self.load_previous_runs()
+
     def mark_data_loaded(self):
         """Mark that core data has been loaded."""
         self.data_loaded = True

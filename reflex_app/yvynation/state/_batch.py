@@ -27,6 +27,7 @@ collects data from *all* selected territories into one file:
 """
 
 import asyncio
+import gc
 import io
 import json
 import logging
@@ -362,6 +363,18 @@ STEPS = {
     "done":         "✅ Done",
 }
 
+# ---------------------------------------------------------------------------
+# Large-run guardrail — soft warning only, run is never blocked.
+#
+# Above these counts a single run risks the container's memory ceiling (see
+# CLOUD_RUN_DEPLOYMENT.md: exports are written under uploaded_files/, which on
+# Cloud Run draws from the same memory budget as everything else). The lower,
+# "heavy" threshold applies when PNG maps and/or the buffer analysis are on,
+# since both multiply the per-territory output.
+# ---------------------------------------------------------------------------
+BATCH_WARN_THRESHOLD = 40
+BATCH_WARN_THRESHOLD_HEAVY = 25
+
 
 class BatchMixin(rx.State, mixin=True):
     """Event handlers and helpers for the batch-processing page."""
@@ -459,6 +472,19 @@ class BatchMixin(rx.State, mixin=True):
     @rx.var
     def batch_selected_count(self) -> int:
         return len(self.batch_selected_territories)
+
+    @rx.var
+    def batch_is_large_run(self) -> bool:
+        """True when the current selection is large enough to risk exhausting
+        the container's memory in one run (see BATCH_WARN_THRESHOLD).
+
+        Heavier per-territory output (PNG maps, buffer analyses) lowers the
+        safe threshold since each territory produces more files/figures.
+        """
+        threshold = BATCH_WARN_THRESHOLD
+        if self.batch_run_pdf_maps or self.batch_buffer_enabled:
+            threshold = BATCH_WARN_THRESHOLD_HEAVY
+        return self.batch_selected_count > threshold
 
     @rx.var
     def batch_is_territory_selected(self) -> Dict[str, bool]:
@@ -1836,6 +1862,12 @@ class BatchMixin(rx.State, mixin=True):
                     logger.error(f"Batch error for {territory}: {exc}", exc_info=True)
 
                 batch_summary.append(t_result)
+
+                # Pandas/numpy objects routinely form reference cycles that
+                # refcounting alone won't reclaim (DataFrame internals, EE
+                # client objects). Force a collection between territories so
+                # peak RSS doesn't ratchet up over a long batch run.
+                gc.collect()
 
             # ── Finalize ZIP: add summary files ────────────────────────────
             async with self:

@@ -187,6 +187,117 @@ def save_export_to_upload_dir(zip_bytes: bytes, filename: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Previous Runs — browse/recover what's sitting in the exports dir
+#
+# Backs the "Previous Runs" page. A folder without a matching ZIP is either
+# a run still in progress or one that never finished (crashed / OOM-killed
+# mid-batch) — see prune_old_exports(), which deliberately never touches
+# such folders. list_export_runs() surfaces both kinds so a user coming back
+# after a crash can still find and recover what was written before it died.
+# ---------------------------------------------------------------------------
+
+def _dir_size_and_count(path) -> Tuple[int, int]:
+    size = 0
+    count = 0
+    for f in path.rglob("*"):
+        if f.is_file():
+            size += f.stat().st_size
+            count += 1
+    return size, count
+
+
+def _format_size(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+def list_export_runs() -> List[Dict[str, Any]]:
+    """List every finished export ZIP and every leftover run folder.
+
+    Returns dicts with: name, kind ("zip"|"partial"), relpath (upload-
+    relative path, only for "zip"), size_label, file_count (only for
+    "partial"), time_label — newest first.
+    """
+    export_dir = get_export_dir()
+    zip_stems = set()
+    runs: List[Dict[str, Any]] = []
+
+    entries = list(export_dir.iterdir())
+    for p in entries:
+        if p.is_file() and p.suffix == ".zip":
+            zip_stems.add(p.stem)
+            st = p.stat()
+            runs.append({
+                "name": p.stem,
+                "kind": "zip",
+                "relpath": f"exports/{p.name}",
+                "size_label": _format_size(st.st_size),
+                "file_count": 0,
+                "time_label": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": st.st_mtime,
+            })
+    for p in entries:
+        if p.is_dir() and p.name not in zip_stems:
+            size, count = _dir_size_and_count(p)
+            runs.append({
+                "name": p.name,
+                "kind": "partial",
+                "relpath": "",
+                "size_label": _format_size(size),
+                "file_count": count,
+                "time_label": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": p.stat().st_mtime,
+            })
+
+    runs.sort(key=lambda r: r["mtime"], reverse=True)
+    for r in runs:
+        del r["mtime"]
+    return runs
+
+
+def zip_partial_run(run_name: str) -> Optional[str]:
+    """Compress a still-present run folder (in-progress or crashed) into a
+    downloadable ZIP. Returns the upload-relative path, or ``None`` if the
+    folder is gone or empty."""
+    export_dir = get_export_dir()
+    work_dir = (export_dir / run_name).resolve()
+    if export_dir.resolve() not in work_dir.parents or not work_dir.is_dir():
+        return None
+
+    zip_path = export_dir / f"{run_name}.zip"
+    size = zip_directory(work_dir, zip_path)
+    if size <= 0:
+        zip_path.unlink(missing_ok=True)
+        return None
+
+    import shutil
+    shutil.rmtree(work_dir, ignore_errors=True)
+    logger.info(f"Salvaged partial run '{run_name}' → {zip_path.name} ({size // 1024} KB)")
+    return f"exports/{zip_path.name}"
+
+
+def delete_export_run(name: str, kind: str) -> bool:
+    """Delete a finished ZIP (``kind="zip"``) or a leftover folder
+    (``kind="partial"``) from the exports dir. Returns whether it existed."""
+    export_dir = get_export_dir()
+    target = (export_dir / (f"{name}.zip" if kind == "zip" else name)).resolve()
+    if export_dir.resolve() not in target.parents:
+        return False
+    if kind == "zip" and target.is_file():
+        target.unlink()
+        return True
+    if kind == "partial" and target.is_dir():
+        import shutil
+        shutil.rmtree(target, ignore_errors=True)
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

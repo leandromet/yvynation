@@ -31,11 +31,13 @@ from ._analysis import AnalysisMixin
 from ._export import ExportMixin
 from ._batch import BatchMixin
 from ._advanced_viz import AdvancedVizMixin
+from ._previous_runs import PreviousRunsMixin
 
 logger = logging.getLogger(__name__)
 
 
 class AppState(
+    PreviousRunsMixin,
     BatchMixin,
     AdvancedVizMixin,
     ExportMixin,

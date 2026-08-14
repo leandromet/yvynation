@@ -557,10 +557,27 @@ O mapa será centralizado na região selecionada.""",
     "batch_howto_7_body": "Quando a execução terminar, clique em 'Baixar ZIP' para obter todas as tabelas, transições e figuras de todos os territórios em um único arquivo.",
     "batch_start_btn": "🚀 Iniciar Processamento em Lote",
     "territories_word": "territórios",
+    "batch_large_run_warning": "Seleção grande — considere dividir em algumas execuções menores (ex.: 20-25 territórios cada) para manter a execução confiável. Se for interrompida, os resultados parciais continuam disponíveis na página Execuções Anteriores.",
     "batch_processing_ellipsis": "Processando…",
     "batch_stop_btn": "⏹ Parar após o atual",
     "batch_download_zip": "⬇️ Baixar ZIP",
     "batch_new_batch": "🔄 Novo Lote",
     "batch_territories_selected_suffix": " territórios selecionados",
     "batch_no_territories": "Nenhum território selecionado",
+
+    # =====================================================================
+    # Página Execuções Anteriores (previous_runs.py)
+    # =====================================================================
+    "previous_runs_title": "Execuções Anteriores",
+    "previous_runs_subtitle": "Recupere exportações em lote finalizadas ou interrompidas",
+    "previous_runs_intro": "Toda execução em lote/exportação aparece aqui, incluindo as interrompidas por uma queda ou processo parado — nada é apagado até você baixar ou remover manualmente.",
+    "previous_runs_refresh": "Atualizar",
+    "previous_runs_status_zip": "✅ Concluída",
+    "previous_runs_status_partial": "⚠ Parcial — recuperável",
+    "previous_runs_download": "Baixar",
+    "previous_runs_zip_download": "Compactar e Baixar",
+    "previous_runs_zipping": "Compactando…",
+    "previous_runs_delete": "Excluir",
+    "previous_runs_files_suffix": "arquivos",
+    "previous_runs_empty": "Ainda não há execuções anteriores — downloads de lote/exportação aparecerão aqui.",
 }

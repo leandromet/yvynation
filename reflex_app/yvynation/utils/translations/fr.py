@@ -468,10 +468,27 @@ La carte sera centrée sur la région sélectionnée.""",
     "batch_howto_7_body": "À la fin de l'exécution, cliquez sur « Télécharger le ZIP » pour récupérer tous les tableaux, transitions et figures de chaque territoire dans une seule archive.",
     "batch_start_btn": "🚀 Démarrer le Traitement par Lots",
     "territories_word": "territoires",
+    "batch_large_run_warning": "Sélection importante — envisagez de la diviser en plusieurs exécutions plus petites (ex. 20-25 territoires chacune) pour rester fiable. En cas d'interruption, les résultats partiels restent disponibles sur la page Exécutions Précédentes.",
     "batch_processing_ellipsis": "Traitement…",
     "batch_stop_btn": "⏹ Arrêter après le territoire en cours",
     "batch_download_zip": "⬇️ Télécharger le ZIP",
     "batch_new_batch": "🔄 Nouveau Lot",
     "batch_territories_selected_suffix": " territoires sélectionnés",
     "batch_no_territories": "Aucun territoire sélectionné",
+
+    # =====================================================================
+    # Page Exécutions Précédentes (previous_runs.py)
+    # =====================================================================
+    "previous_runs_title": "Exécutions Précédentes",
+    "previous_runs_subtitle": "Récupérez les exports par lots terminés ou interrompus",
+    "previous_runs_intro": "Chaque exécution par lots/export apparaît ici, y compris celles interrompues par un plantage ou un arrêt — rien n'est supprimé tant que vous ne l'avez pas téléchargé ou supprimé vous-même.",
+    "previous_runs_refresh": "Actualiser",
+    "previous_runs_status_zip": "✅ Terminée",
+    "previous_runs_status_partial": "⚠ Partielle — récupérable",
+    "previous_runs_download": "Télécharger",
+    "previous_runs_zip_download": "Compresser et Télécharger",
+    "previous_runs_zipping": "Compression…",
+    "previous_runs_delete": "Supprimer",
+    "previous_runs_files_suffix": "fichiers",
+    "previous_runs_empty": "Aucune exécution précédente pour l'instant — les téléchargements de lots/exports apparaîtront ici.",
 }

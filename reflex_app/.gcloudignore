@@ -1,0 +1,55 @@
+# Controls what `gcloud run deploy --source .` uploads as build context.
+# Without this file gcloud falls back to .gitignore, which doesn't exclude
+# uploaded_files/ — that directory holds batch export ZIPs that can reach
+# several GB locally and have no business being uploaded as source.
+
+# Version control
+.git
+.gitignore
+**/.gitkeep
+
+# Python artefacts
+__pycache__
+**/__pycache__
+*.pyc
+**/*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+*.egg-info
+dist
+build
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets – never upload credentials
+.env
+*.json.key
+*service-account*.json
+
+# Reflex runtime artefacts (recreated during `reflex init` in Docker build)
+.web
+reflex.db
+
+# Node (inside .web, but guard here too)
+node_modules
+.next
+
+# Runtime upload/export directory — can be multiple GB locally; in
+# production this is GCS-FUSE-mounted, not part of the image at all.
+uploaded_files
+
+# Tests and docs (not needed to build the image)
+tests/
+*.md

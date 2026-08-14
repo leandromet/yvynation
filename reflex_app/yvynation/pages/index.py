@@ -18,6 +18,7 @@ from ..components.language_selector import language_selector
 from ..components.citation import citation_modal, cite_trigger
 from .portal import portal
 from .batch_processing import batch_processing_page
+from .previous_runs import previous_runs_page
 
 
 def active_target_bar() -> rx.Component:
@@ -517,6 +518,9 @@ def index() -> rx.Component:
         rx.cond(
             AppState.analysis_mode == "batch",
             batch_processing_page(),
+        rx.cond(
+            AppState.analysis_mode == "previous_runs",
+            previous_runs_page(),
         # Analysis pages (geometry or territory mode)
         rx.vstack(
             navbar(),
@@ -560,5 +564,6 @@ def index() -> rx.Component:
             height="120vh",
             spacing="0",
         ),
+        ),  # end rx.cond(previous_runs)
         ),  # end rx.cond(batch)
     )  # end rx.cond(portal)

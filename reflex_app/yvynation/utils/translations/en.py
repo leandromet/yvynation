@@ -557,10 +557,27 @@ The map will center on your selected region.""",
     "batch_howto_7_body": "When the run finishes, hit 'Download ZIP' to grab all tables, transitions, and figures for every territory in one self-describing archive.",
     "batch_start_btn": "🚀 Start Batch Processing",
     "territories_word": "territories",
+    "batch_large_run_warning": "Large selection — consider splitting this into a few smaller runs (e.g. 20-25 territories each) to keep the run reliable. If it's interrupted, partial results stay available on the Previous Runs page.",
     "batch_processing_ellipsis": "Processing…",
     "batch_stop_btn": "⏹ Stop after current",
     "batch_download_zip": "⬇️ Download ZIP",
     "batch_new_batch": "🔄 New Batch",
     "batch_territories_selected_suffix": " territories selected",
     "batch_no_territories": "No territories selected",
+
+    # =====================================================================
+    # Previous Runs page (previous_runs.py)
+    # =====================================================================
+    "previous_runs_title": "Previous Runs",
+    "previous_runs_subtitle": "Recover finished or interrupted batch exports",
+    "previous_runs_intro": "Every batch/export run shows up here, including ones interrupted by a crash or a stopped process — nothing is deleted until you download it or clear it out yourself.",
+    "previous_runs_refresh": "Refresh",
+    "previous_runs_status_zip": "✅ Finished",
+    "previous_runs_status_partial": "⚠ Partial — recoverable",
+    "previous_runs_download": "Download",
+    "previous_runs_zip_download": "Zip & Download",
+    "previous_runs_zipping": "Zipping…",
+    "previous_runs_delete": "Delete",
+    "previous_runs_files_suffix": "files",
+    "previous_runs_empty": "No previous runs yet — batch and export downloads will appear here.",
 }
