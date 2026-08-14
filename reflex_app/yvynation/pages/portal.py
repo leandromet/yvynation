@@ -7,6 +7,7 @@ Allows users to choose between geometry or indigenous territory analysis.
 import reflex as rx
 from ..state import AppState
 from ..components.language_selector import language_selector
+from ..components.citation import citation_modal, cite_trigger
 
 
 def portal_navbar() -> rx.Component:
@@ -61,6 +62,35 @@ def about_section() -> rx.Component:
                     color="#444",
                 ),
                 spacing="2",
+            ),
+            rx.divider(border_color="#d0e8d8"),
+            rx.box(
+                rx.vstack(
+                    rx.heading(
+                        "🛰️ " + AppState.tr["citation_acknowledgment_title"],
+                        size="4",
+                        color="#2d5a3d",
+                    ),
+                    rx.text(
+                        AppState.tr["citation_mission"],
+                        font_size="sm",
+                        line_height="1.8",
+                        color="#444",
+                    ),
+                    rx.text(
+                        AppState.tr["citation_acknowledgment_text"],
+                        font_size="sm",
+                        line_height="1.8",
+                        color="#444",
+                    ),
+                    cite_trigger(),
+                    spacing="2",
+                    align_items="flex-start",
+                ),
+                padding="1rem",
+                bg="#f0fdf4",
+                border="1px solid #bbf7d0",
+                border_radius="md",
             ),
             spacing="2",
         ),
@@ -267,7 +297,18 @@ def footer_section() -> rx.Component:
                     rx.heading("ℹ️ " + AppState.tr["about_title"], size="4", color="#1a472a"),
                     rx.link(AppState.tr["about_overview"], href="#", color="#15803d", font_weight="500", is_external=True),
                     rx.link(AppState.tr["portal_link_team"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["portal_link_cite"], href="#", color="#15803d", font_weight="500", is_external=True),
+                    rx.button(
+                        AppState.tr["portal_link_cite"],
+                        on_click=AppState.toggle_citation,
+                        variant="ghost",
+                        size="1",
+                        color="#15803d",
+                        font_weight="500",
+                        padding="0",
+                        height="auto",
+                        justify_content="flex-start",
+                        _hover={"text_decoration": "underline", "bg": "transparent"},
+                    ),
                     spacing="2",
                 ),
                 flex="1",
@@ -304,6 +345,7 @@ def portal() -> rx.Component:
             overflow_y="auto",
         ),
         footer_section(),
+        citation_modal(),
         width="100%",
         height="100vh",
         spacing="0",

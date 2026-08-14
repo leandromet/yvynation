@@ -119,6 +119,12 @@ class UIMixin(rx.State, mixin=True):
         """Toggle layer reference guide visibility."""
         self.show_layer_reference = not self.show_layer_reference
 
+    # ---- Citation / acknowledgments --------------------------------------
+
+    def toggle_citation(self):
+        """Toggle the 'How to cite & acknowledgments' panel visibility."""
+        self.show_citation = not self.show_citation
+
     # ---- Error / Loading helpers ----------------------------------------
 
     def set_error(self, message: str):

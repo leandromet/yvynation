@@ -469,6 +469,22 @@ The map will center on your selected region.""",
     "portal_link_cite": "How to Cite",
 
     # =====================================================================
+    # Citation & acknowledgments (components/citation.py)
+    # =====================================================================
+    "citation_title": "How to Cite & Acknowledgments",
+    "citation_mission": "Yvynation provides open geospatial data, charts, and figures to support communities and managers of Indigenous Lands and Conservation Units, and to give researchers and journalists reliable figures and tables for their own work.",
+    "citation_acknowledgment_title": "Acknowledgments",
+    "citation_acknowledgment_text": "Geospatial processing for this platform runs on Google Earth Engine, under the project ProtectedLandsYvynation-EE, registered for noncommercial research use. Cloud infrastructure is supported by Google Cloud Research Credits.",
+    "citation_howto_title": "Suggested citation",
+    "citation_platform_text": "Biondo, L. M. (2026). Yvynation: a geospatial monitoring platform for Indigenous Lands and Conservation Units [Software]. Institute for Sustainability, Growth and Health (IGS), UBC Okanagan. Data processed via Google Earth Engine (project ProtectedLandsYvynation-EE).",
+    "citation_datasets_title": "Please also cite the underlying data sources you used:",
+    "citation_ds_mapbiomas": "MapBiomas Project — Collection 10 of the Brazilian Land Cover & Use Map Series, mapbiomas.org",
+    "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
+    "citation_ds_aafc": "Agriculture and Agri-Food Canada (AAFC) — Annual Crop Inventory",
+    "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "citation_hide": "Hide",
+
+    # =====================================================================
     # Batch processing page (batch_processing.py)
     # =====================================================================
     "batch_title": "🔶 Batch Processing",

@@ -14,6 +14,7 @@ from ..components.geometry_popup import geometry_info_popup
 from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
 from ..components.loading_indicator import loading_indicator
+from ..components.citation import citation_modal
 from .index import navbar, active_layers_summary, comparison_results_section, main_content_area, error_toast
 
 
@@ -51,6 +52,7 @@ def geometry_analysis() -> rx.Component:
         error_toast(AppState),
         loading_indicator(),
         geometry_info_popup(),
+        citation_modal(),
         width="100%",
         height="100vh",
         spacing="0",

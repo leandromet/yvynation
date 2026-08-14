@@ -15,6 +15,7 @@ from ..components.tutorial import tutorial_section
 from ..components.layer_reference import layer_reference_guide
 from ..components.loading_indicator import loading_indicator
 from ..components.language_selector import language_selector
+from ..components.citation import citation_modal, cite_trigger
 from .portal import portal
 from .batch_processing import batch_processing_page
 
@@ -211,6 +212,7 @@ def navbar() -> rx.Component:
         # Right side - language, back button, clear button, and analysis indicator
         rx.hstack(
             language_selector(),
+            cite_trigger(),
             rx.button(
                 AppState.tr["back_to_portal"],
                 on_click=lambda: AppState.go_to_portal(),
@@ -553,6 +555,7 @@ def index() -> rx.Component:
             error_toast(AppState),
             loading_indicator(),
             geometry_info_popup(),
+            citation_modal(),
             width="100%",
             height="120vh",
             spacing="0",

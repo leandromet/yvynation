@@ -378,6 +378,22 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "portal_link_cite": "Cómo Citar",
 
     # =====================================================================
+    # Cita y agradecimientos (components/citation.py)
+    # =====================================================================
+    "citation_title": "Cómo Citar y Agradecimientos",
+    "citation_mission": "Yvynation ofrece datos geoespaciales, gráficos y figuras abiertos para apoyar a comunidades y gestores de Tierras Indígenas y Unidades de Conservación, y para brindar a investigadores y periodistas cifras y tablas confiables para su propio trabajo.",
+    "citation_acknowledgment_title": "Agradecimientos",
+    "citation_acknowledgment_text": "El procesamiento geoespacial de esta plataforma se ejecuta en Google Earth Engine, bajo el proyecto ProtectedLandsYvynation-EE, registrado para uso de investigación no comercial. La infraestructura en la nube cuenta con el apoyo de Google Cloud Research Credits.",
+    "citation_howto_title": "Cita sugerida",
+    "citation_platform_text": "Biondo, L. M. (2026). Yvynation: plataforma de monitoreo geoespacial de Tierras Indígenas y Unidades de Conservación [Software]. Institute for Sustainability, Growth and Health (IGS), UBC Okanagan. Datos procesados mediante Google Earth Engine (proyecto ProtectedLandsYvynation-EE).",
+    "citation_datasets_title": "Cite también las fuentes de datos utilizadas:",
+    "citation_ds_mapbiomas": "Proyecto MapBiomas — Colección 10 de la Serie de Mapas de Cobertura y Uso del Suelo de Brasil, mapbiomas.org",
+    "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
+    "citation_ds_aafc": "Agriculture and Agri-Food Canada (AAFC) — Annual Crop Inventory",
+    "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "citation_hide": "Ocultar",
+
+    # =====================================================================
     # Página de procesamiento por lotes (batch_processing.py)
     # =====================================================================
     "batch_title": "🔶 Procesamiento por Lotes",

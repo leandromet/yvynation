@@ -9,6 +9,7 @@ packaged into a single ZIP archive — no charts are rendered during processing.
 import reflex as rx
 from ..state import AppState
 from ..components.language_selector import language_selector
+from ..components.citation import citation_modal, cite_trigger
 
 
 # ---------------------------------------------------------------------------
@@ -884,6 +885,7 @@ def batch_navbar() -> rx.Component:
         ),
         rx.spacer(),
         language_selector(),
+        cite_trigger(color_scheme="orange"),
         rx.cond(
             AppState.batch_done & AppState.batch_zip_ready,
             rx.button(
@@ -1018,6 +1020,8 @@ def batch_processing_page() -> rx.Component:
             ),
             rx.box(),
         ),
+
+        citation_modal(),
 
         width="100%",
         height="100vh",

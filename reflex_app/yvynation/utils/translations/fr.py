@@ -380,6 +380,22 @@ La carte sera centrée sur la région sélectionnée.""",
     "portal_link_cite": "Comment Citer",
 
     # =====================================================================
+    # Citation et remerciements (components/citation.py)
+    # =====================================================================
+    "citation_title": "Comment Citer et Remerciements",
+    "citation_mission": "Yvynation fournit des données géospatiales, des graphiques et des figures en libre accès pour soutenir les communautés et les gestionnaires de Terres Indigènes et d'Unités de Conservation, ainsi que des chiffres et tableaux fiables pour les chercheurs et les journalistes.",
+    "citation_acknowledgment_title": "Remerciements",
+    "citation_acknowledgment_text": "Le traitement géospatial de cette plateforme s'exécute sur Google Earth Engine, dans le cadre du projet ProtectedLandsYvynation-EE, enregistré pour un usage de recherche non commercial. L'infrastructure cloud est soutenue par des crédits Google Cloud Research Credits.",
+    "citation_howto_title": "Citation suggérée",
+    "citation_platform_text": "Biondo, L. M. (2026). Yvynation : une plateforme de surveillance géospatiale des Terres Indigènes et des Unités de Conservation [Logiciel]. Institute for Sustainability, Growth and Health (IGS), UBC Okanagan. Données traitées via Google Earth Engine (projet ProtectedLandsYvynation-EE).",
+    "citation_datasets_title": "Veuillez également citer les sources de données utilisées :",
+    "citation_ds_mapbiomas": "Projet MapBiomas — Collection 10 de la série de cartes d'occupation du sol du Brésil, mapbiomas.org",
+    "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
+    "citation_ds_aafc": "Agriculture et Agroalimentaire Canada (AAFC) — Inventaire annuel des cultures",
+    "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "citation_hide": "Masquer",
+
+    # =====================================================================
     # Batch processing page (batch_processing.py)
     # =====================================================================
     "batch_title": "🔶 Traitement par Lots",

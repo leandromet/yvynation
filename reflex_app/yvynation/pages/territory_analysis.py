@@ -9,6 +9,7 @@ from ..components.territory_sidebar import territory_sidebar
 from ..components.loading_indicator import loading_indicator
 from .index import navbar, main_content_area, error_toast
 from ..components.geometry_popup import geometry_info_popup
+from ..components.citation import citation_modal
 
 
 def territory_analysis() -> rx.Component:
@@ -45,6 +46,7 @@ def territory_analysis() -> rx.Component:
         error_toast(AppState),
         loading_indicator(),
         geometry_info_popup(),
+        citation_modal(),
         width="100%",
         height="100vh",
         spacing="0",

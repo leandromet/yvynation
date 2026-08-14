@@ -240,6 +240,7 @@ class AppState(
     show_tutorial: bool = False
     tutorial_expanded_steps: List[int] = []
     show_layer_reference: bool = False
+    show_citation: bool = False
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""
     #: Default buffer distance used by the auto-buffer feature (km)
