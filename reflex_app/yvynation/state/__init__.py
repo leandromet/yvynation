@@ -115,7 +115,8 @@ class AppState(
     selected_territory: Optional[str] = None
     selected_country: str = "Brazil"
     #: "indigenous" | "conservation" — which GeoPackage backs the interactive
-    #: territory selector + map overlay (same contract as batch_territory_type)
+    #: territory selector + map overlay (single-select; batch page uses the
+    #: multi-select ``batch_territory_types`` instead)
     territory_type: str = "indigenous"
     territory_filter_state: Optional[str] = None
     available_territories: List[str] = []

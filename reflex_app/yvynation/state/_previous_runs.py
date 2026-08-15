@@ -40,8 +40,9 @@ class PreviousRunsMixin(rx.State, mixin=True):
         if not relpath:
             self.error_message = "This run isn't zipped yet — use 'Zip & download' first."
             return
+        from ..utils.export_service import get_download_url
         return rx.download(
-            url=rx.get_upload_url(relpath),
+            url=get_download_url(relpath),
             filename=relpath.rsplit("/", 1)[-1],
         )
 
@@ -70,8 +71,10 @@ class PreviousRunsMixin(rx.State, mixin=True):
                 )
 
         if relpath:
+            from ..utils.export_service import get_download_url
+            download_url = await loop.run_in_executor(None, get_download_url, relpath)
             yield rx.download(
-                url=rx.get_upload_url(relpath),
+                url=download_url,
                 filename=relpath.rsplit("/", 1)[-1],
             )
 

@@ -275,12 +275,12 @@ class ExportMixin(rx.State, mixin=True):
 
             # Serve from the exports dir over HTTP — reliable at any size
             # (a base64 data-URI over the websocket is not).
-            from ..utils.export_service import save_export_to_upload_dir
+            from ..utils.export_service import save_export_to_upload_dir, get_download_url
             rel = save_export_to_upload_dir(zip_bytes, filename)
 
             self.export_pending = False
             self.loading_message = ""
-            return rx.download(url=rx.get_upload_url(rel), filename=filename)
+            return rx.download(url=get_download_url(rel), filename=filename)
 
         except Exception as e:
             self.error_message = f"Export failed: {e}"
@@ -484,10 +484,11 @@ class ExportMixin(rx.State, mixin=True):
                 self.export_pending = False
                 self.loading_message = ""
 
-            yield rx.download(
-                url=rx.get_upload_url(f"exports/{zip_filename}"),
-                filename=zip_filename,
+            from ..utils.export_service import get_download_url
+            download_url = await loop.run_in_executor(
+                None, get_download_url, f"exports/{zip_filename}"
             )
+            yield rx.download(url=download_url, filename=zip_filename)
 
         except Exception as e:
             logger.error(f"[DOWNLOAD-ALL] failed: {e}", exc_info=True)

@@ -418,8 +418,13 @@ class BatchMixin(rx.State, mixin=True):
     # Custom mode: 3 or 4 user-selected years, comma-separated.
     batch_multi_window_custom_years: str = "1985, 1994, 2004, 2014, 2024"
     batch_territory_search: str = ""
-    # "indigenous" | "conservation" — which GeoPackage backs the selector
-    batch_territory_type: str = "indigenous"
+    # Which GeoPackage(s) back the selector — both may be active at once so
+    # indigenous lands and conservation units can be mixed in one batch run.
+    batch_territory_types: List[str] = ["indigenous"]
+    # Hectare range filter (empty string = no bound on that side). Kept as
+    # strings, same on_blur pattern as batch_buffer_km.
+    batch_min_area_ha: str = ""
+    batch_max_area_ha: str = ""
     # ---- Paste/upload a name list to auto-select areas ------------------------
     batch_paste_text: str = ""
     batch_paste_feedback: str = ""
@@ -441,25 +446,68 @@ class BatchMixin(rx.State, mixin=True):
 
     # ---- Computed ------------------------------------------------------------
 
+    def _batch_active_services(self) -> List[tuple]:
+        """[(type_name, service_singleton), ...] for the active territory types."""
+        services: List[tuple] = []
+        if "indigenous" in self.batch_territory_types:
+            from ..utils.territory_service import get_territory_service
+            services.append(("indigenous", get_territory_service()))
+        if "conservation" in self.batch_territory_types:
+            from ..utils.conservation_service import get_conservation_unit_service
+            services.append(("conservation", get_conservation_unit_service()))
+        return services
+
+    def _batch_parse_ha(self, raw: str) -> Optional[float]:
+        try:
+            v = float(raw)
+            return v if v >= 0 else None
+        except (ValueError, TypeError):
+            return None
+
     @rx.var
     def batch_available_territories(self) -> List[str]:
-        """Full territory list from the active source (indigenous or conservation)."""
+        """Full territory list from all active sources (indigenous and/or conservation)."""
         try:
-            if self.batch_territory_type == "conservation":
-                from ..utils.conservation_service import get_conservation_unit_service
-                return get_conservation_unit_service().get_all_display_keys()
-            from ..utils.territory_service import get_territory_service
-            return get_territory_service().get_all_display_keys()
+            keys: List[str] = []
+            for _type, svc in self._batch_active_services():
+                keys.extend(svc.get_all_display_keys())
+            return sorted(set(keys))
         except Exception:
             return []
 
+    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
+    def batch_territory_area_ha(self) -> Dict[str, float]:
+        """display_key → superficie_ha from the owning GeoPackage.
+
+        Backs the min/max hectare range filter — reuses the same cheap
+        static attribute already shown in ``batch_territory_meta``.
+        """
+        try:
+            out: Dict[str, float] = {}
+            for _type, svc in self._batch_active_services():
+                for key in svc.get_all_display_keys():
+                    info = svc.get_territory_info(key) or {}
+                    out[key] = float(info.get("superficie_ha") or 0)
+            return out
+        except Exception:
+            return {}
+
     @rx.var
     def batch_filtered_territories(self) -> List[str]:
-        """Territory list filtered by the search query."""
+        """Territory list filtered by search text and the min/max hectare range."""
+        out = self.batch_available_territories
         q = self.batch_territory_search.lower()
-        if not q:
-            return self.batch_available_territories
-        return [t for t in self.batch_available_territories if q in t.lower()]
+        if q:
+            out = [t for t in out if q in t.lower()]
+        min_ha = self._batch_parse_ha(self.batch_min_area_ha)
+        max_ha = self._batch_parse_ha(self.batch_max_area_ha)
+        if min_ha is not None or max_ha is not None:
+            areas = self.batch_territory_area_ha
+            if min_ha is not None:
+                out = [t for t in out if areas.get(t, 0) >= min_ha]
+            if max_ha is not None:
+                out = [t for t in out if areas.get(t, 0) <= max_ha]
+        return out
 
     @rx.var
     def batch_progress_pct(self) -> int:
@@ -491,7 +539,7 @@ class BatchMixin(rx.State, mixin=True):
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
 
-    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_type"])
+    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
     def batch_territory_uf(self) -> Dict[str, str]:
         """display_key → normalised UF sigla string (e.g. "PA", "MT, PA").
 
@@ -499,86 +547,101 @@ class BatchMixin(rx.State, mixin=True):
         Siglas are comma+space separated regardless of how they are stored.
         """
         try:
-            is_conservation = self.batch_territory_type == "conservation"
-            if is_conservation:
-                from ..utils.conservation_service import get_conservation_unit_service
-                svc = get_conservation_unit_service()
-                keys = svc.get_all_display_keys()
-            else:
-                from ..utils.territory_service import get_territory_service
-                svc = get_territory_service()
-                keys = self.available_territories
             out: Dict[str, str] = {}
-            for key in keys:
-                info = svc.get_territory_info(key) or {}
-                raw = (info.get("uf_sigla") or "").strip()
-                # Normalise separators: "RR,AM,PA" → "RR, AM, PA"
-                if raw:
-                    out[key] = ", ".join(p.strip() for p in raw.split(",") if p.strip())
+            for _type, svc in self._batch_active_services():
+                for key in svc.get_all_display_keys():
+                    info = svc.get_territory_info(key) or {}
+                    raw = (info.get("uf_sigla") or "").strip()
+                    # Normalise separators: "RR,AM,PA" → "RR, AM, PA"
+                    if raw:
+                        out[key] = ", ".join(p.strip() for p in raw.split(",") if p.strip())
             return out
         except Exception:
             return {}
 
-    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_type"])
+    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
     def batch_territory_meta(self) -> Dict[str, str]:
-        """display_key → one-line metadata string from the active GeoPackage.
+        """display_key → one-line metadata string from the owning GeoPackage.
 
         Indigenous format: ``🪶 {etnia}  •  📐 {area} ha``
         Conservation format: ``🌿 {categoria}  •  📐 {area} ha``
         Parts are omitted when missing; returns ``""`` for unknown keys.
 
         auto_deps=False: Reflex's dep introspection trips on relative imports,
-        so we declare deps explicitly to react when the territory list or type
-        changes.
+        so we declare deps explicitly to react when the territory list or
+        active types change.
         """
         try:
-            is_conservation = self.batch_territory_type == "conservation"
-            if is_conservation:
-                from ..utils.conservation_service import get_conservation_unit_service
-                svc = get_conservation_unit_service()
-            else:
-                from ..utils.territory_service import get_territory_service
-                svc = get_territory_service()
-
             out: Dict[str, str] = {}
-            keys = (
-                svc.get_all_display_keys()
-                if is_conservation
-                else self.available_territories
-            )
-            for key in keys:
-                info = svc.get_territory_info(key) or {}
-                parts = []
-                if is_conservation:
-                    cat = (info.get("categoria") or "").strip()
-                    if cat:
-                        parts.append(f"🌿 {cat}")
-                else:
-                    etn = (info.get("etnia") or "").strip()
-                    if etn:
-                        parts.append(f"🪶 {etn}")
-                ha = info.get("superficie_ha") or 0
-                if ha and ha > 0:
-                    parts.append(f"📐 {ha:,.0f} ha")
-                out[key] = "   ".join(parts)
+            for type_name, svc in self._batch_active_services():
+                is_conservation = type_name == "conservation"
+                for key in svc.get_all_display_keys():
+                    info = svc.get_territory_info(key) or {}
+                    parts = []
+                    if is_conservation:
+                        cat = (info.get("categoria") or "").strip()
+                        if cat:
+                            parts.append(f"🌿 {cat}")
+                    else:
+                        etn = (info.get("etnia") or "").strip()
+                        if etn:
+                            parts.append(f"🪶 {etn}")
+                    ha = info.get("superficie_ha") or 0
+                    if ha and ha > 0:
+                        parts.append(f"📐 {ha:,.0f} ha")
+                    out[key] = "   ".join(parts)
             return out
         except Exception:
             return {}
+
+    def _batch_resolve_territory_type(self, key: str) -> str:
+        """Which GeoPackage a selected display key actually belongs to.
+
+        Selection can outlive the type-filter toggles (mixed indigenous +
+        conservation runs), so this checks both services directly instead of
+        trusting the current UI filter state.
+        """
+        from ..utils.territory_service import get_territory_service
+        if get_territory_service().get_territory_info(key):
+            return "indigenous"
+        from ..utils.conservation_service import get_conservation_unit_service
+        if get_conservation_unit_service().get_territory_info(key):
+            return "conservation"
+        return "indigenous"
 
     # ---- Selection helpers ---------------------------------------------------
 
     def batch_set_territory_search(self, q: str):
         self.batch_territory_search = q
 
-    def batch_set_territory_type(self, t: str):
-        """Switch between 'indigenous' and 'conservation' territory sources."""
-        if t in ("indigenous", "conservation") and t != self.batch_territory_type:
-            self.batch_territory_type = t
-            # Clear selection to avoid mixing territory types
-            self.batch_selected_territories = []
-            self.batch_territory_search = ""
-            self.batch_paste_feedback = ""
-            self.batch_paste_unmatched = []
+    def batch_set_min_area_ha(self, v: str):
+        self.batch_min_area_ha = v
+
+    def batch_set_max_area_ha(self, v: str):
+        self.batch_max_area_ha = v
+
+    def batch_clear_area_filter(self):
+        self.batch_min_area_ha = ""
+        self.batch_max_area_ha = ""
+
+    def batch_toggle_territory_type(self, t: str):
+        """Toggle 'indigenous' / 'conservation' as an active territory source.
+
+        Both may be active at once, listing territories from either
+        GeoPackage side by side. At least one type stays active. Toggling
+        does not clear the current selection — each selected territory's
+        source is resolved directly at run time (``_batch_resolve_territory_type``),
+        so selections safely persist across filter changes.
+        """
+        if t not in ("indigenous", "conservation"):
+            return
+        current = list(self.batch_territory_types)
+        if t in current:
+            if len(current) > 1:
+                current.remove(t)
+        else:
+            current.append(t)
+        self.batch_territory_types = current
 
     # ---- Paste/upload list → auto-select -------------------------------------
 
@@ -640,7 +703,10 @@ class BatchMixin(rx.State, mixin=True):
 
         self.batch_selected_territories = sorted(current)
         self.batch_paste_unmatched = unmatched
-        src = "conservation units" if self.batch_territory_type == "conservation" else "indigenous lands"
+        src = " + ".join(
+            "conservation units" if t == "conservation" else "indigenous lands"
+            for t in self.batch_territory_types
+        )
         self.batch_paste_feedback = (
             f"✓ Matched {matched} of {len(names)} names against {src} — "
             f"{len(self.batch_selected_territories)} selected total."
@@ -816,13 +882,15 @@ class BatchMixin(rx.State, mixin=True):
     # ---- Download -----------------------------------------------------------
 
     def download_batch_zip(self):
-        """Download the completed batch ZIP (streamed over HTTP from the
-        exports dir — no websocket data-URI, so size is unbounded)."""
+        """Download the completed batch ZIP (signed GCS URL in production —
+        see export_service.get_download_url — since Cloud Run's own proxy
+        caps app-proxied responses around 32 MiB, well under batch ZIP size)."""
         if not self.batch_zip_relpath:
             self.error_message = "Batch ZIP not ready yet"
             return
+        from ..utils.export_service import get_download_url
         return rx.download(
-            url=rx.get_upload_url(self.batch_zip_relpath),
+            url=get_download_url(self.batch_zip_relpath),
             filename=self.batch_zip_relpath.rsplit("/", 1)[-1],
         )
 
@@ -878,7 +946,11 @@ class BatchMixin(rx.State, mixin=True):
             if self.batch_run_aux_mining_substances:aux_layer_keys.append("mining_substances")
             if self.batch_run_aux_agriculture_cycles:aux_layer_keys.append("agriculture_cycles")
             run_timeline = bool(self.batch_run_deforestation_timeline)
-            territory_type = str(self.batch_territory_type)
+            # Resolved per-territory (not a single global value) so a run can
+            # mix indigenous lands and conservation units in one selection.
+            territory_type_map: Dict[str, str] = {
+                t: self._batch_resolve_territory_type(t) for t in self.batch_selected_territories
+            }
             multi_years: List[int] = list(self.batch_multi_window_resolved_years) if run_multi else []
             if run_multi and len(multi_years) < 2:
                 # Invalid input — disable for this run to avoid wasted EE calls.
@@ -970,7 +1042,7 @@ class BatchMixin(rx.State, mixin=True):
 
                 try:
                     # ─── Step 1: EE geometry (instant, local GeoPackage) ────
-                    def _get_ee_geom(terr=territory, ttype=territory_type):
+                    def _get_ee_geom(terr=territory, ttype=territory_type_map[territory]):
                         if ttype == "conservation":
                             from ..utils.conservation_service import get_conservation_unit_service
                             svc = get_conservation_unit_service()
@@ -1001,7 +1073,7 @@ class BatchMixin(rx.State, mixin=True):
                     # — split them into four bounding-box quadrants and run
                     # the whole pipeline on each.  Each quadrant becomes its
                     # own sub-folder in the ZIP (nw/, ne/, sw/, se/).
-                    def _get_area_and_shapely(terr=territory, ttype=territory_type):
+                    def _get_area_and_shapely(terr=territory, ttype=territory_type_map[territory]):
                         if ttype == "conservation":
                             from ..utils.conservation_service import get_conservation_unit_service
                             svc = get_conservation_unit_service()
@@ -1678,7 +1750,7 @@ class BatchMixin(rx.State, mixin=True):
                             bkm=buf_km,
                             y_start=int(year1),
                             y_end=int(year2),
-                            ttype=territory_type,
+                            ttype=territory_type_map[territory],
                         ):
                             try:
                                 from ..utils.export_service import _slug, _write_fig

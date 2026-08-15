@@ -73,22 +73,22 @@ def territory_selector() -> rx.Component:
             ),
             width="100%", align_items="center",
         ),
-        # Territory type toggle
+        # Territory type toggle — both may be active at once (mixed batches)
         rx.hstack(
             rx.button(
                 AppState.tr["batch_indigenous_btn"],
-                on_click=AppState.batch_set_territory_type("indigenous"),
+                on_click=AppState.batch_toggle_territory_type("indigenous"),
                 size="1",
                 bg=rx.cond(
-                    AppState.batch_territory_type == "indigenous",
+                    AppState.batch_territory_types.contains("indigenous"),
                     ORANGE, "white",
                 ),
                 color=rx.cond(
-                    AppState.batch_territory_type == "indigenous",
+                    AppState.batch_territory_types.contains("indigenous"),
                     "white", "#6B7280",
                 ),
                 border=rx.cond(
-                    AppState.batch_territory_type == "indigenous",
+                    AppState.batch_territory_types.contains("indigenous"),
                     f"1px solid {ORANGE}",
                     f"1px solid #D1D5DB",
                 ),
@@ -96,24 +96,24 @@ def territory_selector() -> rx.Component:
                 flex="1",
                 cursor="pointer",
                 _hover={"bg": rx.cond(
-                    AppState.batch_territory_type == "indigenous",
+                    AppState.batch_territory_types.contains("indigenous"),
                     ORANGE_DARK, "#F9FAFB",
                 )},
             ),
             rx.button(
                 AppState.tr["batch_conservation_btn"],
-                on_click=AppState.batch_set_territory_type("conservation"),
+                on_click=AppState.batch_toggle_territory_type("conservation"),
                 size="1",
                 bg=rx.cond(
-                    AppState.batch_territory_type == "conservation",
+                    AppState.batch_territory_types.contains("conservation"),
                     "#16A34A", "white",
                 ),
                 color=rx.cond(
-                    AppState.batch_territory_type == "conservation",
+                    AppState.batch_territory_types.contains("conservation"),
                     "white", "#6B7280",
                 ),
                 border=rx.cond(
-                    AppState.batch_territory_type == "conservation",
+                    AppState.batch_territory_types.contains("conservation"),
                     "1px solid #16A34A",
                     "1px solid #D1D5DB",
                 ),
@@ -121,11 +121,47 @@ def territory_selector() -> rx.Component:
                 flex="1",
                 cursor="pointer",
                 _hover={"bg": rx.cond(
-                    AppState.batch_territory_type == "conservation",
+                    AppState.batch_territory_types.contains("conservation"),
                     "#15803D", "#F9FAFB",
                 )},
             ),
             width="100%", spacing="2",
+        ),
+        # Area range filter (hectares)
+        rx.hstack(
+            rx.text(AppState.tr["batch_area_filter_label"], font_size="xs", color="#6B7280", flex_shrink="0"),
+            rx.input(
+                placeholder=AppState.tr["batch_min_ha_placeholder"],
+                value=AppState.batch_min_area_ha,
+                on_change=AppState.batch_set_min_area_ha,
+                type="number",
+                min="0",
+                size="1",
+                width="90px",
+            ),
+            rx.text("–", color="#9CA3AF", flex_shrink="0"),
+            rx.input(
+                placeholder=AppState.tr["batch_max_ha_placeholder"],
+                value=AppState.batch_max_area_ha,
+                on_change=AppState.batch_set_max_area_ha,
+                type="number",
+                min="0",
+                size="1",
+                width="90px",
+            ),
+            rx.text(AppState.tr["batch_ha_suffix"], font_size="xs", color="#9CA3AF", flex_shrink="0"),
+            rx.cond(
+                (AppState.batch_min_area_ha != "") | (AppState.batch_max_area_ha != ""),
+                rx.button(
+                    "✕",
+                    on_click=AppState.batch_clear_area_filter,
+                    size="1",
+                    variant="ghost",
+                    color_scheme="gray",
+                ),
+                rx.box(),
+            ),
+            width="100%", align_items="center", spacing="2",
         ),
         # Search
         rx.input(

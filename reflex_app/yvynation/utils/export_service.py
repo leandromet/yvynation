@@ -67,11 +67,17 @@ logger = logging.getLogger(__name__)
 #
 # ``rx.download(data=...)`` ships the whole archive as a base64 data-URI over
 # the websocket — unreliable beyond a few tens of MB and ~3× the RAM.  Large
-# exports are therefore written under ``uploaded_files/exports/`` and served
-# by Reflex's ``/_upload`` static mount (streamed from disk, no size cap):
+# exports are therefore written under ``uploaded_files/exports/``:
 #
 #     rel = save_export_to_upload_dir(zip_bytes, filename)
-#     return rx.download(url=rx.get_upload_url(rel), filename=filename)
+#     return rx.download(url=get_download_url(rel), filename=filename)
+#
+# Use get_download_url(), not rx.get_upload_url(), for anything that might
+# exceed ~32 MiB. Locally/small files it's the same /_upload static mount;
+# on Cloud Run (GCS_EXPORT_BUCKET set) exports/ is a GCS FUSE volume and
+# Cloud Run's proxy caps fixed-Content-Length responses at ~32 MiB, so
+# get_download_url() hands back a signed GCS URL instead — the browser
+# downloads straight from GCS, bypassing that cap entirely.
 #
 # For very large archives, build the ZIP directly on disk instead of BytesIO:
 #
@@ -184,6 +190,49 @@ def save_export_to_upload_dir(zip_bytes: bytes, filename: str) -> str:
     prune_old_exports()
     logger.info(f"Export saved: {path} ({len(zip_bytes) // 1024} KB)")
     return f"exports/{filename}"
+
+
+def get_download_url(relpath: str) -> str:
+    """URL for downloading an ``exports/``-relative path.
+
+    Locally (no ``GCS_EXPORT_BUCKET`` env var) this is the app's own
+    ``/_upload`` static mount. On Cloud Run, ``uploaded_files/exports/`` is
+    a GCS FUSE volume, but Cloud Run's own proxy caps fixed-Content-Length
+    responses at ~32 MiB — Starlette's static-file serving sets
+    Content-Length, so any export past that size 500s when served through
+    the app (see the batch-processing memory/persistence fix notes).
+    Anything bucket-backed is therefore handed to the browser as a signed
+    GCS URL instead, bypassing the app entirely for the actual transfer.
+
+    Requires ``roles/iam.serviceAccountTokenCreator`` granted to the
+    Cloud Run service account on itself (no private key on the instance,
+    so signing goes through the IAM Credentials API's signBlob).
+    """
+    import os
+    bucket_name = os.environ.get("GCS_EXPORT_BUCKET", "")
+    if not bucket_name:
+        import reflex as rx
+        return rx.get_upload_url(relpath)
+
+    blob_name = relpath[len("exports/"):] if relpath.startswith("exports/") else relpath
+
+    import datetime
+    import google.auth
+    from google.auth.transport import requests as g_requests
+    from google.cloud import storage
+
+    credentials, project = google.auth.default()
+    credentials.refresh(g_requests.Request())
+
+    client = storage.Client(credentials=credentials, project=project)
+    blob = client.bucket(bucket_name).blob(blob_name)
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(hours=6),
+        method="GET",
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token,
+    )
 
 
 # ---------------------------------------------------------------------------
