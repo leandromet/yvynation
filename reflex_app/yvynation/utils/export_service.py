@@ -195,25 +195,24 @@ def save_export_to_upload_dir(zip_bytes: bytes, filename: str) -> str:
 def get_download_url(relpath: str) -> str:
     """URL for downloading an ``exports/``-relative path.
 
-    Locally (no ``GCS_EXPORT_BUCKET`` env var) this is the app's own
-    ``/_upload`` static mount. On Cloud Run, ``uploaded_files/exports/`` is
-    a GCS FUSE volume, but Cloud Run's own proxy caps fixed-Content-Length
-    responses at ~32 MiB — Starlette's static-file serving sets
-    Content-Length, so any export past that size 500s when served through
-    the app (see the batch-processing memory/persistence fix notes).
-    Anything bucket-backed is therefore handed to the browser as a direct
-    public GCS URL instead, bypassing the app entirely for the actual
-    transfer. Requires ``allUsers``/``Storage Object Viewer`` on the bucket
-    (or the individual objects) — no service-account signing involved.
-    """
-    import os
-    bucket_name = os.environ.get("GCS_EXPORT_BUCKET", "")
-    if not bucket_name:
-        import reflex as rx
-        return rx.get_upload_url(relpath)
+    Always the app's own streaming download route — see
+    :mod:`yvynation.utils.download_routes`, which explains why the two obvious
+    alternatives both fail:
 
-    blob_name = relpath[len("exports/"):] if relpath.startswith("exports/") else relpath
-    return f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+    * Reflex's ``/_upload`` static mount sets ``Content-Length``, and Cloud Run
+      caps *non-streaming* responses at ~32 MiB — well under a batch ZIP.
+    * A direct ``https://storage.googleapis.com/…`` link is rejected outright by
+      ``rx.download()``, which requires the URL to start with ``/``. That raised
+      a ``ValueError`` in the handler the instant ``GCS_EXPORT_BUCKET`` was set,
+      which is why downloads worked locally and failed in production.
+
+    The streaming route is same-origin (so ``rx.download`` accepts it), chunked
+    (so the size cap does not apply), and reads with the runtime service
+    account's own credentials — no public bucket ACL required.
+    """
+    from .download_routes import download_url_for
+
+    return download_url_for(relpath)
 
 
 # ---------------------------------------------------------------------------

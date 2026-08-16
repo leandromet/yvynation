@@ -65,6 +65,20 @@ gcloud run deploy yvynation \
   --set-env-vars GCP_PROJECT_ID=$PROJECT_ID
 ```
 
+> **Export downloads.** Batch ZIPs are served by the app's own streaming route
+> (`/download/exports/…`), reading through the runtime service account — the
+> export bucket does **not** need `allUsers`. Note `--timeout 300` above applies
+> to the download too; raise it (`--timeout 3600`) if large archives cut off
+> partway. See [`docs/EXPORT_DOWNLOADS.md`](docs/EXPORT_DOWNLOADS.md).
+
+> **Batch concurrency / Earth Engine tier.** The batch pipeline sizes its
+> Earth Engine parallelism from `YVY_EE_TIER` (default `partner`, matching the
+> uplift granted 2026-08-15). When that uplift **expires on 2027-02-15**, roll
+> back with
+> `gcloud run services update yvynation --set-env-vars YVY_EE_TIER=contributor`
+> — no redeploy needed. Full rationale, tuning knobs and rollback checklist:
+> [`docs/BATCH_CONCURRENCY.md`](docs/BATCH_CONCURRENCY.md).
+
 ### Passing Service Account to Cloud Run
 
 Option 1: Mount service account key (less secure)

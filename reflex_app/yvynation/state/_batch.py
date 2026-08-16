@@ -103,15 +103,35 @@ def _is_transient_error(exc: Exception) -> bool:
 
 async def _ee_with_retry(loop, fn, label: str, retries: int = 3, base_delay: float = 4.0):
     """
-    Run *fn* in an executor with up to *retries* attempts on transient EE errors.
+    Run *fn* on the Earth Engine pool with up to *retries* attempts on transient
+    EE errors.
 
     Returns the result on success, ``None`` on persistent failure.  Logs
     progress between attempts so the batch task can keep going.
+
+    The pool (``utils/ee_concurrency``) is the single global throttle on
+    in-flight EE requests: callers can fan out as widely as the analysis graph
+    allows and the pool queues whatever exceeds the tier budget.  Backoff waits
+    happen *outside* the executor, so a retrying call never occupies a worker.
     """
+    from ..utils.ee_concurrency import ee_meter, get_ee_executor
+
+    executor = get_ee_executor()
+
+    def _metered(_fn=fn):
+        # Metered inside the worker thread, so the timing covers the actual
+        # request rather than the queue wait ahead of it — a slot only counts
+        # as busy once it really is.
+        ee_meter.enter()
+        try:
+            return _fn()
+        finally:
+            ee_meter.exit()
+
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
         try:
-            return await loop.run_in_executor(None, fn)
+            return await loop.run_in_executor(executor, _metered)
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             transient = _is_transient_error(exc)
@@ -126,6 +146,26 @@ async def _ee_with_retry(loop, fn, label: str, retries: int = 3, base_delay: flo
             break
     logger.error(f"❌ {label}: gave up after {attempt} attempts — {last_exc}")
     return None
+
+
+async def _render(loop, fn):
+    """Run chart/map rendering on the single-slot render pool.
+
+    Everything that touches kaleido (Plotly → PNG) or pyplot (the map exporter)
+    must go through here — both keep module-global state that concurrent threads
+    corrupt.  With territories running in parallel this is what keeps the render
+    stage strictly one-at-a-time while their Earth Engine fetches overlap.
+    """
+    from ..utils.ee_concurrency import get_render_executor, render_meter
+
+    def _metered():
+        render_meter.enter()
+        try:
+            return fn()
+        finally:
+            render_meter.exit()
+
+    return await loop.run_in_executor(get_render_executor(), _metered)
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +387,7 @@ def _build_territory_figures(
 # ---------------------------------------------------------------------------
 STEPS = {
     "geometry":     "📐 Loading geometry…",
+    "fetch":        "⚡ {n} Earth Engine analyses in parallel…",
     "mb_y1":        "🌿 MapBiomas {year1} analysis…",
     "mb_y2":        "🌿 MapBiomas {year2} analysis…",
     "comparison":   "📊 Land-cover comparison {year1} → {year2}…",
@@ -488,6 +529,11 @@ class BatchMixin(rx.State, mixin=True):
     batch_zip_relpath: str = ""
     batch_current_territory: str = ""
     batch_current_step: str = ""
+    #: territory → step label, one entry per territory currently in flight.
+    #: With territories processed in parallel there is no single "current"
+    #: step, so the status panel lists these; ``batch_current_territory`` /
+    #: ``batch_current_step`` are kept as a summary of the same data.
+    batch_active_steps: Dict[str, str] = {}
     batch_completed: List[str] = []      # successfully processed
     batch_failed: List[str] = []         # territories that errored
     batch_errors: Dict[str, str] = {}    # territory → error message
@@ -696,6 +742,19 @@ class BatchMixin(rx.State, mixin=True):
         # "name_asc" (default): already alphabetical — batch_available_territories
         # is built from sorted(set(keys)) and no filter above reorders it.
         return out
+
+    @rx.var(auto_deps=False, deps=["batch_active_steps"])
+    def batch_active_rows(self) -> List[Dict[str, str]]:
+        """Territories currently being processed, with the step each is on.
+
+        Sorted by name so the list doesn't reshuffle every time one worker
+        advances a step — with several running in parallel, dict order would
+        otherwise jump around on every update.
+        """
+        return [
+            {"territory": name, "step": step}
+            for name, step in sorted(self.batch_active_steps.items())
+        ]
 
     @rx.var
     def batch_progress_pct(self) -> int:
@@ -1209,6 +1268,7 @@ class BatchMixin(rx.State, mixin=True):
         self.batch_zip_ready = False
         self.batch_current_territory = ""
         self.batch_current_step = ""
+        self.batch_active_steps = {}
         self.batch_completed = []
         self.batch_failed = []
         self.batch_errors = {}
@@ -1288,6 +1348,7 @@ class BatchMixin(rx.State, mixin=True):
             self.batch_log = []
             self.batch_current_territory = ""
             self.batch_current_step = ""
+            self.batch_active_steps = {}
             self._batch_append_log(
                 f"Starting batch: {len(territories)} territories, "
                 f"MapBiomas {year1}/{year2}, Hansen GLAD {hansen_year}, "
@@ -1308,6 +1369,9 @@ class BatchMixin(rx.State, mixin=True):
                 from ..utils.ee_service import initialize_earth_engine
                 return initialize_earth_engine()
             await loop.run_in_executor(None, _ee_init)
+            # Only possible once the session exists (i.e. after ee.Initialize).
+            from ..utils.ee_concurrency import tune_ee_connection_pool
+            await loop.run_in_executor(None, tune_ee_connection_pool)
         except Exception as ee_err:
             async with self:
                 self._batch_append_log(f"❌ Earth Engine init failed: {ee_err}")
@@ -1337,23 +1401,42 @@ class BatchMixin(rx.State, mixin=True):
         work_dir = get_export_dir() / run_name
         batch_summary: List[Dict] = []
 
+        # ── Concurrency budget for this run ─────────────────────────────────
+        # Territories run in parallel; within each one every independent Earth
+        # Engine analysis is issued at once.  Rendering (kaleido / pyplot) is
+        # serialized on its own single-worker pool, so the win here is
+        # pipelining: while one territory renders its charts and maps, the
+        # others are waiting on Earth Engine.
+        from ..utils.ee_concurrency import (
+            describe_budget, describe_meters, effective_territory_concurrency,
+            meter_report, reset_meters,
+        )
+        reset_meters()
+        n_workers = effective_territory_concurrency(
+            len(territories),
+            heavy=(run_maps or run_timeline or buf_enabled),
+        )
         async with self:
             self._batch_append_log(
                 f"📂 Files appear live in uploaded_files/exports/{run_name}/"
             )
+            self._batch_append_log(describe_budget(n_workers))
+
+        async def _set_step(terr: str, text: str):
+            """Publish *terr*'s current step to the UI.
+
+            With several territories in flight there is no single current step,
+            so each worker updates its own slot; the scalar vars mirror the most
+            recent update for the parts of the UI that still read them.
+            """
+            async with self:
+                self.batch_active_steps = {**self.batch_active_steps, terr: text}
+                self.batch_current_territory = terr
+                self.batch_current_step = text
 
         with DirExportWriter(work_dir) as master_zf:
-            for territory in territories:
-                # ── Check stop flag ────────────────────────────────────────────
-                async with self:
-                    if not self.batch_running:
-                        self._batch_append_log("⏹ Batch stopped by user.")
-                        break
 
-                    self.batch_current_territory = territory
-                    self.batch_current_step = STEPS["geometry"]
-                    self._batch_append_log(f"▶ Processing: {territory}")
-
+            async def _process_territory(territory: str):
                 t_result: Dict[str, Any] = {"territory": territory, "status": "error"}
 
                 try:
@@ -1437,114 +1520,263 @@ class BatchMixin(rx.State, mixin=True):
                             async with self:
                                 self._batch_append_log(f"  ▸ Quadrant {region_name.upper()}…")
 
-                        # ─── Step 2: MapBiomas year1 ────────────────────────
+                        # ─── Steps 2-10: every Earth Engine analysis, at once ──
+                        # These all read the same region geometry and write
+                        # separate result slots — none consumes another's
+                        # output — so they are issued together and the region's
+                        # wall time collapses from the sum of the calls to the
+                        # slowest single one.  Total in-flight requests stay
+                        # bounded by the shared EE pool (utils/ee_concurrency),
+                        # so widening this never exceeds the tier budget no
+                        # matter how many territories/quadrants are running.
+                        def _mb_y1(geom=region_ee_geom, yr=year1):
+                            from ..utils.ee_service_extended import get_ee_service
+                            svc = get_ee_service()
+                            return svc.analyze_mapbiomas(geom, yr)
+
+                        def _mb_y2(geom=region_ee_geom, yr=year2):
+                            from ..utils.ee_service_extended import get_ee_service
+                            svc = get_ee_service()
+                            return svc.analyze_mapbiomas(geom, yr)
+
+                        def _cmp(geom=region_ee_geom, y1=year1, y2=year2):
+                            from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                            from ..utils.visualization import calculate_gains_losses
+                            analyzer = get_mapbiomas_analyzer()
+                            df_y1 = analyzer.analyze_single_year(geom, y1, scale=30)
+                            df_y2 = analyzer.analyze_single_year(geom, y2, scale=30)
+                            comp_df = calculate_gains_losses(df_y1, df_y2)
+                            if comp_df is not None and not comp_df.empty:
+                                gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
+                                losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
+                                net_ha = gains_ha + losses_ha
+                            else:
+                                gains_ha = losses_ha = net_ha = 0.0
+                            transitions = {}
+                            try:
+                                raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
+                                if raw_trans:
+                                    transitions = {str(k): v for k, v in raw_trans.items()}
+                            except Exception:
+                                pass
+                            rows = []
+                            name_col = "Class_Name" if "Class_Name" in df_y2.columns else "Class"
+                            for _, row in df_y2.iterrows():
+                                cls = row[name_col]
+                                a1 = float(
+                                    df_y1.loc[df_y1[name_col] == cls, "Area_ha"].sum()
+                                ) if not df_y1.empty else 0
+                                a2 = float(row["Area_ha"])
+                                rows.append({
+                                    "Class": cls, f"Area_{y1}_ha": a1,
+                                    f"Area_{y2}_ha": a2, "Change_ha": a2 - a1,
+                                })
+                            return {
+                                "territory": territory,
+                                "year_start": y1, "year_end": y2,
+                                "data": rows,
+                                "gains_ha": gains_ha,
+                                "losses_ha": losses_ha,
+                                "net_ha": net_ha,
+                                "transitions": transitions,
+                                "_raw_y1": df_y1.to_dict("records"),
+                                "_raw_y2": df_y2.to_dict("records"),
+                            }
+
+                        def _glad(geom=region_ee_geom, yr=hansen_year):
+                            from ..utils.hansen_analysis import get_hansen_analyzer
+                            analyzer = get_hansen_analyzer()
+                            return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
+
+                        def _gfc(geom=region_ee_geom):
+                            from ..utils.hansen_analysis import get_hansen_analyzer
+                            analyzer = get_hansen_analyzer()
+                            return analyzer.analyze_gfc(geom)
+
+                        # region_buf_geom is the FULL territory's buffer ring
+                        # clipped to this quadrant's bounding box — built BEFORE
+                        # the regions loop so the buffer is geometrically correct
+                        # (not separate per-quadrant buffers).
+                        def _buf_mb(geom=region_buf_geom, yr=year1):
+                            from ..utils.ee_service_extended import get_ee_service
+                            svc = get_ee_service()
+                            return svc.analyze_mapbiomas(geom, yr)
+
+                        def _buf_cmp(geom=region_buf_geom, y1=year1, y2=year2):
+                            from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                            from ..utils.visualization import calculate_gains_losses
+                            analyzer = get_mapbiomas_analyzer()
+                            df1b = analyzer.analyze_single_year(geom, y1, scale=30)
+                            df2b = analyzer.analyze_single_year(geom, y2, scale=30)
+                            comp_df = calculate_gains_losses(df1b, df2b)
+                            if comp_df is not None and not comp_df.empty:
+                                gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
+                                losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
+                                net_ha = gains_ha + losses_ha
+                            else:
+                                gains_ha = losses_ha = net_ha = 0.0
+                            transitions = {}
+                            try:
+                                raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
+                                if raw_trans:
+                                    transitions = {str(k): v for k, v in raw_trans.items()}
+                            except Exception:
+                                pass
+                            rows = []
+                            nc = "Class_Name" if "Class_Name" in df2b.columns else "Class"
+                            for _, row in df2b.iterrows():
+                                cls = row[nc]
+                                a1 = float(df1b.loc[df1b[nc] == cls, "Area_ha"].sum()) if not df1b.empty else 0
+                                a2 = float(row["Area_ha"])
+                                rows.append({"Class": cls, f"Area_{y1}_ha": a1,
+                                             f"Area_{y2}_ha": a2, "Change_ha": a2 - a1})
+                            return {
+                                "territory": f"{territory} - Buffer {buf_km:g}km",
+                                "year_start": y1, "year_end": y2,
+                                "data": rows,
+                                "gains_ha": gains_ha,
+                                "losses_ha": losses_ha,
+                                "net_ha": net_ha,
+                                "transitions": transitions,
+                                "_raw_y1": df1b.to_dict("records"),
+                                "_raw_y2": df2b.to_dict("records"),
+                            }
+
+                        def _buf_glad(geom=region_buf_geom, yr=hansen_year):
+                            from ..utils.hansen_analysis import get_hansen_analyzer
+                            analyzer = get_hansen_analyzer()
+                            return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
+
+                        def _buf_gfc(geom=region_buf_geom):
+                            from ..utils.hansen_analysis import get_hansen_analyzer
+                            analyzer = get_hansen_analyzer()
+                            r = analyzer.analyze_gfc(geom)
+                            return r if r and "error" not in r else None
+
+                        def _multi(geom=region_ee_geom, years=tuple(multi_years)):
+                            from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                            analyzer = get_mapbiomas_analyzer()
+                            pairs = []
+                            for ya, yb in zip(years[:-1], years[1:]):
+                                try:
+                                    tr = analyzer.compute_transitions(
+                                        geom, ya, yb, 30,
+                                        include_unchanged=True,
+                                    )
+                                except Exception:
+                                    tr = {}
+                                pairs.append({
+                                    "year_from": int(ya),
+                                    "year_to": int(yb),
+                                    "transitions": {str(k): v for k, v in (tr or {}).items()},
+                                })
+                            return pairs
+
+                        def _buf_multi(geom=region_buf_geom, years=tuple(multi_years)):
+                            from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
+                            analyzer = get_mapbiomas_analyzer()
+                            pairs = []
+                            for ya, yb in zip(years[:-1], years[1:]):
+                                try:
+                                    tr = analyzer.compute_transitions(
+                                        geom, ya, yb, 30,
+                                        include_unchanged=True,
+                                    )
+                                except Exception:
+                                    tr = {}
+                                pairs.append({
+                                    "year_from": int(ya),
+                                    "year_to": int(yb),
+                                    "transitions": {str(k): v for k, v in (tr or {}).items()},
+                                })
+                            return pairs
+
+                        # ── Assemble the job list ────────────────────────────
+                        has_buf = buf_enabled and region_buf_geom is not None
+                        do_multi = run_multi and len(multi_years) >= 2
+
+                        jobs: List[tuple] = []
                         if run_mb:
-                            async with self:
-                                self.batch_current_step = STEPS["mb_y1"].format(year1=year1) + rlabel
-                            def _mb_y1(geom=region_ee_geom, yr=year1):
-                                from ..utils.ee_service_extended import get_ee_service
-                                svc = get_ee_service()
-                                return svc.analyze_mapbiomas(geom, yr)
-                            df1 = await _ee_with_retry(loop, _mb_y1,
-                                                       f"MapBiomas {year1}{rsuffix} ({territory})")
-                            if df1 is not None and not df1.empty:
+                            jobs.append(("mb_y1", _mb_y1, f"MapBiomas {year1}{rsuffix}"))
+                        if run_mb or run_cmp:
+                            jobs.append(("mb_y2", _mb_y2, f"MapBiomas {year2}{rsuffix}"))
+                        # The comparison used to be gated on both MapBiomas
+                        # results being non-empty, which it cannot be until they
+                        # return.  That gate is re-applied after the gather
+                        # instead; `run_mb` is required here because mb_y1 only
+                        # runs when it is on, so the gate could never pass
+                        # otherwise — the semantics are unchanged.
+                        if run_cmp and run_mb:
+                            jobs.append(("cmp", _cmp, f"Comparison {year1}→{year2}{rsuffix}"))
+                        if run_glad:
+                            jobs.append(("glad", _glad, f"Hansen GLAD {hansen_year}{rsuffix}"))
+                        if run_gfc:
+                            jobs.append(("gfc", _gfc, f"Hansen GFC{rsuffix}"))
+                        if has_buf and run_mb:
+                            jobs.append(("buf_mb", _buf_mb, f"Buffer MapBiomas {year1}{rsuffix}"))
+                        if has_buf and run_cmp:
+                            jobs.append(("buf_cmp", _buf_cmp,
+                                         f"Buffer comparison {year1}→{year2}{rsuffix}"))
+                        if has_buf and run_glad:
+                            jobs.append(("buf_glad", _buf_glad, f"Buffer Hansen GLAD{rsuffix}"))
+                        if has_buf and run_gfc:
+                            jobs.append(("buf_gfc", _buf_gfc, f"Buffer Hansen GFC{rsuffix}"))
+                        if do_multi:
+                            jobs.append(("multi", _multi, f"Multi-window transitions{rsuffix}"))
+                        if do_multi and has_buf:
+                            jobs.append(("buf_multi", _buf_multi,
+                                         f"Buffer multi-window transitions{rsuffix}"))
+
+                        res: Dict[str, Any] = {}
+                        if jobs:
+                            await _set_step(
+                                territory,
+                                STEPS["fetch"].format(n=len(jobs)) + rlabel,
+                            )
+                            gathered = await asyncio.gather(*[
+                                _ee_with_retry(loop, fn, f"{lbl} ({territory})")
+                                for _, fn, lbl in jobs
+                            ])
+                            res = {key: value for (key, _, _), value in zip(jobs, gathered)}
+
+                        # ── Shape the results (identical to the serial version;
+                        #    a missing key means the analysis was switched off,
+                        #    a None value means it failed every retry) ─────────
+                        skipped: List[str] = []
+
+                        if "mb_y1" in res:
+                            df1 = res["mb_y1"]
+                            if df1 is None:
+                                skipped.append(f"MapBiomas {year1}")
+                            elif not df1.empty:
                                 mb_y1_result = {
                                     "type": "mapbiomas", "territory": territory,
                                     "year": year1, "data": df1.to_dict("records"),
                                 }
-                            elif df1 is None:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped MapBiomas {year1}{rsuffix}")
 
-                        # ─── Step 3: MapBiomas year2 ────────────────────────
-                        if run_mb or run_cmp:
-                            async with self:
-                                self.batch_current_step = STEPS["mb_y2"].format(year2=year2) + rlabel
-                            def _mb_y2(geom=region_ee_geom, yr=year2):
-                                from ..utils.ee_service_extended import get_ee_service
-                                svc = get_ee_service()
-                                return svc.analyze_mapbiomas(geom, yr)
-                            df2 = await _ee_with_retry(loop, _mb_y2,
-                                                       f"MapBiomas {year2}{rsuffix} ({territory})")
-                            if df2 is not None and not df2.empty:
+                        if "mb_y2" in res:
+                            df2 = res["mb_y2"]
+                            if df2 is None:
+                                skipped.append(f"MapBiomas {year2}")
+                            elif not df2.empty:
                                 mb_y2_result = {
                                     "type": "mapbiomas", "territory": territory,
                                     "year": year2, "data": df2.to_dict("records"),
                                 }
-                            elif df2 is None:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped MapBiomas {year2}{rsuffix}")
 
-                        # ─── Step 4: Comparison ─────────────────────────────
-                        if run_cmp and mb_y1_result and mb_y2_result:
-                            async with self:
-                                self.batch_current_step = STEPS["comparison"].format(
-                                    year1=year1, year2=year2
-                                ) + rlabel
-                            def _cmp(geom=region_ee_geom, y1=year1, y2=year2):
-                                from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
-                                from ..utils.visualization import calculate_gains_losses
-                                analyzer = get_mapbiomas_analyzer()
-                                df_y1 = analyzer.analyze_single_year(geom, y1, scale=30)
-                                df_y2 = analyzer.analyze_single_year(geom, y2, scale=30)
-                                comp_df = calculate_gains_losses(df_y1, df_y2)
-                                if comp_df is not None and not comp_df.empty:
-                                    gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
-                                    losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
-                                    net_ha = gains_ha + losses_ha
-                                else:
-                                    gains_ha = losses_ha = net_ha = 0.0
-                                transitions = {}
-                                try:
-                                    raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
-                                    if raw_trans:
-                                        transitions = {str(k): v for k, v in raw_trans.items()}
-                                except Exception:
-                                    pass
-                                rows = []
-                                name_col = "Class_Name" if "Class_Name" in df_y2.columns else "Class"
-                                for _, row in df_y2.iterrows():
-                                    cls = row[name_col]
-                                    a1 = float(
-                                        df_y1.loc[df_y1[name_col] == cls, "Area_ha"].sum()
-                                    ) if not df_y1.empty else 0
-                                    a2 = float(row["Area_ha"])
-                                    rows.append({
-                                        "Class": cls, f"Area_{y1}_ha": a1,
-                                        f"Area_{y2}_ha": a2, "Change_ha": a2 - a1,
-                                    })
-                                return {
-                                    "territory": territory,
-                                    "year_start": y1, "year_end": y2,
-                                    "data": rows,
-                                    "gains_ha": gains_ha,
-                                    "losses_ha": losses_ha,
-                                    "net_ha": net_ha,
-                                    "transitions": transitions,
-                                    "_raw_y1": df_y1.to_dict("records"),
-                                    "_raw_y2": df_y2.to_dict("records"),
-                                }
-                            cmp_result = await _ee_with_retry(
-                                loop, _cmp, f"Comparison {year1}→{year2}{rsuffix} ({territory})"
-                            )
+                        if "cmp" in res:
+                            cmp_result = res["cmp"]
                             if cmp_result is None:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped comparison{rsuffix}")
+                                skipped.append("comparison")
+                            elif not (mb_y1_result and mb_y2_result):
+                                # Both MapBiomas years must have produced data.
+                                cmp_result = None
 
-                        # ─── Step 5: Hansen GLAD ─────────────────────────────
-                        if run_glad:
-                            async with self:
-                                self.batch_current_step = STEPS["glad"].format(
-                                    hansen_year=hansen_year
-                                ) + rlabel
-                            def _glad(geom=region_ee_geom, yr=hansen_year):
-                                from ..utils.hansen_analysis import get_hansen_analyzer
-                                analyzer = get_hansen_analyzer()
-                                return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
-                            glad_df = await _ee_with_retry(
-                                loop, _glad, f"Hansen GLAD {hansen_year}{rsuffix} ({territory})"
-                            )
-                            if glad_df is not None and not glad_df.empty:
+                        if "glad" in res:
+                            glad_df = res["glad"]
+                            if glad_df is None:
+                                skipped.append("Hansen GLAD")
+                            elif not glad_df.empty:
                                 glad_result = {
                                     "type": "hansen_glad",
                                     "territory": territory,
@@ -1555,174 +1787,54 @@ class BatchMixin(rx.State, mixin=True):
                                         "total_area_ha": float(glad_df["Area_ha"].sum()),
                                     },
                                 }
-                            elif glad_df is None:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped Hansen GLAD{rsuffix}")
 
-                        # ─── Step 6: Hansen GFC ──────────────────────────────
-                        if run_gfc:
-                            async with self:
-                                self.batch_current_step = STEPS["gfc"] + rlabel
-                            def _gfc(geom=region_ee_geom):
-                                from ..utils.hansen_analysis import get_hansen_analyzer
-                                analyzer = get_hansen_analyzer()
-                                return analyzer.analyze_gfc(geom)
-                            gfc_result = await _ee_with_retry(
-                                loop, _gfc, f"Hansen GFC{rsuffix} ({territory})"
-                            )
+                        if "gfc" in res:
+                            gfc_result = res["gfc"]
                             if gfc_result and "error" in gfc_result:
                                 gfc_result = None
                             if gfc_result:
                                 gfc_result["territory"] = territory
                             else:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped Hansen GFC{rsuffix}")
+                                skipped.append("Hansen GFC")
 
-                        # ─── Steps 7-10: Buffer analyses (region slice) ─────
-                        # region_buf_geom is the FULL territory's buffer ring
-                        # clipped to this quadrant's bounding box — built BEFORE
-                        # the regions loop so the buffer is geometrically correct
-                        # (not separate per-quadrant buffers).
-                        if buf_enabled and region_buf_geom is not None:
-                            if run_mb:
-                                async with self:
-                                    self.batch_current_step = STEPS["buf_mb"].format(year1=year1) + rlabel
-                                def _buf_mb(geom=region_buf_geom, yr=year1):
-                                    from ..utils.ee_service_extended import get_ee_service
-                                    svc = get_ee_service()
-                                    return svc.analyze_mapbiomas(geom, yr)
-                                bdf = await _ee_with_retry(
-                                    loop, _buf_mb, f"Buffer MapBiomas {year1}{rsuffix} ({territory})"
-                                )
-                                if bdf is not None and not bdf.empty:
-                                    buf_mb_result = {
-                                        "type": "mapbiomas",
-                                        "territory": f"{territory} - Buffer {buf_km:g}km",
-                                        "year": year1,
-                                        "data": bdf.to_dict("records"),
-                                    }
-                                elif bdf is None:
-                                    async with self:
-                                        self._batch_append_log(f"  ⚠ skipped buffer MapBiomas {year1}{rsuffix}")
+                        if "buf_mb" in res:
+                            bdf = res["buf_mb"]
+                            if bdf is None:
+                                skipped.append(f"buffer MapBiomas {year1}")
+                            elif not bdf.empty:
+                                buf_mb_result = {
+                                    "type": "mapbiomas",
+                                    "territory": f"{territory} - Buffer {buf_km:g}km",
+                                    "year": year1,
+                                    "data": bdf.to_dict("records"),
+                                }
 
-                            if run_cmp:
-                                async with self:
-                                    self.batch_current_step = STEPS["buf_cmp"].format(
-                                        year1=year1, year2=year2
-                                    ) + rlabel
-                                def _buf_cmp(geom=region_buf_geom, y1=year1, y2=year2):
-                                    from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
-                                    from ..utils.visualization import calculate_gains_losses
-                                    analyzer = get_mapbiomas_analyzer()
-                                    df1b = analyzer.analyze_single_year(geom, y1, scale=30)
-                                    df2b = analyzer.analyze_single_year(geom, y2, scale=30)
-                                    comp_df = calculate_gains_losses(df1b, df2b)
-                                    if comp_df is not None and not comp_df.empty:
-                                        gains_ha = float(comp_df.loc[comp_df["Change_ha"] > 0, "Change_ha"].sum())
-                                        losses_ha = float(comp_df.loc[comp_df["Change_ha"] < 0, "Change_ha"].sum())
-                                        net_ha = gains_ha + losses_ha
-                                    else:
-                                        gains_ha = losses_ha = net_ha = 0.0
-                                    transitions = {}
-                                    try:
-                                        raw_trans = analyzer.compute_transitions(geom, y1, y2, 30)
-                                        if raw_trans:
-                                            transitions = {str(k): v for k, v in raw_trans.items()}
-                                    except Exception:
-                                        pass
-                                    rows = []
-                                    nc = "Class_Name" if "Class_Name" in df2b.columns else "Class"
-                                    for _, row in df2b.iterrows():
-                                        cls = row[nc]
-                                        a1 = float(df1b.loc[df1b[nc] == cls, "Area_ha"].sum()) if not df1b.empty else 0
-                                        a2 = float(row["Area_ha"])
-                                        rows.append({"Class": cls, f"Area_{y1}_ha": a1,
-                                                     f"Area_{y2}_ha": a2, "Change_ha": a2 - a1})
-                                    return {
-                                        "territory": f"{territory} - Buffer {buf_km:g}km",
-                                        "year_start": y1, "year_end": y2,
-                                        "data": rows,
-                                        "gains_ha": gains_ha,
-                                        "losses_ha": losses_ha,
-                                        "net_ha": net_ha,
-                                        "transitions": transitions,
-                                        "_raw_y1": df1b.to_dict("records"),
-                                        "_raw_y2": df2b.to_dict("records"),
-                                    }
-                                buf_cmp_result = await _ee_with_retry(
-                                    loop, _buf_cmp,
-                                    f"Buffer comparison {year1}→{year2}{rsuffix} ({territory})"
-                                )
-                                if buf_cmp_result is None:
-                                    async with self:
-                                        self._batch_append_log(f"  ⚠ skipped buffer comparison{rsuffix}")
+                        if "buf_cmp" in res:
+                            buf_cmp_result = res["buf_cmp"]
+                            if buf_cmp_result is None:
+                                skipped.append("buffer comparison")
 
-                            if run_glad:
-                                async with self:
-                                    self.batch_current_step = STEPS["buf_glad"] + rlabel
-                                def _buf_glad(geom=region_buf_geom, yr=hansen_year):
-                                    from ..utils.hansen_analysis import get_hansen_analyzer
-                                    analyzer = get_hansen_analyzer()
-                                    return analyzer.get_area_distribution(geom, year=int(yr), scale=30)
-                                bgdf = await _ee_with_retry(
-                                    loop, _buf_glad, f"Buffer Hansen GLAD{rsuffix} ({territory})"
-                                )
-                                if bgdf is not None and not bgdf.empty:
-                                    buf_glad_result = {
-                                        "type": "hansen_glad",
-                                        "territory": f"{territory} - Buffer {buf_km:g}km",
-                                        "year": hansen_year,
-                                        "data": bgdf.to_dict("records"),
-                                    }
-                                elif bgdf is None:
-                                    async with self:
-                                        self._batch_append_log(f"  ⚠ skipped buffer Hansen GLAD{rsuffix}")
+                        if "buf_glad" in res:
+                            bgdf = res["buf_glad"]
+                            if bgdf is None:
+                                skipped.append("buffer Hansen GLAD")
+                            elif not bgdf.empty:
+                                buf_glad_result = {
+                                    "type": "hansen_glad",
+                                    "territory": f"{territory} - Buffer {buf_km:g}km",
+                                    "year": hansen_year,
+                                    "data": bgdf.to_dict("records"),
+                                }
 
-                            if run_gfc:
-                                async with self:
-                                    self.batch_current_step = STEPS["buf_gfc"] + rlabel
-                                def _buf_gfc(geom=region_buf_geom):
-                                    from ..utils.hansen_analysis import get_hansen_analyzer
-                                    analyzer = get_hansen_analyzer()
-                                    r = analyzer.analyze_gfc(geom)
-                                    return r if r and "error" not in r else None
-                                buf_gfc_result = await _ee_with_retry(
-                                    loop, _buf_gfc, f"Buffer Hansen GFC{rsuffix} ({territory})"
-                                )
-                                if buf_gfc_result:
-                                    buf_gfc_result["territory"] = f"{territory} - Buffer {buf_km:g}km"
-                                else:
-                                    async with self:
-                                        self._batch_append_log(f"  ⚠ skipped buffer Hansen GFC{rsuffix}")
+                        if "buf_gfc" in res:
+                            buf_gfc_result = res["buf_gfc"]
+                            if buf_gfc_result:
+                                buf_gfc_result["territory"] = f"{territory} - Buffer {buf_km:g}km"
+                            else:
+                                skipped.append("buffer Hansen GFC")
 
-                        # ─── Multi-window MapBiomas (constant or custom years) ──
-                        if run_multi and len(multi_years) >= 2:
-                            async with self:
-                                self.batch_current_step = STEPS["multi_window"] + rlabel
-
-                            def _multi(geom=region_ee_geom, years=tuple(multi_years)):
-                                from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
-                                analyzer = get_mapbiomas_analyzer()
-                                pairs = []
-                                for ya, yb in zip(years[:-1], years[1:]):
-                                    try:
-                                        tr = analyzer.compute_transitions(
-                                            geom, ya, yb, 30,
-                                            include_unchanged=True,
-                                        )
-                                    except Exception:
-                                        tr = {}
-                                    pairs.append({
-                                        "year_from": int(ya),
-                                        "year_to": int(yb),
-                                        "transitions": {str(k): v for k, v in (tr or {}).items()},
-                                    })
-                                return pairs
-
-                            multi_pairs = await _ee_with_retry(
-                                loop, _multi,
-                                f"Multi-window transitions{rsuffix} ({territory})",
-                            )
+                        if "multi" in res:
+                            multi_pairs = res["multi"]
                             if multi_pairs:
                                 multi_window_result = {
                                     "territory": territory,
@@ -1730,46 +1842,25 @@ class BatchMixin(rx.State, mixin=True):
                                     "pairs": multi_pairs,
                                 }
                             else:
-                                async with self:
-                                    self._batch_append_log(f"  ⚠ skipped multi-window{rsuffix}")
+                                skipped.append("multi-window")
 
-                            # Buffer counterpart
-                            if buf_enabled and region_buf_geom is not None:
-                                async with self:
-                                    self.batch_current_step = STEPS["buf_multi"] + rlabel
+                        if "buf_multi" in res:
+                            buf_multi_pairs = res["buf_multi"]
+                            if buf_multi_pairs:
+                                buf_multi_window_result = {
+                                    "territory": f"{territory} - Buffer {buf_km:g}km",
+                                    "years": list(multi_years),
+                                    "pairs": buf_multi_pairs,
+                                }
+                            else:
+                                skipped.append("buffer multi-window")
 
-                                def _buf_multi(geom=region_buf_geom, years=tuple(multi_years)):
-                                    from ..utils.mapbiomas_analysis import get_mapbiomas_analyzer
-                                    analyzer = get_mapbiomas_analyzer()
-                                    pairs = []
-                                    for ya, yb in zip(years[:-1], years[1:]):
-                                        try:
-                                            tr = analyzer.compute_transitions(
-                                                geom, ya, yb, 30,
-                                                include_unchanged=True,
-                                            )
-                                        except Exception:
-                                            tr = {}
-                                        pairs.append({
-                                            "year_from": int(ya),
-                                            "year_to": int(yb),
-                                            "transitions": {str(k): v for k, v in (tr or {}).items()},
-                                        })
-                                    return pairs
-
-                                buf_multi_pairs = await _ee_with_retry(
-                                    loop, _buf_multi,
-                                    f"Buffer multi-window transitions{rsuffix} ({territory})",
+                        if skipped:
+                            async with self:
+                                self._batch_append_log(
+                                    f"  ⚠ {territory}{rsuffix}: skipped "
+                                    + ", ".join(skipped)
                                 )
-                                if buf_multi_pairs:
-                                    buf_multi_window_result = {
-                                        "territory": f"{territory} - Buffer {buf_km:g}km",
-                                        "years": list(multi_years),
-                                        "pairs": buf_multi_pairs,
-                                    }
-                                else:
-                                    async with self:
-                                        self._batch_append_log(f"  ⚠ skipped buffer multi-window{rsuffix}")
 
                         # Capture region data for per-quadrant maps + timeline.
                         # 4-tuple: (region_name, territory_geom, gfc_result, buffer_geom)
@@ -1778,8 +1869,7 @@ class BatchMixin(rx.State, mixin=True):
                         region_map_data.append((region_name, region_ee_geom, gfc_result, region_buf_geom))
 
                         # ─── Step 11: Write THIS region to master ZIP ───────
-                        async with self:
-                            self.batch_current_step = STEPS["export"] + rlabel
+                        await _set_step(territory, STEPS["export"] + rlabel)
 
                         def _write_region_to_zip(
                             zf=master_zf,
@@ -1966,7 +2056,7 @@ class BatchMixin(rx.State, mixin=True):
                                     include_treemaps=run_treemap,
                                 )
 
-                        await loop.run_in_executor(None, _write_region_to_zip)
+                        await _render(loop, _write_region_to_zip)
 
                     # ─── End of regions loop ────────────────────────────────
                     # Write the full territory boundary ONCE at the top level
@@ -1983,8 +2073,7 @@ class BatchMixin(rx.State, mixin=True):
 
                     # ─── PDF maps (satellite + MapBiomas y1/y2, per territory) ──
                     if run_maps:
-                        async with self:
-                            self.batch_current_step = STEPS["maps"]
+                        await _set_step(territory, STEPS["maps"])
 
                         def _write_pdf_maps(
                             zf=master_zf,
@@ -2047,15 +2136,14 @@ class BatchMixin(rx.State, mixin=True):
                                 )
 
                         try:
-                            await loop.run_in_executor(None, _write_pdf_maps)
+                            await _render(loop, _write_pdf_maps)
                         except Exception as me:
                             async with self:
                                 self._batch_append_log(f"  ⚠ PDF maps skipped: {me}")
 
                     # ── Deforestation timeline (per-territory + buffer) ─────
                     if run_timeline:
-                        async with self:
-                            self.batch_current_step = "📈 Deforestation timeline…"
+                        await _set_step(territory, "📈 Deforestation timeline…")
 
                         def _write_timeline(
                             zf=master_zf,
@@ -2215,7 +2303,7 @@ class BatchMixin(rx.State, mixin=True):
                                 )
 
                         try:
-                            await loop.run_in_executor(None, _write_timeline)
+                            await _render(loop, _write_timeline)
                         except Exception as te:
                             async with self:
                                 self._batch_append_log(f"  ⚠ Timeline skipped: {te}")
@@ -2257,20 +2345,74 @@ class BatchMixin(rx.State, mixin=True):
                 # peak RSS doesn't ratchet up over a long batch run.
                 gc.collect()
 
+            # ── Worker pool ────────────────────────────────────────────────
+            # Territories are pulled off a shared queue rather than sliced into
+            # per-worker chunks, so a worker that draws a fast territory
+            # immediately picks up the next one instead of idling — sizes vary
+            # by more than an order of magnitude, and a 2 M ha quadrant-split
+            # territory would otherwise stall a whole chunk behind it.
+            pending: "asyncio.Queue[str]" = asyncio.Queue()
+            for _t in territories:
+                pending.put_nowait(_t)
+
+            async def _worker():
+                while True:
+                    try:
+                        territory = pending.get_nowait()
+                    except asyncio.QueueEmpty:
+                        return
+
+                    # Stop is cooperative: it drains the queue so nothing new
+                    # starts, while territories already in flight finish and
+                    # keep their results.
+                    async with self:
+                        if not self.batch_running:
+                            return
+                        self.batch_active_steps = {
+                            **self.batch_active_steps,
+                            territory: STEPS["geometry"],
+                        }
+                        self.batch_current_territory = territory
+                        self.batch_current_step = STEPS["geometry"]
+                        self._batch_append_log(f"▶ Processing: {territory}")
+
+                    try:
+                        await _process_territory(territory)
+                    finally:
+                        async with self:
+                            remaining = dict(self.batch_active_steps)
+                            remaining.pop(territory, None)
+                            self.batch_active_steps = remaining
+
+            await asyncio.gather(*[_worker() for _ in range(n_workers)])
+
+            async with self:
+                if not self.batch_running:
+                    self._batch_append_log("⏹ Batch stopped by user.")
+
             # ── Finalize ZIP: add summary files ────────────────────────────
             async with self:
                 self.batch_current_step = "📋 Writing summary files…"
+                self.batch_active_steps = {}
 
             def _write_summary(
                 zf=master_zf,
                 summary=batch_summary,
                 territories=territories,
+                n_workers=n_workers,
+                meter_report=meter_report,
                 y1=year1, y2=year2, hy=hansen_year,
                 bkm=buf_km, ben=buf_enabled,
             ):
                 ts = datetime.now().isoformat()
                 meta = {
                     "generated": ts,
+                    # Where the run's time actually went — see
+                    # docs/BATCH_CONCURRENCY.md §"Sizing from measurement".
+                    "concurrency": {
+                        "territory_workers": n_workers,
+                        **meter_report(),
+                    },
                     "territories_requested": len(territories),
                     "territories_completed": sum(1 for r in summary if r["status"] == "ok"),
                     "territories_failed": sum(1 for r in summary if r["status"] == "error"),
@@ -2342,4 +2484,6 @@ class BatchMixin(rx.State, mixin=True):
                 f"🏁 Batch complete: {n_ok} OK, {n_fail} failed — "
                 f"ZIP size {zip_size // 1024} KB"
             )
+            for line in describe_meters():
+                self._batch_append_log(line)
             logger.info(f"Batch processing complete: {n_ok}/{len(territories)} territories")

@@ -462,6 +462,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_progress": "📊 Progreso",
     "batch_territory_label": "Territorio:",
     "batch_step_label": "Paso:",
+    "batch_in_flight_label": "En curso:",
     "batch_done_label": "Completado:",
     "batch_complete_label": "— completado —",
     "batch_errors_suffix": " error(es))",

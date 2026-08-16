@@ -240,6 +240,11 @@ Batch:
     pages/batch_processing.py  (lista colável/upload → auto-seleção;
                                 fontes: indigenous | conservation)
     → BatchMixin.run_batch_processing (state/_batch.py)
+      N workers puxam territórios de uma asyncio.Queue (paralelo);
+      dentro de cada região, TODAS as análises EE independentes vão
+      juntas via asyncio.gather; renderização (kaleido/pyplot) é
+      SERIALIZADA num pool de 1 worker — ver utils/ee_concurrency.py
+      e docs/BATCH_CONCURRENCY.md (perfis de tier + rollback)
     → DirExportWriter grava arquivos AO VIVO em
       uploaded_files/exports/yvynation_batch_{YYYYMMDD_HHMMSS}/
       (navegável durante a execução; sem compressão no loop)

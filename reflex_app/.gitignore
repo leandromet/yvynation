@@ -32,6 +32,7 @@ wheels/
 *.swo
 *~
 .DS_Store
+exports/
 
 # Environment
 .env
