@@ -267,8 +267,17 @@ def territory_selector() -> rx.Component:
         rx.hstack(
             rx.heading(AppState.tr["batch_select_territories"], size="3", color="#1a472a"),
             rx.spacer(),
+            rx.button(
+                "📋 " + AppState.tr["batch_review_btn"],
+                on_click=AppState.batch_toggle_review,
+                size="1", variant="outline", color_scheme="orange",
+            ),
             rx.badge(
-                rx.text(AppState.batch_selected_count.to(str) + AppState.tr["batch_selected_suffix"]),
+                rx.text(
+                    AppState.batch_selected_count.to(str) + "/"
+                    + AppState.batch_max_selection.to(str)
+                    + AppState.tr["batch_selected_suffix"]
+                ),
                 color_scheme="orange", variant="soft",
             ),
             width="100%", align_items="center",

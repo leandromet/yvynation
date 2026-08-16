@@ -14,6 +14,7 @@ Layout pieces live in components/batch_*.py:
   batch_howto_panel.py        right column — usage guide accordion
   batch_action_panel.py       start/stop/download controls
   batch_navbar.py             sticky top navbar
+  batch_review_modal.py       selected-territories review panel (both types)
 """
 
 import reflex as rx
@@ -25,6 +26,7 @@ from ..components.batch_status_panel import status_panel
 from ..components.batch_howto_panel import howto_panel
 from ..components.batch_action_panel import action_panel
 from ..components.batch_navbar import batch_navbar
+from ..components.batch_review_modal import review_selection_modal
 
 
 def batch_processing_page() -> rx.Component:
@@ -118,6 +120,7 @@ def batch_processing_page() -> rx.Component:
         ),
 
         citation_modal(),
+        review_selection_modal(),
 
         width="100%",
         height="100vh",

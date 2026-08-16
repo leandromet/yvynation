@@ -376,6 +376,15 @@ BATCH_WARN_THRESHOLD = 40
 BATCH_WARN_THRESHOLD_HEAVY = 25
 
 # ---------------------------------------------------------------------------
+# Hard cap on total selection (both types combined). Enforced at every point
+# a territory can be added (checkbox toggle, "select all filtered", paste
+# list) — not just a UI hint, since "select all" on an unfiltered 3,247-unit
+# conservation list would otherwise queue a run large enough to risk real EE
+# usage cost and container memory, however the batch loop performs.
+# ---------------------------------------------------------------------------
+BATCH_MAX_SELECTION = 100
+
+# ---------------------------------------------------------------------------
 # Attribute-filter dropdown vocabularies — hardcoded rather than scanned from
 # the GeoPackage. These come from fixed government classification schemes
 # (SNUC for conservation units, FUNAI process stages for indigenous
@@ -464,6 +473,8 @@ class BatchMixin(rx.State, mixin=True):
     batch_selected_grupo: List[str] = []
     # "name_asc" | "name_desc" | "area_asc" | "area_desc"
     batch_sort_by: str = "name_asc"
+    # Selected-territories review panel (see review_selection_modal)
+    batch_show_review: bool = False
     # ---- Paste/upload a name list to auto-select areas ------------------------
     batch_paste_text: str = ""
     batch_paste_feedback: str = ""
@@ -714,6 +725,39 @@ class BatchMixin(rx.State, mixin=True):
         )
 
     @rx.var
+    def batch_max_selection(self) -> int:
+        """Exposes BATCH_MAX_SELECTION to the UI so the cap is never hardcoded twice."""
+        return BATCH_MAX_SELECTION
+
+    @rx.var(auto_deps=False, deps=["batch_selected_territories"])
+    def batch_selected_territories_detail(self) -> List[Dict[str, str]]:
+        """Per-selected-territory display info for the review panel.
+
+        Resolved independently of which type is currently toggled in the
+        list view — the selection can span both types, so each item's
+        source is looked up on its own via ``_batch_resolve_territory_type``
+        rather than assumed from the active view.
+        """
+        out: List[Dict[str, str]] = []
+        for t in self.batch_selected_territories:
+            ttype = self._batch_resolve_territory_type(t)
+            if ttype == "conservation":
+                from ..utils.conservation_service import get_conservation_unit_service
+                svc = get_conservation_unit_service()
+            else:
+                from ..utils.territory_service import get_territory_service
+                svc = get_territory_service()
+            info = svc.get_territory_info(t) or {}
+            ha = info.get("superficie_ha") or 0
+            out.append({
+                "name": t,
+                "type": ttype,
+                "uf": info.get("uf_sigla", "") or "",
+                "ha": f"{ha:,.0f}" if ha else "",
+            })
+        return out
+
+    @rx.var
     def batch_is_large_run(self) -> bool:
         """True when the current selection is large enough to risk exhausting
         the container's memory in one run (see BATCH_WARN_THRESHOLD).
@@ -920,17 +964,25 @@ class BatchMixin(rx.State, mixin=True):
 
         current = set(self.batch_selected_territories)
         matched = 0
+        capped = 0
         unmatched: List[str] = []
         for name in names:
             n = _norm(name)
             if n in exact:
-                current.add(exact[n])
-                matched += 1
+                hit_keys = [exact[n]]
             elif n in base_map:
-                current.update(base_map[n])
-                matched += 1
+                hit_keys = base_map[n]
             else:
                 unmatched.append(name)
+                continue
+            matched += 1
+            for k in hit_keys:
+                if k in current:
+                    continue
+                if len(current) >= BATCH_MAX_SELECTION:
+                    capped += 1
+                    continue
+                current.add(k)
 
         self.batch_selected_territories = sorted(current)
         self.batch_paste_unmatched = unmatched
@@ -938,9 +990,12 @@ class BatchMixin(rx.State, mixin=True):
             "conservation units" if t == "conservation" else "indigenous lands"
             for t in self.batch_territory_types
         )
+        cap_note = (
+            f" ⚠ {capped} not added — {BATCH_MAX_SELECTION} max reached." if capped else ""
+        )
         self.batch_paste_feedback = (
             f"✓ Matched {matched} of {len(names)} names against {src} — "
-            f"{len(self.batch_selected_territories)} selected total."
+            f"{len(self.batch_selected_territories)} selected total.{cap_note}"
         )
 
     async def batch_upload_territory_list(self, files: List[rx.UploadFile]):
@@ -961,23 +1016,48 @@ class BatchMixin(rx.State, mixin=True):
             self.error_message = f"List upload failed: {e}"
 
     def batch_toggle_territory(self, territory: str):
-        """Add or remove a territory from the batch selection."""
+        """Add or remove a territory from the batch selection (capped at BATCH_MAX_SELECTION)."""
         if territory in self.batch_selected_territories:
             self.batch_selected_territories = [
                 t for t in self.batch_selected_territories if t != territory
             ]
-        else:
-            self.batch_selected_territories = self.batch_selected_territories + [territory]
+            return
+        if len(self.batch_selected_territories) >= BATCH_MAX_SELECTION:
+            self.error_message = (
+                f"Selection limit reached ({BATCH_MAX_SELECTION} territories max) — "
+                f"remove one before adding another."
+            )
+            return
+        self.batch_selected_territories = self.batch_selected_territories + [territory]
 
     def batch_select_all_filtered(self):
-        """Add all currently-filtered territories to the selection."""
+        """Add currently-filtered territories to the selection, up to BATCH_MAX_SELECTION total."""
         current = set(self.batch_selected_territories)
+        room = BATCH_MAX_SELECTION - len(current)
+        added = 0
+        capped = 0
         for t in self.batch_filtered_territories:
+            if t in current:
+                continue
+            if added >= room:
+                capped += 1
+                continue
             current.add(t)
+            added += 1
         self.batch_selected_territories = sorted(current)
+        if capped > 0:
+            self.error_message = (
+                f"Added {added} — selection capped at {BATCH_MAX_SELECTION} total "
+                f"({capped} more matched but weren't added; narrow your filters or "
+                f"remove some first)."
+            )
 
     def batch_clear_selection(self):
         self.batch_selected_territories = []
+
+    def batch_toggle_review(self):
+        """Toggle the selected-territories review panel."""
+        self.batch_show_review = not self.batch_show_review
 
     def batch_set_year(self, year: str):
         try:
@@ -1186,6 +1266,15 @@ class BatchMixin(rx.State, mixin=True):
 
             if not territories:
                 self.error_message = "No territories selected for batch processing."
+                return
+            if len(territories) > BATCH_MAX_SELECTION:
+                # Defense in depth — every UI path that adds to the selection
+                # already enforces this, but never run past the cap even if
+                # it's somehow bypassed.
+                self.error_message = (
+                    f"Selection exceeds the {BATCH_MAX_SELECTION}-territory "
+                    f"limit ({len(territories)} selected) — remove some before running."
+                )
                 return
 
             self.batch_running = True
