@@ -201,12 +201,10 @@ def get_download_url(relpath: str) -> str:
     responses at ~32 MiB — Starlette's static-file serving sets
     Content-Length, so any export past that size 500s when served through
     the app (see the batch-processing memory/persistence fix notes).
-    Anything bucket-backed is therefore handed to the browser as a signed
-    GCS URL instead, bypassing the app entirely for the actual transfer.
-
-    Requires ``roles/iam.serviceAccountTokenCreator`` granted to the
-    Cloud Run service account on itself (no private key on the instance,
-    so signing goes through the IAM Credentials API's signBlob).
+    Anything bucket-backed is therefore handed to the browser as a direct
+    public GCS URL instead, bypassing the app entirely for the actual
+    transfer. Requires ``allUsers``/``Storage Object Viewer`` on the bucket
+    (or the individual objects) — no service-account signing involved.
     """
     import os
     bucket_name = os.environ.get("GCS_EXPORT_BUCKET", "")
@@ -215,24 +213,7 @@ def get_download_url(relpath: str) -> str:
         return rx.get_upload_url(relpath)
 
     blob_name = relpath[len("exports/"):] if relpath.startswith("exports/") else relpath
-
-    import datetime
-    import google.auth
-    from google.auth.transport import requests as g_requests
-    from google.cloud import storage
-
-    credentials, project = google.auth.default()
-    credentials.refresh(g_requests.Request())
-
-    client = storage.Client(credentials=credentials, project=project)
-    blob = client.bucket(bucket_name).blob(blob_name)
-    return blob.generate_signed_url(
-        version="v4",
-        expiration=datetime.timedelta(hours=6),
-        method="GET",
-        service_account_email=credentials.service_account_email,
-        access_token=credentials.token,
-    )
+    return f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
 
 
 # ---------------------------------------------------------------------------
