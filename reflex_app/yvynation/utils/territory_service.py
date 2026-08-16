@@ -5,6 +5,16 @@ Replaces EE round-trips for territory list, geometry, and map overlay.
 All 657 FUNAI territories are loaded once from ``indigenous_lands_br202605.gpkg``
 (EPSG:4326, MultiPolygon, ~20 MB) and cached in memory.
 
+Loading is split in two:
+  * Attributes (names, UF, area, etc.) load eagerly and cheaply at
+    construction — this is all the batch/interactive territory *list* and
+    its filters ever touch.
+  * Geometry (the actual MultiPolygon boundaries) loads lazily on first
+    call to a geometry-needing method (``get_geojson_for_key`` and
+    friends), since browsing/filtering thousands of territories never
+    needs a single polygon — only an actual map render or analysis run
+    on a *specific* territory does.
+
 Display-key rules
 -----------------
 * Unique ``terrai_nom``  → display key is ``terrai_nom``
@@ -24,23 +34,39 @@ logger = logging.getLogger(__name__)
 _GPKG_PATH = os.path.join(os.path.dirname(__file__), "indigenous_lands_br202605.gpkg")
 
 
+def _safe_ha(raw: Any) -> float:
+    """Coerce ``superficie`` to a finite float — guards against stray NaN,
+    which ``float()`` passes through silently and then breaks ``>=``/``<=``
+    comparisons (area filter, sort) since NaN comparisons are always False.
+    """
+    try:
+        v = float(raw or 0)
+        return v if v == v else 0.0  # NaN != NaN
+    except (ValueError, TypeError):
+        return 0.0
+
+
 class TerritoryService:
     """GeoPackage-backed territory service.  Instantiate once via :func:`get_territory_service`."""
 
     def __init__(self):
-        self._gdf = None                          # geopandas.GeoDataFrame
+        self._attrs_df = None                      # attributes-only DataFrame (no geometry), loaded eagerly
+        self._gdf = None                            # full GeoDataFrame with geometry, loaded lazily
+        self._geometry_loaded = False
         self._key_to_cod: Dict[str, int] = {}     # display_key → terrai_cod
         self._cod_to_key: Dict[int, str] = {}     # terrai_cod → display_key
+        self._cod_to_attrs: Dict[int, Any] = {}   # terrai_cod → attrs-only row (O(1), no geometry)
+        self._cod_to_row: Dict[int, Any] = {}     # terrai_cod → full row w/ geometry (populated lazily)
         self._display_keys: List[str] = []        # sorted list of display keys
         self._geojson_fc_cache: Optional[Dict] = None  # full FeatureCollection, built once
-        self._load()
+        self._load_attributes()
 
     # ------------------------------------------------------------------
     # Load & index
     # ------------------------------------------------------------------
 
-    def _load(self):
-        """Load the GeoPackage and build lookup indices."""
+    def _load_attributes(self):
+        """Load territory attributes (no geometry) and build lookup indices."""
         try:
             import geopandas as gpd
 
@@ -48,50 +74,78 @@ class TerritoryService:
                 logger.error(f"GeoPackage not found: {_GPKG_PATH}")
                 return
 
-            self._gdf = gpd.read_file(_GPKG_PATH)
-            # Normalise CRS (should already be EPSG:4326)
-            if self._gdf.crs and self._gdf.crs.to_epsg() != 4326:
-                self._gdf = self._gdf.to_crs(epsg=4326)
-            logger.info(f"Loaded {len(self._gdf)} territories from GeoPackage")
+            self._attrs_df = gpd.read_file(_GPKG_PATH, ignore_geometry=True)
+            logger.info(f"Loaded {len(self._attrs_df)} territory attribute rows (geometry deferred)")
             self._build_indices()
         except Exception as exc:
-            logger.error(f"Failed to load GeoPackage: {exc}", exc_info=True)
-            self._gdf = None
+            logger.error(f"Failed to load GeoPackage attributes: {exc}", exc_info=True)
+            self._attrs_df = None
 
     def _build_indices(self):
-        """Build display-key ↔ terrai_cod mappings."""
-        if self._gdf is None or self._gdf.empty:
+        """Build display-key ↔ terrai_cod mappings from the attributes-only frame."""
+        if self._attrs_df is None or self._attrs_df.empty:
             return
 
         # Find names that appear more than once
-        nom_counts = self._gdf["terrai_nom"].value_counts()
+        nom_counts = self._attrs_df["terrai_nom"].value_counts()
         duplicates = set(nom_counts[nom_counts > 1].index)
 
         key_to_cod: Dict[str, int] = {}
         cod_to_key: Dict[int, str] = {}
+        cod_to_attrs: Dict[int, Any] = {}
 
-        for _, row in self._gdf.iterrows():
+        for _, row in self._attrs_df.iterrows():
             cod = int(row["terrai_cod"])
             nom = str(row["terrai_nom"])
             key = f"{nom} ({cod})" if nom in duplicates else nom
             key_to_cod[key] = cod
             cod_to_key[cod] = key
+            cod_to_attrs[cod] = row
 
         self._key_to_cod = key_to_cod
         self._cod_to_key = cod_to_key
+        self._cod_to_attrs = cod_to_attrs
         self._display_keys = sorted(key_to_cod.keys())
         logger.info(
             f"Territory index ready: {len(self._display_keys)} display keys, "
             f"{len(duplicates)} duplicate-name pairs resolved with (terrai_cod) suffix"
         )
 
+    def _ensure_geometry(self) -> bool:
+        """Lazily load the full geometry-bearing GeoDataFrame on first need.
+
+        Every geometry-touching method funnels through here — attribute-only
+        access (display keys, ``get_territory_info``, filters, batch listing)
+        never calls this, so browsing/filtering never parses a polygon.
+        """
+        if self._geometry_loaded:
+            return self._gdf is not None
+        try:
+            import geopandas as gpd
+
+            gdf = gpd.read_file(_GPKG_PATH)
+            if gdf.crs and gdf.crs.to_epsg() != 4326:
+                gdf = gdf.to_crs(epsg=4326)
+            cod_to_row: Dict[int, Any] = {}
+            for _, row in gdf.iterrows():
+                cod_to_row[int(row["terrai_cod"])] = row
+            self._gdf = gdf
+            self._cod_to_row = cod_to_row
+            self._geometry_loaded = True
+            logger.info(f"Loaded {len(gdf)} territory geometries (lazy, first use)")
+            return True
+        except Exception as exc:
+            logger.error(f"Failed to load territory geometries: {exc}", exc_info=True)
+            self._geometry_loaded = True  # don't retry on every subsequent call after a hard failure
+            return False
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def is_ready(self) -> bool:
-        """True if the GeoPackage was loaded successfully."""
-        return self._gdf is not None and len(self._gdf) > 0
+        """True if the GeoPackage attributes were loaded successfully."""
+        return self._attrs_df is not None and len(self._attrs_df) > 0
 
     def get_all_display_keys(self) -> List[str]:
         """Sorted list of display names for the territory selector UI."""
@@ -106,35 +160,44 @@ class TerritoryService:
         return self._cod_to_key.get(int(terrai_cod))
 
     def _get_row(self, display_key: str):
-        """Return the GeoDataFrame row for *display_key* (or None)."""
-        if self._gdf is None:
+        """Return the attributes-only row for *display_key* (or None). O(1), no geometry."""
+        cod = self._key_to_cod.get(display_key)
+        if cod is None:
+            return None
+        return self._cod_to_attrs.get(cod)
+
+    def _get_geom_row(self, display_key: str):
+        """Return the full row (incl. geometry) for *display_key*. Triggers lazy geometry load."""
+        if not self._ensure_geometry():
             return None
         cod = self._key_to_cod.get(display_key)
         if cod is None:
             return None
-        rows = self._gdf[self._gdf["terrai_cod"] == cod]
-        return rows.iloc[0] if len(rows) > 0 else None
+        return self._cod_to_row.get(cod)
 
     def _get_row_fuzzy(self, display_key: str):
-        """Like _get_row but falls back to accent-stripped, case-insensitive matching."""
+        """Like _get_row but falls back to accent-stripped, case-insensitive matching.
+
+        Attributes-only — never triggers a geometry load.
+        """
         import unicodedata
 
         row = self._get_row(display_key)
-        if row is not None or self._gdf is None:
+        if row is not None or self._attrs_df is None:
             return row
 
         def _norm(s: str) -> str:
             return unicodedata.normalize("NFD", str(s)).encode("ascii", "ignore").decode("ascii").lower().strip()
 
         target = _norm(display_key)
-        for _, candidate in self._gdf.iterrows():
+        for _, candidate in self._attrs_df.iterrows():
             if _norm(str(candidate.get("terrai_nom", ""))) == target:
                 return candidate
         return None
 
     def get_geojson_for_key(self, display_key: str) -> Optional[Dict]:
         """Return the geometry as a plain GeoJSON dict for *display_key*."""
-        row = self._get_row(display_key)
+        row = self._get_geom_row(display_key)
         if row is None:
             return None
         try:
@@ -147,7 +210,7 @@ class TerritoryService:
 
     def get_bounds_for_key(self, display_key: str) -> Optional[Dict[str, float]]:
         """Return ``{min_lat, max_lat, min_lon, max_lon, center_lat, center_lon}``."""
-        row = self._get_row(display_key)
+        row = self._get_geom_row(display_key)
         if row is None:
             return None
         try:
@@ -165,7 +228,7 @@ class TerritoryService:
             return None
 
     def get_territory_info(self, display_key: str) -> Dict[str, Any]:
-        """Return a dict of territory metadata for *display_key*."""
+        """Return a dict of territory metadata for *display_key*. Attributes-only, no geometry load."""
         row = self._get_row(display_key)
         if row is None:
             return {}
@@ -178,7 +241,7 @@ class TerritoryService:
             "etnia": str(row.get("etnia_nome", "") or ""),
             "fase_ti": str(row.get("fase_ti", "") or ""),
             "modalidade": str(row.get("modalidade", "") or ""),
-            "superficie_ha": float(row.get("superficie", 0) or 0),
+            "superficie_ha": _safe_ha(row.get("superficie", 0)),
         }
 
     def get_demarcation_dates(self, display_key: str) -> Dict[str, Optional[int]]:
@@ -241,7 +304,9 @@ class TerritoryService:
 
         Geometries are simplified with a 0.005° tolerance (≈ 500 m, invisible at
         country-wide zoom) so the payload is < 3 MB instead of ~59 MB.  The cache
-        is populated on first call and reused thereafter.
+        is populated on first call and reused thereafter. Triggers the lazy
+        geometry load — this is a whole-dataset map overview, so it legitimately
+        needs every polygon, unlike the list/filter paths.
 
         Features include ``display_key``, ``terrai_nom``, ``terrai_cod``,
         ``fase_ti`` and ``superficie`` for use in map popups.
@@ -250,7 +315,7 @@ class TerritoryService:
             return self._geojson_fc_cache
 
         features = []
-        if self._gdf is None:
+        if not self._ensure_geometry() or self._gdf is None:
             self._geojson_fc_cache = {"type": "FeatureCollection", "features": []}
             return self._geojson_fc_cache
 
@@ -281,7 +346,7 @@ class TerritoryService:
                     "terrai_cod": cod,
                     "uf_sigla": str(row.get("uf_sigla", "") or ""),
                     "fase_ti": str(row.get("fase_ti", "") or ""),
-                    "superficie": float(row.get("superficie", 0) or 0),
+                    "superficie": _safe_ha(row.get("superficie", 0)),
                 },
             })
 
@@ -303,8 +368,8 @@ _service: Optional[TerritoryService] = None
 def get_territory_service() -> TerritoryService:
     """Return the module-level singleton :class:`TerritoryService`.
 
-    The GeoPackage is loaded on the first call; subsequent calls return the
-    cached instance instantly.
+    Attributes load on the first call; subsequent calls return the cached
+    instance instantly. Geometry loads lazily, on first actual need.
     """
     global _service
     if _service is None:

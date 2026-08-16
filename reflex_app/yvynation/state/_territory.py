@@ -160,6 +160,29 @@ class TerritoryMixin(rx.State, mixin=True):
                 )
 
             # ------------------------------------------------------------------
+            # Pre-warm the *other* territory source too. Both services are
+            # module-level singletons shared by every session on this server
+            # process, so this only pays once. Without it, the conservation
+            # GeoPackage (3,247 rows with geometries) loads lazily on whoever's
+            # first click — synchronously, inside a computed var, with no
+            # loading indicator — which is exactly what made the batch page's
+            # type toggle look broken (blocked long enough that a second,
+            # impatient click landed and cancelled the first).
+            # ------------------------------------------------------------------
+            def _load_other():
+                other = "conservation" if ttype == "indigenous" else "indigenous"
+                _get_service(other).get_all_display_keys()
+
+            try:
+                await asyncio.get_event_loop().run_in_executor(None, _load_other)
+                logger.info("[INIT] Secondary territory source pre-warmed at startup")
+            except Exception as other_err:
+                logger.warning(
+                    f"[INIT] Secondary territory source pre-warm failed (will "
+                    f"load lazily on first use): {other_err}"
+                )
+
+            # ------------------------------------------------------------------
             # Commit: update territory list + bump geometry_version so the map
             # rebuilds its interactive indigenous-lands layer from local GeoJSON.
             # ``indigenous_lands_tile_url`` is intentionally left empty — the

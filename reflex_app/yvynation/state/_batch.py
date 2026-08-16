@@ -375,6 +375,31 @@ STEPS = {
 BATCH_WARN_THRESHOLD = 40
 BATCH_WARN_THRESHOLD_HEAVY = 25
 
+# ---------------------------------------------------------------------------
+# Attribute-filter dropdown vocabularies — hardcoded rather than scanned from
+# the GeoPackage. These come from fixed government classification schemes
+# (SNUC for conservation units, FUNAI process stages for indigenous
+# demarcation) and don't change at runtime. Scanning ~3,247 conservation
+# rows per field (via get_territory_info) to discover "what values exist"
+# was measured at ~1.5s each — six of those on every type-toggle click was
+# most of a reported ~10s stall. Values below match the current GeoPackage
+# exactly (verified 2026-08-16); update here if the source data changes.
+# ---------------------------------------------------------------------------
+_UF_OPTIONS = [
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
+    "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+]
+_FASE_OPTIONS = ["Declarada", "Delimitada", "Em Estudo", "Encaminhada RI", "Homologada", "Regularizada"]
+_MODALIDADE_OPTIONS: List[str] = []  # column is unpopulated in the current GeoPackage
+_CATEGORIA_OPTIONS = [
+    "Estação Ecológica", "Floresta", "Monumento Natural", "Parque",
+    "Refúgio de Vida Silvestre", "Reserva Biológica", "Reserva Extrativista",
+    "Reserva Particular do Patrimônio Natural", "Reserva de Desenvolvimento Sustentável",
+    "Reserva de Fauna", "Área de Proteção Ambiental", "Área de Relevante Interesse Ecológico",
+]
+_ESFERA_OPTIONS = ["Estadual", "Federal", "Municipal"]
+_GRUPO_OPTIONS = ["Proteção Integral", "Uso Sustentável"]
+
 
 class BatchMixin(rx.State, mixin=True):
     """Event handlers and helpers for the batch-processing page."""
@@ -387,7 +412,7 @@ class BatchMixin(rx.State, mixin=True):
     batch_year: str = "1985"      # single-year MapBiomas
     batch_year2: str = "2024"     # comparison year
     batch_hansen_year: str = "2020"
-    batch_buffer_km: float = 10.0
+    batch_buffer_km: str = "10"
     batch_buffer_enabled: bool = True
     batch_run_mapbiomas: bool = True
     batch_run_comparison: bool = True
@@ -418,13 +443,27 @@ class BatchMixin(rx.State, mixin=True):
     # Custom mode: 3 or 4 user-selected years, comma-separated.
     batch_multi_window_custom_years: str = "1985, 1994, 2004, 2014, 2024"
     batch_territory_search: str = ""
-    # Which GeoPackage(s) back the selector — both may be active at once so
-    # indigenous lands and conservation units can be mixed in one batch run.
+    # Which GeoPackage backs the territory list view — always exactly one
+    # entry ("indigenous" or "conservation"; kept as a list so the existing
+    # ``_batch_active_services``/filter code, written for either-or-both,
+    # needs no branching). The *selection* can still span both types across
+    # view switches — see ``batch_set_territory_type``.
     batch_territory_types: List[str] = ["indigenous"]
     # Hectare range filter (empty string = no bound on that side). Kept as
-    # strings, same on_blur pattern as batch_buffer_km.
+    # strings so they bind cleanly to on_change number inputs.
     batch_min_area_ha: str = ""
     batch_max_area_ha: str = ""
+    # ---- Attribute filters (multi-select; empty list = no restriction) -------
+    batch_selected_ufs: List[str] = []
+    # Indigenous-only fields (empty/no-op while only conservation is active)
+    batch_selected_fase: List[str] = []
+    batch_selected_modalidade: List[str] = []
+    # Conservation-only fields (empty/no-op while only indigenous is active)
+    batch_selected_categoria: List[str] = []
+    batch_selected_esfera: List[str] = []
+    batch_selected_grupo: List[str] = []
+    # "name_asc" | "name_desc" | "area_asc" | "area_desc"
+    batch_sort_by: str = "name_asc"
     # ---- Paste/upload a name list to auto-select areas ------------------------
     batch_paste_text: str = ""
     batch_paste_feedback: str = ""
@@ -464,9 +503,45 @@ class BatchMixin(rx.State, mixin=True):
         except (ValueError, TypeError):
             return None
 
-    @rx.var
+    def _batch_field_dict(self, field: str, only_type: Optional[str] = None) -> Dict[str, str]:
+        """display_key → stripped string value of ``field`` from get_territory_info().
+
+        ``field`` is a type-specific attribute (e.g. "fase_ti", "categoria"),
+        so callers usually pass ``only_type`` to avoid the other source's
+        ``get_territory_info`` doing a lookup for a key it won't recognise.
+        """
+        out: Dict[str, str] = {}
+        for type_name, svc in self._batch_active_services():
+            if only_type and type_name != only_type:
+                continue
+            for key in svc.get_all_display_keys():
+                info = svc.get_territory_info(key) or {}
+                v = str(info.get(field) or "").strip()
+                if v:
+                    out[key] = v
+        return out
+
+    def _batch_toggle_filter_value(self, attr_name: str, value: str):
+        """Add/remove ``value`` from the list-valued filter state var named ``attr_name``."""
+        current = list(getattr(self, attr_name))
+        if value in current:
+            current.remove(value)
+        else:
+            current.append(value)
+        setattr(self, attr_name, current)
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
     def batch_available_territories(self) -> List[str]:
-        """Full territory list from all active sources (indigenous and/or conservation)."""
+        """Full territory list from all active sources (indigenous and/or conservation).
+
+        auto_deps=False: the relative imports inside ``_batch_active_services``
+        make Reflex's static dependency scan bail out silently (logged as a
+        "Failed to automatically determine dependencies" warning), which
+        left this var never recomputing when ``batch_territory_types``
+        changed — the territory list stayed on indigenous lands after
+        toggling to conservation even though the filter dropdowns (which
+        already declared deps explicitly) updated correctly.
+        """
         try:
             keys: List[str] = []
             for _type, svc in self._batch_active_services():
@@ -475,7 +550,7 @@ class BatchMixin(rx.State, mixin=True):
         except Exception:
             return []
 
-    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
     def batch_territory_area_ha(self) -> Dict[str, float]:
         """display_key → superficie_ha from the owning GeoPackage.
 
@@ -492,21 +567,123 @@ class BatchMixin(rx.State, mixin=True):
         except Exception:
             return {}
 
-    @rx.var
+    # ---- Attribute filter data (values per key + dropdown options) -----------
+    # Indigenous-only fields
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_territory_fase(self) -> Dict[str, str]:
+        """display_key → fase_ti (demarcation stage), indigenous lands only."""
+        return self._batch_field_dict("fase_ti", only_type="indigenous")
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_territory_modalidade(self) -> Dict[str, str]:
+        """display_key → modalidade (land tenure type), indigenous lands only."""
+        return self._batch_field_dict("modalidade", only_type="indigenous")
+
+    # Conservation-only fields
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_territory_categoria(self) -> Dict[str, str]:
+        """display_key → categoria (unit category), conservation units only."""
+        return self._batch_field_dict("categoria", only_type="conservation")
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_territory_esfera(self) -> Dict[str, str]:
+        """display_key → esfera (federal/state/municipal), conservation units only."""
+        return self._batch_field_dict("esfera", only_type="conservation")
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_territory_grupo(self) -> Dict[str, str]:
+        """display_key → grupo (full/sustainable protection), conservation units only."""
+        return self._batch_field_dict("grupo", only_type="conservation")
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_uf_options(self) -> List[str]:
+        """The 27 Brazilian federative units — fixed, so listed directly rather
+        than scanned from the data (see the vocabulary block above ``BatchMixin``)."""
+        return _UF_OPTIONS
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_fase_options(self) -> List[str]:
+        return _FASE_OPTIONS if "indigenous" in self.batch_territory_types else []
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_modalidade_options(self) -> List[str]:
+        return _MODALIDADE_OPTIONS if "indigenous" in self.batch_territory_types else []
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_categoria_options(self) -> List[str]:
+        return _CATEGORIA_OPTIONS if "conservation" in self.batch_territory_types else []
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_esfera_options(self) -> List[str]:
+        return _ESFERA_OPTIONS if "conservation" in self.batch_territory_types else []
+
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
+    def batch_grupo_options(self) -> List[str]:
+        return _GRUPO_OPTIONS if "conservation" in self.batch_territory_types else []
+
+    def _batch_apply_uf_filter(self, items: List[str]) -> List[str]:
+        if not self.batch_selected_ufs:
+            return items
+        sel = set(self.batch_selected_ufs)
+        uf_map = self.batch_territory_uf
+        out = []
+        for t in items:
+            parts = {p.strip() for p in uf_map.get(t, "").split(",") if p.strip()}
+            if sel & parts:
+                out.append(t)
+        return out
+
+    def _batch_apply_value_filter(self, items: List[str], selected: List[str], value_map: Dict[str, str]) -> List[str]:
+        if not selected:
+            return items
+        sel = set(selected)
+        return [t for t in items if value_map.get(t, "") in sel]
+
+    @rx.var(auto_deps=False, deps=[
+        "batch_available_territories", "batch_territory_search",
+        "batch_min_area_ha", "batch_max_area_ha", "batch_territory_area_ha",
+        "batch_selected_ufs", "batch_territory_uf",
+        "batch_selected_fase", "batch_territory_fase",
+        "batch_selected_modalidade", "batch_territory_modalidade",
+        "batch_selected_categoria", "batch_territory_categoria",
+        "batch_selected_esfera", "batch_territory_esfera",
+        "batch_selected_grupo", "batch_territory_grupo",
+        "batch_sort_by",
+    ])
     def batch_filtered_territories(self) -> List[str]:
-        """Territory list filtered by search text and the min/max hectare range."""
+        """Territory list filtered by search text, hectare range, UF, and attribute filters.
+
+        auto_deps=False: most of the filtering happens inside plain helper
+        methods (``_batch_apply_uf_filter`` etc.), one call frame away from
+        this function's body, which Reflex's static dependency scan doesn't
+        see — so every var actually read (directly or through those
+        helpers) is declared explicitly rather than relying on detection.
+        """
         out = self.batch_available_territories
         q = self.batch_territory_search.lower()
         if q:
             out = [t for t in out if q in t.lower()]
+        areas = self.batch_territory_area_ha
         min_ha = self._batch_parse_ha(self.batch_min_area_ha)
         max_ha = self._batch_parse_ha(self.batch_max_area_ha)
-        if min_ha is not None or max_ha is not None:
-            areas = self.batch_territory_area_ha
-            if min_ha is not None:
-                out = [t for t in out if areas.get(t, 0) >= min_ha]
-            if max_ha is not None:
-                out = [t for t in out if areas.get(t, 0) <= max_ha]
+        if min_ha is not None:
+            out = [t for t in out if areas.get(t, 0) >= min_ha]
+        if max_ha is not None:
+            out = [t for t in out if areas.get(t, 0) <= max_ha]
+        out = self._batch_apply_uf_filter(out)
+        out = self._batch_apply_value_filter(out, self.batch_selected_fase, self.batch_territory_fase)
+        out = self._batch_apply_value_filter(out, self.batch_selected_modalidade, self.batch_territory_modalidade)
+        out = self._batch_apply_value_filter(out, self.batch_selected_categoria, self.batch_territory_categoria)
+        out = self._batch_apply_value_filter(out, self.batch_selected_esfera, self.batch_territory_esfera)
+        out = self._batch_apply_value_filter(out, self.batch_selected_grupo, self.batch_territory_grupo)
+        if self.batch_sort_by == "name_desc":
+            out = sorted(out, reverse=True)
+        elif self.batch_sort_by == "area_asc":
+            out = sorted(out, key=lambda t: areas.get(t, 0))
+        elif self.batch_sort_by == "area_desc":
+            out = sorted(out, key=lambda t: areas.get(t, 0), reverse=True)
+        # "name_asc" (default): already alphabetical — batch_available_territories
+        # is built from sorted(set(keys)) and no filter above reorders it.
         return out
 
     @rx.var
@@ -520,6 +697,21 @@ class BatchMixin(rx.State, mixin=True):
     @rx.var
     def batch_selected_count(self) -> int:
         return len(self.batch_selected_territories)
+
+    @rx.var
+    def batch_has_active_filters(self) -> bool:
+        """True when any list-narrowing filter (not just the type toggle) is set."""
+        return bool(
+            self.batch_territory_search
+            or self.batch_min_area_ha
+            or self.batch_max_area_ha
+            or self.batch_selected_ufs
+            or self.batch_selected_fase
+            or self.batch_selected_modalidade
+            or self.batch_selected_categoria
+            or self.batch_selected_esfera
+            or self.batch_selected_grupo
+        )
 
     @rx.var
     def batch_is_large_run(self) -> bool:
@@ -539,7 +731,7 @@ class BatchMixin(rx.State, mixin=True):
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
 
-    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
     def batch_territory_uf(self) -> Dict[str, str]:
         """display_key → normalised UF sigla string (e.g. "PA", "MT, PA").
 
@@ -559,12 +751,12 @@ class BatchMixin(rx.State, mixin=True):
         except Exception:
             return {}
 
-    @rx.var(auto_deps=False, deps=["available_territories", "batch_territory_types"])
+    @rx.var(auto_deps=False, deps=["batch_territory_types"])
     def batch_territory_meta(self) -> Dict[str, str]:
         """display_key → one-line metadata string from the owning GeoPackage.
 
-        Indigenous format: ``🪶 {etnia}  •  📐 {area} ha``
-        Conservation format: ``🌿 {categoria}  •  📐 {area} ha``
+        Indigenous format: ``🪶 {etnia}   🏛 {fase}   📐 {area} ha``
+        Conservation format: ``🌿 {categoria}   🏛 {esfera}   📐 {area} ha``
         Parts are omitted when missing; returns ``""`` for unknown keys.
 
         auto_deps=False: Reflex's dep introspection trips on relative imports,
@@ -582,10 +774,16 @@ class BatchMixin(rx.State, mixin=True):
                         cat = (info.get("categoria") or "").strip()
                         if cat:
                             parts.append(f"🌿 {cat}")
+                        esfera = (info.get("esfera") or "").strip()
+                        if esfera:
+                            parts.append(f"🏛 {esfera}")
                     else:
                         etn = (info.get("etnia") or "").strip()
                         if etn:
                             parts.append(f"🪶 {etn}")
+                        fase = (info.get("fase_ti") or "").strip()
+                        if fase:
+                            parts.append(f"🏛 {fase}")
                     ha = info.get("superficie_ha") or 0
                     if ha and ha > 0:
                         parts.append(f"📐 {ha:,.0f} ha")
@@ -624,24 +822,57 @@ class BatchMixin(rx.State, mixin=True):
         self.batch_min_area_ha = ""
         self.batch_max_area_ha = ""
 
-    def batch_toggle_territory_type(self, t: str):
-        """Toggle 'indigenous' / 'conservation' as an active territory source.
+    def batch_toggle_uf(self, uf: str):
+        self._batch_toggle_filter_value("batch_selected_ufs", uf)
 
-        Both may be active at once, listing territories from either
-        GeoPackage side by side. At least one type stays active. Toggling
-        does not clear the current selection — each selected territory's
-        source is resolved directly at run time (``_batch_resolve_territory_type``),
-        so selections safely persist across filter changes.
+    def batch_toggle_fase(self, v: str):
+        self._batch_toggle_filter_value("batch_selected_fase", v)
+
+    def batch_toggle_modalidade(self, v: str):
+        self._batch_toggle_filter_value("batch_selected_modalidade", v)
+
+    def batch_toggle_categoria(self, v: str):
+        self._batch_toggle_filter_value("batch_selected_categoria", v)
+
+    def batch_toggle_esfera(self, v: str):
+        self._batch_toggle_filter_value("batch_selected_esfera", v)
+
+    def batch_toggle_grupo(self, v: str):
+        self._batch_toggle_filter_value("batch_selected_grupo", v)
+
+    def batch_set_sort_by(self, v: str):
+        if v in ("name_asc", "name_desc", "area_asc", "area_desc"):
+            self.batch_sort_by = v
+
+    def batch_clear_all_filters(self):
+        """Reset every territory-list filter (not the type toggle) to its default."""
+        self.batch_territory_search = ""
+        self.batch_min_area_ha = ""
+        self.batch_max_area_ha = ""
+        self.batch_selected_ufs = []
+        self.batch_selected_fase = []
+        self.batch_selected_modalidade = []
+        self.batch_selected_categoria = []
+        self.batch_selected_esfera = []
+        self.batch_selected_grupo = []
+
+    def batch_set_territory_type(self, t: str):
+        """Switch which single GeoPackage backs the territory list view.
+
+        Exclusive — exactly one of "indigenous"/"conservation" is active at
+        a time, so the two toggle buttons are never both highlighted. The
+        *selection* (checked territories) is NOT cleared on switch, so you
+        can check some indigenous territories, switch the view to
+        conservation, check some there too, and both end up in the same
+        batch run — each one's actual source is resolved independently at
+        run time (``_batch_resolve_territory_type``), not from this toggle.
+        Filters reset since a search/attribute filter from one source
+        rarely means anything for the other.
         """
-        if t not in ("indigenous", "conservation"):
+        if t not in ("indigenous", "conservation") or self.batch_territory_types == [t]:
             return
-        current = list(self.batch_territory_types)
-        if t in current:
-            if len(current) > 1:
-                current.remove(t)
-        else:
-            current.append(t)
-        self.batch_territory_types = current
+        self.batch_territory_types = [t]
+        self.batch_clear_all_filters()
 
     # ---- Paste/upload list → auto-select -------------------------------------
 
@@ -766,12 +997,8 @@ class BatchMixin(rx.State, mixin=True):
         self.batch_hansen_year = year
 
     def batch_set_buffer_km(self, km: str):
-        try:
-            v = float(km)
-            if v > 0:
-                self.batch_buffer_km = v
-        except (ValueError, TypeError):
-            pass
+        if km in ("1", "2", "5", "10", "20"):
+            self.batch_buffer_km = km
 
     def batch_toggle_run_mapbiomas(self, val: bool):
         self.batch_run_mapbiomas = val
@@ -1081,7 +1308,7 @@ class BatchMixin(rx.State, mixin=True):
                             from ..utils.territory_service import get_territory_service
                             svc = get_territory_service()
                         info = svc.get_territory_info(terr)
-                        row = svc._get_row(terr)
+                        row = svc._get_geom_row(terr)
                         return info.get("superficie_ha", 0), (row.geometry if row is not None else None)
 
                     try:
