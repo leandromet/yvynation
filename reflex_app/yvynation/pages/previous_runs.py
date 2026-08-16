@@ -22,9 +22,15 @@ ORANGE_DARK = "#C2410C"
 def previous_runs_navbar() -> rx.Component:
     return rx.hstack(
         rx.hstack(
+            # Returns to whichever page opened this one — going back to the
+            # portal from batch would drop a configured selection.
             rx.button(
-                AppState.tr["back_to_portal"],
-                on_click=AppState.go_to_portal,
+                rx.cond(
+                    AppState.previous_runs_return_to == "batch",
+                    AppState.tr["back_to_batch"],
+                    AppState.tr["back_to_portal"],
+                ),
+                on_click=AppState.leave_previous_runs,
                 size="1",
                 variant="outline",
                 color_scheme="orange",
@@ -74,11 +80,171 @@ def _status_badge(kind: rx.Var) -> rx.Component:
     )
 
 
+def _kv_row(item: rx.Var) -> rx.Component:
+    """One label/value line in the detail panel."""
+    return rx.hstack(
+        rx.text(item["label"], font_size="xs", color="#6B7280",
+                width="140px", flex_shrink="0"),
+        rx.text(item["value"], font_size="xs", color="#374151"),
+        spacing="2", align_items="flex-start", width="100%",
+    )
+
+
+def _territory_row(t: rx.Var) -> rx.Component:
+    ok = t["status"] == "ok"
+    return rx.hstack(
+        rx.text(rx.cond(ok, "✅", "❌"), font_size="xs", flex_shrink="0"),
+        rx.text(t["name"], font_size="xs", font_weight="600",
+                color=rx.cond(ok, "#166534", "#991B1B"), flex_shrink="0"),
+        rx.text(t["detail"], font_size="xs", color="#6B7280"),
+        spacing="2", align_items="flex-start", width="100%",
+    )
+
+
+def _copy_link(label: rx.Var, url: rx.Var) -> rx.Component:
+    """A selectable link with a copy button. The bucket is not necessarily
+    public, so this is for the user to paste into gsutil / the console — it is
+    not how the Download button works."""
+    return rx.hstack(
+        rx.text(label, font_size="xs", color="#6B7280",
+                width="70px", flex_shrink="0"),
+        rx.box(
+            rx.text(url, font_size="xs", font_family="monospace",
+                    color="#374151", word_break="break-all"),
+            flex="1", padding="0.25rem 0.5rem", bg="#F3F4F6",
+            border="1px solid #E5E7EB", border_radius="sm",
+            user_select="all",
+        ),
+        rx.button(
+            "📋", size="1", variant="ghost", color_scheme="gray",
+            on_click=lambda: AppState.copy_bucket_link(url),
+            title=AppState.tr["previous_runs_copy"],
+            flex_shrink="0",
+        ),
+        spacing="2", align_items="center", width="100%",
+    )
+
+
+def _section(title: rx.Var, body: rx.Component) -> rx.Component:
+    return rx.vstack(
+        rx.text(title, font_size="xs", font_weight="700",
+                color=ORANGE_DARK, text_transform="uppercase",
+                letter_spacing="0.05em"),
+        body,
+        spacing="1", width="100%", align_items="flex-start",
+    )
+
+
+def _run_details(run: rx.Var) -> rx.Component:
+    """Expanded panel: bucket links plus whatever the run's own
+    batch_summary.json / batch_report.md records."""
+    return rx.box(
+        rx.cond(
+            AppState.previous_runs_detail_busy == run["name"],
+            rx.hstack(
+                rx.spinner(size="1"),
+                rx.text(AppState.tr["previous_runs_detail_loading"],
+                        font_size="xs", color="gray"),
+                spacing="2", align_items="center", padding="0.5rem 0",
+            ),
+            rx.vstack(
+                # ── Bucket links (finished archives only) ──
+                rx.cond(
+                    run["bucket_url"] != "",
+                    _section(
+                        AppState.tr["previous_runs_bucket_section"],
+                        rx.vstack(
+                            _copy_link("HTTPS", run["bucket_url"]),
+                            _copy_link("gs://", run["gs_uri"]),
+                            rx.text(AppState.tr["previous_runs_bucket_hint"],
+                                    font_size="xs", color="#9CA3AF"),
+                            spacing="1", width="100%",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+
+                # ── Run configuration ──
+                rx.cond(
+                    AppState.previous_runs_detail_config.length() > 0,
+                    _section(
+                        AppState.tr["previous_runs_detail_config"],
+                        rx.vstack(rx.foreach(AppState.previous_runs_detail_config, _kv_row),
+                                  spacing="0", width="100%"),
+                    ),
+                    rx.fragment(),
+                ),
+
+                # ── Territories ──
+                rx.cond(
+                    AppState.previous_runs_detail_territories.length() > 0,
+                    _section(
+                        AppState.tr["previous_runs_detail_territories"],
+                        rx.vstack(rx.foreach(AppState.previous_runs_detail_territories, _territory_row),
+                                  spacing="0", width="100%"),
+                    ),
+                    rx.fragment(),
+                ),
+
+                # ── Performance (runs from the parallel pipeline onward) ──
+                rx.cond(
+                    AppState.previous_runs_detail_perf.length() > 0,
+                    _section(
+                        AppState.tr["previous_runs_detail_performance"],
+                        rx.vstack(
+                            rx.foreach(AppState.previous_runs_detail_perf, _kv_row),
+                            rx.cond(
+                                AppState.previous_runs_detail_verdict != "",
+                                rx.text(AppState.previous_runs_detail_verdict, font_size="xs",
+                                        color="#92400E", bg="#FEF3C7",
+                                        padding="0.4rem 0.6rem",
+                                        border_radius="sm", width="100%"),
+                                rx.fragment(),
+                            ),
+                            spacing="1", width="100%",
+                        ),
+                    ),
+                    rx.fragment(),
+                ),
+
+                # ── Fallback: raw report, or why there is nothing to show ──
+                rx.cond(
+                    AppState.previous_runs_detail_report != "",
+                    rx.box(
+                        rx.text(AppState.previous_runs_detail_report, font_size="xs",
+                                font_family="monospace", white_space="pre-wrap",
+                                color="#374151"),
+                        width="100%", max_height="220px", overflow_y="auto",
+                        bg="#F9FAFB", border="1px solid #E5E7EB",
+                        border_radius="sm", padding="0.5rem",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.cond(
+                    AppState.previous_runs_detail_message != "",
+                    rx.text(AppState.previous_runs_detail_message, font_size="xs", color="#9CA3AF"),
+                    rx.fragment(),
+                ),
+
+                spacing="3", width="100%", align_items="flex-start",
+            ),
+        ),
+        width="100%",
+        padding="0.75rem 1rem 1rem 1rem",
+        bg="#FFFBF5",
+        border="1px solid #E5E7EB",
+        border_top="none",
+        border_radius="0 0 6px 6px",
+    )
+
+
 def _run_row(run: rx.Var) -> rx.Component:
     is_busy = AppState.previous_runs_busy == run["name"]
-    return rx.hstack(
+    is_open = AppState.previous_runs_expanded == run["name"]
+    header = rx.hstack(
         rx.vstack(
             rx.hstack(
+                rx.text(rx.cond(is_open, "▾", "▸"), font_size="sm", color=ORANGE),
                 rx.text(run["name"], font_size="sm", font_weight="600", color="#1F2937"),
                 _status_badge(run["kind"]),
                 spacing="2", align_items="center",
@@ -102,6 +268,11 @@ def _run_row(run: rx.Var) -> rx.Component:
                 spacing="1", align_items="center",
             ),
             spacing="0", align_items="flex-start",
+            # Only the name/meta block toggles the panel — the buttons to the
+            # right must not open it as a side effect of being clicked.
+            on_click=lambda: AppState.toggle_run_details(run["name"], run["kind"]),
+            cursor="pointer",
+            flex="1",
         ),
         rx.spacer(),
         rx.cond(
@@ -136,9 +307,15 @@ def _run_row(run: rx.Var) -> rx.Component:
         padding="0.85rem 1rem",
         bg="white",
         border="1px solid #E5E7EB",
-        border_radius="md",
+        border_radius=rx.cond(is_open, "6px 6px 0 0", "6px"),
         align_items="center",
         spacing="3",
+    )
+
+    return rx.vstack(
+        header,
+        rx.cond(is_open, _run_details(run), rx.fragment()),
+        spacing="0", width="100%",
     )
 
 

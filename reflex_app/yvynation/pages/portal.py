@@ -37,6 +37,72 @@ def portal_navbar() -> rx.Component:
     )
 
 
+def _bullet(text) -> rx.Component:
+    """One bulleted line. Hand-built rather than rx.list_item so each entry is
+    an independent grid cell — a real <ul> would keep them in one column."""
+    return rx.hstack(
+        rx.text("•", color="#15803d", flex_shrink="0"),
+        rx.text(text, font_size="sm", line_height="1.6", color="#444"),
+        spacing="2",
+        align_items="flex-start",
+    )
+
+
+def data_sources_section() -> rx.Component:
+    """Data sources, collapsed by default.
+
+    Five dense provider lines sat between the introduction and the analysis
+    choices, pushing the actual entry points below the fold. Collapsed they are
+    one line; expanded they lay out across the available width instead of as a
+    tall single column.
+    """
+    is_open = AppState.portal_data_sources_open
+    return rx.vstack(
+        rx.hstack(
+            rx.text(rx.cond(is_open, "▾", "▸"), font_size="sm", color="#2d5a3d"),
+            rx.heading(
+                "📊 " + AppState.tr["data_sources_title"], size="4", color="#2d5a3d",
+            ),
+            rx.text(
+                rx.cond(is_open, AppState.tr["portal_hide"], AppState.tr["portal_show"]),
+                font_size="xs", color="#6B7280",
+            ),
+            spacing="2",
+            align_items="center",
+            on_click=AppState.toggle_portal_data_sources,
+            cursor="pointer",
+            width="100%",
+        ),
+        rx.cond(
+            is_open,
+            rx.box(
+                # auto-fit rather than a fixed column count: the list reflows
+                # from three columns to one as the viewport narrows, with no
+                # breakpoint bookkeeping.
+                *[
+                    _bullet(AppState.tr[key])
+                    for key in (
+                        "portal_ds_mapbiomas",
+                        "portal_ds_hansen",
+                        "portal_ds_aafc",
+                        "portal_ds_gee",
+                        "portal_ds_custom",
+                    )
+                ],
+                display="grid",
+                grid_template_columns="repeat(auto-fit, minmax(280px, 1fr))",
+                gap="0.5rem 2rem",
+                width="100%",
+                padding_top="0.5rem",
+            ),
+            rx.fragment(),
+        ),
+        spacing="1",
+        width="100%",
+        align_items="flex-start",
+    )
+
+
 def about_section() -> rx.Component:
     """Section explaining the application with enhanced styling."""
     return rx.box(
@@ -49,20 +115,7 @@ def about_section() -> rx.Component:
                 color="#333",
             ),
             rx.divider(border_color="#d0e8d8"),
-            rx.vstack(
-                rx.heading("📊 " + AppState.tr["data_sources_title"], size="4", color="#2d5a3d"),
-                rx.unordered_list(
-                    rx.list_item(AppState.tr["portal_ds_mapbiomas"]),
-                    rx.list_item(AppState.tr["portal_ds_hansen"]),
-                    rx.list_item(AppState.tr["portal_ds_aafc"]),
-                    rx.list_item(AppState.tr["portal_ds_gee"]),
-                    rx.list_item(AppState.tr["portal_ds_custom"]),
-                    font_size="sm",
-                    line_height="1.8",
-                    color="#444",
-                ),
-                spacing="2",
-            ),
+            data_sources_section(),
             rx.divider(border_color="#d0e8d8"),
             rx.box(
                 rx.vstack(
@@ -77,8 +130,11 @@ def about_section() -> rx.Component:
                         line_height="1.8",
                         color="#444",
                     ),
+                    # Short form only. The full acknowledgements — people,
+                    # institutions, funding — are in the "How to Cite" panel,
+                    # which the trigger below opens.
                     rx.text(
-                        AppState.tr["citation_acknowledgment_text"],
+                        AppState.tr["citation_ack_summary"],
                         font_size="sm",
                         line_height="1.8",
                         color="#444",
@@ -268,69 +324,134 @@ def analysis_choice_section() -> rx.Component:
     )
 
 
-def footer_section() -> rx.Component:
-    """Footer with enhanced styling."""
-    return rx.box(
+# One type size for the whole footer. Headings are set apart by weight and
+# colour, not size — mixing sizes in a five-column strip reads as noise.
+FOOTER_FONT = "xs"
+FOOTER_LINE = "1.7"
+_FOOTER_TEXT = dict(font_size=FOOTER_FONT, line_height=FOOTER_LINE, font_weight="500")
+
+
+def _footer_heading(label) -> rx.Component:
+    return rx.text(label, color="#1a472a", font_size=FOOTER_FONT,
+                   line_height=FOOTER_LINE, font_weight="700")
+
+
+def _footer_link(label, href: str = "#") -> rx.Component:
+    return rx.link(label, href=href, color="#15803d", is_external=True,
+                   **_FOOTER_TEXT)
+
+
+def _footer_action(label, on_click) -> rx.Component:
+    """An in-app action styled exactly like the links around it.
+
+    Deliberately not ``rx.button``: a Radix button carries its own typography
+    from ``size=``, which no amount of ``font_size`` fully overrides — that
+    mismatch is why these two items rendered larger than everything else.
+    """
+    return rx.text(label, on_click=on_click, color="#15803d", cursor="pointer",
+                   _hover={"text_decoration": "underline"}, **_FOOTER_TEXT)
+
+
+def _footer_group(title, *items) -> rx.Component:
+    """One footer column: a heading over its links."""
+    return rx.vstack(
+        _footer_heading(title),
+        *items,
+        spacing="1",
+        align_items="flex-start",
+    )
+
+
+def _license_block() -> rx.Component:
+    """CC BY 4.0 notice, filling the space to the right of the link columns.
+
+    Label and licence share the first line — "License: CC BY 4.0" — so the
+    heading carries the answer instead of costing a line of its own; the terms
+    follow underneath.
+    """
+    return rx.vstack(
         rx.hstack(
-            rx.box(
-                rx.vstack(
-                    rx.heading(AppState.tr["portal_resources"], size="4", color="#1a472a"),
-                    rx.link(AppState.tr["documentation"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["portal_link_methods"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["data_sources_title"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.button(
-                        "📂 " + AppState.tr["previous_runs_title"],
-                        on_click=AppState.go_to_previous_runs,
-                        variant="ghost",
-                        size="1",
-                        color="#15803d",
-                        font_weight="500",
-                        padding="0",
-                        height="auto",
-                        justify_content="flex-start",
-                        _hover={"text_decoration": "underline", "bg": "transparent"},
-                    ),
-                    spacing="2",
-                ),
-                flex="1",
+            _footer_heading(AppState.tr["license_title"] + ":"),
+            rx.link(
+                "CC BY 4.0",
+                href="https://creativecommons.org/licenses/by/4.0/",
+                is_external=True,
+                color="#15803d",
+                font_size=FOOTER_FONT,
+                line_height=FOOTER_LINE,
+                font_weight="700",
             ),
-            rx.box(
-                rx.vstack(
-                    rx.heading(AppState.tr["portal_support"], size="4", color="#1a472a"),
-                    rx.link(AppState.tr["portal_link_tutorial"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["portal_link_faq"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["portal_link_contact"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    spacing="2",
-                ),
-                flex="1",
-            ),
-            rx.box(
-                rx.vstack(
-                    rx.heading("ℹ️ " + AppState.tr["about_title"], size="4", color="#1a472a"),
-                    rx.link(AppState.tr["about_overview"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.link(AppState.tr["portal_link_team"], href="#", color="#15803d", font_weight="500", is_external=True),
-                    rx.button(
-                        AppState.tr["portal_link_cite"],
-                        on_click=AppState.toggle_citation,
-                        variant="ghost",
-                        size="1",
-                        color="#15803d",
-                        font_weight="500",
-                        padding="0",
-                        height="auto",
-                        justify_content="flex-start",
-                        _hover={"text_decoration": "underline", "bg": "transparent"},
-                    ),
-                    spacing="2",
-                ),
-                flex="1",
-            ),
-            width="100%",
-            padding="1.5rem 0",
-            gap="2rem",
-            max_width="1200px",
-            margin="0 auto",
+            spacing="2",
+            align_items="baseline",
         ),
+        rx.text(AppState.tr["license_summary"], color="#4b5563",
+                font_size=FOOTER_FONT, line_height=FOOTER_LINE, font_weight="500"),
+        spacing="1",
+        align_items="flex-start",
+        max_width="320px",
+    )
+
+
+def footer_section() -> rx.Component:
+    """Footer: five compact link columns, with the licence notice on the right.
+
+    Ten links previously sat in three ``flex="1"`` columns inside a 1200px cap,
+    so a wide screen showed three tall narrow columns with empty space either
+    side. Five auto-fit columns at one small type size use the real width and
+    keep the footer short. The licence block takes the space that remains to
+    the right, and wraps underneath on narrow screens rather than squeezing the
+    columns.
+    """
+    link_columns = rx.box(
+        _footer_group(
+            AppState.tr["portal_resources"],
+            _footer_link(AppState.tr["documentation"]),
+            _footer_link(AppState.tr["portal_link_methods"]),
+        ),
+        _footer_group(
+            AppState.tr["portal_footer_data"],
+            _footer_link(AppState.tr["data_sources_title"]),
+            _footer_action(
+                AppState.tr["previous_runs_title"], AppState.go_to_previous_runs
+            ),
+        ),
+        _footer_group(
+            AppState.tr["portal_support"],
+            _footer_link(AppState.tr["portal_link_tutorial"]),
+            _footer_link(AppState.tr["portal_link_faq"]),
+        ),
+        _footer_group(
+            AppState.tr["about_title"],
+            _footer_link(AppState.tr["about_overview"]),
+            _footer_link(AppState.tr["portal_link_team"]),
+        ),
+        _footer_group(
+            AppState.tr["portal_footer_contact"],
+            _footer_link(AppState.tr["portal_link_contact"]),
+            _footer_action(AppState.tr["portal_link_cite"], AppState.toggle_citation),
+        ),
+        display="grid",
+        grid_template_columns="repeat(auto-fit, minmax(150px, 1fr))",
+        gap="0.75rem 1.5rem",
+        flex="1",
+        min_width="320px",
+    )
+
+    return rx.box(
+        rx.flex(
+            link_columns,
+            _license_block(),
+            wrap="wrap",
+            gap="1.5rem",
+            align_items="flex-start",
+            width="100%",
+            max_width="1600px",
+            margin="0 auto",
+            padding="0.9rem 0",
+        ),
+        # Border and background sit on the outer box so they span the full
+        # viewport; only the content inside is capped at 1600px.
+        width="100%",
         padding="0 2rem",
         border_top="3px solid #d0e8d8",
         bg="linear-gradient(135deg, #fafdf8 0%, #f5fdf0 100%)",

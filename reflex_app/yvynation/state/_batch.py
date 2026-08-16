@@ -399,6 +399,7 @@ STEPS = {
     "buf_gfc":      "🔵 Buffer Hansen GFC…",
     "multi_window": "🌀 Multi-window MapBiomas transitions…",
     "buf_multi":    "🔵 Multi-window MapBiomas transitions (buffer)…",
+    "maps_fetch":   "🛰 Downloading map rasters…",
     "maps":         "🗺️  Rendering PNG maps…",
     "export":       "📦 Packaging data…",
     "done":         "✅ Done",
@@ -2073,6 +2074,68 @@ class BatchMixin(rx.State, mixin=True):
 
                     # ─── PDF maps (satellite + MapBiomas y1/y2, per territory) ──
                     if run_maps:
+                        await _set_step(territory, STEPS["maps_fetch"])
+
+                        # Download every raster this territory's maps need
+                        # BEFORE taking the render lock. These are EE
+                        # getDownloadURL round-trips and basemap tile grids —
+                        # pure network, no matplotlib — and holding the single
+                        # render slot through them was measured at ~98% of a
+                        # run's wall clock. Prefetched concurrently here, the
+                        # lock below covers only the compositing.
+                        #
+                        # Runs on the default executor on purpose:
+                        # prefetch_map_inputs submits to the EE pool and blocks
+                        # on the results, so it must not occupy an EE worker
+                        # itself.
+                        def _prefetch_maps(
+                            geojson=raw_geojson,
+                            all_regions=region_map_data,
+                            buf_ee=buf_ee_geom,
+                            y1=year1, y2=year2, hy=hansen_year,
+                            do_mb=(run_mb or run_cmp),
+                            do_glad=run_glad,
+                            aux_keys=tuple(aux_layer_keys),
+                        ):
+                            from ..utils.map_export_service import prefetch_map_inputs
+                            buf_gj = None
+                            if buf_ee is not None:
+                                try:
+                                    buf_gj = buf_ee.getInfo()
+                                except Exception as be:
+                                    logger.warning(f"buffer geojson for {territory} failed: {be}")
+                            mb_years = ([int(y1)] if y1 == y2 else [int(y1), int(y2)]) if do_mb else []
+                            glad_layers = [str(hy)] if do_glad else None
+                            aux_layers = [(k, int(y2)) for k in aux_keys]
+                            per_region = {}
+                            for rname, region_geom, *_ in all_regions:
+                                try:
+                                    per_region[rname] = prefetch_map_inputs(
+                                        drawn_features=[],
+                                        active_mapbiomas_years=mb_years,
+                                        active_hansen_layers=glad_layers,
+                                        ee_geometry=region_geom,
+                                        territory_geojson=geojson,
+                                        buffer_geojson=buf_gj,
+                                        active_aux_layers=aux_layers,
+                                    )
+                                except Exception as pe:
+                                    # Non-fatal: create_map_set falls back to
+                                    # fetching inline for anything missing.
+                                    logger.warning(
+                                        f"map prefetch {rname or 'full'} for {territory}: {pe}"
+                                    )
+                                    per_region[rname] = None
+                            return buf_gj, per_region
+
+                        try:
+                            buf_gj_pre, map_prefetch = await loop.run_in_executor(
+                                None, _prefetch_maps
+                            )
+                        except Exception as pe:
+                            logger.warning(f"map prefetch for {territory} failed: {pe}")
+                            buf_gj_pre, map_prefetch = None, {}
+
                         await _set_step(territory, STEPS["maps"])
 
                         def _write_pdf_maps(
@@ -2085,17 +2148,13 @@ class BatchMixin(rx.State, mixin=True):
                             do_mb=(run_mb or run_cmp),
                             do_glad=run_glad,
                             aux_keys=tuple(aux_layer_keys),
+                            buf_gj=buf_gj_pre,
+                            prefetch=map_prefetch,
                         ):
                             try:
                                 from ..utils.export_service import _slug
                                 from ..utils.map_export_service import create_map_set
                                 t_slug = _slug(terr)
-                                buf_gj = None
-                                if buf_ee is not None:
-                                    try:
-                                        buf_gj = buf_ee.getInfo()
-                                    except Exception as be:
-                                        logger.warning(f"buffer geojson for {terr} failed: {be}")
 
                                 mb_years: List[int] = []
                                 if do_mb:
@@ -2119,6 +2178,10 @@ class BatchMixin(rx.State, mixin=True):
                                             buffer_geojson=buf_gj,
                                             image_format="png",
                                             active_aux_layers=aux_layers,
+                                            # Downloaded before the render lock
+                                            # was taken; None here just means
+                                            # "fetch inline", as before.
+                                            prefetched=prefetch.get(rname),
                                         )
                                         for name, img_bytes in (maps or {}).items():
                                             zf.writestr(

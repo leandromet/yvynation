@@ -244,6 +244,9 @@ class AppState(
     tutorial_expanded_steps: List[int] = []
     show_layer_reference: bool = False
     show_citation: bool = False
+    #: Portal "Data sources" list — collapsed by default to keep the landing
+    #: page readable; the detail matters to few first-time visitors.
+    portal_data_sources_open: bool = False
     use_consolidated_classes: bool = True
     buffer_distance_input: str = ""
     #: Default buffer distance used by the auto-buffer feature (km)

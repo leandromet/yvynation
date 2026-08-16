@@ -119,6 +119,12 @@ class UIMixin(rx.State, mixin=True):
         """Toggle layer reference guide visibility."""
         self.show_layer_reference = not self.show_layer_reference
 
+    # ---- Portal ----------------------------------------------------------
+
+    def toggle_portal_data_sources(self):
+        """Expand or collapse the portal's data-sources list."""
+        self.portal_data_sources_open = not self.portal_data_sources_open
+
     # ---- Citation / acknowledgments --------------------------------------
 
     def toggle_citation(self):
@@ -182,10 +188,31 @@ class UIMixin(rx.State, mixin=True):
         self.show_indigenous_lands = False  # Hide on portal
 
     def go_to_previous_runs(self):
-        """Navigate to the Previous Runs page and refresh its listing."""
+        """Navigate to the Previous Runs page and refresh its listing.
+
+        Remembers where the user came from — the page is reachable both from the
+        portal and from the batch navbar, and sending everyone back to the portal
+        loses a configured batch selection.
+        """
+        if self.analysis_mode in ("portal", "batch"):
+            self.previous_runs_return_to = self.analysis_mode
         self.analysis_mode = "previous_runs"
         self.show_indigenous_lands = False
         self.load_previous_runs()
+
+    def leave_previous_runs(self):
+        """Go back to whichever page opened Previous Runs."""
+        self.show_indigenous_lands = False
+        if self.previous_runs_return_to == "batch":
+            self.analysis_mode = "batch"
+            # Same background load as go_to_batch_processing: the selection and
+            # territory list survive in state, but a cold container may not have
+            # loaded them yet.
+            bg_task = self.initialize_app()
+            if bg_task is not None:
+                yield bg_task
+        else:
+            self.analysis_mode = "portal"
 
     def mark_data_loaded(self):
         """Mark that core data has been loaded."""

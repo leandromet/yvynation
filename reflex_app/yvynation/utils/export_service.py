@@ -260,10 +260,13 @@ def list_export_runs() -> List[Dict[str, Any]]:
         if p.is_file() and p.suffix == ".zip":
             zip_stems.add(p.stem)
             st = p.stat()
+            https_url, gs_uri = bucket_links(f"exports/{p.name}")
             runs.append({
                 "name": p.stem,
                 "kind": "zip",
                 "relpath": f"exports/{p.name}",
+                "bucket_url": https_url,
+                "gs_uri": gs_uri,
                 "size_label": _format_size(st.st_size),
                 "file_count": 0,
                 "time_label": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
@@ -276,6 +279,9 @@ def list_export_runs() -> List[Dict[str, Any]]:
                 "name": p.name,
                 "kind": "partial",
                 "relpath": "",
+                # A partial run has no archive in the bucket yet.
+                "bucket_url": "",
+                "gs_uri": "",
                 "size_label": _format_size(size),
                 "file_count": count,
                 "time_label": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
@@ -286,6 +292,189 @@ def list_export_runs() -> List[Dict[str, Any]]:
     for r in runs:
         del r["mtime"]
     return runs
+
+
+def bucket_links(relpath: str) -> Tuple[str, str]:
+    """``(https_url, gs_uri)`` for a finished export, or ``("", "")``.
+
+    Empty when ``GCS_EXPORT_BUCKET`` is unset (local development), where there
+    is no bucket to link to. These are for the user to copy — the HTTPS one
+    only resolves for someone with read access to the bucket (or if the objects
+    are public); the ``gs://`` URI is what ``gcloud storage``/``gsutil`` want.
+    In-app downloading does not use either: see :func:`get_download_url`.
+    """
+    import os
+
+    bucket_name = os.environ.get("GCS_EXPORT_BUCKET", "")
+    if not bucket_name or not relpath:
+        return "", ""
+    blob = relpath[len("exports/"):] if relpath.startswith("exports/") else relpath
+    return (
+        f"https://storage.googleapis.com/{bucket_name}/{blob}",
+        f"gs://{bucket_name}/{blob}",
+    )
+
+
+def _run_exists(name: str, kind: str) -> bool:
+    """Is there anything on disk for this run at all?
+
+    Kept separate from :func:`_read_run_member` so "the archive is gone" and
+    "the archive has no summary in it" can be reported differently — they call
+    for completely different reactions from the user.
+    """
+    export_dir = get_export_dir()
+    if kind == "zip":
+        return (export_dir / f"{name}.zip").is_file()
+    run_dir = (export_dir / name).resolve()
+    return export_dir.resolve() in run_dir.parents and run_dir.is_dir()
+
+
+def _read_run_member(name: str, kind: str, member: str) -> Optional[bytes]:
+    """Read one file out of a finished ZIP or a leftover run folder."""
+    export_dir = get_export_dir()
+    if kind == "zip":
+        zip_path = export_dir / f"{name}.zip"
+        if not zip_path.is_file():
+            return None
+        with zipfile.ZipFile(zip_path) as zf:
+            try:
+                return zf.read(member)
+            except KeyError:
+                return None
+    run_dir = (export_dir / name).resolve()
+    # Guard against a crafted run name escaping the export directory.
+    if export_dir.resolve() not in run_dir.parents:
+        return None
+    path = run_dir / member
+    return path.read_bytes() if path.is_file() else None
+
+
+def _pct(value: Any) -> str:
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def read_run_details(name: str, kind: str) -> Dict[str, Any]:
+    """Summarise a run for the Previous Runs detail panel.
+
+    Reads the ``batch_summary.json`` the run already wrote, and falls back to
+    ``batch_report.md`` when the JSON is missing (older runs, or an export ZIP
+    that is not a batch at all). Everything is returned pre-formatted as
+    strings: the UI renders these straight into a Reflex ``foreach``, which
+    cannot introspect nested mixed-type data.
+
+    Never raises — a run that cannot be read shows a message rather than
+    breaking the page.
+    """
+    out: Dict[str, Any] = {
+        "name": name,
+        "available": False,
+        "message": "",
+        "generated": "",
+        "config": [],       # [{"label":…, "value":…}]
+        "performance": [],  # [{"label":…, "value":…}]
+        "verdict": "",
+        "territories": [],  # [{"name":…, "status":…, "detail":…}]
+        "report": "",
+    }
+
+    if not _run_exists(name, kind):
+        out["message"] = (
+            "This run is no longer in the exports directory — it may have been "
+            "pruned or deleted. Refresh the list."
+        )
+        return out
+
+    try:
+        raw = _read_run_member(name, kind, "batch_summary.json")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[RUN_DETAILS] {name}: could not open archive: {e}")
+        out["message"] = f"Could not open this run: {e}"
+        return out
+
+    if raw is None:
+        try:
+            md = _read_run_member(name, kind, "batch_report.md")
+        except Exception:
+            md = None
+        if md:
+            out["available"] = True
+            out["report"] = md.decode("utf-8", "replace")
+            return out
+        out["message"] = (
+            "No batch_summary.json in this archive — it may be an interactive "
+            "export rather than a batch run."
+        )
+        return out
+
+    try:
+        meta = json.loads(raw.decode("utf-8", "replace"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[RUN_DETAILS] {name}: bad JSON: {e}")
+        out["message"] = f"batch_summary.json could not be parsed: {e}"
+        return out
+
+    out["available"] = True
+    out["generated"] = str(meta.get("generated", ""))[:19].replace("T", " ")
+
+    y1, y2 = meta.get("mapbiomas_year1"), meta.get("mapbiomas_year2")
+    buffer_km = meta.get("buffer_km")
+    requested = meta.get("territories_requested", 0)
+    completed = meta.get("territories_completed", 0)
+    failed = meta.get("territories_failed", 0)
+
+    config = [
+        {"label": "MapBiomas", "value": f"{y1} → {y2}" if y1 and y2 else "—"},
+        {"label": "Hansen GLAD", "value": str(meta.get("hansen_glad_year") or "—")},
+        {"label": "Buffer", "value": f"{buffer_km:g} km" if buffer_km else "off"},
+        {"label": "Territories", "value": f"{completed} of {requested} completed"
+                                          + (f", {failed} failed" if failed else "")},
+    ]
+    out["config"] = config
+
+    # The concurrency block only exists on runs produced after the parallel
+    # pipeline landed; older archives simply have no performance section.
+    conc = meta.get("concurrency") or {}
+    if conc:
+        ee = conc.get("earth_engine") or {}
+        render = conc.get("render") or {}
+        out["performance"] = [
+            {"label": "Territory workers", "value": str(conc.get("territory_workers", "—"))},
+            {"label": "Wall time", "value": f"{ee.get('wall_s', '—')} s"},
+            {"label": "Earth Engine", "value":
+                f"{ee.get('calls', '—')} calls · busy {_pct(ee.get('busy_pct'))} · "
+                f"all {ee.get('capacity', '—')} slots busy {_pct(ee.get('saturated_pct'))} · "
+                f"peak {ee.get('peak_inflight', '—')}"},
+            {"label": "Rendering", "value":
+                f"{render.get('calls', '—')} tasks · busy {_pct(render.get('busy_pct'))} "
+                f"(serialized)"},
+        ]
+        out["verdict"] = str(conc.get("verdict", ""))
+
+    for row in meta.get("results") or []:
+        status = str(row.get("status", "?"))
+        if status == "ok":
+            bits = []
+            if row.get("mb_year1"):
+                bits.append(f"MapBiomas {row['mb_year1']}/{row.get('mb_year2')}")
+            if row.get("glad_year"):
+                bits.append(f"GLAD {row['glad_year']}")
+            if row.get("gfc"):
+                bits.append("GFC")
+            if row.get("buffer"):
+                bits.append("buffer")
+            detail = " · ".join(bits)
+        else:
+            detail = str(row.get("error", ""))[:160]
+        out["territories"].append({
+            "name": str(row.get("territory", "?")),
+            "status": status,
+            "detail": detail,
+        })
+
+    return out
 
 
 def zip_partial_run(run_name: str) -> Optional[str]:

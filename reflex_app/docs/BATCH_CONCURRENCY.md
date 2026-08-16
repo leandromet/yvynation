@@ -57,7 +57,8 @@ run_batch_processing
 │     │
 │     └─ RENDER ─ figures + section writers            ← serialized globally
 │
-├─ PNG maps (matplotlib)                               ← serialized globally
+├─ map rasters: EE layer PNGs + basemap tiles, in parallel   ← NOT locked
+├─ PNG maps (matplotlib compositing only)              ← serialized globally
 └─ Deforestation timeline (plotly/kaleido)             ← serialized globally
 ```
 
@@ -364,29 +365,40 @@ only for matplotlib. In `map_export_service`:
 So the fix order below is driven by that measurement, not by the theory that
 rendering is CPU-bound. **More cores would have bought almost nothing.**
 
-### Ordered by expected value
+### Done in response to that measurement
 
-1. **Cache basemap tiles per (bounds, zoom).** All of a territory's maps share
-   one footprint, so this alone removes most of the redundant fetches. Smallest
-   change, largest win.
-2. **Fetch tiles concurrently.** The nested loop is pure I/O with no shared
-   state — a thread pool over the grid turns 36 sequential round-trips into a
-   handful of batches. Safe: no matplotlib involved.
-3. **Move raster fetching out of the render lock.** Prefetch the EE layer PNGs
-   and basemap composites on the EE pool, then hand finished images to the
-   serialized matplotlib step. Only the compositing genuinely needs the lock.
-4. **Render in a process pool.** Worth revisiting only *after* 1–3, once the
+1. **Basemap tiles are cached** per `(provider, zoom, x, y)` in a bounded LRU
+   (`YVY_TILE_CACHE_TILES`, default 1024). All of a territory's maps share one
+   footprint, so the repeat fetches are gone — and the cache is keyed by tile,
+   not by map, so it also pays off across neighbouring territories.
+2. **Tiles are fetched concurrently** on a dedicated pool
+   (`YVY_TILE_FETCH_WORKERS`, default 8). Measured 5.2× on a 12-tile grid.
+3. **Raster fetching happens before the render lock is taken.**
+   `prefetch_map_inputs()` downloads every EE layer PNG (on the shared EE pool,
+   so it stays inside the tier budget and shows up in the metering) and the
+   basemap composite, concurrently. `create_map_set(prefetched=…)` then does
+   pure compositing. The batch pipeline runs the prefetch on the *default*
+   executor — never the EE pool, since it submits to that pool and blocks on
+   the results, and a task that waits on its own pool deadlocks once enough of
+   them run at once.
+
+`create_map_set()` still works with no prefetch (fetching inline, as before),
+so nothing else that calls it had to change.
+
+### Still ordered by expected value
+
+1. **Render in a process pool.** Worth revisiting only *after* 1–3, once the
    render stage is actually CPU-bound. Two worker processes would each get their
    own kaleido scope and pyplot state. Plotly figures are picklable; the
    matplotlib map path is not (it holds live `ee.Geometry` objects), so this
    works for charts before maps. **This is also the point at which 4 vCPU starts
    to pay** — not before.
-5. **Upgrade kaleido to 1.x**, which is not built around a global scope — but it
+2. **Upgrade kaleido to 1.x**, which is not built around a global scope — but it
    delegates to an external Chrome install, which is why it is pinned at 0.2.1
    today (see `requirements.txt`).
-6. **Parallelise quadrants** — only worth doing after (4), and only pays off for
+3. **Parallelise quadrants** — only worth doing after (1), and only pays off for
    a single large territory running alone.
-7. **The high-volume EE endpoint** (`earthengine-highvolume.googleapis.com`) is
+4. **The high-volume EE endpoint** (`earthengine-highvolume.googleapis.com`) is
    built for many small parallel requests. It is *not* a drop-in win here: it
    applies tighter per-request compute limits, and this pipeline's heavy
    `reduceRegion` calls over million-hectare territories are exactly what it

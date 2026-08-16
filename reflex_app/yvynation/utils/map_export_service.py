@@ -12,6 +12,10 @@ Generates publication-quality PDF maps with:
 import io
 import math
 import logging
+import os
+import threading
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List, Tuple
 
 import matplotlib
@@ -31,6 +35,101 @@ TILE_URLS = {
 }
 
 MAX_TILES = 40
+
+
+# ---------------------------------------------------------------------------
+# Basemap tile cache + parallel fetch
+#
+# Tiles used to be fetched one at a time in a nested loop, and nothing was
+# cached — so every map in a set re-downloaded the same tiles for the same
+# footprint, all of it sequential and (worse) all of it holding the serialized
+# render lock. A 40-tile grid across four maps was ~160 blocking round-trips
+# per territory. Measured at 98.5% of one batch run's wall clock.
+#
+# The cache is keyed by tile identity, not by map, so it also pays off across
+# maps of neighbouring territories.
+# ---------------------------------------------------------------------------
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning(f"{name}={raw!r} is not an integer — using {default}")
+        return default
+    return value if value >= 1 else default
+
+
+#: Tiles kept in memory. 256×256 satellite JPEG/PNG runs ~20–50 KB, so the
+#: default sits around 20–50 MB — negligible against an 8 GiB container.
+TILE_CACHE_MAX = _int_env("YVY_TILE_CACHE_TILES", 1024)
+
+#: Concurrent tile downloads. Pure network I/O against a CDN.
+TILE_FETCH_WORKERS = _int_env("YVY_TILE_FETCH_WORKERS", 8)
+
+_TILE_CACHE: "OrderedDict[Tuple[str, int, int, int], bytes]" = OrderedDict()
+_TILE_CACHE_LOCK = threading.Lock()
+_tile_pool: Optional[ThreadPoolExecutor] = None
+_tile_pool_lock = threading.Lock()
+
+
+def _get_tile_pool() -> ThreadPoolExecutor:
+    global _tile_pool
+    if _tile_pool is None:
+        with _tile_pool_lock:
+            if _tile_pool is None:
+                _tile_pool = ThreadPoolExecutor(
+                    max_workers=TILE_FETCH_WORKERS, thread_name_prefix="tile"
+                )
+    return _tile_pool
+
+
+def _tile_cache_get(key) -> Optional[bytes]:
+    with _TILE_CACHE_LOCK:
+        data = _TILE_CACHE.get(key)
+        if data is not None:
+            _TILE_CACHE.move_to_end(key)   # LRU touch
+        return data
+
+
+def _tile_cache_put(key, data: bytes) -> None:
+    with _TILE_CACHE_LOCK:
+        _TILE_CACHE[key] = data
+        _TILE_CACHE.move_to_end(key)
+        while len(_TILE_CACHE) > TILE_CACHE_MAX:
+            _TILE_CACHE.popitem(last=False)
+
+
+def clear_tile_cache() -> None:
+    """Drop every cached tile (tests, or to reclaim memory)."""
+    with _TILE_CACHE_LOCK:
+        _TILE_CACHE.clear()
+
+
+def _fetch_tile(provider: str, zoom: int, xi: int, yi: int):
+    """Return ``(key, png_bytes_or_None, was_cache_hit)``.
+
+    Never raises: a tile that will not load leaves its square blank, which is
+    how this has always degraded.
+    """
+    import requests
+
+    key = (provider, zoom, xi, yi)
+    cached = _tile_cache_get(key)
+    if cached is not None:
+        return key, cached, True
+
+    url_template = TILE_URLS.get(provider, TILE_URLS['google_satellite'])
+    try:
+        resp = requests.get(url_template.format(x=xi, y=yi, z=zoom), timeout=10)
+        if resp.status_code == 200:
+            _tile_cache_put(key, resp.content)
+            return key, resp.content, False
+    except Exception:
+        pass
+    return key, None, False
 
 
 def _lat_lon_to_tile(lat: float, lon: float, zoom: int) -> Tuple[int, int]:
@@ -80,7 +179,6 @@ def get_basemap_image(bounds: Tuple[float, float, float, float],
 
     min_lon, min_lat, max_lon, max_lat = bounds
     zoom = _optimal_zoom(bounds)
-    url_template = TILE_URLS.get(tile_provider, TILE_URLS['google_satellite'])
 
     x1, y1 = _lat_lon_to_tile(max_lat, min_lon, zoom)
     x2, y2 = _lat_lon_to_tile(min_lat, max_lon, zoom)
@@ -95,16 +193,28 @@ def get_basemap_image(bounds: Tuple[float, float, float, float],
 
     composite = Image.new('RGB', (cols * 256, rows * 256), (255, 255, 255))
 
-    for xi in range(x1, x2 + 1):
-        for yi in range(y1, y2 + 1):
-            url = url_template.format(x=xi, y=yi, z=zoom)
-            try:
-                resp = requests.get(url, timeout=10)
-                if resp.status_code == 200:
-                    tile = Image.open(io.BytesIO(resp.content))
-                    composite.paste(tile, ((xi - x1) * 256, (yi - y1) * 256))
-            except Exception:
-                pass  # Leave white tile on failure
+    # Fetch the whole grid at once (cache hits resolve without a request), then
+    # paste. Decoding stays here on the calling thread — PIL decode is cheap
+    # next to a round-trip, and it keeps the workers purely I/O-bound.
+    coords = [(xi, yi) for xi in range(x1, x2 + 1) for yi in range(y1, y2 + 1)]
+    results = list(_get_tile_pool().map(
+        lambda c: _fetch_tile(tile_provider, zoom, c[0], c[1]), coords
+    ))
+
+    hits = sum(1 for _, _, hit in results if hit)
+    misses = len(results) - hits
+    for (_, _, xi, yi), data, _hit in results:
+        if not data:
+            continue
+        try:
+            tile = Image.open(io.BytesIO(data))
+            composite.paste(tile, ((xi - x1) * 256, (yi - y1) * 256))
+        except Exception:
+            pass  # Leave white tile on failure
+    logger.debug(
+        f"basemap {tile_provider} z{zoom}: {len(results)} tiles "
+        f"({hits} cached, {misses} fetched)"
+    )
 
     # Calculate actual bounds of the tile grid
     top_lat, left_lon = _tile_to_lat_lon(x1, y1, zoom)
@@ -341,6 +451,7 @@ def create_pdf_map(
     ee_geometry=None,
     figsize: Tuple[int, int] = (12, 10),
     image_format: str = "pdf",
+    prefetched: Optional[Dict[str, Any]] = None,
 ) -> Optional[bytes]:
     """
     Create a publication-quality map image.
@@ -357,6 +468,11 @@ def create_pdf_map(
         figsize: Figure size in inches
         image_format: 'pdf' (default), 'png', or any other matplotlib backend
             that ``Figure.savefig`` accepts.
+        prefetched: optional ``{"raster": (img, bounds), "basemap": (img, bounds)}``
+            from :func:`prefetch_map_inputs`. A present key means "already
+            fetched, do not download" — including when its value is
+            ``(None, None)``, which records a fetch that was attempted and
+            failed, so the fallback path still runs without a retry.
 
     Returns:
         bytes: rendered image bytes, or None on error
@@ -369,9 +485,17 @@ def create_pdf_map(
         ax.set_ylim(min_lat, max_lat)
         ax.set_aspect('equal')
 
+        pf = prefetched or {}
+
+        def _basemap():
+            """Prefetched satellite basemap if we have one, else fetch now."""
+            if "basemap" in pf and pf["basemap"] is not None:
+                return pf["basemap"]
+            return get_basemap_image(bounds, 'google_satellite')
+
         # 1. Basemap
         if layer_type in ('satellite', 'google_satellite', 'arcgis_satellite'):
-            basemap, bm_bounds = get_basemap_image(bounds, 'google_satellite')
+            basemap, bm_bounds = _basemap()
             if basemap:
                 ax.imshow(basemap, extent=[bm_bounds[0], bm_bounds[2], bm_bounds[1], bm_bounds[3]],
                           aspect='auto', zorder=0)
@@ -386,14 +510,19 @@ def create_pdf_map(
         ) and ee_geometry:
             # EE raster overlay (year is required for per-year layers; aux
             # layers with per_year=False ignore it).
-            ee_img, ee_bounds = get_ee_layer_image(bounds, ee_geometry, layer_type, year)
+            if "raster" in pf:
+                ee_img, ee_bounds = pf["raster"]
+            else:
+                ee_img, ee_bounds = get_ee_layer_image(
+                    bounds, ee_geometry, layer_type, year
+                )
             if ee_img:
                 ax.imshow(ee_img, extent=[ee_bounds[0], ee_bounds[2], ee_bounds[1], ee_bounds[3]],
                           aspect='auto', zorder=1, alpha=0.85)
             else:
                 # Fallback to satellite basemap so the territory + buffer
                 # outlines still have a meaningful background.
-                basemap, bm_bounds = get_basemap_image(bounds, 'google_satellite')
+                basemap, bm_bounds = _basemap()
                 if basemap:
                     ax.imshow(basemap, extent=[bm_bounds[0], bm_bounds[2], bm_bounds[1], bm_bounds[3]],
                               aspect='auto', zorder=0)
@@ -532,72 +661,41 @@ def _geojson_centroid(geojson: Dict) -> Optional[Tuple[float, float]]:
     return (avg_x, avg_y)
 
 
-def create_map_set(
-    drawn_features: List[Dict],
-    territory_name: Optional[str] = None,
-    active_mapbiomas_years: Optional[List[int]] = None,
-    active_hansen_layers: Optional[List[str]] = None,
-    ee_geometry=None,
-    territory_geojson: Optional[Dict] = None,
-    buffer_geojson: Optional[Dict] = None,
-    image_format: str = "pdf",
-    active_aux_layers: Optional[List[Tuple[str, Optional[int]]]] = None,
-) -> Dict[str, bytes]:
+def _raster_specs(
+    active_mapbiomas_years: Optional[List[int]],
+    active_hansen_layers: Optional[List[str]],
+    active_aux_layers: Optional[List[Tuple[str, Optional[int]]]],
+) -> List[Dict[str, Any]]:
+    """Describe every raster-backed map in a set.
+
+    The single source of truth for map identity: the prefetch pass and the
+    compose pass both walk this list, so a raster fetched under one key can
+    never be looked up under another.
     """
-    Generate a set of maps for all active layers.
+    specs: List[Dict[str, Any]] = []
 
-    Returns dict of {map_name: image_bytes}. The byte content is the file
-    encoded with ``image_format`` (e.g. 'pdf' or 'png').
-    """
-    maps = {}
-
-    bounds = get_geometry_bounds(drawn_features, territory_geojson, buffer_geojson)
-
-    # For raster overlays, clip to (territory ∪ buffer) so MapBiomas / Hansen
-    # pixels render inside both regions — not just the territory.
-    raster_geometry = ee_geometry
-    if ee_geometry is not None and buffer_geojson:
-        try:
-            import ee
-            buf_ee = ee.Geometry(buffer_geojson)
-            raster_geometry = ee_geometry.union(buf_ee, 1)
-        except Exception as e:
-            logger.warning(f"buffer union for raster clip failed: {e}")
-            raster_geometry = ee_geometry
-
-    # MapBiomas maps
     for year in (active_mapbiomas_years or []):
-        name = f"MapBiomas_{year}"
-        title = f"MapBiomas Land Cover - {year}"
-        if territory_name:
-            title += f" | {territory_name}"
-        img = create_pdf_map(
-            bounds, 'mapbiomas', year, drawn_features,
-            territory_geojson, buffer_geojson, title, raster_geometry,
-            image_format=image_format,
-        )
-        if img:
-            maps[name] = img
+        specs.append({
+            "key": f"mapbiomas:{year}",
+            "layer_type": "mapbiomas",
+            "year": year,
+            "map_name": f"MapBiomas_{year}",
+            "title": f"MapBiomas Land Cover - {year}",
+        })
 
-    # Hansen maps
     for layer in (active_hansen_layers or []):
         try:
             year = int(layer)
         except (ValueError, TypeError):
             continue
-        name = f"Hansen_{year}"
-        title = f"Hansen/GLAD - {year}"
-        if territory_name:
-            title += f" | {territory_name}"
-        img = create_pdf_map(
-            bounds, 'hansen', year, drawn_features,
-            territory_geojson, buffer_geojson, title, raster_geometry,
-            image_format=image_format,
-        )
-        if img:
-            maps[name] = img
+        specs.append({
+            "key": f"hansen:{year}",
+            "layer_type": "hansen",
+            "year": year,
+            "map_name": f"Hansen_{year}",
+            "title": f"Hansen/GLAD - {year}",
+        })
 
-    # MapBiomas auxiliary rasters (deforestation, fire, mining, agriculture-cycles)
     if active_aux_layers:
         try:
             from ..config.config import MAPBIOMAS_AUX_DATASETS
@@ -617,17 +715,166 @@ def create_map_set(
                 c if c.isalnum() else "_"
                 for c in label.replace(" ", "_")
             ).strip("_") or aux_key
-            name = f"{safe_label}{name_year}"
-            title = f"{label}{(' ' + str(year)) if per_year and year else ''}"
-            if territory_name:
-                title += f" | {territory_name}"
-            img = create_pdf_map(
-                bounds, f"aux:{aux_key}", year_for_call, drawn_features,
-                territory_geojson, buffer_geojson, title, raster_geometry,
-                image_format=image_format,
+            specs.append({
+                "key": f"aux:{aux_key}:{year_for_call}",
+                "layer_type": f"aux:{aux_key}",
+                "year": year_for_call,
+                "map_name": f"{safe_label}{name_year}",
+                "title": f"{label}{(' ' + str(year)) if per_year and year else ''}",
+            })
+
+    return specs
+
+
+def _resolve_raster_geometry(ee_geometry, buffer_geojson):
+    """Clip footprint for raster overlays: territory ∪ buffer, so MapBiomas /
+    Hansen pixels render inside both regions — not just the territory."""
+    if ee_geometry is None or not buffer_geojson:
+        return ee_geometry
+    try:
+        import ee
+        return ee_geometry.union(ee.Geometry(buffer_geojson), 1)
+    except Exception as e:
+        logger.warning(f"buffer union for raster clip failed: {e}")
+        return ee_geometry
+
+
+def prefetch_map_inputs(
+    drawn_features: List[Dict],
+    active_mapbiomas_years: Optional[List[int]] = None,
+    active_hansen_layers: Optional[List[str]] = None,
+    ee_geometry=None,
+    territory_geojson: Optional[Dict] = None,
+    buffer_geojson: Optional[Dict] = None,
+    active_aux_layers: Optional[List[Tuple[str, Optional[int]]]] = None,
+) -> Dict[str, Any]:
+    """Fetch every image a map set needs, concurrently.
+
+    Downloading rasters is network work — an ``getDownloadURL`` round-trip per
+    layer plus the tile grid — and none of it touches matplotlib. Doing it here
+    means the caller can run it *outside* the serialized render lock and in
+    parallel, leaving only the actual compositing to be serialized.
+
+    EE downloads go through the shared Earth Engine pool so they stay inside the
+    tier budget and show up in the run's metering, exactly like the analysis
+    calls do.
+
+    Pass the result to :func:`create_map_set` as ``prefetched=``. Safe to skip
+    entirely — ``create_map_set`` falls back to fetching inline.
+
+    .. warning::
+       Must **not** be called from a thread of the Earth Engine pool. It submits
+       to that pool and blocks on the results, so running it there would let a
+       few concurrent calls occupy every worker while waiting on work that can
+       never be scheduled. Call it from the default executor.
+    """
+    from .ee_concurrency import ee_meter, get_ee_executor
+
+    bounds = get_geometry_bounds(drawn_features, territory_geojson, buffer_geojson)
+    raster_geometry = _resolve_raster_geometry(ee_geometry, buffer_geojson)
+    specs = _raster_specs(
+        active_mapbiomas_years, active_hansen_layers, active_aux_layers
+    )
+
+    out: Dict[str, Any] = {
+        "bounds": bounds,
+        "raster_geometry": raster_geometry,
+        "rasters": {},
+        "basemap": None,
+    }
+
+    def _one_raster(spec):
+        # Metered by hand: this bypasses _ee_with_retry (which is async and
+        # lives in the batch layer), so without this the pool would look idle
+        # while doing real Earth Engine work.
+        with ee_meter.track():
+            return get_ee_layer_image(
+                bounds, raster_geometry, spec["layer_type"], spec["year"]
             )
-            if img:
-                maps[name] = img
+
+    futures = {}
+    executor = get_ee_executor()
+    if raster_geometry is not None:
+        for spec in specs:
+            futures[spec["key"]] = executor.submit(_one_raster, spec)
+
+    # The satellite map always needs the basemap, and every raster map falls
+    # back to it when its layer fails — so it is always worth having.
+    #
+    # Run on this thread rather than submitting it to the tile pool: it calls
+    # into that pool itself, and a task that blocks on its own pool deadlocks
+    # once enough of them run at once. Here it still overlaps the EE downloads
+    # submitted above (different pool) and parallelises its own tiles.
+    try:
+        out["basemap"] = get_basemap_image(bounds, 'google_satellite')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"prefetch of basemap failed: {e}")
+        out["basemap"] = (None, None)
+
+    for key, fut in futures.items():
+        try:
+            out["rasters"][key] = fut.result()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"prefetch of raster {key} failed: {e}")
+            out["rasters"][key] = (None, None)
+
+    return out
+
+
+def create_map_set(
+    drawn_features: List[Dict],
+    territory_name: Optional[str] = None,
+    active_mapbiomas_years: Optional[List[int]] = None,
+    active_hansen_layers: Optional[List[str]] = None,
+    ee_geometry=None,
+    territory_geojson: Optional[Dict] = None,
+    buffer_geojson: Optional[Dict] = None,
+    image_format: str = "pdf",
+    active_aux_layers: Optional[List[Tuple[str, Optional[int]]]] = None,
+    prefetched: Optional[Dict[str, Any]] = None,
+) -> Dict[str, bytes]:
+    """
+    Generate a set of maps for all active layers.
+
+    Returns dict of {map_name: image_bytes}. The byte content is the file
+    encoded with ``image_format`` (e.g. 'pdf' or 'png').
+
+    *prefetched* is an optional :func:`prefetch_map_inputs` result. When given,
+    no downloading happens here at all — only compositing — which is what lets
+    the caller keep the network work out of the render lock.
+    """
+    maps = {}
+    pf = prefetched or {}
+
+    bounds = pf.get("bounds") or get_geometry_bounds(
+        drawn_features, territory_geojson, buffer_geojson
+    )
+    raster_geometry = (
+        pf["raster_geometry"] if "raster_geometry" in pf
+        else _resolve_raster_geometry(ee_geometry, buffer_geojson)
+    )
+    prefetched_rasters = pf.get("rasters") or {}
+    prefetched_basemap = pf.get("basemap")
+
+    for spec in _raster_specs(
+        active_mapbiomas_years, active_hansen_layers, active_aux_layers
+    ):
+        title = spec["title"]
+        if territory_name:
+            title += f" | {territory_name}"
+        per_map = {}
+        if spec["key"] in prefetched_rasters:
+            per_map["raster"] = prefetched_rasters[spec["key"]]
+        if prefetched_basemap is not None:
+            per_map["basemap"] = prefetched_basemap
+        img = create_pdf_map(
+            bounds, spec["layer_type"], spec["year"], drawn_features,
+            territory_geojson, buffer_geojson, title, raster_geometry,
+            image_format=image_format,
+            prefetched=per_map or None,
+        )
+        if img:
+            maps[spec["map_name"]] = img
 
     # Satellite basemap
     img = create_pdf_map(
@@ -635,6 +882,9 @@ def create_map_set(
         territory_geojson, buffer_geojson,
         f"Satellite Basemap{' | ' + territory_name if territory_name else ''}",
         image_format=image_format,
+        prefetched=(
+            {"basemap": prefetched_basemap} if prefetched_basemap is not None else None
+        ),
     )
     if img:
         maps["Satellite_Basemap"] = img

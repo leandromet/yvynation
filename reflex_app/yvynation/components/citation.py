@@ -74,7 +74,24 @@ def citation_modal() -> rx.Component:
                                 line_height="1.7",
                                 color="#333",
                             ),
-                            spacing="1",
+                            # Full acknowledgements live here rather than on the
+                            # portal: three dense paragraphs on the landing page
+                            # would undo its decluttering, and this panel is
+                            # already where people come to credit the work.
+                            *[
+                                rx.text(
+                                    AppState.tr[key],
+                                    font_size="xs",
+                                    line_height="1.7",
+                                    color="#444",
+                                )
+                                for key in (
+                                    "citation_ack_people",
+                                    "citation_ack_compute",
+                                    "citation_ack_funding",
+                                )
+                            ],
+                            spacing="2",
                             align_items="flex-start",
                         ),
                         padding="0.85rem",

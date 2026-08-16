@@ -22,8 +22,34 @@ class PreviousRunsMixin(rx.State, mixin=True):
 
     previous_runs: List[Dict[str, Any]] = []
     previous_runs_loaded: bool = False
+    #: Page that opened Previous Runs ("portal" | "batch") — the back button
+    #: returns there, so leaving the page never discards a batch selection.
+    #: See _ui.go_to_previous_runs / _ui.leave_previous_runs.
+    previous_runs_return_to: str = "portal"
     #: Name of the run currently being zipped (disables its row's buttons)
     previous_runs_busy: str = ""
+    #: Name of the run whose detail panel is open ("" = all collapsed). Only one
+    #: at a time, so the details of a large archive never accumulate in state.
+    previous_runs_expanded: str = ""
+    #: Details for ``previous_runs_expanded`` — see export_service.read_run_details.
+    #: Held as separate, concretely-typed vars rather than one Dict[str, Any]:
+    #: Reflex cannot ``foreach`` over a var whose element type is ``Any``.
+    previous_runs_detail_config: List[Dict[str, str]] = []
+    previous_runs_detail_territories: List[Dict[str, str]] = []
+    previous_runs_detail_perf: List[Dict[str, str]] = []
+    previous_runs_detail_verdict: str = ""
+    previous_runs_detail_report: str = ""
+    previous_runs_detail_message: str = ""
+    #: Name of the run whose details are being read (shows a spinner)
+    previous_runs_detail_busy: str = ""
+
+    def _clear_run_details(self):
+        self.previous_runs_detail_config = []
+        self.previous_runs_detail_territories = []
+        self.previous_runs_detail_perf = []
+        self.previous_runs_detail_verdict = ""
+        self.previous_runs_detail_report = ""
+        self.previous_runs_detail_message = ""
 
     def load_previous_runs(self):
         """Refresh the run list from disk. Safe to call on every page load."""
@@ -34,6 +60,50 @@ class PreviousRunsMixin(rx.State, mixin=True):
             logger.error(f"[PREVIOUS_RUNS] list failed: {e}", exc_info=True)
             self.error_message = f"Could not list previous runs: {e}"
         self.previous_runs_loaded = True
+
+    @rx.event(background=True)
+    async def toggle_run_details(self, name: str, kind: str):
+        """Open (or close) the detail panel for one run.
+
+        Reads ``batch_summary.json`` out of the archive off the event loop:
+        opening a multi-hundred-MB ZIP on the GCS FUSE volume has to seek to
+        the central directory first, which is quick but not instant.
+        """
+        async with self:
+            if self.previous_runs_expanded == name:
+                self.previous_runs_expanded = ""
+                self._clear_run_details()
+                return
+            self.previous_runs_expanded = name
+            self._clear_run_details()
+            self.previous_runs_detail_busy = name
+
+        from ..utils.export_service import read_run_details
+        loop = asyncio.get_event_loop()
+        try:
+            details = await loop.run_in_executor(None, read_run_details, name, kind)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[PREVIOUS_RUNS] details failed for {name}: {e}", exc_info=True)
+            details = {"message": f"Could not read this run: {e}"}
+
+        async with self:
+            self.previous_runs_detail_busy = ""
+            # A second click may have collapsed the row (or opened another one)
+            # while the archive was being read — don't clobber that.
+            if self.previous_runs_expanded != name:
+                return
+            self.previous_runs_detail_config = details.get("config") or []
+            self.previous_runs_detail_territories = details.get("territories") or []
+            self.previous_runs_detail_perf = details.get("performance") or []
+            self.previous_runs_detail_verdict = details.get("verdict") or ""
+            self.previous_runs_detail_report = details.get("report") or ""
+            self.previous_runs_detail_message = details.get("message") or ""
+
+    def copy_bucket_link(self, url: str):
+        """Put a run's bucket link on the clipboard."""
+        if not url:
+            return
+        return rx.set_clipboard(url)
 
     def download_previous_run(self, relpath: str):
         """Download an already-zipped run."""
@@ -81,6 +151,9 @@ class PreviousRunsMixin(rx.State, mixin=True):
     def delete_previous_run(self, name: str, kind: str):
         """Delete a finished ZIP or a leftover run folder to free space."""
         from ..utils.export_service import delete_export_run
+        if self.previous_runs_expanded == name:
+            self.previous_runs_expanded = ""
+            self._clear_run_details()
         try:
             delete_export_run(name, kind)
         except Exception as e:

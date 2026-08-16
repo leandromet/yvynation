@@ -51,6 +51,7 @@ import logging
 import os
 import threading
 import time
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
@@ -339,6 +340,20 @@ class PoolMeter:
         with self._lock:
             self._advance(time.monotonic())
             self._inflight -= 1
+
+    @contextmanager
+    def track(self):
+        """Meter a synchronous call: ``with ee_meter.track(): ...``.
+
+        For work that reaches Earth Engine without going through
+        ``_ee_with_retry`` — map raster downloads, say — which would otherwise
+        leave the pool looking idle while it was busy.
+        """
+        self.enter()
+        try:
+            yield
+        finally:
+            self.exit()
 
     def snapshot(self) -> dict:
         with self._lock:
