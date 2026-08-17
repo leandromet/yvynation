@@ -76,18 +76,155 @@ logger = logging.getLogger(__name__)
 #: above the core count: these workers are waiting on the network, not competing
 #: for CPU.
 #:
-#: The contributor numbers are the pre-uplift behaviour plus a little headroom:
-#: one territory at a time, but still fanning its independent analyses out — 4
-#: concurrent requests sat comfortably inside the free-tier budget in practice.
-#: ``territories: 1`` there is deliberate: with a narrow request budget, running
-#: several territories at once only spreads the same throughput over a longer
-#: wall time.
+#: Profiles are **scaling rules, not fixed numbers**. Yvynation is open source
+#: and runs on very different machines: Cloud Run at 2 vCPU / 8 GiB, and
+#: workstations with 20 cores and plenty of RAM. Hardcoding the container's
+#: numbers would leave most of a workstation idle, so the width is derived from
+#: the CPU and memory actually available (see :func:`detect_cpus` /
+#: :func:`detect_memory_gib` — both cgroup-aware, so a container gets its own
+#: limit rather than the host's).
+#:
+#: ``territories_per_cpu``  — in-flight territories per available core.
+#: ``territories_max``      — cap; past this, extra workers only lengthen queues.
+#: ``heavy_ratio``          — multiplier for runs with PNG maps / timeline / buffer.
+#: ``ee_per_territory``     — request slots to keep each worker fed.
+#: ``ee_max``               — tier ceiling on simultaneous requests.
+#:
+#: **Why territories can exceed the core count:** these workers wait on the
+#: network, not on CPU. Rendering is serialized, so at most one territory holds
+#: figures at any moment; the rest sit in ``getInfo()`` holding kilobyte-sized
+#: result dicts. On Cloud Run ``uploaded_files/exports/`` is a GCS FUSE volume,
+#: so written output never enters the memory budget either.
+#:
+#: **Calibration (2026-08-16)** — a 31-territory production run on Cloud Run
+#: (2 vCPU / 8 GiB) at the previous fixed 4/3/12 measured memory < 20% of 8 GiB,
+#: CPU < 40% of 2 vCPU, and Earth Engine at 38 req/min average (~80 peak)
+#: against a **6000/min** quota — under 1.5%. Every dimension had a large
+#: multiple of headroom. ``territories_per_cpu = 4`` reproduces 8/6/24 on that
+#: container and scales from there.
+#:
+#: Do **not** read the quota headroom as licence to keep raising these. The same
+#: run came back *render-bound*: rendering is serialized, so once it dominates,
+#: the ceiling is ``100 / render_busy_pct`` no matter how wide the fan-out. Size
+#: from a meter reading (§6 of ``docs/BATCH_CONCURRENCY.md``), not from quota.
+#:
+#: ``contributor`` pins territories to 1 regardless of the machine: with a narrow
+#: request budget, running several at once only spreads the same throughput over
+#: a longer wall time. Step-level fan-out still applies.
 _PROFILES = {
-    "partner": {"territories": 4, "heavy": 3, "ee_requests": 12},
-    "contributor": {"territories": 1, "heavy": 1, "ee_requests": 4},
+    "partner": {
+        "territories_per_cpu": 4.0,
+        "territories_max": 16,
+        "heavy_ratio": 0.75,
+        "ee_per_territory": 3,
+        "ee_max": 64,
+    },
+    "contributor": {
+        "territories_per_cpu": 0.0,   # → clamps to 1
+        "territories_max": 1,
+        "heavy_ratio": 1.0,
+        "ee_per_territory": 4,
+        "ee_max": 4,
+    },
 }
 
+#: Rough peak RSS per in-flight territory, plus a base for the app itself.
+#: Only the *fetched* result dicts are live per territory (rendering is
+#: serialized), so this is deliberately generous.
+_GIB_PER_TERRITORY = 0.35
+_GIB_BASE = 1.0
+
 _DEFAULT_TIER = "partner"
+
+
+# ---------------------------------------------------------------------------
+# Resource detection — cgroup-aware, so a container sees its own limit
+# ---------------------------------------------------------------------------
+
+def _read_first(*paths) -> Optional[str]:
+    for p in paths:
+        try:
+            with open(p) as fh:
+                return fh.read().strip()
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def _cgroup_cpu_limit() -> Optional[float]:
+    """CPU quota in cores from cgroup v2 then v1, or None if unlimited."""
+    raw = _read_first("/sys/fs/cgroup/cpu.max")          # v2: "<quota> <period>"
+    if raw:
+        parts = raw.split()
+        if len(parts) == 2 and parts[0] != "max":
+            try:
+                return int(parts[0]) / int(parts[1])
+            except (ValueError, ZeroDivisionError):
+                pass
+    quota = _read_first("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")   # v1
+    period = _read_first("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+    try:
+        if quota and period and int(quota) > 0:
+            return int(quota) / int(period)
+    except (ValueError, ZeroDivisionError):
+        pass
+    return None
+
+
+def detect_cpus() -> float:
+    """Cores actually usable here.
+
+    ``os.cpu_count()`` reports the **host's** cores inside a container, so on
+    Cloud Run it can read far higher than the 2 vCPU the service is allowed.
+    The cgroup quota is the truth when present.
+    """
+    host = float(os.cpu_count() or 1)
+    limit = _cgroup_cpu_limit()
+    return max(1.0, min(limit, host) if limit else host)
+
+
+def _cgroup_memory_limit() -> Optional[int]:
+    raw = _read_first(
+        "/sys/fs/cgroup/memory.max",                      # v2
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes",    # v1
+    )
+    if not raw or raw == "max":
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    # v1 reports an enormous sentinel rather than "max" when unlimited.
+    return value if 0 < value < (1 << 62) else None
+
+
+def detect_memory_gib() -> float:
+    """Memory actually usable here, in GiB (cgroup limit, else physical)."""
+    value = _cgroup_memory_limit()
+    if value is None:
+        try:
+            value = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+        except (OSError, ValueError, AttributeError):
+            return 8.0   # unknown platform — assume the Cloud Run shape
+    return max(1.0, value / (1024 ** 3))
+
+
+def _plan(profile: dict, cpus: float, gib: float) -> dict:
+    """Derive the concurrency width for one tier on this machine."""
+    by_cpu = round(profile["territories_per_cpu"] * cpus)
+    by_memory = int((gib - _GIB_BASE) / _GIB_PER_TERRITORY)
+    territories = max(1, min(by_cpu, by_memory, profile["territories_max"]))
+    heavy = max(1, round(territories * profile["heavy_ratio"]))
+    ee = max(
+        profile["ee_per_territory"],
+        min(profile["ee_per_territory"] * territories, profile["ee_max"]),
+    )
+    return {
+        "territories": territories,
+        "heavy": heavy,
+        "ee_requests": ee,
+        "io": max(8, territories + 4),
+    }
 
 
 def _resolve_tier() -> str:
@@ -118,7 +255,13 @@ def _int_env(name: str, default: int) -> int:
 
 
 TIER = _resolve_tier()
-_profile = _PROFILES[TIER]
+
+#: What this machine actually offers. Logged with the budget so a run's numbers
+#: can be reproduced from its log alone.
+DETECTED_CPUS = detect_cpus()
+DETECTED_MEMORY_GIB = detect_memory_gib()
+
+_profile = _plan(_PROFILES[TIER], DETECTED_CPUS, DETECTED_MEMORY_GIB)
 
 #: Territories processed concurrently. See :func:`effective_territory_concurrency`
 #: for the per-run value.
@@ -141,8 +284,32 @@ EE_REQUEST_CONCURRENCY = _int_env(
     "YVY_BATCH_EE_CONCURRENCY", _profile["ee_requests"]
 )
 
-#: Pinned to 1 — kaleido 0.2.1 and pyplot are not thread-safe. Not tunable.
-RENDER_CONCURRENCY = 1
+#: Rendering is split into one **lane per thread-unsafe library**, each a
+#: single-worker pool.
+#:
+#: The serialization requirement is per-library, not global: kaleido's global is
+#: ``plotly.io._kaleido.scope``, pyplot's is its current-figure state machine,
+#: and they are unrelated. The batch pipeline's render call sites divide cleanly
+#: between them — charts and the deforestation timeline are pure Plotly→PNG,
+#: while map composition (``map_export_service``, the only pyplot user in the
+#: codebase) never touches Plotly. Sharing one lock therefore made a territory's
+#: maps block another territory's charts for no reason at all.
+#:
+#: So different territories *can* render at the same time today, as long as they
+#: are in different lanes. Widening a single lane still needs the library fixed
+#: — see ``docs/BATCH_CONCURRENCY.md`` §9.
+RENDER_POOLS = ("kaleido", "matplotlib")
+
+#: Total render slots across all lanes — the capacity the render meter measures
+#: against, so "saturated" means *every* lane was busy.
+RENDER_CONCURRENCY = len(RENDER_POOLS)
+
+#: Blocking work that is neither an Earth Engine call nor a render: GeoPackage
+#: reads, buffer construction, boundary/summary writes, basemap tile fetches,
+#: the final ZIP. Must be at least the territory width — every worker holds one
+#: of these slots at several points in its territory — plus room for the tail
+#: tasks that run outside the workers.
+IO_CONCURRENCY = _int_env("YVY_BATCH_IO_CONCURRENCY", _profile["io"])
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +318,8 @@ RENDER_CONCURRENCY = 1
 
 _lock = threading.Lock()
 _ee_executor: Optional[ThreadPoolExecutor] = None
-_render_executor: Optional[ThreadPoolExecutor] = None
+_render_executors: dict = {}
+_io_executor: Optional[ThreadPoolExecutor] = None
 
 
 def get_ee_executor() -> ThreadPoolExecutor:
@@ -178,22 +346,65 @@ def get_ee_executor() -> ThreadPoolExecutor:
     return _ee_executor
 
 
-def get_render_executor() -> ThreadPoolExecutor:
-    """Single-worker pool that serializes all chart/map rendering.
+def get_io_executor() -> ThreadPoolExecutor:
+    """Thread pool for blocking work that is neither Earth Engine nor rendering.
 
-    One worker is a correctness requirement, not a performance choice — see the
-    module docstring. Because it is a dedicated pool, render work also never
-    queues behind Earth Engine fetches (or vice versa).
+    Replaces ``run_in_executor(None, …)`` in the batch pipeline. asyncio's
+    default executor is sized ``min(32, os.cpu_count() + 4)``, so on a 2-vCPU
+    Cloud Run instance it is **6 threads** — narrower than the territory width,
+    and shared with every other blocking call in the app. Left on the default,
+    widening the territory count just moves the queue: workers would stall on
+    GeoPackage reads and map prefetch instead of on Earth Engine.
+
+    (``os.cpu_count()`` reports the *host's* cores inside a container, not the
+    cgroup limit, so the default size is not even reliably 6 — another reason to
+    state the number rather than inherit it.)
+
+    Deliberately a **different** pool from :func:`get_ee_executor`. Map prefetch
+    runs here and submits its rasters to the EE pool, then blocks on them; on a
+    single shared pool that is a deadlock once enough territories are in flight.
     """
-    global _render_executor
-    if _render_executor is None:
+    global _io_executor
+    if _io_executor is None:
         with _lock:
-            if _render_executor is None:
-                _render_executor = ThreadPoolExecutor(
-                    max_workers=RENDER_CONCURRENCY,
-                    thread_name_prefix="render",
+            if _io_executor is None:
+                _io_executor = ThreadPoolExecutor(
+                    max_workers=IO_CONCURRENCY,
+                    thread_name_prefix="io",
                 )
-    return _render_executor
+                logger.info(f"Batch I/O pool: {IO_CONCURRENCY} workers")
+    return _io_executor
+
+
+def get_render_executor(kind: str = "kaleido") -> ThreadPoolExecutor:
+    """Single-worker pool serializing one library's rendering.
+
+    *kind* selects the lane — see :data:`RENDER_POOLS`. One worker **per lane**
+    is a correctness requirement, not a performance choice; separate lanes are
+    safe because the libraries share no global state. Because these are
+    dedicated pools, render work also never queues behind Earth Engine fetches
+    (or vice versa).
+
+    An unknown *kind* falls back to the first lane rather than silently minting
+    a new pool: a typo must not hand out a second concurrent worker for a
+    library that cannot take one.
+    """
+    if kind not in RENDER_POOLS:
+        logger.warning(
+            f"Unknown render lane {kind!r} — using {RENDER_POOLS[0]!r}. "
+            f"Valid lanes: {', '.join(RENDER_POOLS)}"
+        )
+        kind = RENDER_POOLS[0]
+    pool = _render_executors.get(kind)
+    if pool is None:
+        with _lock:
+            pool = _render_executors.get(kind)
+            if pool is None:
+                pool = ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix=f"render-{kind}"
+                )
+                _render_executors[kind] = pool
+    return pool
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +484,10 @@ def describe_budget(n_workers: int) -> str:
     return (
         f"⚡ Concurrency: {n_workers} territories in parallel · "
         f"up to {EE_REQUEST_CONCURRENCY} Earth Engine requests in flight · "
-        f"rendering serialized (tier={TIER})"
+        f"{IO_CONCURRENCY} I/O slots · "
+        f"{len(RENDER_POOLS)} render lanes ({', '.join(RENDER_POOLS)}), "
+        f"serialized within each "
+        f"(tier={TIER}, {DETECTED_CPUS:g} cores / {DETECTED_MEMORY_GIB:.0f} GiB detected)"
     )
 
 
@@ -375,11 +589,44 @@ class PoolMeter:
 ee_meter = PoolMeter("earth_engine", EE_REQUEST_CONCURRENCY)
 render_meter = PoolMeter("render", RENDER_CONCURRENCY)
 
+# Render work splits across two mutually independent thread-unsafe libraries —
+# kaleido (Plotly charts) and pyplot (map composition). They would need
+# different fixes, so knowing the *total* render share is not actionable on its
+# own: it does not say which one to spend effort on. This breaks the serialized
+# stage down by call site.
+_render_breakdown: dict = {}
+_breakdown_lock = threading.Lock()
+
+
+def record_render(label: str, seconds: float) -> None:
+    with _breakdown_lock:
+        calls, total = _render_breakdown.get(label, (0, 0.0))
+        _render_breakdown[label] = (calls + 1, total + seconds)
+
+
+def render_breakdown() -> dict:
+    """``{label: {calls, seconds, pct_of_render}}``, heaviest first."""
+    with _breakdown_lock:
+        items = dict(_render_breakdown)
+    total = sum(s for _, s in items.values()) or 1e-9
+    return {
+        label: {
+            "calls": calls,
+            "seconds": round(secs, 1),
+            "pct_of_render": round(100 * secs / total, 1),
+        }
+        for label, (calls, secs) in sorted(
+            items.items(), key=lambda kv: -kv[1][1]
+        )
+    }
+
 
 def reset_meters() -> None:
     """Zero both meters — call at the start of each batch run."""
     ee_meter.reset()
     render_meter.reset()
+    with _breakdown_lock:
+        _render_breakdown.clear()
 
 
 def meter_report() -> dict:
@@ -387,18 +634,34 @@ def meter_report() -> dict:
     ee = ee_meter.snapshot()
     render = render_meter.snapshot()
 
-    # Rendering is serialized, so its occupancy is a hard ceiling on any
-    # speedup from more parallelism: a stage that owns R% of the wall clock
-    # and cannot be widened caps the whole run at 100/R×, no matter how many
-    # territories are in flight.
+    # Each render lane is serialized, so the time when *any* lane is busy is a
+    # hard ceiling on any speedup from more parallelism: a stage that owns R% of
+    # the wall clock and cannot be widened caps the whole run at 100/R×, no
+    # matter how many territories are in flight.
     render_pct = render["busy_pct"]
     ceiling = (100.0 / render_pct) if render_pct > 0 else float("inf")
 
+    # "Saturated" = every lane busy at once, i.e. the lane split is actually
+    # paying off. Low overlap with high occupancy means one library dominates
+    # and the other lane is mostly idle — so widening *that* library is the
+    # whole game, and the split bought little.
+    overlap = render["saturated_pct"]
+
     if render_pct >= 80:
+        if overlap >= 0.4 * render_pct:
+            lane_note = (
+                f"lanes overlap {overlap}% of the run, so the split is already "
+                f"paying; going further needs a lane widened"
+            )
+        else:
+            lane_note = (
+                f"lanes overlap only {overlap}% of the run — one library "
+                f"dominates, so widen that lane (see the render split)"
+            )
         verdict = (
-            f"render-bound ({render_pct}% of the run) — rendering is "
+            f"render-bound ({render_pct}% of the run) — each lane is "
             f"serialized, so more territories cannot help; the ceiling is "
-            f"{ceiling:.1f}×. Needs more cores + a multiprocess render pool."
+            f"{ceiling:.1f}×. {lane_note}."
         )
     elif ee["saturated_pct"] >= 60:
         verdict = (
@@ -408,8 +671,8 @@ def meter_report() -> dict:
     elif render_pct >= 50:
         verdict = (
             f"partly render-bound ({render_pct}%) — more territories still "
-            f"help, but only up to about {ceiling:.1f}×. Past that it takes "
-            f"more cores + a multiprocess render pool."
+            f"help, but only up to about {ceiling:.1f}×. Past that a render "
+            f"lane has to be widened (see the render split)."
         )
     elif ee["busy_pct"] >= 60:
         verdict = (
@@ -421,18 +684,44 @@ def meter_report() -> dict:
             "not bound by either pool — the time is going somewhere else "
             "(geometry loading, file writes, ZIP compression)."
         )
-    return {"earth_engine": ee, "render": render, "verdict": verdict}
+    return {
+        "earth_engine": ee,
+        "render": render,
+        "render_breakdown": render_breakdown(),
+        "machine": {
+            "cpus": DETECTED_CPUS,
+            "memory_gib": round(DETECTED_MEMORY_GIB, 1),
+        },
+        "verdict": verdict,
+    }
 
 
-def describe_meters() -> List[str]:
-    """Log lines summarising the meters at the end of a run."""
-    r = meter_report()
+def describe_meters(report: Optional[dict] = None) -> List[str]:
+    """Log lines summarising the meters at the end of a run.
+
+    Pass a *report* captured earlier to describe a specific phase. The batch
+    pipeline does this: it snapshots before the final ZIP, so the percentages
+    describe the analysis phase rather than being diluted by a compression step
+    that neither pool participates in — and so the log agrees with the
+    ``concurrency`` block written into ``batch_summary.json``.
+    """
+    r = report if report is not None else meter_report()
     ee, render = r["earth_engine"], r["render"]
-    return [
+    lines = [
         f"📊 Earth Engine pool: {ee['calls']} calls · busy {ee['busy_pct']}% · "
         f"all {ee['capacity']} slots busy {ee['saturated_pct']}% · "
         f"peak {ee['peak_inflight']}",
-        f"📊 Render pool: {render['calls']} tasks · busy {render['busy_pct']}% "
-        f"of the run (serialized)",
-        f"📊 Bottleneck: {r['verdict']}",
+        f"📊 Render lanes ({len(RENDER_POOLS)}): {render['calls']} tasks · "
+        f"any lane busy {render['busy_pct']}% of the run · "
+        f"all lanes at once {render['saturated_pct']}%",
     ]
+    breakdown = r.get("render_breakdown") or {}
+    if breakdown:
+        lines.append(
+            "📊 Render split: " + " · ".join(
+                f"{label} {v['pct_of_render']}% ({v['calls']}×, {v['seconds']}s)"
+                for label, v in breakdown.items()
+            )
+        )
+    lines.append(f"📊 Bottleneck: {r['verdict']}")
+    return lines

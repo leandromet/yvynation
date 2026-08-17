@@ -98,6 +98,75 @@ def config_panel() -> rx.Component:
                 on_change=AppState.batch_toggle_run_pdf_maps,
                 color_scheme="orange",
             ),
+            # ── Figure export ────────────────────────────────────────────
+            rx.text(
+                AppState.tr["batch_figs_label"],
+                font_size="xs", font_weight="600", color="#374151",
+                text_transform="uppercase", letter_spacing="0.05em",
+                margin_top="0.4rem",
+            ),
+            rx.checkbox(
+                AppState.tr["batch_chk_export_png"],
+                checked=AppState.batch_export_png,
+                on_change=AppState.batch_toggle_export_png,
+                color_scheme="orange",
+            ),
+            rx.text(
+                AppState.tr["batch_png_hint"],
+                font_size="2xs", color="#9CA3AF", margin_left="1.75rem",
+                line_height="1.4",
+            ),
+            rx.cond(
+                AppState.batch_export_png,
+                rx.box(
+                    rx.checkbox(
+                        AppState.tr["batch_chk_png_high_res"],
+                        checked=AppState.batch_png_high_res,
+                        on_change=AppState.batch_toggle_png_high_res,
+                        color_scheme="orange",
+                    ),
+                    margin_left="1.75rem",
+                ),
+                rx.fragment(),
+            ),
+            # ── Timeline context bands (only meaningful with the timeline on)
+            rx.cond(
+                AppState.batch_run_deforestation_timeline,
+                rx.box(
+                    rx.vstack(
+                        rx.text(
+                            AppState.tr["batch_timeline_bands_label"],
+                            font_size="xs", font_weight="600", color="#374151",
+                            text_transform="uppercase", letter_spacing="0.05em",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_political"],
+                            checked=AppState.batch_timeline_political,
+                            on_change=AppState.batch_toggle_timeline_political,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_policy"],
+                            checked=AppState.batch_timeline_policy,
+                            on_change=AppState.batch_toggle_timeline_policy,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_enso"],
+                            checked=AppState.batch_timeline_enso,
+                            on_change=AppState.batch_toggle_timeline_enso,
+                            color_scheme="orange",
+                        ),
+                        rx.text(
+                            AppState.tr["batch_timeline_bands_hint"],
+                            font_size="2xs", color="#9CA3AF", line_height="1.4",
+                        ),
+                        spacing="1", align_items="flex-start",
+                    ),
+                    margin_top="0.4rem",
+                ),
+                rx.fragment(),
+            ),
             # Extra MapBiomas auxiliary raster layers (one PNG per layer per
             # territory). Per-year layers render for the configured batch
             # year2; fire frequency is a single full-period image.

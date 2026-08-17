@@ -25,7 +25,7 @@ so dozens can be in flight on a 2-core container. This is the work the Partner
 Tier uplift lets us widen, and it dominates wall time in a typical run.
 
 **Rendering** — Plotly figures → PNG via kaleido, Matplotlib map composition.
-CPU-bound, and **must run one at a time**:
+CPU-bound, and **must run one at a time per library**:
 
 * `kaleido==0.2.1` drives one module-global headless renderer
   (`plotly.io._kaleido.scope`) over a single pipe. Concurrent `fig.to_image()`
@@ -34,10 +34,13 @@ CPU-bound, and **must run one at a time**:
 * `map_export_service` uses the `pyplot` state machine (global current
   figure/axes), which is likewise not thread-safe.
 
-Widening EE fetches therefore does **not** require widening rendering, and
-widening rendering is not an option at all without changing those dependencies.
-The throughput win comes from **pipelining**: while one territory renders, the
-others are waiting on Earth Engine.
+*Per library* is the operative part: those two globals are unrelated, so the
+work divides into two independent **render lanes** that run concurrently with
+each other while staying strictly serial inside (§3). Widening EE fetches does
+not require widening rendering, and widening a single lane is not an option
+without changing that dependency. The throughput win comes from **pipelining**:
+while one territory renders, the others are waiting on Earth Engine — and a
+second territory can render in the other lane meanwhile.
 
 ---
 
@@ -55,11 +58,13 @@ run_batch_processing
 │     │            the same five for the buffer ring · multi-window ×2)
 │     │           → up to 11 concurrent requests per region
 │     │
-│     └─ RENDER ─ figures + section writers            ← serialized globally
+│     └─ RENDER ─ figures + section writers            ← kaleido lane (serial)
 │
 ├─ map rasters: EE layer PNGs + basemap tiles, in parallel   ← NOT locked
-├─ PNG maps (matplotlib compositing only)              ← serialized globally
-└─ Deforestation timeline (plotly/kaleido)             ← serialized globally
+├─ PNG maps (matplotlib compositing only)              ← matplotlib lane (serial)
+└─ Deforestation timeline (plotly/kaleido)             ← kaleido lane (serial)
+
+   the two lanes run CONCURRENTLY with each other
 ```
 
 ### Level 1 — territories in parallel
@@ -101,15 +106,49 @@ Reflex background tasks.
 | Pool | Size | Purpose |
 |---|---|---|
 | `get_ee_executor()` | `EE_REQUEST_CONCURRENCY` | Every Earth Engine call, via `_ee_with_retry` |
-| `get_render_executor()` | **1 (fixed)** | Every kaleido/pyplot path, via `_render` |
+| `get_io_executor()` | `IO_CONCURRENCY` | Blocking work that is neither: GeoPackage reads, buffer construction, boundary/summary writes, map prefetch, the final ZIP |
+| `get_render_executor("kaleido")` | **1 (fixed)** | Plotly → PNG: charts, deforestation timeline |
+| `get_render_executor("matplotlib")` | **1 (fixed)** | pyplot map composition (`map_export_service`) |
+
+### Render lanes: one per thread-unsafe library
+
+The serialization requirement is **per library, not global**. kaleido's global is
+`plotly.io._kaleido.scope`; pyplot's is its current-figure state machine; they
+are unrelated. And the call sites divide cleanly — charts and the timeline are
+pure Plotly→PNG, while map composition never touches Plotly (`map_export_service`
+is the only pyplot user in the whole codebase).
+
+A single shared render lock therefore made one territory's **maps block another
+territory's charts for no reason at all**. Splitting it into one single-worker
+pool per library means different territories *do* render simultaneously today,
+as long as they are in different lanes — no library change, no process pool, no
+pickling.
+
+Route by **the library the work reaches**, never by which call site it is:
+sending pyplot work into the kaleido lane would silently permit two concurrent
+pyplot renders. An unknown lane name falls back to an existing pool rather than
+minting a new one, so a typo cannot hand out a second worker for a library that
+cannot take one.
+
+Widening a *single* lane past 1 still needs that library fixed — see
+[Future work](#9-future-work).
+
+The I/O pool must stay **distinct from** the EE pool, not merely wide enough.
+Map prefetch runs on it and submits its rasters to the EE pool, then blocks on
+them; sharing one pool deadlocks as soon as enough territories are in flight.
 
 Two things this replaced, both of which mattered:
 
 * **`run_in_executor(None, …)`** — asyncio's default executor is sized
-  `min(32, cpu_count + 4)`, i.e. only **6 threads** on a 2-vCPU Cloud Run
+  `min(32, os.cpu_count() + 4)`, i.e. only **6 threads** on a 2-vCPU Cloud Run
   instance, and it is shared with every other blocking call in the app. Fanning
   out 11 requests onto it would have silently capped at 6 and starved everything
-  else.
+  else. `get_io_executor()` now covers the non-EE blocking calls too — with 8
+  territory workers the default executor would have become the binding
+  constraint, moving the queue from Earth Engine to GeoPackage reads rather than
+  removing it. (`os.cpu_count()` also reports the *host's* cores inside a
+  container rather than the cgroup limit, so the default size is not even
+  reliably 6 — another reason to state the number.)
 * **EE's HTTP connection pool** — `ee.data` issues all Cloud API calls through a
   single shared `requests.Session` carrying urllib3's stock adapter, capped at
   **10 connections per host**. Past the cap urllib3 does not block: it opens a
@@ -128,10 +167,43 @@ call never holds a worker slot.
 
 Defined in `ee_concurrency.py`:
 
-| Profile | Territories in parallel | …for *heavy* runs | Max in-flight EE requests |
-|---|---|---|---|
-| `partner` *(current default)* | 4 | 3 | 12 |
-| `contributor` | 1 | 1 | 4 |
+Profiles are **scaling rules, not fixed numbers.** Yvynation is open source and
+runs on very different machines — Cloud Run at 2 vCPU / 8 GiB, or a 20-core
+workstation. Hardcoding the container's numbers would leave most of a
+workstation idle, so the width is derived from the CPU and memory actually
+available:
+
+```
+territories = clamp(territories_per_cpu × cpus,
+                    (memory_gib − 1) / 0.35,      ← memory bound
+                    territories_max)
+heavy       = territories × heavy_ratio
+ee_requests = min(ee_per_territory × territories, ee_max)
+io          = max(8, territories + 4)
+```
+
+| Profile | per CPU | cap | heavy ratio | EE per territory | EE cap |
+|---|---|---|---|---|---|
+| `partner` *(default)* | 4.0 | 16 | 0.75 | 3 | 64 |
+| `contributor` | — | 1 | 1.0 | 4 | 4 |
+
+Which lands as:
+
+| Machine | Territories | …heavy | EE requests | I/O |
+|---|---|---|---|---|
+| Cloud Run 2 vCPU / 8 GiB | 8 | 6 | 24 | 12 |
+| 4 cores / 16 GiB | 16 | 12 | 48 | 20 |
+| 20 cores / 64 GiB | 16 | 12 | 48 | 20 |
+| 20 cores / **2 GiB** | 2 | 2 | 6 | 8 |
+| any, `contributor` | 1 | 1 | 4 | 8 |
+
+**Detection is cgroup-aware.** `os.cpu_count()` reports the *host's* cores
+inside a container — on Cloud Run it can read far higher than the 2 vCPU the
+service is allowed — so `detect_cpus()` reads the cgroup v2 `cpu.max` (then v1
+`cpu.cfs_quota_us`) and takes the lower. `detect_memory_gib()` does the same
+with `memory.max`. Both fall back to the host figure when unconstrained. The
+detected values are logged with the budget and recorded in `batch_summary.json`
+under `concurrency.machine`, so a run's numbers are reproducible from its log.
 
 **Why territories can exceed the core count.** These workers are waiting on the
 network, not competing for CPU. Rendering is serialized, so at most *one*
@@ -139,8 +211,31 @@ territory holds figures and map PNGs at any moment; the others sit in
 `getInfo()` holding only their fetched result dicts — class histograms, measured
 in kilobytes. And on Cloud Run `uploaded_files/exports/` is a **GCS FUSE
 volume** (`GCS_EXPORT_BUCKET`), so the bytes a run *writes* never enter the
-container's memory budget at all. A 2 vCPU container comfortably carries 4
-in-flight territories.
+container's memory budget at all. The final ZIP is likewise built with
+`zip_directory()`, which streams file-by-file to disk rather than through a
+`BytesIO` — archive size does not enter the memory budget either.
+
+### Calibration, 2026-08-16 (previously a fixed 4 / 3 / 12)
+
+A 31-territory production run on Cloud Run (2 vCPU / 8 GiB) at the old fixed
+width measured:
+
+| Resource | Observed | Available | Utilisation |
+|---|---|---|---|
+| Container memory | ~1.5 GiB | 8 GiB | < 20% |
+| Container CPU | ~0.8 vCPU | 2 vCPU | < 40% |
+| EE requests | 38/min avg, ~80 peak | 6000/min quota | < 1.5% |
+
+Every dimension had a large multiple of headroom. `territories_per_cpu = 4.0` is
+set so that container reproduces **8 / 6 / 24 / 12**, and everything else scales
+from that anchor.
+
+**Do not read the quota headroom as licence to keep raising this.** 6000/min
+divided by 80 says 75×, but the run cannot use it. The same run came back
+**render-bound at 80.1%**, and rendering is serialized — so the ceiling is
+`100 / render_busy_pct` ≈ **1.2×** no matter how many territories are in
+flight. Widening the fan-out is nearly free, but on its own it is nearly
+worthless too. See §7.
 
 **Why `contributor` keeps territory-level parallelism at 1:** with a narrow
 request budget, running several territories at once only spreads the same
@@ -151,10 +246,11 @@ than the fully serial pipeline this replaced.
 
 ### Per-run trimming
 
-`effective_territory_concurrency(n, heavy)` narrows the width by one for *heavy*
-runs — PNG maps, deforestation timeline, or buffer analysis enabled — since
-those hold more live figures per territory and lengthen the render queue. It is
-a modest trim, not a hard clamp, for the reasons above.
+`effective_territory_concurrency(n, heavy)` narrows the width for *heavy* runs —
+PNG maps, deforestation timeline, or buffer analysis enabled — since those hold
+more live figures per territory and lengthen the render queue. It is a modest
+trim (`heavy_ratio`, 0.75 → 8 becomes 6), not a hard clamp, for the reasons
+above.
 
 Setting `YVY_BATCH_TERRITORY_CONCURRENCY` explicitly **disables the trim**: if
 someone pinned the width to benchmark it, silently halving it would make the
@@ -175,17 +271,19 @@ code is needed**, only a service update.
 | `YVY_EE_TIER` | `partner` | Selects a profile (`partner` \| `contributor`). Unknown values warn and fall back to `partner`. |
 | `YVY_BATCH_TERRITORY_CONCURRENCY` | from profile | Overrides territories-in-parallel. Wins over the profile. |
 | `YVY_BATCH_EE_CONCURRENCY` | from profile | Overrides max in-flight EE requests. Wins over the profile. |
+| `YVY_BATCH_IO_CONCURRENCY` | `max(8, territories + 4)` | Overrides the non-EE blocking pool. Raise alongside the territory width; it must stay ≥ it. |
 
 Non-integer or `< 1` values are rejected with a warning and the default is used,
 so a typo degrades to the safe setting rather than breaking the run.
 
-Render concurrency is **not** exposed. It is a correctness constraint of
-kaleido 0.2.1 and pyplot, not a performance choice.
+Render concurrency is **not** exposed. One worker per lane is a correctness
+constraint of kaleido 0.2.1 and pyplot, not a performance choice — a lane can
+only widen once its library is fixed (§9).
 
 The effective budget is logged in the batch log at the start of every run:
 
 ```
-⚡ Concurrency: 3 territories in parallel · up to 12 Earth Engine requests in flight · rendering serialized (tier=partner)
+⚡ Concurrency: 6 territories in parallel · up to 24 Earth Engine requests in flight · 12 I/O slots · rendering serialized (tier=partner, 2 cores / 8 GiB detected)
 ```
 
 ---
@@ -237,14 +335,15 @@ and under `concurrency` in `batch_summary.json`:
 📊 Earth Engine pool: 418 calls · busy 71.2% · all 12 slots busy 44.8% · peak 12
 📊 Render pool: 96 tasks · busy 63.5% of the run (serialized)
 📊 Bottleneck: partly render-bound (63.5%) — more territories still help, but
-   only up to about 1.6×. Past that it takes more cores + a multiprocess render pool.
+   only up to about 1.6×. Past that a render lane has to be widened (see the render split).
 ```
 
 Read it like this:
 
 | Reading | Meaning | Action |
 |---|---|---|
-| **Render busy ≥ 80%** | Render-bound. Rendering is serialized, so its occupancy is a hard ceiling: a stage owning R% of the wall clock caps the whole run at `100/R×`. | More territories will **not** help. Needs more cores **and** a multiprocess render pool — one without the other does nothing. |
+| **Any lane busy ≥ 80%** | Render-bound. Each lane is serialized, so occupancy is a hard ceiling: a stage owning R% of the wall clock caps the whole run at `100/R×`. | More territories will **not** help. Widen a lane (§9 #1); more cores only pay once one is widened. |
+| **All lanes at once, low** | The lane split is not paying — one library owns nearly all the render time and the other lane idles. | Read the render split and widen the dominant lane; ignore the other. |
 | **EE "all slots busy" ≥ 60%** | Territories are queueing for request slots; the tier budget is the constraint. | Raise `YVY_BATCH_EE_CONCURRENCY`. |
 | **EE busy high, saturated low** | Latency-bound: slots are free but individual calls are slow. | Raise `YVY_BATCH_TERRITORY_CONCURRENCY` to keep more work in flight. |
 | **Neither high** | Time is going elsewhere — geometry loading, file writes, final ZIP compression. | Profile those instead. |
@@ -252,14 +351,80 @@ Read it like this:
 Timing is taken *inside* the worker thread, so a slot counts as busy only while
 the request is actually running, not while it waits in the queue behind others.
 
+### Measured: 31 territories, Cloud Run 2 vCPU / 8 GiB, 2026-08-16
+
+```
+📊 Earth Engine pool: 612 calls · busy 9.8% · all 12 slots busy 0.1% · peak 12
+📊 Render pool: 96 tasks · busy 80.1% of the run (serialized)
+📊 Bottleneck: render-bound (80.1% of the run) — ceiling is 1.2×
+🗜 Final ZIP: 644 MB, 10.6 minutes
+```
+
+Three things fall out of this, and they matter more than any knob:
+
+1. **The Earth Engine pool is nearly idle** — 9.8% busy, all slots busy 0.1% of
+   the run. `EE_REQUEST_CONCURRENCY` was never the constraint, and raising it
+   buys nothing directly. (It is still raised, so that it is not the *next*
+   constraint once rendering parallelises.)
+2. **Rendering owns the run and cannot be widened**, so the total headroom from
+   territory-level fan-out is `100/80.1` ≈ **1.2×**. Everything in §4 about
+   scaling with the machine is real but capped here until rendering changes —
+   on a 20-core workstation the run does **not** get 10× faster.
+3. **The ZIP was 10.6 minutes** — ~1 MB/s for 644 MB. That is per-file latency
+   on the GCS FUSE mount (~1500 small files, each a round trip to GCS), not
+   compression. `zip_directory()` now overlaps those reads across
+   `IO_CONCURRENCY` readers and stores already-compressed files (PNG/JPEG/PDF)
+   instead of deflating them. Writes stay sequential, so archives are unchanged.
+
+Note the meters are snapshotted **before** the ZIP, so the percentages describe
+the analysis phase; the ZIP is timed separately in the completion line.
+
+### First lever taken: split the render lock
+
+That measurement was taken with **one** render lock covering both libraries. It
+is now two lanes (§3), so a territory's charts and another territory's maps
+overlap. The meter reports the overlap directly:
+
+```
+📊 Render lanes (2): 96 tasks · any lane busy 80.1% of the run · all lanes at once …%
+```
+
+* **"any lane busy"** is the ceiling driver — the run can be sped up at most
+  `100 / that` by parallelism alone.
+* **"all lanes at once"** says whether the split paid. High overlap means the
+  two libraries genuinely interleave. Low overlap with high occupancy means one
+  library dominates, the other lane is mostly idle, and widening *that* library
+  is the whole game. The verdict line now says which of those it saw.
+
+### Which half of the render stage?
+
+The two libraries behind the render lock are independent and need different
+fixes, so the aggregate figure is not actionable — 80.1% does not say *what to
+change*. Every `_render()` call is therefore labelled by call site, and the
+split is reported at the end of a run (format only — **the shares below are
+placeholders; the first run after this change supplies the real ones**):
+
+```
+📊 Render split: maps (pyplot) …% (n×, …s) · charts (kaleido) …% · timeline (kaleido) …%
+```
+
+Read it as a fork:
+
+* **pyplot-dominated** → the fix is contained: `map_export_service` can move off
+  the `pyplot` state machine to explicit `Figure` + `FigureCanvasAgg` objects,
+  which *are* thread-safe, and the map path alone can then be widened.
+* **kaleido-dominated** → threads cannot help at all; it needs a process pool or
+  a kaleido upgrade ([Future work](#9-future-work) #1).
+
 ### Is it worth moving to 4 vCPU?
 
-Only if runs come back **render-bound**, and only together with a multiprocess
-render pool ([Future work](#9-future-work) #1). Extra cores on their own change
-nothing: `RENDER_CONCURRENCY` is 1 because of kaleido and pyplot global state,
-not because of the core count, so a 4-core container would run the exact same
-single render thread. The meter tells you which of the two problems you have
-before spending anything.
+Only together with a widened render lane. Extra cores on their own change
+nothing: each lane is one worker because of kaleido and pyplot global state, not
+because of the core count, so a 4-core container would run the same two render
+threads. The lane split (§3) is what makes those two overlap; going past two
+needs §9 #1. This is also why the machine-scaling in §4 is not a
+substitute — a bigger box widens the fan-out that the meter says is already
+idle. Read the render split first, then spend.
 
 To benchmark widths, pin the value — pinning also disables the *heavy* trim, so
 you measure the width you asked for:
@@ -284,7 +449,7 @@ reviews of this pipeline. Their recommendations, checked against the code:
 |---|---|
 | Fan out independent EE calls per region | Already implemented — see §2 level 2. |
 | Serialize kaleido/pyplot | Already implemented — and it is a correctness requirement, not tuning. |
-| Widen concurrency now that Partner Tier applies | Done, but to 4 territories / 12 requests, **not** the 80–100 Gemini suggests (see below). |
+| Widen concurrency now that Partner Tier applies | Done, and widened again on 2026-08-16 to 8 territories / 24 requests after measuring the container — still nowhere near the 80–100 Gemini suggests (see below). |
 | Measure before resizing | Implemented as the pool meters, §6. |
 
 ### Already true — no change needed
@@ -302,8 +467,9 @@ reviews of this pipeline. Their recommendations, checked against the code:
   is 2 vCPU and a serialized render stage — 100 in-flight territories would
   queue 100 render jobs behind one thread and multiply peak RSS for zero
   throughput. The tier uplift widens the *request* budget, which is
-  `YVY_BATCH_EE_CONCURRENCY`, and even that is only worth raising when the meter
-  reports the pool saturated.
+  `YVY_BATCH_EE_CONCURRENCY`. The 2026-08-16 widening to 8/24 came from
+  measuring the container, and it is the same reasoning that stops there: the
+  quota alone would justify far more, and the quota alone is not the limit.
 * **"Move to Xee + Dask"** (Gemini). A large new dependency and a rewrite of
   every analysis function, to solve a problem — blocking threads — that a thread
   pool already solves at this scale.
@@ -385,14 +551,39 @@ rendering is CPU-bound. **More cores would have bought almost nothing.**
 `create_map_set()` still works with no prefetch (fetching inline, as before),
 so nothing else that calls it had to change.
 
+### Second measurement — now it really is the render stage
+
+The 31-territory run above (§7) re-ran the same meters after those three fixes:
+render fell from **98.5% → 80.1%**, and the EE pool went from 1.7% to 9.8% busy
+over 612 calls. The remaining 80% is no longer hidden network I/O — the tiles
+and rasters are fetched before the lock now — so this time it *is* CPU, and it
+is the thing to fix next. Two things follow:
+
+* Widening territories or EE requests is nearly exhausted as a lever (1.2×).
+  §4's machine-scaling is still worth having — it is free, and it stops the EE
+  pool becoming the next wall — but it is not what makes runs faster from here.
+* The render split (§7) decides between the two fixes below, and it is cheap to
+  read: it lands in the next run's log and in `batch_summary.json`.
+
 ### Still ordered by expected value
 
-1. **Render in a process pool.** Worth revisiting only *after* 1–3, once the
-   render stage is actually CPU-bound. Two worker processes would each get their
-   own kaleido scope and pyplot state. Plotly figures are picklable; the
-   matplotlib map path is not (it holds live `ee.Geometry` objects), so this
-   works for charts before maps. **This is also the point at which 4 vCPU starts
-   to pay** — not before.
+0. **Split the render lock per library** — *done*, see §3. Free, and it already
+   lets different territories render concurrently in different lanes.
+
+1. **Widen a single lane past one worker.** The remaining win, and the point at
+   which more cores start to pay. Which lane, from the split:
+   * *matplotlib lane is large* → move `map_export_service` off the `pyplot`
+     state machine to explicit `Figure` + `FigureCanvasAgg`. That API **is**
+     thread-safe, so the lane could simply take `max_workers > 1` — contained to
+     one module, no new process machinery, and by far the cheaper of the two.
+   * *kaleido lane is large* → threads cannot help; needs a process pool (each
+     process gets its own kaleido scope) or item 2. Plotly figures and the
+     result dicts the chart writers close over are picklable, so charts can move
+     to processes; the map closures hold live `ee.Geometry` objects and cannot,
+     which is the other reason to prefer the matplotlib route where possible.
+
+   Note the lanes make this *incremental*: widening one lane does not disturb
+   the other, and neither needs the territory workers to change.
 2. **Upgrade kaleido to 1.x**, which is not built around a global scope — but it
    delegates to an external Chrome install, which is why it is pinned at 0.2.1
    today (see `requirements.txt`).
@@ -415,10 +606,24 @@ thread behaviour:
 
 * every selected territory processed exactly once, no duplicates
 * EE fan-out actually occurs, and peak concurrency never exceeds the tier budget
-* render work is strictly serialized — peak 1, single thread
+* render work is serialized *within* a lane — peak 1, one named lane thread
+* the lanes themselves: distinct pools, one worker each, an unknown lane falls
+  back instead of minting a pool, no two same-lane renders overlap, and the two
+  lanes **do** overlap (the property that lets territories render in parallel)
 * `batch_stop` drains the queue, lets in-flight territories finish, and still
-  produces a downloadable ZIP
+  produces a downloadable ZIP (the width is pinned for that check — with a pool
+  wider than the selection, every territory is already "current" when the flag
+  flips, so the assertion would be vacuous on a big machine)
 * measured speedup vs. the serial call count
+* the budget plan across machine shapes: the Cloud Run anchor (8/6/24/12), a
+  20-core box scaling up but staying under the cap, a small box scaling down,
+  memory bounding it when cores are plentiful, and `contributor` pinned at 1
+* render time is attributed to labelled call sites and the shares sum to 100%
+
+`zip_directory()` has its own harness that fakes FUSE latency with a sleep and
+asserts the reads overlap while the archive stays byte-identical, sorted,
+traversal-free, mtime-preserving, and valid to a plain reader — plus that a read
+failure propagates rather than silently truncating the archive.
 
 Not covered by the harness: the PNG-map (matplotlib) and deforestation-timeline
 paths. Both route through the same `_render` helper as the section writers that

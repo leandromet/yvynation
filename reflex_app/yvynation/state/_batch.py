@@ -31,8 +31,10 @@ import gc
 import io
 import json
 import logging
+import time
 import zipfile
 from datetime import datetime
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 import reflex as rx
@@ -148,24 +150,42 @@ async def _ee_with_retry(loop, fn, label: str, retries: int = 3, base_delay: flo
     return None
 
 
-async def _render(loop, fn):
-    """Run chart/map rendering on the single-slot render pool.
+async def _render(loop, fn, label: str, lane: str):
+    """Run chart/map rendering on the single-slot pool for *lane*'s library.
 
     Everything that touches kaleido (Plotly → PNG) or pyplot (the map exporter)
     must go through here — both keep module-global state that concurrent threads
-    corrupt.  With territories running in parallel this is what keeps the render
-    stage strictly one-at-a-time while their Earth Engine fetches overlap.
+    corrupt. Within a lane the work is strictly one-at-a-time while Earth Engine
+    fetches overlap.
+
+    **Across** lanes it runs concurrently, and that is the point: the two
+    libraries share no global state, so one territory's maps and another's
+    charts have no reason to block each other. Pick the lane by the library the
+    work actually reaches, never by which call site it is — routing pyplot work
+    into the kaleido lane would silently allow two concurrent pyplot renders.
+
+    *label* attributes time to a call site within a lane; the libraries need
+    different fixes, so the aggregate render share does not say where to spend
+    effort — the split does.
     """
-    from ..utils.ee_concurrency import get_render_executor, render_meter
+    import time as _time
+
+    from ..utils.ee_concurrency import (
+        get_render_executor, record_render, render_meter,
+    )
 
     def _metered():
         render_meter.enter()
+        t0 = _time.monotonic()
         try:
             return fn()
         finally:
+            # Keyed by lane too — the split's job is to name the library to
+            # fix, and two call sites can share a lane.
+            record_render(f"{label} ({lane})", _time.monotonic() - t0)
             render_meter.exit()
 
-    return await loop.run_in_executor(get_render_executor(), _metered)
+    return await loop.run_in_executor(get_render_executor(lane), _metered)
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +504,20 @@ class BatchMixin(rx.State, mixin=True):
     # policy context bars (per-territory, full year range from batch_year to
     # batch_year2). One CSV + three chart variants per region.
     batch_run_deforestation_timeline: bool = False
+    # Timeline context bands. Each is independent; turning one off also gives
+    # back the vertical space it reserved, so the chart gets shorter.
+    batch_timeline_political: bool = True    # president / governor stripes
+    batch_timeline_policy: bool = True       # policy heat-rows + milestone key
+    batch_timeline_enso: bool = True         # Oceanic Niño Index strip
+    # ── Figure export (PNG) ───────────────────────────────────────────────
+    # PNGs are ~90% of an archive's bytes (449 MB of 503 MB in a measured
+    # 18-territory run); HTML is always written either way, so a no-PNG run is
+    # still complete. Batch only — the interactive geometry/territory exports
+    # keep print quality regardless.
+    batch_export_png: bool = True
+    # False → scale 0.6 (~60% smaller files). True → 1.0, matching the
+    # interactive exports.
+    batch_png_high_res: bool = False
     # ── Multiple time-window MapBiomas (off by default) ───────────────────
     batch_run_multi_window: bool = False
     # "constant" → step list from 1985, force-end on 2024
@@ -1158,6 +1192,27 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_run_pdf_maps(self, val: bool):
         self.batch_run_pdf_maps = val
 
+    # ── Figure export / timeline-band toggles ────────────────────────────
+    def batch_toggle_export_png(self, val: bool):
+        self.batch_export_png = val
+
+    def batch_toggle_png_high_res(self, val: bool):
+        self.batch_png_high_res = val
+
+    def batch_toggle_timeline_political(self, val: bool):
+        self.batch_timeline_political = val
+
+    def batch_toggle_timeline_policy(self, val: bool):
+        self.batch_timeline_policy = val
+
+    def batch_toggle_timeline_enso(self, val: bool):
+        self.batch_timeline_enso = val
+
+    @rx.var
+    def batch_png_scale(self) -> float:
+        """Kaleido scale for this run's figures."""
+        return 1.0 if self.batch_png_high_res else 0.6
+
     # ── Auxiliary-layer toggles ──────────────────────────────────────────
     def batch_toggle_aux_deforestation(self, val: bool):
         self.batch_run_aux_deforestation = val
@@ -1358,6 +1413,13 @@ class BatchMixin(rx.State, mixin=True):
 
         loop = asyncio.get_event_loop()
 
+        # Every blocking non-EE, non-render call below goes to this pool rather
+        # than to ``run_in_executor(None, …)``. asyncio's default executor is
+        # sized off the core count (6 threads on 2 vCPU) and would cap the run
+        # well below the territory width — see get_io_executor().
+        from ..utils.ee_concurrency import get_io_executor
+        io_pool = get_io_executor()
+
         # ── Ensure Earth Engine is initialised before the first EE call ───────
         # The batch entry-point can be reached directly from the portal without
         # ever touching the territory-analysis page that lazily initialises EE
@@ -1369,10 +1431,10 @@ class BatchMixin(rx.State, mixin=True):
             def _ee_init():
                 from ..utils.ee_service import initialize_earth_engine
                 return initialize_earth_engine()
-            await loop.run_in_executor(None, _ee_init)
+            await loop.run_in_executor(io_pool, _ee_init)
             # Only possible once the session exists (i.e. after ee.Initialize).
             from ..utils.ee_concurrency import tune_ee_connection_pool
-            await loop.run_in_executor(None, tune_ee_connection_pool)
+            await loop.run_in_executor(io_pool, tune_ee_connection_pool)
         except Exception as ee_err:
             async with self:
                 self._batch_append_log(f"❌ Earth Engine init failed: {ee_err}")
@@ -1409,8 +1471,8 @@ class BatchMixin(rx.State, mixin=True):
         # pipelining: while one territory renders its charts and maps, the
         # others are waiting on Earth Engine.
         from ..utils.ee_concurrency import (
-            describe_budget, describe_meters, effective_territory_concurrency,
-            meter_report, reset_meters,
+            IO_CONCURRENCY, TIER, describe_budget, describe_meters,
+            effective_territory_concurrency, meter_report, reset_meters,
         )
         reset_meters()
         n_workers = effective_territory_concurrency(
@@ -1435,7 +1497,20 @@ class BatchMixin(rx.State, mixin=True):
                 self.batch_current_territory = terr
                 self.batch_current_step = text
 
-        with DirExportWriter(work_dir) as master_zf:
+        # Run-scoped PNG policy for every section writer, however deeply nested.
+        # Read from state once here rather than per figure: all render lanes
+        # share the value, so it must not change mid-run.
+        from ..utils.export_service import figure_export
+        async with self:
+            _png_on, _png_scale = self.batch_export_png, self.batch_png_scale
+            self._batch_append_log(
+                f"🖼 Figures: HTML always · PNG "
+                + (f"on (scale {_png_scale:g})" if _png_on
+                   else "off — saves ~90% of archive size")
+            )
+
+        with figure_export(png=_png_on, scale=_png_scale), \
+                DirExportWriter(work_dir) as master_zf:
 
             async def _process_territory(territory: str):
                 t_result: Dict[str, Any] = {"territory": territory, "status": "error"}
@@ -1455,7 +1530,7 @@ class BatchMixin(rx.State, mixin=True):
                         import ee
                         return ee.Geometry(geojson), geojson
 
-                    ee_geom, raw_geojson = await loop.run_in_executor(None, _get_ee_geom)
+                    ee_geom, raw_geojson = await loop.run_in_executor(io_pool, _get_ee_geom)
 
                     # ─── Buffer EE geometry ─────────────────────────────────
                     buf_ee_geom = None
@@ -1464,7 +1539,7 @@ class BatchMixin(rx.State, mixin=True):
                             from ..utils.buffer_utils import create_external_buffer
                             return create_external_buffer(geom, km)
                         try:
-                            buf_ee_geom = await loop.run_in_executor(None, _make_buffer)
+                            buf_ee_geom = await loop.run_in_executor(io_pool, _make_buffer)
                         except Exception as be:
                             logger.warning(f"Buffer creation failed (non-fatal): {be}")
 
@@ -1486,7 +1561,7 @@ class BatchMixin(rx.State, mixin=True):
 
                     try:
                         area_ha, shapely_geom = await loop.run_in_executor(
-                            None, _get_area_and_shapely
+                            io_pool, _get_area_and_shapely
                         )
                     except Exception:
                         area_ha, shapely_geom = 0, None
@@ -2057,7 +2132,7 @@ class BatchMixin(rx.State, mixin=True):
                                     include_treemaps=run_treemap,
                                 )
 
-                        await _render(loop, _write_region_to_zip)
+                        await _render(loop, _write_region_to_zip, "charts", "kaleido")
 
                     # ─── End of regions loop ────────────────────────────────
                     # Write the full territory boundary ONCE at the top level
@@ -2070,7 +2145,7 @@ class BatchMixin(rx.State, mixin=True):
                             json.dumps({"type": "Feature", "geometry": geojson,
                                         "properties": {"name": terr}}).encode(),
                         )
-                    await loop.run_in_executor(None, _write_boundary)
+                    await loop.run_in_executor(io_pool, _write_boundary)
 
                     # ─── PDF maps (satellite + MapBiomas y1/y2, per territory) ──
                     if run_maps:
@@ -2130,7 +2205,7 @@ class BatchMixin(rx.State, mixin=True):
 
                         try:
                             buf_gj_pre, map_prefetch = await loop.run_in_executor(
-                                None, _prefetch_maps
+                                io_pool, _prefetch_maps
                             )
                         except Exception as pe:
                             logger.warning(f"map prefetch for {territory} failed: {pe}")
@@ -2199,7 +2274,7 @@ class BatchMixin(rx.State, mixin=True):
                                 )
 
                         try:
-                            await _render(loop, _write_pdf_maps)
+                            await _render(loop, _write_pdf_maps, "maps", "matplotlib")
                         except Exception as me:
                             async with self:
                                 self._batch_append_log(f"  ⚠ PDF maps skipped: {me}")
@@ -2218,6 +2293,9 @@ class BatchMixin(rx.State, mixin=True):
                             y_start=int(year1),
                             y_end=int(year2),
                             ttype=territory_type_map[territory],
+                            tl_pol=self.batch_timeline_political,
+                            tl_pcy=self.batch_timeline_policy,
+                            tl_enso=self.batch_timeline_enso,
                         ):
                             try:
                                 from ..utils.export_service import _slug, _write_fig
@@ -2291,14 +2369,18 @@ class BatchMixin(rx.State, mixin=True):
                                             title_suffix=f"{terr}{title_extra}",
                                             territory_name=terr,
                                             territory_type=ttype,
+                                            include_political=tl_pol,
+                                            include_policy=tl_pcy,
+                                            include_enso=tl_enso,
                                         )
                                         if fig is not None:
                                             base = (f"{fig_dir}/{t_slug}_deforestation_timeline_"
                                                     f"{y_start}_{y_end}_{suffix}{label_suffix}")
-                                            # png_width=1400 overrides kaleido's 700px default;
-                                            # scale=2 → 2800×2600px print-ready output.
-                                            _write_fig(zf, base, fig,
-                                                       png_width=1400, png_scale=2.0)
+                                            # png_width=1400 overrides kaleido's 700px
+                                            # default; the scale comes from the run's
+                                            # figure_export() policy so a batch can trade
+                                            # resolution for archive size.
+                                            _write_fig(zf, base, fig, png_width=1400)
 
                                     # Also emit single-indicator raw plots (one line each)
                                     for ik, ival in series.items():
@@ -2314,6 +2396,9 @@ class BatchMixin(rx.State, mixin=True):
                                                 title_suffix=f"{terr}{title_extra}",
                                                 territory_name=terr,
                                                 territory_type=ttype,
+                                                include_political=tl_pol,
+                                                include_policy=tl_pcy,
+                                                include_enso=tl_enso,
                                             )
                                             if fig_single is not None:
                                                 base_single = (
@@ -2321,7 +2406,7 @@ class BatchMixin(rx.State, mixin=True):
                                                     f"{y_start}_{y_end}_{ik}{label_suffix}"
                                                 )
                                                 _write_fig(zf, base_single, fig_single,
-                                                           png_width=1400, png_scale=2.0)
+                                                           png_width=1400)
                                         except Exception:
                                             logger.debug(f"failed to write single-indicator plot for {ik}")
 
@@ -2366,7 +2451,7 @@ class BatchMixin(rx.State, mixin=True):
                                 )
 
                         try:
-                            await _render(loop, _write_timeline)
+                            await _render(loop, _write_timeline, "timeline", "kaleido")
                         except Exception as te:
                             async with self:
                                 self._batch_append_log(f"  ⚠ Timeline skipped: {te}")
@@ -2474,7 +2559,9 @@ class BatchMixin(rx.State, mixin=True):
                     # docs/BATCH_CONCURRENCY.md §"Sizing from measurement".
                     "concurrency": {
                         "territory_workers": n_workers,
-                        **meter_report(),
+                        "io_slots": IO_CONCURRENCY,
+                        "tier": TIER,
+                        **run_meters,
                     },
                     "territories_requested": len(territories),
                     "territories_completed": sum(1 for r in summary if r["status"] == "ok"),
@@ -2505,25 +2592,37 @@ class BatchMixin(rx.State, mixin=True):
                 ] + ([f"- {f}" for f in fail] if fail else ["None"])
                 zf.writestr("batch_report.md", "\n".join(report_lines).encode())
 
-            await loop.run_in_executor(None, _write_summary)
+            # Snapshot the pools *before* the final ZIP. Compression uses
+            # neither pool, so letting it run first would dilute both
+            # percentages and make the verdict describe the wrong phase.
+            run_meters = meter_report()
+            await loop.run_in_executor(io_pool, _write_summary)
 
         # Deflate the live folder into the final ZIP (single compression pass).
         # Runs on the stop-after-current path too, so a partial run still
         # yields a downloadable archive; the folder itself stays browsable
         # until the next batch run prunes it.
+        #
+        # Not a cheap tail step: on Cloud Run the folder is a GCS FUSE mount, so
+        # this reads ~1500 small files back over the network. A 31-territory run
+        # spent 10.6 min here. zip_directory() overlaps those reads — hence the
+        # explicit reader count.
+        zip_t0 = time.monotonic()
         async with self:
             self.batch_current_step = "🗜 Compressing final ZIP…"
             self._batch_append_log("🗜 Compressing results into the final ZIP…")
         zip_size = 0
         try:
             zip_size = await loop.run_in_executor(
-                None, zip_directory, work_dir, zip_path
+                io_pool, partial(
+                    zip_directory, work_dir, zip_path, workers=IO_CONCURRENCY,
+                )
             )
             # Archive built — the live folder is now redundant; remove it so
             # exports/ holds only ZIPs (crashed runs keep theirs for salvage).
             import shutil
             await loop.run_in_executor(
-                None, lambda: shutil.rmtree(work_dir, ignore_errors=True)
+                io_pool, lambda: shutil.rmtree(work_dir, ignore_errors=True)
             )
         except Exception as ze:
             logger.error(f"[BATCH] final ZIP compression failed: {ze}", exc_info=True)
@@ -2545,7 +2644,7 @@ class BatchMixin(rx.State, mixin=True):
             n_fail = len(self.batch_failed)
             self._batch_append_log(
                 f"🏁 Batch complete: {n_ok} OK, {n_fail} failed — "
-                f"ZIP size {zip_size // 1024} KB"
+                f"ZIP size {zip_size // 1024} KB in {time.monotonic() - zip_t0:.0f}s"
             )
             for line in describe_meters():
                 self._batch_append_log(line)

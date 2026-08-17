@@ -52,6 +52,7 @@ import io
 import json
 import re
 import zipfile
+from contextlib import contextmanager
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -121,17 +122,82 @@ class DirExportWriter:
         return False
 
 
-def zip_directory(src_dir, zip_path) -> int:
-    """Deflate *src_dir* recursively into *zip_path*; returns the ZIP size."""
+#: Already-compressed payloads — deflating them burns CPU for ~0% gain, so they
+#: go in stored. Everything else (CSV, JSON, HTML, MD, SVG) compresses well.
+_INCOMPRESSIBLE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".zip", ".gz", ".pdf"}
+
+
+def _zip_member(src_dir, path):
+    """Read one file and prepare its ZIP entry. Runs on a reader thread."""
+    info = zipfile.ZipInfo.from_file(path, path.relative_to(src_dir).as_posix())
+    info.compress_type = (
+        zipfile.ZIP_STORED
+        if path.suffix.lower() in _INCOMPRESSIBLE
+        else zipfile.ZIP_DEFLATED
+    )
+    return info, path.read_bytes()
+
+
+def zip_directory(src_dir, zip_path, workers: int = 8, window: int = 16) -> int:
+    """Archive *src_dir* recursively into *zip_path*; returns the ZIP size.
+
+    **Reads concurrently, writes sequentially.** On Cloud Run the source folder
+    is a GCS FUSE mount, where every file open/stat/read is a network round trip
+    to GCS. A 31-territory run archived ~1500 small files at roughly **1 MB/s**
+    — 644 MB took 10.6 minutes — which is per-file latency, not CPU: deflating
+    that volume is well under a minute of actual work. Overlapping the reads
+    hides the latency behind other reads.
+
+    ``zipfile`` is not safe for concurrent writes, so only the *reads* fan out:
+    a sliding window of at most *window* files is in flight, and entries are
+    written in the same sorted order as before, so archives stay reproducible.
+
+    Peak extra memory is *window* × the average file size — about 10 MB for a
+    typical batch run. Keep *window* modest for that reason; the gain comes from
+    hiding latency, and it flattens out well before the memory cost matters.
+    """
+    import time
+    from collections import deque
+    from concurrent.futures import ThreadPoolExecutor
     from pathlib import Path
 
     src_dir = Path(src_dir)
     zip_path = Path(zip_path)
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in sorted(src_dir.rglob("*")):
-            if p.is_file():
-                zf.write(p, p.relative_to(src_dir).as_posix())
-    return zip_path.stat().st_size
+    files = sorted(p for p in src_dir.rglob("*") if p.is_file())
+    window = max(2, window)
+    t0 = time.monotonic()
+    raw = 0
+
+    with ThreadPoolExecutor(
+        max_workers=max(1, workers), thread_name_prefix="zipread"
+    ) as pool, zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        pending = iter(files)
+        inflight = deque()
+
+        def _submit_next() -> bool:
+            nxt = next(pending, None)
+            if nxt is None:
+                return False
+            inflight.append(pool.submit(_zip_member, src_dir, nxt))
+            return True
+
+        for _ in range(window):
+            if not _submit_next():
+                break
+        while inflight:
+            info, data = inflight.popleft().result()
+            zf.writestr(info, data)
+            raw += len(data)
+            _submit_next()
+
+    size = zip_path.stat().st_size
+    elapsed = max(time.monotonic() - t0, 1e-9)
+    logger.info(
+        f"Archived {len(files)} files ({raw / 1e6:.0f} MB → {size / 1e6:.0f} MB) "
+        f"in {elapsed:.0f}s ({raw / 1e6 / elapsed:.1f} MB/s read, "
+        f"{workers} readers)"
+    )
+    return size
 
 
 def get_export_dir():
@@ -143,12 +209,15 @@ def get_export_dir():
     return export_dir
 
 
-def prune_old_exports(keep_per_prefix: int = 2) -> None:
+def prune_old_exports(keep_per_prefix: int = 10) -> None:
     """Delete older export ZIPs and leftover run folders.
 
     ZIPs: keeps the newest *keep_per_prefix* of each kind (kind = name with
     the trailing ``_YYYYMMDD_HHMM`` stripped), so interactive exports never
-    evict a freshly built batch archive.
+    evict a freshly built batch archive. Ten is deliberately generous — a batch
+    archive can be an hour of compute, and Previous Runs is the only way back to
+    one, so the cost of keeping a stale ZIP is far below the cost of dropping a
+    real run.
 
     Folders: deleted ONLY when their completed marker — a same-name ``.zip``
     — exists (the batch normally removes its own folder after compressing;
@@ -573,33 +642,83 @@ def _plotly_to_png_bytes(
         return None
 
 
+class FigureExportOptions:
+    """Run-scoped PNG policy for :func:`_write_fig`.
+
+    A batch run writes ~83 figures per territory through section writers nested
+    several calls deep, so threading per-run PNG settings down as parameters
+    would touch every writer signature. This is a deliberate module-level
+    default instead, with two rules that keep it safe:
+
+    * **Explicit arguments always win.** The interactive geometry/territory
+      export passes its own width/scale and pins ``png_enabled=True``, so it
+      keeps print-quality output no matter what a batch has configured.
+    * **Set once per run, never per territory**, via :func:`figure_export`. All
+      render lanes in a run share one value, so concurrent lanes cannot observe
+      a half-applied change.
+
+    ``png`` False skips PNG entirely — the HTML is always written, and PNGs are
+    ~90% of a batch archive's bytes (449 MB of 503 MB in a measured 18-territory
+    run). ``scale`` below 1.0 shrinks them further.
+    """
+
+    __slots__ = ("png", "scale")
+
+    def __init__(self, png: bool = True, scale: float = 1.0):
+        self.png = png
+        self.scale = scale
+
+
+#: Current run's policy. Batch runs set this; everything else leaves it alone.
+FIGURE_EXPORT = FigureExportOptions()
+
+
+@contextmanager
+def figure_export(png: bool = True, scale: float = 1.0):
+    """Apply a PNG policy for the duration of a run, then restore it."""
+    global FIGURE_EXPORT
+    previous = FIGURE_EXPORT
+    FIGURE_EXPORT = FigureExportOptions(png=png, scale=scale)
+    try:
+        yield FIGURE_EXPORT
+    finally:
+        FIGURE_EXPORT = previous
+
+
 def _write_fig(
     zf: zipfile.ZipFile,
     base_path: str,
     fig,
     png_width: Optional[int] = None,
     png_height: Optional[int] = None,
-    png_scale: float = 1.0,
+    png_scale: Optional[float] = None,
+    png_enabled: Optional[bool] = None,
 ) -> None:
     """Write both .html and (if kaleido available) .png versions of a figure.
 
-    For ordinary charts the default 1:1 scale is fine.  Pass
-    ``png_scale=2.0`` (and leave *png_width*/*png_height* unset) for the
-    deforestation-timeline chart so kaleido uses the figure's own layout
-    dimensions at @2× pixel density — print-ready quality.
+    *png_scale* / *png_enabled* default to the run-scoped
+    :data:`FIGURE_EXPORT` policy when not given; passing them explicitly
+    overrides it. Pass ``png_scale=2.0`` (leaving *png_width*/*png_height*
+    unset) so kaleido uses the figure's own layout dimensions at @2× pixel
+    density — print-ready quality.
     """
     if fig is None:
         return
+    opts = FIGURE_EXPORT
+    want_png = opts.png if png_enabled is None else png_enabled
+    scale = opts.scale if png_scale is None else png_scale
     try:
         import plotly.graph_objects as go
         if isinstance(fig, dict):
             fig = go.Figure(fig)
-        # Always try HTML first (no extra deps)
+        # Always try HTML first (no extra deps) — it stays even when PNG is off,
+        # so a no-PNG run is still a complete, readable export.
         html = _plotly_to_html_bytes(fig)
         if html:
             zf.writestr(base_path + ".html", html)
-        # PNG is optional
-        png = _plotly_to_png_bytes(fig, width=png_width, height=png_height, scale=png_scale)
+        if not want_png:
+            return
+        png = _plotly_to_png_bytes(fig, width=png_width, height=png_height, scale=scale)
         if png:
             zf.writestr(base_path + ".png", png)
     except Exception as e:
@@ -1048,7 +1167,9 @@ def _write_timeline_section(
                     zf,
                     f"{fig_dir}/{slug}_deforestation_timeline_{y1}_{y2}_{suffix}{sfx}",
                     fig,
-                    png_width=1400, png_scale=2.0,
+                    # Interactive export: print quality, pinned so a batch's
+                    # run-scoped PNG policy can never downgrade it.
+                    png_width=1400, png_scale=2.0, png_enabled=True,
                 )
         except Exception as e:
             logger.warning(f"timeline figure ({variant}) failed: {e}")

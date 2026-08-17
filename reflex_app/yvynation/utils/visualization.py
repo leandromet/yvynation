@@ -1949,6 +1949,9 @@ def create_deforestation_timeline_chart(
     title_suffix: str = "",
     territory_name: str = "",
     territory_type: str = "indigenous",
+    include_political: bool = True,
+    include_policy: bool = True,
+    include_enso: bool = True,
 ) -> Optional[go.Figure]:
     """Build a Plotly figure with political bar above, indicator lines, policy bar below.
 
@@ -1964,6 +1967,14 @@ def create_deforestation_timeline_chart(
         moving_window: window size for the ``moving_avg`` variant.
         title_suffix: appended to the figure title (typically the territory
             name).
+        include_political: draw the president/governor stripes above the plot.
+        include_policy: draw the per-year policy heat-rows below the plot *and*
+            their colour-key/milestone legend — they are one unit, since the
+            legend only explains those rows.
+        include_enso: draw the ENSO (Oceanic Niño Index) strip.
+
+    Each context band that is turned off also gives back the vertical space it
+    reserved, so a trimmed chart is shorter rather than gappy.
 
     Returns ``None`` if no indicator has data.
     """
@@ -2060,21 +2071,41 @@ def create_deforestation_timeline_chart(
 
     demar_row_label = "UC Status" if territory_type == "conservation" else "Demarcation"
 
-    enso_shapes, enso_annots = _enso_shapes_and_annots(years, top_y=-0.26, height=0.22)
+    # Each context band is optional. Omitting one drops its shapes *and* the
+    # vertical space it reserved, so a trimmed chart has no blank gap where the
+    # band used to be.
+    if include_enso:
+        enso_shapes, enso_annots = _enso_shapes_and_annots(
+            years, top_y=-0.26, height=0.22
+        )
+    else:
+        enso_shapes, enso_annots = [], []
     # Strip (0.22) + its legend caption row (0.04) push everything below down
     enso_shift = 0.26 if enso_shapes else 0.0
 
-    pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
-    pcy_shapes, pcy_annots = _policy_shapes_and_annots(
-        years, top_y=-0.32 - enso_shift, milestone_limit=12,
-        territory_demar_colors=demar_colors or None,
-        demar_row_label=demar_row_label,
-    )
-    leg_shapes, leg_annots = _context_legend_shapes_and_annots(
-        years, top_y=-0.59 - enso_shift, milestone_limit=50,
-        demar_milestones=demar_milestones or None,
-        territory_type=territory_type,
-    )
+    # Political stripes sit *above* the plot area, so dropping them shifts
+    # nothing below.
+    if include_political:
+        pol_shapes, pol_annots = _political_shapes_and_annots(state_code, years)
+    else:
+        pol_shapes, pol_annots = [], []
+
+    # The policy heat-rows and the colour-key/milestone legend are one unit —
+    # the legend exists only to explain those rows, so they toggle together.
+    if include_policy:
+        pcy_shapes, pcy_annots = _policy_shapes_and_annots(
+            years, top_y=-0.32 - enso_shift, milestone_limit=12,
+            territory_demar_colors=demar_colors or None,
+            demar_row_label=demar_row_label,
+        )
+        leg_shapes, leg_annots = _context_legend_shapes_and_annots(
+            years, top_y=-0.59 - enso_shift, milestone_limit=50,
+            demar_milestones=demar_milestones or None,
+            territory_type=territory_type,
+        )
+    else:
+        pcy_shapes, pcy_annots = [], []
+        leg_shapes, leg_annots = [], []
 
     title = f"Deforestation Timeline — {v_title}"
     if title_suffix:
@@ -2103,11 +2134,16 @@ def create_deforestation_timeline_chart(
     # Extra bottom margin absorbs the ENSO strip's downward shift so the
     # plot area stays exactly 340 px (1 paper unit) either way.
     extra_px = int(round(enso_shift * 340 + (15 if enso_shift else 0)))
+    # The 560 px bottom margin exists for the policy rows and their legend; with
+    # those off, only the horizontal trace legend at y=-0.17 needs room. Same
+    # for the 180 px top margin, which holds the political stripes.
+    bottom_px = (560 if include_policy else 150) + extra_px
+    top_px = 180 if include_political else 110
     fig.update_layout(
         title=title,
         template="plotly_white",
-        height=1080 + extra_px,
-        margin={"t": 180, "b": 560 + extra_px, "l": 100, "r": right_margin},
+        height=(1080 if include_policy else 640) + extra_px,
+        margin={"t": top_px, "b": bottom_px, "l": 100, "r": right_margin},
         legend=legend_cfg,
         shapes=pol_shapes + enso_shapes + pcy_shapes + leg_shapes,
         annotations=pol_annots + enso_annots + pcy_annots + leg_annots,
