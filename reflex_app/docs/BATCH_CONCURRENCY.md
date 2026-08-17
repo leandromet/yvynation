@@ -415,6 +415,35 @@ properties worth keeping:
   outage — the writer fetches inline as before. Covered by a test that fails EE
   calls *only* on pool threads and asserts the charts still appear.
 
+### FIFO pools: submit a territory's work in one batch
+
+Observed on a 25-territory run: the first group of territories all sat at
+"deforestation timeline" until the stragglers had run *their* MapBiomas and
+Hansen, then finished in a burst — and the next group repeated it.
+
+There is no barrier in the code. Workers pull from an `asyncio.Queue` with
+`get_nowait()` and never await each other. The cause was **FIFO ordering in the
+shared EE pool**: the timeline series were fetched in a *second* round, after
+the per-region fan-out. By the time a nearly-finished territory submitted those
+two calls, the queue already held every job of every territory that had started
+since — so its last request waited behind newcomers' first ones.
+
+The fix is ordering, not capacity: the timeline series now go out **in the same
+`jobs` list** as MapBiomas and Hansen. This was possible because the dependency
+was only apparent — `hansen_loss_series()` is pure reshaping of the `gfc` result
+already fetched in that batch, so it is merged in locally afterwards and no EE
+call has to wait for another.
+
+**The general rule: a territory should submit everything it needs in one batch.**
+Any dependent second round re-queues it behind work that started later, which is
+what turns independent territories into a group that finishes together.
+
+Note this is separate from fair-share interleaving, which is *not* a bug: N
+territories sharing the pools each advance at ~1/N speed, so they naturally
+arrive at stages together. `concurrency.stages.concurrent_fraction` in
+`batch_summary.json` distinguishes them — near `territory_workers` means healthy
+overlap; the per-stage seconds show where the time actually went.
+
 ### Which half of the render stage?
 
 The two libraries behind the render lock are independent and need different

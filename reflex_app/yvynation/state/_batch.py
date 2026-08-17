@@ -1639,6 +1639,19 @@ class BatchMixin(rx.State, mixin=True):
                     # timeline tasks that run after the regions loop.
                     region_map_data: List[tuple] = []
 
+                    # Timeline series, filled by the per-region fan-out below.
+                    # Deliberately NOT a second round of requests after the
+                    # regions loop: the EE pool is FIFO, so work submitted late
+                    # queues behind every job of every territory that started
+                    # since — a nearly-finished territory would wait for
+                    # newcomers' MapBiomas and Hansen before its last two calls
+                    # ran. Submitting everything a territory needs in one batch
+                    # is what lets it finish and release its worker.
+                    tl_series: Dict[Any, Any] = {}
+                    tl_y0, tl_y1 = int(year1), int(year2)
+                    if tl_y1 < tl_y0:
+                        tl_y0, tl_y1 = tl_y1, tl_y0
+
                     for region_name, region_ee_geom, region_buf_geom in regions:
                         rlabel = f" [{region_name.upper()}]" if region_name else ""
                         rsuffix = f" ({region_name.upper()})" if region_name else ""
@@ -1862,6 +1875,27 @@ class BatchMixin(rx.State, mixin=True):
                             jobs.append(("buf_multi", _buf_multi,
                                          f"Buffer multi-window transitions{rsuffix}"))
 
+                        # Deforestation-timeline series. Only the MapBiomas and
+                        # fire indicators need Earth Engine; the Hansen loss
+                        # series is pure reshaping of the `gfc` result above, so
+                        # it is merged in locally after the gather rather than
+                        # forcing a dependent second round.
+                        if run_timeline:
+                            def _tl(geom=region_ee_geom):
+                                from ..utils.deforestation_timeline import collect_timeline
+                                return collect_timeline(
+                                    geom, tl_y0, tl_y1, include_hansen=False
+                                )
+                            jobs.append(("tl", _tl, f"Timeline series{rsuffix}"))
+                            if has_buf:
+                                def _tl_buf(geom=region_buf_geom):
+                                    from ..utils.deforestation_timeline import collect_timeline
+                                    return collect_timeline(
+                                        geom, tl_y0, tl_y1, include_hansen=False
+                                    )
+                                jobs.append(("tl_buf", _tl_buf,
+                                             f"Buffer timeline series{rsuffix}"))
+
                         res: Dict[str, Any] = {}
                         if jobs:
                             await _set_step(
@@ -2002,6 +2036,25 @@ class BatchMixin(rx.State, mixin=True):
                         # buffer_geom is the quadrant-clipped buffer (or full buffer for
                         # non-split territories); None when buffer is not enabled.
                         region_map_data.append((region_name, region_ee_geom, gfc_result, region_buf_geom))
+
+                        # Merge the timeline series for this region. The Hansen
+                        # loss series is derived locally from `gfc_result` — it
+                        # is a reshaping of data already fetched above, so it
+                        # costs no request and needs no ordering.
+                        if run_timeline:
+                            from ..utils.deforestation_timeline import hansen_loss_series
+                            for _slot, _key, _gfc in (
+                                ("tl", ("t", region_name), gfc_result),
+                                ("tl_buf", ("b", region_name), None),
+                            ):
+                                _series = res.get(_slot)
+                                if not _series:
+                                    continue
+                                _series = dict(_series)
+                                _series["hansen_loss"] = hansen_loss_series(
+                                    _gfc, tl_y0, tl_y1
+                                )
+                                tl_series[_key] = _series
 
                         # ─── Step 11: Write THIS region to master ZIP ───────
                         await _set_step(territory, STEPS["export"] + rlabel)
@@ -2339,62 +2392,12 @@ class BatchMixin(rx.State, mixin=True):
                                 self._batch_append_log(f"  ⚠ PDF maps skipped: {me}")
 
                     # ── Deforestation timeline (per-territory + buffer) ─────
+                    # The series were fetched in the per-region fan-out above,
+                    # in the same batch as MapBiomas and Hansen. Nothing is
+                    # requested here: a second round would be submitted to the
+                    # back of a FIFO pool already holding every job of every
+                    # territory that started in the meantime.
                     if run_timeline:
-                        # Normalised once, so the prefetch and the writer cannot
-                        # disagree about which years were requested.
-                        tl_y0, tl_y1 = int(year1), int(year2)
-                        if tl_y1 < tl_y0:
-                            tl_y0, tl_y1 = tl_y1, tl_y0
-
-                        def _timeline_specs(regions=region_map_data, ben=buf_enabled):
-                            """(key, geometry, gfc_result) for every timeline series.
-
-                            One source of truth walked by both the prefetch and
-                            the writer — the map-raster prefetch drifted exactly
-                            this way before ``_raster_specs`` existed.
-                            """
-                            specs = [(("t", rname), rgeom, rgfc)
-                                     for rname, rgeom, rgfc, _ in regions]
-                            if ben:
-                                specs += [(("b", rname), rbuf, None)
-                                          for rname, _, __, rbuf in regions
-                                          if rbuf is not None]
-                            return specs
-
-                        # collect_timeline() issues reduceRegion(...).getInfo()
-                        # calls. Left inside the render closure they ran on the
-                        # render thread — holding the kaleido lane for the whole
-                        # network round trip, and bypassing the EE pool entirely
-                        # (which is why the EE meter read 3.6% busy while this
-                        # lane read 38.6%). A measured 31-territory run spent
-                        # 44.6 s per territory here, of which ~1 s was actually
-                        # rendering. Fetch first, on the pool, in parallel.
-                        await _set_step(territory, "📈 Timeline series (Earth Engine)…")
-                        tl_series: Dict[Any, Any] = {}
-
-                        async def _fetch_tl(key, geom, gfc):
-                            from ..utils.deforestation_timeline import collect_timeline
-
-                            def _call(g=geom, gr=gfc):
-                                return collect_timeline(
-                                    g, tl_y0, tl_y1, gfc_result=gr
-                                )
-                            result = await _ee_with_retry(
-                                loop, _call, f"timeline {territory} {key}"
-                            )
-                            if result:
-                                tl_series[key] = result
-
-                        try:
-                            await asyncio.gather(
-                                *[_fetch_tl(*s) for s in _timeline_specs()]
-                            )
-                        except Exception as tfe:
-                            logger.warning(
-                                f"timeline prefetch for {territory} failed "
-                                f"({tfe}) — the writer will fetch inline"
-                            )
-
                         await _set_step(territory, "📈 Deforestation timeline…")
 
                         def _write_timeline(
@@ -2410,8 +2413,10 @@ class BatchMixin(rx.State, mixin=True):
                             tl_pol=self.batch_timeline_political,
                             tl_pcy=self.batch_timeline_policy,
                             tl_enso=self.batch_timeline_enso,
-                            # Keys here mirror _timeline_specs(). A mismatch
-                            # degrades to an inline fetch — slower, never wrong.
+                            # Keys mirror how the region loop stored them:
+                            # ("t", region_name) / ("b", region_name). A
+                            # mismatch degrades to an inline fetch on the render
+                            # thread — slower, never a missing chart.
                             prefetched=tl_series,
                         ):
                             try:

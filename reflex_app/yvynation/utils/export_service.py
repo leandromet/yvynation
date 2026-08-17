@@ -622,58 +622,182 @@ def _plotly_to_html_bytes(fig) -> Optional[bytes]:
 # ---------------------------------------------------------------------------
 # Thread-safe kaleido
 #
-# ``fig.to_image()`` drives ``plotly.io._kaleido.scope`` — one module-global
-# ``PlotlyScope`` talking to one Chrome subprocess over one pipe. Concurrent
-# calls from different threads interleave on that pipe and deadlock or return
-# truncated PNGs, which is why chart rendering was serialized.
+# ``fig.to_image()`` drives one shared kaleido state, and concurrent calls
+# from different threads corrupt it — the exact shared object differs by
+# kaleido major version, so this module supports both:
 #
-# The global is the only problem. A ``PlotlyScope`` *instance* owns its own
-# Chrome, so giving each thread its own instance makes rendering thread-safe by
-# construction — no shared state left to corrupt. Output is byte-identical to
-# ``to_image()``, and the Python thread sits waiting on its pipe with the GIL
-# released while Chrome does the work in a separate process, so N threads really
-# do use N cores.
+# * **kaleido < 1** (``kaleido.scopes.plotly.PlotlyScope``): one module-global
+#   ``PlotlyScope`` talking to one Chrome subprocess over one pipe. A
+#   ``PlotlyScope`` *instance* owns its own Chrome, so giving each thread its
+#   own instance (``threading.local``) makes rendering thread-safe by
+#   construction. Measured: 8 renders of a 1600x1000 stacked bar took 1.48 s
+#   serially, 0.43 s across 4 scoped threads (3.4x).
 #
-# Measured: 8 renders of a 1600x1000 stacked bar took 1.48 s serially, 0.43 s
-# across 4 scoped threads (3.4x).
+# * **kaleido >= 1** (rewritten API, no ``PlotlyScope``): ``fig.to_image()``
+#   drives ``kaleido.calc_fig_sync()``, which — unless a persistent server is
+#   running — opens a **fresh headless Chrome, renders one image, and tears it
+#   down again on every single call**. Measured 1075 ms/render one-shot vs
+#   248 ms/render with ``kaleido.start_sync_server()`` warm (4.3x from
+#   reusing one browser alone). But the sync server processes its task queue
+#   one call at a time regardless of the ``n`` (tab) count it was opened
+#   with — measured 4 concurrent threads through it *slower* than 1 (extra
+#   idle tabs, zero parallelism gained) — so it cannot widen the lane.
+#   Real concurrency needs kaleido's lower-level async ``Kaleido(n=…)``
+#   browser directly: each of its tabs is handed out from an internal
+#   ``asyncio.Queue``, so N *concurrently awaited* ``calc_fig()`` coroutines
+#   really do use N tabs at once. This module keeps ONE such browser (opened
+#   with as many tabs as the kaleido lane is wide) on its own dedicated
+#   event-loop thread for the process lifetime, and each render-lane worker
+#   thread submits its coroutine via ``run_coroutine_threadsafe`` and blocks
+#   on the result — mirroring the v0 "one Chrome per worker" model, but as
+#   one shared multi-tab browser instead of N separate ones (kaleido v1 tabs
+#   are cheap to add to one browser; N full browsers is not what its API
+#   offers). Measured 4 tabs, 8 concurrent renders: 25 ms/render avg vs 67 ms
+#   serial on the same warm browser (2.7x).
 # ---------------------------------------------------------------------------
 
 _kaleido_local = threading.local()
 
-#: None until probed. True when per-thread scopes work — the render lane may
-#: then run wider than one worker. False forces the serialized fallback.
+#: None until probed. True when concurrent rendering works here — the render
+#: lane may then run wider than one worker. False forces the serialized
+#: fallback (``fig.to_image()`` with no persistent server behind it).
 _SCOPED_KALEIDO: Optional[bool] = None
+
+#: Kaleido major version (0 or 1+), or -1 if kaleido is not importable at all.
+#: Decides which of the two concurrency strategies above applies.
+_KALEIDO_MAJOR: Optional[int] = None
+
+
+def _kaleido_major() -> int:
+    global _KALEIDO_MAJOR
+    if _KALEIDO_MAJOR is None:
+        try:
+            import importlib.metadata as importlib_metadata
+            from packaging.version import Version
+            _KALEIDO_MAJOR = Version(importlib_metadata.version("kaleido")).major
+        except Exception:  # noqa: BLE001
+            _KALEIDO_MAJOR = -1
+    return _KALEIDO_MAJOR
 
 
 def scoped_kaleido_available() -> bool:
-    """Probe (once) whether per-thread ``PlotlyScope`` instances work here.
+    """Probe (once) whether concurrent kaleido rendering works here.
 
-    The concurrency budget asks before widening the kaleido render lane: if the
-    probe fails we must keep the lane at one worker, because the fallback path
-    goes through the shared global scope that cannot take concurrent callers.
+    The concurrency budget asks before widening the kaleido render lane: if
+    the probe fails we must keep the lane at one worker, because the fallback
+    path (``fig.to_image()`` with no persistent server) cannot take concurrent
+    callers without either corrupting output (v0) or serializing anyway (v1).
+
+    Deliberately does not launch a browser for either version — v0's probe
+    only instantiates a ``PlotlyScope`` object (cheap; Chrome launches lazily
+    on first ``.transform()``), and v1 defers opening the shared multi-tab
+    browser to the first real render — because :func:`reset_meters` calls
+    this indirectly via :func:`render_capacity` and must stay fast.
     """
     global _SCOPED_KALEIDO
     if _SCOPED_KALEIDO is None:
-        try:
-            from kaleido.scopes.plotly import PlotlyScope  # noqa: F401
-            _get_kaleido_scope()
-            _SCOPED_KALEIDO = True
-        except Exception as exc:  # noqa: BLE001
+        major = _kaleido_major()
+        if major < 0:
             logger.warning(
-                f"Per-thread kaleido scopes unavailable ({exc}) — chart "
-                f"rendering stays serialized on one worker"
+                "kaleido is not importable — chart rendering stays "
+                "serialized on one worker"
             )
             _SCOPED_KALEIDO = False
+        elif major >= 1:
+            # Concurrency is provided by the shared multi-tab browser set up
+            # lazily in _ensure_kaleido_v1_browser(); nothing to probe here.
+            _SCOPED_KALEIDO = True
+        else:
+            try:
+                from kaleido.scopes.plotly import PlotlyScope  # noqa: F401
+                _get_kaleido_scope()
+                _SCOPED_KALEIDO = True
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    f"Per-thread kaleido scopes unavailable ({exc}) — chart "
+                    f"rendering stays serialized on one worker"
+                )
+                _SCOPED_KALEIDO = False
     return _SCOPED_KALEIDO
 
 
 def _get_kaleido_scope():
-    """This thread's own ``PlotlyScope`` (and its own Chrome), created lazily."""
+    """This thread's own ``PlotlyScope`` (and its own Chrome), created lazily.
+
+    kaleido v0 only — see :func:`_ensure_kaleido_v1_browser` for v1.
+    """
     scope = getattr(_kaleido_local, "scope", None)
     if scope is None:
         from kaleido.scopes.plotly import PlotlyScope
         scope = _kaleido_local.scope = PlotlyScope()
     return scope
+
+
+# --- kaleido v1: one shared multi-tab browser on its own event-loop thread ---
+
+_kaleido_v1_lock = threading.Lock()
+_kaleido_v1_loop = None       # asyncio.AbstractEventLoop, once opened
+_kaleido_v1_browser = None    # kaleido.kaleido.Kaleido, once opened
+
+
+def _ensure_kaleido_v1_browser():
+    """Open the one shared kaleido v1 browser, sized to the kaleido lane
+    width, the first time it's needed. Reused for the process lifetime —
+    opening a browser costs a Chrome launch, same as v0's per-thread scopes
+    never being torn down between renders.
+    """
+    global _kaleido_v1_loop, _kaleido_v1_browser
+    if _kaleido_v1_browser is not None:
+        return
+    with _kaleido_v1_lock:
+        if _kaleido_v1_browser is not None:
+            return
+        import asyncio
+        import atexit
+        from kaleido.kaleido import Kaleido
+        from .ee_concurrency import lane_width
+
+        n = max(1, lane_width("kaleido"))
+        loop = asyncio.new_event_loop()
+        threading.Thread(
+            target=loop.run_forever, daemon=True, name="kaleido-v1-loop"
+        ).start()
+        browser = Kaleido(n=n)
+        asyncio.run_coroutine_threadsafe(browser.__aenter__(), loop).result(timeout=60)
+
+        def _close():
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    browser.__aexit__(None, None, None), loop
+                ).result(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+            loop.call_soon_threadsafe(loop.stop)
+
+        atexit.register(_close)
+        _kaleido_v1_loop = loop
+        _kaleido_v1_browser = browser
+        logger.info(f"kaleido v1 browser opened with {n} tab(s)")
+
+
+def _kaleido_v1_render(spec: dict, format: str, width, height, scale: float) -> bytes:
+    """Render one figure spec on the shared v1 browser from any thread.
+
+    Concurrent callers each block on their own ``run_coroutine_threadsafe``
+    future while the event-loop thread runs their ``calc_fig()`` coroutines
+    concurrently — each pulls a free tab from the browser's internal queue,
+    so up to *n* callers really do render at once.
+    """
+    import asyncio
+
+    _ensure_kaleido_v1_browser()
+    opts: dict = {"format": format, "scale": scale}
+    if width is not None:
+        opts["width"] = width
+    if height is not None:
+        opts["height"] = height
+    coro = _kaleido_v1_browser.calc_fig(spec, opts=opts)
+    return asyncio.run_coroutine_threadsafe(coro, _kaleido_v1_loop).result(timeout=90)
 
 
 def _plotly_to_png_bytes(
@@ -688,14 +812,19 @@ def _plotly_to_png_bytes(
     dimensions (or its default 700×450 if none are set).  Pass ``scale`` > 1
     for high-DPI export (scale=2 → @2× / print quality).
 
-    Uses this thread's own ``PlotlyScope`` so several charts can render at once;
-    falls back to ``fig.to_image()`` (the shared global scope) only when scoped
-    rendering is unavailable, in which case the render lane stays single-worker.
+    Renders concurrently — via a per-thread ``PlotlyScope`` on kaleido v0, or
+    the shared multi-tab browser on kaleido v1 (see the module docstring
+    above) — so several charts can render at once; falls back to
+    ``fig.to_image()`` only when scoped rendering is unavailable, in which
+    case the render lane stays single-worker.
     """
     try:
+        import plotly.graph_objects as go
+        spec = fig.to_dict() if isinstance(fig, go.Figure) else fig
+
         if scoped_kaleido_available():
-            import plotly.graph_objects as go
-            spec = fig.to_dict() if isinstance(fig, go.Figure) else fig
+            if _kaleido_major() >= 1:
+                return _kaleido_v1_render(spec, "png", width, height, scale)
             kwargs: dict = {"format": "png", "scale": scale}
             if width is not None:
                 kwargs["width"] = width

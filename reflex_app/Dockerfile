@@ -9,9 +9,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # ── System dependencies ──────────────────────────────────────────────────────
+# chromium: kaleido>=1.0 (Plotly → PNG for batch ZIPs and interactive exports)
+# dropped its bundled renderer and drives a system Chrome/Chromium over CDP
+# instead. Runs as root here, but choreographer (kaleido's browser launcher)
+# already appends --no-sandbox by default, so no extra flag/env var is needed.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl git ca-certificates build-essential unzip \
     gdal-bin libgdal-dev libpq-dev \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Bun (Reflex frontend build toolchain) ────────────────────────────────────
@@ -32,8 +37,17 @@ COPY . .
 ENV REFLEX_ENV=prod
 RUN reflex init
 
-# Smoke-test: ensure the Python app can be imported without errors
-RUN python -c "from yvynation.yvynation import app; print('Import OK')"
+# Smoke-test: ensure the Python app can be imported without errors, and that
+# kaleido can actually drive the apt-installed Chromium end-to-end (catches a
+# missing shared-library dependency or a sandbox/permission issue at build
+# time instead of on the first user export in production).
+RUN python -c "from yvynation.yvynation import app; print('Import OK')" && \
+    python -c "\
+import plotly.graph_objects as go; \
+from yvynation.utils.export_service import _plotly_to_png_bytes; \
+png = _plotly_to_png_bytes(go.Figure(go.Bar(x=['a'], y=[1])), width=200, height=200); \
+assert png and png[:8] == b'\x89PNG\r\n\x1a\n', 'kaleido PNG export failed'; \
+print('Kaleido PNG export OK')"
 
 # ── Runtime configuration ────────────────────────────────────────────────────
 ENV PYTHONUNBUFFERED=1

@@ -15,13 +15,22 @@ and constrained by *module-global* state in both libraries — but the two globa
 are unrelated, so rendering is split into one **lane** per library
 (:data:`RENDER_POOLS`), which run concurrently with each other:
 
-* **kaleido** — ``fig.to_image()`` drives one module-global ``PlotlyScope``
-  (``plotly.io._kaleido.scope``) over a single pipe, so concurrent calls
-  interleave and deadlock or truncate. ``export_service`` instead gives each
-  thread its **own** ``PlotlyScope`` (hence its own Chrome), which removes the
-  shared state entirely — so this lane runs several workers wide. Guarded by
-  ``scoped_kaleido_available()``: if per-thread scopes are unavailable the
-  fallback uses the shared global, and the lane drops back to one worker.
+* **kaleido** — the concurrency trick differs by kaleido major version (both
+  supported, dispatched in ``export_service``). **v0**: ``fig.to_image()``
+  drives one module-global ``PlotlyScope`` over a single pipe, so concurrent
+  calls interleave and deadlock or truncate; giving each thread its own
+  ``PlotlyScope`` (hence its own Chrome) removes the shared state entirely.
+  **v1** (current — v0's ``kaleido.scopes.plotly`` no longer exists): a naive
+  port of the v0 trick doesn't apply, and neither does kaleido's own
+  ``start_sync_server()`` — that server processes one render at a time
+  regardless of how many tabs it was opened with, so more tabs there measured
+  *zero* extra throughput. Real concurrency comes from one shared multi-tab
+  ``kaleido.kaleido.Kaleido(n=…)`` browser on its own event-loop thread: N
+  *concurrently awaited* ``calc_fig()`` coroutines really do pull N different
+  tabs from its internal queue. Guarded by ``scoped_kaleido_available()``: if
+  concurrent rendering is unavailable on neither version the fallback uses
+  ``fig.to_image()`` with no persistent server, and the lane drops back to one
+  worker.
 * **matplotlib** — ``map_export_service`` builds ``Figure`` +
   ``FigureCanvasAgg`` objects directly instead of going through ``pyplot``, so
   there is no current-figure global either, and this lane also runs several
