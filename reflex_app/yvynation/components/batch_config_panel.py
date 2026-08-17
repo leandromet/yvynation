@@ -129,44 +129,6 @@ def config_panel() -> rx.Component:
                 ),
                 rx.fragment(),
             ),
-            # ── Timeline context bands (only meaningful with the timeline on)
-            rx.cond(
-                AppState.batch_run_deforestation_timeline,
-                rx.box(
-                    rx.vstack(
-                        rx.text(
-                            AppState.tr["batch_timeline_bands_label"],
-                            font_size="xs", font_weight="600", color="#374151",
-                            text_transform="uppercase", letter_spacing="0.05em",
-                        ),
-                        rx.checkbox(
-                            AppState.tr["batch_chk_timeline_political"],
-                            checked=AppState.batch_timeline_political,
-                            on_change=AppState.batch_toggle_timeline_political,
-                            color_scheme="orange",
-                        ),
-                        rx.checkbox(
-                            AppState.tr["batch_chk_timeline_policy"],
-                            checked=AppState.batch_timeline_policy,
-                            on_change=AppState.batch_toggle_timeline_policy,
-                            color_scheme="orange",
-                        ),
-                        rx.checkbox(
-                            AppState.tr["batch_chk_timeline_enso"],
-                            checked=AppState.batch_timeline_enso,
-                            on_change=AppState.batch_toggle_timeline_enso,
-                            color_scheme="orange",
-                        ),
-                        rx.text(
-                            AppState.tr["batch_timeline_bands_hint"],
-                            font_size="2xs", color="#9CA3AF", line_height="1.4",
-                        ),
-                        spacing="1", align_items="flex-start",
-                    ),
-                    margin_top="0.4rem",
-                ),
-                rx.fragment(),
-            ),
             # Extra MapBiomas auxiliary raster layers (one PNG per layer per
             # territory). Per-year layers render for the configured batch
             # year2; fire frequency is a single full-period image.
@@ -297,6 +259,52 @@ def config_panel() -> rx.Component:
                 checked=AppState.batch_run_deforestation_timeline,
                 on_change=AppState.batch_toggle_run_deforestation_timeline,
                 color_scheme="orange",
+            ),
+            # Context bands nest under the timeline checkbox — same pattern as
+            # the auxiliary rasters under PDF maps: they only mean anything
+            # when their parent is on.
+            rx.cond(
+                AppState.batch_run_deforestation_timeline,
+                rx.box(
+                    rx.vstack(
+                        rx.text(
+                            AppState.tr["batch_timeline_bands_label"],
+                            font_size="xs", font_weight="600", color="#374151",
+                            text_transform="uppercase", letter_spacing="0.05em",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_political"],
+                            checked=AppState.batch_timeline_political,
+                            on_change=AppState.batch_toggle_timeline_political,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_policy"],
+                            checked=AppState.batch_timeline_policy,
+                            on_change=AppState.batch_toggle_timeline_policy,
+                            color_scheme="orange",
+                        ),
+                        rx.checkbox(
+                            AppState.tr["batch_chk_timeline_enso"],
+                            checked=AppState.batch_timeline_enso,
+                            on_change=AppState.batch_toggle_timeline_enso,
+                            color_scheme="orange",
+                        ),
+                        rx.text(
+                            AppState.tr["batch_timeline_bands_hint"],
+                            font_size="2xs", color="#9CA3AF", line_height="1.4",
+                        ),
+                        spacing="2", width="100%", align_items="flex-start",
+                    ),
+                    # Same indented card as the auxiliary rasters under PDF maps.
+                    padding="0.75rem",
+                    margin_left="1.75rem",
+                    bg="#FFF7ED",
+                    border="1px solid " + ORANGE_BORDER,
+                    border_radius="md",
+                    width="calc(100% - 1.75rem)",
+                ),
+                rx.fragment(),
             ),
             spacing="2",
         ),

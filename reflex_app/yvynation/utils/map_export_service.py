@@ -20,7 +20,13 @@ from typing import Dict, Any, Optional, List, Tuple
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+# NOT pyplot. ``plt`` is a global state machine (current figure / current axes)
+# shared by every thread, which forced map composition onto a single render
+# worker. ``Figure`` + ``FigureCanvasAgg`` own all their state, so composing
+# maps is thread-safe and the matplotlib render lane can run several wide.
+# See utils/ee_concurrency.py — the lane width is derived from this.
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 import matplotlib.patches as mpatches
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
@@ -479,7 +485,9 @@ def create_pdf_map(
     """
     try:
         min_lon, min_lat, max_lon, max_lat = bounds
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        fig = Figure(figsize=figsize)
+        FigureCanvasAgg(fig)          # attach a renderer; no global registry
+        ax = fig.add_subplot(1, 1, 1)
 
         ax.set_xlim(min_lon, max_lon)
         ax.set_ylim(min_lat, max_lat)
@@ -585,12 +593,13 @@ def create_pdf_map(
         ax.text(0.01, 0.01, f'Yvynation | {year or ""} | Generated {__import__("datetime").datetime.now().strftime("%Y-%m-%d")}',
                 transform=ax.transAxes, fontsize=7, color='gray', alpha=0.7)
 
-        plt.tight_layout()
+        fig.tight_layout()
 
         # Export to bytes in the requested format
         buf = io.BytesIO()
         fig.savefig(buf, format=image_format, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        # No plt.close() — nothing registered the figure globally, so it is
+        # freed with its last reference.
         buf.seek(0)
         return buf.read()
 

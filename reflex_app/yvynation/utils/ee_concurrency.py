@@ -11,18 +11,32 @@ can be in flight at once without touching the container's CPU. This is the work
 the Partner Tier uplift lets us widen.
 
 **Rendering** (Plotly → PNG via kaleido, Matplotlib map composition) is CPU-bound
-*and* must run one at a time regardless of how many cores we have:
+and constrained by *module-global* state in both libraries — but the two globals
+are unrelated, so rendering is split into one **lane** per library
+(:data:`RENDER_POOLS`), which run concurrently with each other:
 
-* ``kaleido==0.2.1`` drives a single module-global headless renderer
-  (``plotly.io._kaleido.scope``) over one pipe — concurrent ``fig.to_image()``
-  calls from different threads interleave on that pipe and deadlock or return
-  truncated PNGs.
-* ``map_export_service`` uses the ``pyplot`` state machine (global current
-  figure / axes), which is likewise not thread-safe.
+* **kaleido** — ``fig.to_image()`` drives one module-global ``PlotlyScope``
+  (``plotly.io._kaleido.scope``) over a single pipe, so concurrent calls
+  interleave and deadlock or truncate. ``export_service`` instead gives each
+  thread its **own** ``PlotlyScope`` (hence its own Chrome), which removes the
+  shared state entirely — so this lane runs several workers wide. Guarded by
+  ``scoped_kaleido_available()``: if per-thread scopes are unavailable the
+  fallback uses the shared global, and the lane drops back to one worker.
+* **matplotlib** — ``map_export_service`` builds ``Figure`` +
+  ``FigureCanvasAgg`` objects directly instead of going through ``pyplot``, so
+  there is no current-figure global either, and this lane also runs several
+  wide. It is narrower than kaleido because the drawing is real in-process CPU
+  under the GIL, where kaleido's work happens in a separate Chrome process.
 
-So :data:`RENDER_CONCURRENCY` is pinned to 1 and is **not** a tuning knob. The
-throughput win comes from *pipelining*: while one territory renders, the others
-are fetching from Earth Engine.
+Lane widths come from :func:`lane_width`; :func:`render_capacity` is their sum,
+and is what the render meter measures "saturated" against. The remaining win
+comes from *pipelining*: while one territory renders, the others fetch from
+Earth Engine.
+
+Anything that reaches Earth Engine must be fetched **before** a render lane is
+entered. A ``getInfo()`` under a render lane holds that lane for a whole network
+round trip and never appears in the EE meter — see ``prefetch_map_inputs()`` and
+the timeline prefetch in ``_batch.py``.
 
 Bounding is done with sized ``ThreadPoolExecutor``s rather than asyncio
 semaphores — an executor with N workers already queues everything past the Nth
@@ -67,15 +81,6 @@ logger = logging.getLogger(__name__)
 #: ``ee_requests``  — ceiling on simultaneous in-flight Earth Engine calls,
 #:                    summed across every territory and quadrant in flight.
 #:
-#: An extra in-flight territory is much cheaper than it looks. Rendering is
-#: serialized, so at most one territory holds figures and map PNGs at any
-#: moment; the others are parked in ``getInfo()`` holding only their fetched
-#: result dicts (class histograms — kilobytes, not megabytes). And on Cloud Run
-#: ``uploaded_files/exports/`` is a GCS FUSE volume, so the bytes a run *writes*
-#: never enter the container's memory budget at all. Hence ``territories`` well
-#: above the core count: these workers are waiting on the network, not competing
-#: for CPU.
-#:
 #: Profiles are **scaling rules, not fixed numbers**. Yvynation is open source
 #: and runs on very different machines: Cloud Run at 2 vCPU / 8 GiB, and
 #: workstations with 20 cores and plenty of RAM. Hardcoding the container's
@@ -91,10 +96,10 @@ logger = logging.getLogger(__name__)
 #: ``ee_max``               — tier ceiling on simultaneous requests.
 #:
 #: **Why territories can exceed the core count:** these workers wait on the
-#: network, not on CPU. Rendering is serialized, so at most one territory holds
-#: figures at any moment; the rest sit in ``getInfo()`` holding kilobyte-sized
-#: result dicts. On Cloud Run ``uploaded_files/exports/`` is a GCS FUSE volume,
-#: so written output never enters the memory budget either.
+#: network, not on CPU. Only the few territories currently in a render lane hold
+#: figures; the rest sit in ``getInfo()`` holding kilobyte-sized result dicts. On
+#: Cloud Run ``uploaded_files/exports/`` is a GCS FUSE volume, so written output
+#: never enters the memory budget either.
 #:
 #: **Calibration (2026-08-16)** — a 31-territory production run on Cloud Run
 #: (2 vCPU / 8 GiB) at the previous fixed 4/3/12 measured memory < 20% of 8 GiB,
@@ -104,9 +109,10 @@ logger = logging.getLogger(__name__)
 #: container and scales from there.
 #:
 #: Do **not** read the quota headroom as licence to keep raising these. The same
-#: run came back *render-bound*: rendering is serialized, so once it dominates,
-#: the ceiling is ``100 / render_busy_pct`` no matter how wide the fan-out. Size
-#: from a meter reading (§6 of ``docs/BATCH_CONCURRENCY.md``), not from quota.
+#: run came back *render-bound*: once rendering dominates, the ceiling is
+#: ``100 / render_busy_pct`` no matter how wide the territory fan-out — widening
+#: a render lane is the lever there, not this profile. Size from a meter reading
+#: (§6 of ``docs/BATCH_CONCURRENCY.md``), not from quota.
 #:
 #: ``contributor`` pins territories to 1 regardless of the machine: with a narrow
 #: request budget, running several at once only spreads the same throughput over
@@ -129,8 +135,9 @@ _PROFILES = {
 }
 
 #: Rough peak RSS per in-flight territory, plus a base for the app itself.
-#: Only the *fetched* result dicts are live per territory (rendering is
-#: serialized), so this is deliberately generous.
+#: Mostly just the fetched result dicts per territory, so this is deliberately
+#: generous. (Kaleido lane workers carry their own Chrome; that is budgeted
+#: separately in :func:`_kaleido_lane_width`.)
 _GIB_PER_TERRITORY = 0.35
 _GIB_BASE = 1.0
 
@@ -300,8 +307,74 @@ EE_REQUEST_CONCURRENCY = _int_env(
 #: — see ``docs/BATCH_CONCURRENCY.md`` §9.
 RENDER_POOLS = ("kaleido", "matplotlib")
 
-#: Total render slots across all lanes — the capacity the render meter measures
-#: against, so "saturated" means *every* lane was busy.
+
+def _kaleido_lane_width() -> int:
+    """Workers for the kaleido lane.
+
+    ``export_service`` gives each thread its own ``PlotlyScope`` (hence its own
+    Chrome), so concurrent chart rendering is safe — there is no shared global
+    left. Each worker costs one Chrome process (~150 MB), so the width is capped
+    rather than tracking the core count all the way up.
+
+    **Guarded by the probe**: if per-thread scopes are unavailable, rendering
+    falls back to plotly's shared global scope, which cannot take concurrent
+    callers — so the lane must stay at one worker.
+    """
+    override = _int_env("YVY_RENDER_KALEIDO_WORKERS", 0)
+    try:
+        from .export_service import scoped_kaleido_available
+        if not scoped_kaleido_available():
+            return 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"kaleido probe failed ({exc}) — lane pinned to 1 worker")
+        return 1
+    if override:
+        return override
+    by_cpu = max(2, int(DETECTED_CPUS))
+    by_memory = max(1, int((DETECTED_MEMORY_GIB - _GIB_BASE) / 0.2))
+    return max(1, min(by_cpu, by_memory, 8))
+
+
+def _matplotlib_lane_width() -> int:
+    """Workers for the map-composition lane.
+
+    ``map_export_service`` builds ``Figure`` + ``FigureCanvasAgg`` objects
+    directly rather than going through ``pyplot``, so there is no current-figure
+    global to corrupt and maps can compose concurrently. Unlike kaleido this is
+    real in-process CPU under the GIL — Agg releases it for the raster work, but
+    the Python-level drawing does not — so scaling is sublinear and the width is
+    modest.
+    """
+    override = _int_env("YVY_RENDER_MATPLOTLIB_WORKERS", 0)
+    if override:
+        return override
+    return max(1, min(int(DETECTED_CPUS), 4))
+
+
+#: Workers per lane, populated lazily on first use so the kaleido probe (which
+#: starts a Chrome) does not run at import time.
+_LANE_WIDTHS: dict = {}
+
+_LANE_SIZERS = {
+    "kaleido": _kaleido_lane_width,
+    "matplotlib": _matplotlib_lane_width,
+}
+
+
+def lane_width(kind: str) -> int:
+    if kind not in _LANE_WIDTHS:
+        sizer = _LANE_SIZERS.get(kind)
+        _LANE_WIDTHS[kind] = sizer() if sizer else 1
+    return _LANE_WIDTHS[kind]
+
+
+def render_capacity() -> int:
+    """Total render slots across every lane."""
+    return sum(lane_width(k) for k in RENDER_POOLS)
+
+
+#: Conservative capacity for the meter created at import time; corrected to the
+#: real total by :func:`reset_meters` once the lanes are known.
 RENDER_CONCURRENCY = len(RENDER_POOLS)
 
 #: Blocking work that is neither an Earth Engine call nor a render: GeoPackage
@@ -400,10 +473,12 @@ def get_render_executor(kind: str = "kaleido") -> ThreadPoolExecutor:
         with _lock:
             pool = _render_executors.get(kind)
             if pool is None:
+                width = lane_width(kind)
                 pool = ThreadPoolExecutor(
-                    max_workers=1, thread_name_prefix=f"render-{kind}"
+                    max_workers=width, thread_name_prefix=f"render-{kind}"
                 )
                 _render_executors[kind] = pool
+                logger.info(f"Render lane {kind!r}: {width} worker(s)")
     return pool
 
 
@@ -484,9 +559,8 @@ def describe_budget(n_workers: int) -> str:
     return (
         f"⚡ Concurrency: {n_workers} territories in parallel · "
         f"up to {EE_REQUEST_CONCURRENCY} Earth Engine requests in flight · "
-        f"{IO_CONCURRENCY} I/O slots · "
-        f"{len(RENDER_POOLS)} render lanes ({', '.join(RENDER_POOLS)}), "
-        f"serialized within each "
+        f"{IO_CONCURRENCY} I/O slots · render "
+        + " + ".join(f"{lane_width(k)}x {k}" for k in RENDER_POOLS) + " "
         f"(tier={TIER}, {DETECTED_CPUS:g} cores / {DETECTED_MEMORY_GIB:.0f} GiB detected)"
     )
 
@@ -622,7 +696,13 @@ def render_breakdown() -> dict:
 
 
 def reset_meters() -> None:
-    """Zero both meters — call at the start of each batch run."""
+    """Zero both meters — call at the start of each batch run.
+
+    Also fixes the render meter's capacity to the real total across lanes. The
+    lane widths are resolved lazily (the kaleido probe launches a Chrome, which
+    must not happen at import), so the import-time value is a placeholder.
+    """
+    render_meter.capacity = render_capacity()
     ee_meter.reset()
     render_meter.reset()
     with _breakdown_lock:
@@ -711,9 +791,11 @@ def describe_meters(report: Optional[dict] = None) -> List[str]:
         f"📊 Earth Engine pool: {ee['calls']} calls · busy {ee['busy_pct']}% · "
         f"all {ee['capacity']} slots busy {ee['saturated_pct']}% · "
         f"peak {ee['peak_inflight']}",
-        f"📊 Render lanes ({len(RENDER_POOLS)}): {render['calls']} tasks · "
-        f"any lane busy {render['busy_pct']}% of the run · "
-        f"all lanes at once {render['saturated_pct']}%",
+        f"📊 Render ({render['capacity']} slots across "
+        f"{len(RENDER_POOLS)} lanes): {render['calls']} tasks · "
+        f"any slot busy {render['busy_pct']}% of the run · "
+        f"all slots busy {render['saturated_pct']}% · "
+        f"peak {render['peak_inflight']}",
     ]
     breakdown = r.get("render_breakdown") or {}
     if breakdown:

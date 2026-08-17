@@ -1485,6 +1485,52 @@ class BatchMixin(rx.State, mixin=True):
             )
             self._batch_append_log(describe_budget(n_workers))
 
+        # Per-territory stage timing. ``_stage_open`` holds the step a territory
+        # is currently in; ``_stage_totals`` accumulates seconds per step. Both
+        # are only touched from the event loop, so no lock is needed.
+        _stage_open: Dict[str, Any] = {}
+        _stage_totals: Dict[str, Dict[str, float]] = {}
+        _territory_span: Dict[str, Any] = {}
+
+        def _stage_report() -> Dict[str, Any]:
+            """Where each territory's wall time went, and how much overlapped.
+
+            ``concurrent_fraction`` is (sum of per-territory spans) / (wall time
+            of the whole territory phase). At 1.0 nothing overlapped; near
+            *n_workers* every worker was busy the whole time. A high value with
+            slow individual territories means fair-share interleaving — each
+            territory is getting 1/N of the pools — not a synchronisation
+            barrier. Lowering the territory width trades total throughput for
+            territories that *complete* sooner, one after another.
+            """
+            spans = [(a, b) for a, b in _territory_span.values() if b]
+            if not spans:
+                return {}
+            wall = max(b for _, b in spans) - min(a for a, _ in spans)
+            busy = sum(b - a for a, b in spans)
+            per_stage: Dict[str, float] = {}
+            for acc in _stage_totals.values():
+                for label, secs in acc.items():
+                    per_stage[label] = per_stage.get(label, 0.0) + secs
+            slowest = sorted(
+                (((b - a), t) for t, (a, b) in _territory_span.items() if b),
+                reverse=True,
+            )[:5]
+            return {
+                "stages": {
+                    "phase_wall_s": round(wall, 1),
+                    "territory_time_total_s": round(busy, 1),
+                    "concurrent_fraction": round(busy / wall, 2) if wall else 0,
+                    "seconds_by_stage": {
+                        k: round(v, 1) for k, v in
+                        sorted(per_stage.items(), key=lambda kv: -kv[1])
+                    },
+                    "slowest_territories": [
+                        {"territory": t, "seconds": round(d, 1)} for d, t in slowest
+                    ],
+                }
+            }
+
         async def _set_step(terr: str, text: str):
             """Publish *terr*'s current step to the UI.
 
@@ -1492,6 +1538,19 @@ class BatchMixin(rx.State, mixin=True):
             so each worker updates its own slot; the scalar vars mirror the most
             recent update for the parts of the UI that still read them.
             """
+            # Close out the previous step's timing before switching. This is
+            # what distinguishes "this stage is slow" from "this territory was
+            # queued behind eleven others" — with N territories sharing the
+            # pools, every one of them advances at ~1/N speed and they arrive at
+            # each stage together, which looks like a barrier but is not one.
+            now = time.monotonic()
+            prev = _stage_open.get(terr)
+            if prev is not None:
+                label, started = prev
+                acc = _stage_totals.setdefault(terr, {})
+                acc[label] = acc.get(label, 0.0) + (now - started)
+            _stage_open[terr] = (text, now)
+
             async with self:
                 self.batch_active_steps = {**self.batch_active_steps, terr: text}
                 self.batch_current_territory = terr
@@ -2281,6 +2340,61 @@ class BatchMixin(rx.State, mixin=True):
 
                     # ── Deforestation timeline (per-territory + buffer) ─────
                     if run_timeline:
+                        # Normalised once, so the prefetch and the writer cannot
+                        # disagree about which years were requested.
+                        tl_y0, tl_y1 = int(year1), int(year2)
+                        if tl_y1 < tl_y0:
+                            tl_y0, tl_y1 = tl_y1, tl_y0
+
+                        def _timeline_specs(regions=region_map_data, ben=buf_enabled):
+                            """(key, geometry, gfc_result) for every timeline series.
+
+                            One source of truth walked by both the prefetch and
+                            the writer — the map-raster prefetch drifted exactly
+                            this way before ``_raster_specs`` existed.
+                            """
+                            specs = [(("t", rname), rgeom, rgfc)
+                                     for rname, rgeom, rgfc, _ in regions]
+                            if ben:
+                                specs += [(("b", rname), rbuf, None)
+                                          for rname, _, __, rbuf in regions
+                                          if rbuf is not None]
+                            return specs
+
+                        # collect_timeline() issues reduceRegion(...).getInfo()
+                        # calls. Left inside the render closure they ran on the
+                        # render thread — holding the kaleido lane for the whole
+                        # network round trip, and bypassing the EE pool entirely
+                        # (which is why the EE meter read 3.6% busy while this
+                        # lane read 38.6%). A measured 31-territory run spent
+                        # 44.6 s per territory here, of which ~1 s was actually
+                        # rendering. Fetch first, on the pool, in parallel.
+                        await _set_step(territory, "📈 Timeline series (Earth Engine)…")
+                        tl_series: Dict[Any, Any] = {}
+
+                        async def _fetch_tl(key, geom, gfc):
+                            from ..utils.deforestation_timeline import collect_timeline
+
+                            def _call(g=geom, gr=gfc):
+                                return collect_timeline(
+                                    g, tl_y0, tl_y1, gfc_result=gr
+                                )
+                            result = await _ee_with_retry(
+                                loop, _call, f"timeline {territory} {key}"
+                            )
+                            if result:
+                                tl_series[key] = result
+
+                        try:
+                            await asyncio.gather(
+                                *[_fetch_tl(*s) for s in _timeline_specs()]
+                            )
+                        except Exception as tfe:
+                            logger.warning(
+                                f"timeline prefetch for {territory} failed "
+                                f"({tfe}) — the writer will fetch inline"
+                            )
+
                         await _set_step(territory, "📈 Deforestation timeline…")
 
                         def _write_timeline(
@@ -2296,6 +2410,9 @@ class BatchMixin(rx.State, mixin=True):
                             tl_pol=self.batch_timeline_political,
                             tl_pcy=self.batch_timeline_policy,
                             tl_enso=self.batch_timeline_enso,
+                            # Keys here mirror _timeline_specs(). A mismatch
+                            # degrades to an inline fetch — slower, never wrong.
+                            prefetched=tl_series,
                         ):
                             try:
                                 from ..utils.export_service import _slug, _write_fig
@@ -2325,16 +2442,28 @@ class BatchMixin(rx.State, mixin=True):
                                     state_code = None
 
                                 def _write_region(label_suffix, sub_dir, region_geom,
-                                                  gfc_for_region, title_extra):
+                                                  gfc_for_region, title_extra,
+                                                  key=None):
                                     """Build CSV + 3 chart variants for one region (territory or buffer)."""
                                     logger.info(
                                         f"_write_region({label_suffix}): gfc_for_region={'present' if gfc_for_region else 'None'}, "
                                         f"tree_loss_data={'present' if (gfc_for_region and gfc_for_region.get('tree_loss_data')) else 'missing/None'}"
                                     )
-                                    series = collect_timeline(
-                                        region_geom, y_start, y_end,
-                                        gfc_result=gfc_for_region,
-                                    )
+                                    # Prefetched on the EE pool before this lane
+                                    # was entered. Falling back to an inline
+                                    # fetch keeps a partial prefetch working —
+                                    # slower, but never a missing chart.
+                                    series = prefetched.get(key) if key else None
+                                    if not series:
+                                        if key:
+                                            logger.info(
+                                                f"_write_region({label_suffix}): no prefetched "
+                                                f"series for {key} — fetching inline"
+                                            )
+                                        series = collect_timeline(
+                                            region_geom, y_start, y_end,
+                                            gfc_result=gfc_for_region,
+                                        )
                                     if not series:
                                         logger.warning(f"_write_region({label_suffix}): no series returned")
                                         return
@@ -2420,6 +2549,7 @@ class BatchMixin(rx.State, mixin=True):
                                         region_geom,
                                         region_gfc,
                                         title_extra=f" [{q_label}]" if q_label else "",
+                                        key=("t", rname),
                                     )
 
                                 # Buffer — per quadrant when quadrant splitting was used,
@@ -2442,6 +2572,7 @@ class BatchMixin(rx.State, mixin=True):
                                                 if q_label else
                                                 f" — Buffer {bkm:g} km"
                                             ),
+                                            key=("b", rname),
                                         )
 
                             except Exception as te:
@@ -2524,9 +2655,16 @@ class BatchMixin(rx.State, mixin=True):
                         self.batch_current_step = STEPS["geometry"]
                         self._batch_append_log(f"▶ Processing: {territory}")
 
+                    _territory_span[territory] = [time.monotonic(), None]
                     try:
                         await _process_territory(territory)
                     finally:
+                        _territory_span[territory][1] = time.monotonic()
+                        last = _stage_open.pop(territory, None)
+                        if last is not None:
+                            _lbl, _t0 = last
+                            _acc = _stage_totals.setdefault(territory, {})
+                            _acc[_lbl] = _acc.get(_lbl, 0.0) + (time.monotonic() - _t0)
                         async with self:
                             remaining = dict(self.batch_active_steps)
                             remaining.pop(territory, None)
@@ -2562,6 +2700,13 @@ class BatchMixin(rx.State, mixin=True):
                         "io_slots": IO_CONCURRENCY,
                         "tier": TIER,
                         **run_meters,
+                        # Per-territory stage timing, plus the number that
+                        # distinguishes a real barrier from fair-share
+                        # interleaving: with N territories sharing the pools each
+                        # advances at ~1/N speed, so they finish together and
+                        # `concurrent_fraction` approaches 1. A genuine barrier
+                        # would show idle stages instead.
+                        **_stage_report(),
                     },
                     "territories_requested": len(territories),
                     "territories_completed": sum(1 for r in summary if r["status"] == "ok"),

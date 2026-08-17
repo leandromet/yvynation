@@ -107,8 +107,8 @@ Reflex background tasks.
 |---|---|---|
 | `get_ee_executor()` | `EE_REQUEST_CONCURRENCY` | Every Earth Engine call, via `_ee_with_retry` |
 | `get_io_executor()` | `IO_CONCURRENCY` | Blocking work that is neither: GeoPackage reads, buffer construction, boundary/summary writes, map prefetch, the final ZIP |
-| `get_render_executor("kaleido")` | **1 (fixed)** | Plotly → PNG: charts, deforestation timeline |
-| `get_render_executor("matplotlib")` | **1 (fixed)** | pyplot map composition (`map_export_service`) |
+| `get_render_executor("kaleido")` | `lane_width("kaleido")` — cores, capped at 8 | Plotly → PNG: charts, deforestation timeline. One `PlotlyScope` (and Chrome) per thread |
+| `get_render_executor("matplotlib")` | `lane_width("matplotlib")` — cores, capped at 4 | Map composition (`map_export_service`), via `Figure` + `FigureCanvasAgg` |
 
 ### Render lanes: one per thread-unsafe library
 
@@ -396,6 +396,25 @@ overlap. The meter reports the overlap directly:
   library dominates, the other lane is mostly idle, and widening *that* library
   is the whole game. The verdict line now says which of those it saw.
 
+### Third lever taken: EE work out of the render lane
+
+The `timeline` lane read 38.6% (803.5 s, **44.6 s per territory**) — but its ~6
+charts render in about 1 s. The rest was `collect_timeline()` issuing
+`reduceRegion(...).getInfo()` **from inside the render closure**: holding the
+kaleido lane for every network round trip, and bypassing the EE pool entirely,
+which is why the EE meter read 3.6% busy while the network sat near idle.
+
+The series are now fetched by `_timeline_specs()` + `asyncio.gather` on the EE
+pool *before* the lane is entered — same shape as `prefetch_map_inputs()`. Two
+properties worth keeping:
+
+* **One source of truth for the keys.** `_timeline_specs()` is what the prefetch
+  walks; the writer builds `("t", rname)` / `("b", rname)` to match. The map
+  prefetch drifted exactly this way before `_raster_specs` existed.
+* **A miss is slow, never wrong.** If a key is absent — partial prefetch, EE
+  outage — the writer fetches inline as before. Covered by a test that fails EE
+  calls *only* on pool threads and asserts the charts still appear.
+
 ### Which half of the render stage?
 
 The two libraries behind the render lock are independent and need different
@@ -570,20 +589,37 @@ is the thing to fix next. Two things follow:
 0. **Split the render lock per library** — *done*, see §3. Free, and it already
    lets different territories render concurrently in different lanes.
 
-1. **Widen a single lane past one worker.** The remaining win, and the point at
-   which more cores start to pay. Which lane, from the split:
-   * *matplotlib lane is large* → move `map_export_service` off the `pyplot`
-     state machine to explicit `Figure` + `FigureCanvasAgg`. That API **is**
-     thread-safe, so the lane could simply take `max_workers > 1` — contained to
-     one module, no new process machinery, and by far the cheaper of the two.
-   * *kaleido lane is large* → threads cannot help; needs a process pool (each
-     process gets its own kaleido scope) or item 2. Plotly figures and the
-     result dicts the chart writers close over are picklable, so charts can move
-     to processes; the map closures hold live `ee.Geometry` objects and cannot,
-     which is the other reason to prefer the matplotlib route where possible.
+0b. **Hoist Earth Engine work out of the render lanes** — *done* for the
+   timeline (§7). Worth re-checking whenever a writer grows a new data
+   dependency: anything issuing `getInfo()` under a render lane serializes the
+   whole batch behind one network round trip *and* hides from the EE meter.
 
-   Note the lanes make this *incremental*: widening one lane does not disturb
-   the other, and neither needs the territory workers to change.
+0c. **Figure export is now run-scoped** (`export_service.figure_export()`).
+   Batch runs can skip PNGs entirely or drop to scale 0.6; the interactive
+   geometry/territory exports pin `png_enabled=True` and keep print quality.
+   PNGs were 449 MB of a 503 MB archive but only ~4% of its run time — this is a
+   **space** lever, not a speed one. Measured: complex charts at 1600x1000 take
+   38-82 ms each in kaleido 0.2.1, so 1494 of them are ~90 s of a 2028 s run.
+   Upgrading kaleido is capped by that same ~4%.
+
+1. **Widen the lanes past one worker** — *done for both*. Neither needed a
+   process pool; in both cases the fix was to stop using a module-global.
+   * **kaleido** — `fig.to_image()` uses the global `plotly.io._kaleido.scope`.
+     A `PlotlyScope` *instance* owns its own Chrome, so `export_service` keeps
+     one per thread (`threading.local`) and the shared state disappears. Output
+     is byte-identical; the Python thread waits on its pipe with the GIL
+     released while Chrome works in a separate process, so N threads use N
+     cores. Measured 3.4x on 4 threads. Guarded by `scoped_kaleido_available()`
+     — if per-thread scopes fail, the lane drops back to one worker rather than
+     letting concurrent callers onto the shared global.
+   * **matplotlib** — `map_export_service` had only *three* pyplot calls
+     (`subplots`, `tight_layout`, `close`). Replacing them with `Figure` +
+     `FigureCanvasAgg` removes the current-figure global entirely. Verified
+     byte-identical to serial composition, with no cross-thread mixing. Narrower
+     than kaleido because this is real in-process CPU under the GIL.
+
+   The lanes made this incremental: each was widened without disturbing the
+   other, and neither needed the territory workers to change.
 2. **Upgrade kaleido to 1.x**, which is not built around a global scope — but it
    delegates to an external Chrome install, which is why it is pinned at 0.2.1
    today (see `requirements.txt`).
