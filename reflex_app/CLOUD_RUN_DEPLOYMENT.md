@@ -79,6 +79,21 @@ gcloud run deploy yvynation \
 > — no redeploy needed. Full rationale, tuning knobs and rollback checklist:
 > [`docs/BATCH_CONCURRENCY.md`](docs/BATCH_CONCURRENCY.md).
 
+> **Abuse control.** `run_batch_processing` is rate-limited and logged
+> through a dedicated bucket (`YVY_ABUSE_BUCKET`, default
+> `yvynation-abuse-control`) — separate from the export bucket, so a GCS
+> hiccup there can never take export downloads down with it. The runtime
+> service account needs `roles/storage.objectAdmin` scoped to that bucket
+> specifically, not project-wide:
+>
+> ```bash
+> gcloud storage buckets add-iam-policy-binding gs://$ABUSE_BUCKET \
+>   --member="serviceAccount:yvynation-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+>   --role="roles/storage.objectAdmin"
+> ```
+>
+> See [`docs/ABUSE_CONTROL.md`](docs/ABUSE_CONTROL.md).
+
 ### Passing Service Account to Cloud Run
 
 Option 1: Mount service account key (less secure)

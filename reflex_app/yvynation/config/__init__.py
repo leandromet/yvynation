@@ -25,6 +25,10 @@ from .config import (
     OUTPUT_SCALE,
     MAPBIOMAS_YEARS,
     HANSEN_YEARS,
+    ABUSE_BUCKET,
+    ABUSE_SESSION_COOLDOWN_S,
+    ABUSE_IP_MAX_PER_WINDOW,
+    ABUSE_IP_WINDOW_S,
 )
 
 __all__ = [
@@ -49,4 +53,8 @@ __all__ = [
     "OUTPUT_SCALE",
     "MAPBIOMAS_YEARS",
     "HANSEN_YEARS",
+    "ABUSE_BUCKET",
+    "ABUSE_SESSION_COOLDOWN_S",
+    "ABUSE_IP_MAX_PER_WINDOW",
+    "ABUSE_IP_WINDOW_S",
 ]

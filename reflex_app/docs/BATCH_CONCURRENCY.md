@@ -624,7 +624,8 @@ is the thing to fix next. Two things follow:
    whole batch behind one network round trip *and* hides from the EE meter.
 
 0c. **Figure export is now run-scoped** (`export_service.figure_export()`).
-   Batch runs can skip PNGs entirely or drop to scale 0.6; the interactive
+   Batch runs can skip PNGs entirely or use the default scale 1.2 (2.0 in
+   "high res"); the interactive
    geometry/territory exports pin `png_enabled=True` and keep print quality.
    PNGs were 449 MB of a 503 MB archive but only ~4% of its run time — this is a
    **space** lever, not a speed one. Measured: complex charts at 1600x1000 take

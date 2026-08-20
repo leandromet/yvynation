@@ -3,6 +3,7 @@ Configuration and constants for Yvynation Reflex app.
 Adapted from original Streamlit version - no Streamlit dependencies.
 """
 
+import os
 from typing import List, Optional  # used by aux-band helper annotations below
 
 # ==============================================================================
@@ -20,6 +21,20 @@ REGION_OF_INTEREST = [-73.0, -33.0, -35.0, 5.0]
 OUTPUT_BUCKET = "gs://yvynation-bucket"
 OUTPUT_PREFIX = "yvynation"
 OUTPUT_SCALE = 30  # Export resolution in meters
+
+# ==============================================================================
+# ABUSE CONTROL (utils/abuse_control.py, docs/ABUSE_CONTROL.md)
+# ==============================================================================
+# Rate limiting and access logging in front of run_batch_processing — the one
+# unauthenticated RPC that can be scripted into looping Earth Engine compute
+# indefinitely (up to BATCH_MAX_SELECTION territories per call). A dedicated
+# bucket, not OUTPUT_BUCKET: that one only ever receives finished exports, and
+# mixing rate-limit/log objects into it would need its own lifecycle rule and
+# lets a export-storage outage take the limiter down with it.
+ABUSE_BUCKET = os.getenv("YVY_ABUSE_BUCKET", "yvynation-abuse-control")
+ABUSE_SESSION_COOLDOWN_S = int(os.getenv("YVY_ABUSE_SESSION_COOLDOWN_S", "300"))
+ABUSE_IP_MAX_PER_WINDOW = int(os.getenv("YVY_ABUSE_IP_MAX_PER_WINDOW", "3"))
+ABUSE_IP_WINDOW_S = int(os.getenv("YVY_ABUSE_IP_WINDOW_S", "3600"))
 
 # ==============================================================================
 # MAPBIOMAS CONFIGURATION

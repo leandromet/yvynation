@@ -79,6 +79,31 @@ ANTHROPIC_CLASSES = {
 
 TIMELINE_SERIES = ["hansen_loss", "mb_defor_primary", "mb_secondary_growth", "mb_fire_scar"]
 
+# Official MapBiomas Collection 10.1 palette, keyed by the English class *name*
+# as it appears in the landcover CSVs (the charts colour by class name, not id).
+MAPBIOMAS_NAME_COLOR = {
+    # forest
+    "Forest Formation": "#1f8d49", "Savanna Formation": "#7dc975", "Mangrove": "#04381d",
+    "Floodable Forest": "#007785", "Flooded Forest": "#005544", "Wooded Restinga": "#33a02c",
+    "Wooded Sandbank Vegetation": "#02d659", "Forest Plantation": "#7a5900",
+    # natural non-forest
+    "Grassland": "#d6bc74", "Wetland": "#519799", "Herbaceous": "#d6bc74",
+    "Herbaceous Sandbank Vegetation": "#ad5100", "Hypersaline Tidal Flat": "#fc8114",
+    "Rocky Outcrop": "#ffaa5f", "Beach and Sand": "#ffa07a", "Salt Flat": "#fc8114",
+    "River Lake and Ocean": "#259fe4", "Reservoir": "#259fe4",
+    # anthropic
+    "Pasture": "#edde8e", "Mosaic of Uses": "#ffefc3", "Soybean": "#f5b3c8",
+    "Sugar Cane": "#db7093", "Rice": "#c71585", "Cotton": "#ff69b4", "Coffee": "#d68fe2",
+    "Citrus": "#9932cc", "Palm Oil": "#9065d0", "Other Temporary Crops": "#f54ca9",
+    "Other Perennial Crops": "#e6ccff", "Perennial Crop": "#d082de",
+    "Temporary Crop": "#c27ba0", "Forest Plantation ": "#7a5900",
+    "Urban Area": "#d4271e", "Mining": "#9c0027", "Aquaculture": "#091077",
+    "Other non Vegetated Areas": "#db4d4f",
+    # meta / fallback buckets
+    "No data": "#ffffff", "Not Observed": "#ffffff", "Other": "#b0b0b0",
+}
+_MB_FALLBACK_COLOR = "#b0b0b0"
+
 # Figure pairs shown side-by-side in the per-territory report sections.
 # (subdir under the area folder, filename suffix, caption)
 PAIRED_FIGURES = [
@@ -201,7 +226,8 @@ def load_batch(path: Path, label: str) -> BatchRun:
     summary = json.loads((path / "batch_summary.json").read_text())
     year1 = int(summary.get("mapbiomas_year1", 1985))
     year2 = int(summary.get("mapbiomas_year2", 2024))
-    buffer_km = float(summary.get("buffer_km", 10.0))
+    # A batch run with buffers disabled writes buffer_km: null, not 0.
+    buffer_km = float(summary.get("buffer_km") or 0.0)
     run = BatchRun(label=label, path=path, year1=year1, year2=year2, buffer_km=buffer_km)
 
     territory_root = path / "territory"
@@ -372,25 +398,53 @@ def _slug(text: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^A-Za-z0-9]+", "_", norm)).strip("_").lower()
 
 
-def chart_forest_change_ranked(summary: pd.DataFrame, run: BatchRun, fig_dir: Path) -> Path:
+def _paginate(n: int, rows_per_page: int) -> List[tuple]:
+    """[(start, end), ...] row-index slices, each <= rows_per_page long."""
+    return [(i, min(i + rows_per_page, n)) for i in range(0, n, rows_per_page)]
+
+
+def chart_forest_change_ranked(summary: pd.DataFrame, run: BatchRun, fig_dir: Path,
+                               label_map: Optional[dict] = None, rows_per_page: int = 20) -> Path:
     sub = summary[summary["group"] == run.label].dropna(subset=["t_forest_change_pct"])
     sub = sub.sort_values("t_forest_change_pct")
     n = len(sub)
+
+    def _draw(ax, chunk: pd.DataFrame, title: str):
+        m = len(chunk)
+        y = np.arange(m)
+        ax.barh(y + 0.2, chunk["t_forest_change_pct"], height=0.38, color="#166534", label="Territory")
+        if "b_forest_change_pct" in chunk:
+            ax.barh(y - 0.2, chunk["b_forest_change_pct"], height=0.38, color="#b45309", label=f"Buffer {run.buffer_km:.0f} km")
+        ax.set_yticks(y, [_disp(t, label_map) for t in chunk["territory"]], fontsize=7)
+        ax.axvline(0, color="k", lw=0.8)
+        ax.set_xlabel(f"Forest area change {run.year1}→{run.year2} (% of {run.year1} forest)")
+        ax.set_title(title)
+        ax.legend(loc="lower right")
+        ax.grid(axis="x", alpha=0.3)
+
     fig, ax = plt.subplots(figsize=(11, max(4, 0.32 * n + 1.5)))
-    y = np.arange(n)
-    ax.barh(y + 0.2, sub["t_forest_change_pct"], height=0.38, color="#166534", label="Territory")
-    if "b_forest_change_pct" in sub:
-        ax.barh(y - 0.2, sub["b_forest_change_pct"], height=0.38, color="#b45309", label=f"Buffer {run.buffer_km:.0f} km")
-    ax.set_yticks(y, [_shorten(t) for t in sub["territory"]], fontsize=7)
-    ax.axvline(0, color="k", lw=0.8)
-    ax.set_xlabel(f"Forest area change {run.year1}→{run.year2} (% of {run.year1} forest)")
-    ax.set_title(f"Forest change ranking — {run.label} (n={n})")
-    ax.legend(loc="lower right")
-    ax.grid(axis="x", alpha=0.3)
+    _draw(ax, sub, f"Forest change ranking — {run.label} (n={n})")
+    xlim = ax.get_xlim()
     fig.tight_layout()
     path = fig_dir / f"forest_change_ranked_{_slug(run.label)}.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
+
+    # A4-friendly paginated set (same data, same x-scale, ~rows_per_page
+    # territories per page) so the full ranking can be printed/inserted into
+    # a journal supplement without shrinking labels to illegibility.
+    pages = _paginate(n, rows_per_page)
+    if len(pages) > 1:
+        for pi, (a, b) in enumerate(pages, start=1):
+            chunk = sub.iloc[a:b]
+            pfig, pax = plt.subplots(figsize=(11, max(4, 0.32 * len(chunk) + 1.5)))
+            _draw(pax, chunk, f"Forest change ranking — {run.label} (page {pi}/{len(pages)}, {a + 1}–{b} of {n})")
+            pax.set_xlim(xlim)
+            pfig.tight_layout()
+            ppath = fig_dir / f"forest_change_ranked_{_slug(run.label)}_page{pi}.png"
+            pfig.savefig(ppath, dpi=150, bbox_inches="tight")
+            plt.close(pfig)
+
     return path
 
 
@@ -452,7 +506,8 @@ def chart_group_timelines(tl: pd.DataFrame, runs: List[BatchRun], fig_dir: Path)
     return path
 
 
-def chart_landcover_composition(lc: pd.DataFrame, run: BatchRun, fig_dir: Path) -> Path:
+def chart_landcover_composition(lc: pd.DataFrame, run: BatchRun, fig_dir: Path,
+                                label_map: Optional[dict] = None, rows_per_page: int = 20) -> Path:
     sub = lc[(lc["group"] == run.label) & (lc["scope"] == "territory") & (lc["year"] == run.year2)]
     pivot = sub.pivot_table(index="territory", columns="class", values="area_ha", aggfunc="sum").fillna(0)
     pct = pivot.div(pivot.sum(axis=1), axis=0) * 100
@@ -464,26 +519,54 @@ def chart_landcover_composition(lc: pd.DataFrame, run: BatchRun, fig_dir: Path) 
     order = plot_df.get("Forest Formation", plot_df.iloc[:, 0]).sort_values(ascending=True).index
     plot_df = plot_df.loc[order]
     n = len(plot_df)
+
+    def _draw(ax, chunk: pd.DataFrame, title: str):
+        m = len(chunk)
+        left = np.zeros(m)
+        for col in chunk.columns:
+            color = MAPBIOMAS_NAME_COLOR.get(col, _MB_FALLBACK_COLOR)
+            ax.barh(np.arange(m), chunk[col], left=left, height=0.75, color=color,
+                    edgecolor="white", linewidth=0.3, label=col)
+            left += chunk[col].values
+        ax.set_yticks(np.arange(m), [_disp(t, label_map) for t in chunk.index], fontsize=7)
+        ax.set_xlim(0, 100)
+        ax.set_xlabel(f"% of area — MapBiomas {run.year2}")
+        ax.set_title(title)
+        ax.legend(fontsize=7, bbox_to_anchor=(1.01, 1), loc="upper left")
+
     fig, ax = plt.subplots(figsize=(12, max(4, 0.3 * n + 2)))
-    left = np.zeros(n)
-    cmap = plt.get_cmap("tab20")
-    for k, col in enumerate(plot_df.columns):
-        ax.barh(np.arange(n), plot_df[col], left=left, height=0.75, color=cmap(k % 20), label=col)
-        left += plot_df[col].values
-    ax.set_yticks(np.arange(n), [_shorten(t) for t in plot_df.index], fontsize=7)
-    ax.set_xlim(0, 100)
-    ax.set_xlabel(f"% of area — MapBiomas {run.year2}")
-    ax.set_title(f"Land-cover composition {run.year2} — {run.label}")
-    ax.legend(fontsize=7, bbox_to_anchor=(1.01, 1), loc="upper left")
+    _draw(ax, plot_df, f"Land-cover composition {run.year2} — {run.label}")
     fig.tight_layout()
     path = fig_dir / f"landcover_composition_{run.year2}_{_slug(run.label)}.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
+
+    # A4-friendly paginated set — same stacked-bar data, ~rows_per_page
+    # territories per page, so the full composition chart can be printed.
+    pages = _paginate(n, rows_per_page)
+    if len(pages) > 1:
+        for pi, (a, b) in enumerate(pages, start=1):
+            chunk = plot_df.iloc[a:b]
+            pfig, pax = plt.subplots(figsize=(12, max(4, 0.3 * len(chunk) + 2)))
+            _draw(pax, chunk, f"Land-cover composition {run.year2} — {run.label} (page {pi}/{len(pages)}, {a + 1}–{b} of {n})")
+            pfig.tight_layout()
+            ppath = fig_dir / f"landcover_composition_{run.year2}_{_slug(run.label)}_page{pi}.png"
+            pfig.savefig(ppath, dpi=150, bbox_inches="tight")
+            plt.close(pfig)
+
     return path
 
 
 def _shorten(name: str, limit: int = 42) -> str:
     return name if len(name) <= limit else name[: limit - 1] + "…"
+
+
+def _disp(name: str, label_map: Optional[dict] = None) -> str:
+    """Y-axis display label — a caller-supplied map (e.g. name → 'Name · UF·Region')
+    overrides the plain shortened name so charts can show place context."""
+    if label_map and name in label_map:
+        return label_map[name]
+    return _shorten(name)
 
 
 # ---------------------------------------------------------------- report
@@ -588,6 +671,11 @@ def write_group_report(run: BatchRun, summary: pd.DataFrame, out: Path, img_root
         p = charts.get(f"{key}_{_slug(run.label)}")
         if p:
             lines.append(f"![{key}](figures/{p.name})\n")
+            pages = sorted((out / "figures").glob(f"{p.stem}_page*.png"),
+                           key=lambda f: int(re.search(r"_page(\d+)\.png$", f.name).group(1)))
+            if pages:
+                links = ", ".join(f"[page {i}](figures/{pg.name})" for i, pg in enumerate(pages, start=1))
+                lines.append(f"*Print-friendly (A4) pages, same data split into readable chunks: {links}.*\n")
     lines += [
         "## Ranking table",
         "",
@@ -641,11 +729,22 @@ def write_index(runs: List[BatchRun], summary: pd.DataFrame, out: Path, charts: 
             lines.append(f"![{key}](figures/{p.name})\n")
 
     # group aggregate stats
-    lines += ["## Group aggregates", "", "| Group | Σ area (ha) | Σ forest change T (ha) | mean forest change T (%) | mean forest change B (%) | mean GFC loss T (%) | mean GFC loss B (%) |", "|---|---:|---:|---:|---:|---:|---:|"]
+    lines += ["## Group aggregates", "",
+              "| Group | Σ area (ha) | Σ forest change T (ha) | Σ forest change T (%) | "
+              "mean forest change T (%) | mean forest change B (%) | mean GFC loss T (%) | "
+              "mean GFC loss B (%) |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|"]
     for run in runs:
         sub = summary[summary["group"] == run.label]
+        # Σ-hectare ratio alongside the mean of per-area ratios: on selections that
+        # include very small areas the mean explodes (a 0.01 ha -> 2 ha forest gain
+        # scores +17,000 %), while the Σ ratio stays interpretable.
+        f1 = sub[f"t_forest_{run.year1}_ha"].sum()
+        f2 = sub[f"t_forest_{run.year2}_ha"].sum()
+        sigma_pct = 100.0 * (f2 / f1 - 1.0) if f1 else float("nan")
         lines.append(
             f"| {run.label} | {_fmt(sub['t_area_total_ha'].sum())} | {_fmt(sub['t_forest_change_ha'].sum())} | "
+            f"{_fmt(sigma_pct, ' %', 2)} | "
             f"{_fmt(sub['t_forest_change_pct'].mean(), ' %', 2)} | {_fmt(sub['b_forest_change_pct'].mean(), ' %', 2)} | "
             f"{_fmt(sub['t_gfc_loss_pct_of_2000_cover'].mean(), ' %', 2)} | {_fmt(sub['b_gfc_loss_pct_of_2000_cover'].mean(), ' %', 2)} |"
         )

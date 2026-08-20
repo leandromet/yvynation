@@ -515,8 +515,9 @@ class BatchMixin(rx.State, mixin=True):
     # still complete. Batch only — the interactive geometry/territory exports
     # keep print quality regardless.
     batch_export_png: bool = True
-    # False → scale 0.6 (~60% smaller files). True → 1.0, matching the
-    # interactive exports.
+    # False → scale 1.2 (default). True → 2.0 ("high res"). See
+    # batch_png_scale — both tiers now render sharper than the interactive
+    # exports' scale=1.0, since the plain default read too soft.
     batch_png_high_res: bool = False
     # ── Multiple time-window MapBiomas (off by default) ───────────────────
     batch_run_multi_window: bool = False
@@ -559,6 +560,10 @@ class BatchMixin(rx.State, mixin=True):
     # ---- Runtime status ------------------------------------------------------
     batch_running: bool = False
     batch_done: bool = False
+    #: Friction step in front of run_batch_processing — see request_batch_run.
+    #: Server-side enforcement is abuse_control.py, not this flag; this only
+    #: deters an accidental/reflexive click.
+    batch_confirm_pending: bool = False
     batch_zip_ready: bool = False
     #: Upload-relative path of the finished ZIP (e.g. "exports/yvynation_batch_….zip")
     batch_zip_relpath: str = ""
@@ -865,6 +870,14 @@ class BatchMixin(rx.State, mixin=True):
         return self.batch_selected_count > threshold
 
     @rx.var
+    def batch_confirm_message(self) -> str:
+        """Message shown by the friction step in front of run_batch_processing."""
+        return (
+            f"{self.tr['batch_confirm_prefix']} {self.batch_selected_count} "
+            f"{self.tr['territories_word']}{self.tr['batch_confirm_suffix']}"
+        )
+
+    @rx.var
     def batch_is_territory_selected(self) -> Dict[str, bool]:
         """Lookup map for checkbox state (display key → bool)."""
         return {t: True for t in self.batch_selected_territories}
@@ -1031,6 +1044,7 @@ class BatchMixin(rx.State, mixin=True):
         "{nome} (cod)" pairs — selects every key sharing that base name.
         Matches are ADDED to the current selection; misses are listed.
         """
+        self.batch_confirm_pending = False
         import re
         import unicodedata
 
@@ -1111,6 +1125,7 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_toggle_territory(self, territory: str):
         """Add or remove a territory from the batch selection (capped at BATCH_MAX_SELECTION)."""
+        self.batch_confirm_pending = False
         if territory in self.batch_selected_territories:
             self.batch_selected_territories = [
                 t for t in self.batch_selected_territories if t != territory
@@ -1126,6 +1141,7 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_select_all_filtered(self):
         """Add currently-filtered territories to the selection, up to BATCH_MAX_SELECTION total."""
+        self.batch_confirm_pending = False
         current = set(self.batch_selected_territories)
         room = BATCH_MAX_SELECTION - len(current)
         added = 0
@@ -1148,6 +1164,7 @@ class BatchMixin(rx.State, mixin=True):
 
     def batch_clear_selection(self):
         self.batch_selected_territories = []
+        self.batch_confirm_pending = False
 
     def batch_toggle_review(self):
         """Toggle the selected-territories review panel."""
@@ -1210,8 +1227,13 @@ class BatchMixin(rx.State, mixin=True):
 
     @rx.var
     def batch_png_scale(self) -> float:
-        """Kaleido scale for this run's figures."""
-        return 1.0 if self.batch_png_high_res else 0.6
+        """Kaleido scale for this run's figures.
+
+        0.6 read too soft at the default tier — doubled both tiers so "high
+        res" stays a meaningful step above the default rather than becoming
+        redundant with it.
+        """
+        return 2.0 if self.batch_png_high_res else 1.2
 
     # ── Auxiliary-layer toggles ──────────────────────────────────────────
     def batch_toggle_aux_deforestation(self, val: bool):
@@ -1289,9 +1311,25 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_buffer_enabled(self, val: bool):
         self.batch_buffer_enabled = val
 
+    def request_batch_run(self):
+        """Friction step in front of run_batch_processing (see abuse_control.py
+        for the actual server-side enforcement — this only deters a reflexive
+        click, since a script can call run_batch_processing directly)."""
+        if not self.batch_selected_territories:
+            return None
+        if self.batch_confirm_pending:
+            self.batch_confirm_pending = False
+            return type(self).run_batch_processing()
+        self.batch_confirm_pending = True
+        return None
+
+    def cancel_batch_run(self):
+        self.batch_confirm_pending = False
+
     def batch_stop(self):
         """Signal the running batch to stop after the current territory."""
         self.batch_running = False
+        self.batch_confirm_pending = False
         self._batch_append_log("⏹ Stop requested — will halt after current territory")
 
     def _batch_append_log(self, line: str):
@@ -1321,6 +1359,7 @@ class BatchMixin(rx.State, mixin=True):
         self.batch_zip_relpath = ""
         self.batch_running = False
         self.batch_done = False
+        self.batch_confirm_pending = False
         self.batch_zip_ready = False
         self.batch_current_territory = ""
         self.batch_current_step = ""
@@ -1393,6 +1432,37 @@ class BatchMixin(rx.State, mixin=True):
                 )
                 return
 
+            # Captured now (inside the state lock) for the abuse-control check
+            # right below — router.session is only reachable through self.
+            client_ip = self.router.session.client_ip
+            client_token = self.router.session.client_token
+            session_id = self.router.session.session_id
+
+        # ── Abuse control ────────────────────────────────────────────────────
+        # Enforcement, not the friction step (request_batch_run) — checked here
+        # regardless of how run_batch_processing was reached, since a script
+        # calling it directly over the WebSocket skips the UI confirm entirely.
+        # See utils/abuse_control.py and docs/ABUSE_CONTROL.md.
+        from ..utils import abuse_control
+        loop = asyncio.get_event_loop()
+        ok, reason = await loop.run_in_executor(
+            None, abuse_control.check_session_cooldown, client_token
+        )
+        if ok:
+            ok, reason = await loop.run_in_executor(
+                None, abuse_control.check_ip_rate_limit, client_ip
+            )
+        abuse_control.log_event(
+            ip=client_ip, client_token=client_token, session_id=session_id,
+            action="batch_run", outcome="allowed" if ok else "refused",
+            detail={"n_territories": len(territories)},
+        )
+        if not ok:
+            async with self:
+                self.error_message = reason
+            return
+
+        async with self:
             self.batch_running = True
             self.batch_done = False
             self.batch_zip_ready = False
@@ -1411,7 +1481,7 @@ class BatchMixin(rx.State, mixin=True):
                 f"buffer={'%.0f km' % buf_km if buf_enabled else 'off'}"
             )
 
-        loop = asyncio.get_event_loop()
+        # loop already bound above, ahead of the abuse-control check.
 
         # Every blocking non-EE, non-render call below goes to this pool rather
         # than to ``run_in_executor(None, …)``. asyncio's default executor is

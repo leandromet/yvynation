@@ -32,6 +32,33 @@ def large_run_warning() -> rx.Component:
     )
 
 
+def _start_confirm() -> rx.Component:
+    """Friction step shown after the first click of the Start button — see
+    request_batch_run / abuse_control.py. Only ever the UI half; the actual
+    enforcement runs server-side inside run_batch_processing regardless of
+    whether this was shown."""
+    return rx.hstack(
+        rx.icon("shield-alert", size=16, color="#92400E"),
+        rx.text(AppState.batch_confirm_message, font_size="xs", color="#92400E", flex="1"),
+        rx.button(
+            AppState.tr["cancel"], on_click=AppState.cancel_batch_run,
+            size="2", variant="outline", color_scheme="gray",
+        ),
+        rx.button(
+            AppState.tr["confirm"], on_click=AppState.request_batch_run,
+            size="2", bg=ORANGE, color="white", font_weight="bold",
+            _hover={"bg": ORANGE_DARK},
+        ),
+        padding="0.5rem 0.75rem",
+        bg="#FFFBEB",
+        border="1px solid #FDE68A",
+        border_radius="md",
+        align_items="center",
+        spacing="2",
+        width="100%",
+    )
+
+
 def action_panel() -> rx.Component:
     return rx.vstack(
         large_run_warning(),
@@ -39,24 +66,28 @@ def action_panel() -> rx.Component:
             # Start button (shown when not running and not done)
             rx.cond(
                 ~AppState.batch_running & ~AppState.batch_done,
-                rx.button(
-                    rx.cond(
-                        AppState.batch_selected_count > 0,
-                        AppState.tr["batch_start_btn"] + " ("
-                        + AppState.batch_selected_count.to(str)
-                        + " " + AppState.tr["territories_word"] + ")",
-                        AppState.tr["batch_start_btn"],
+                rx.cond(
+                    AppState.batch_confirm_pending,
+                    _start_confirm(),
+                    rx.button(
+                        rx.cond(
+                            AppState.batch_selected_count > 0,
+                            AppState.tr["batch_start_btn"] + " ("
+                            + AppState.batch_selected_count.to(str)
+                            + " " + AppState.tr["territories_word"] + ")",
+                            AppState.tr["batch_start_btn"],
+                        ),
+                        on_click=AppState.request_batch_run,
+                        is_disabled=AppState.batch_selected_count == 0,
+                        size="3",
+                        bg=rx.cond(
+                            AppState.batch_selected_count > 0, ORANGE, "#9CA3AF"
+                        ),
+                        color="white",
+                        font_weight="bold",
+                        _hover={"bg": ORANGE_DARK},
+                        width="100%",
                     ),
-                    on_click=AppState.run_batch_processing,
-                    is_disabled=AppState.batch_selected_count == 0,
-                    size="3",
-                    bg=rx.cond(
-                        AppState.batch_selected_count > 0, ORANGE, "#9CA3AF"
-                    ),
-                    color="white",
-                    font_weight="bold",
-                    _hover={"bg": ORANGE_DARK},
-                    width="100%",
                 ),
                 rx.box(),
             ),

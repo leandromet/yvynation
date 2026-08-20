@@ -507,6 +507,8 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_howto_7_body": "Cuando termine la ejecución, haga clic en 'Descargar ZIP' para obtener todas las tablas, transiciones y figuras de cada territorio en un único archivo.",
     "batch_start_btn": "🚀 Iniciar Procesamiento por Lotes",
     "territories_word": "territorios",
+    "batch_confirm_prefix": "Esto ejecutará el análisis de Earth Engine para",
+    "batch_confirm_suffix": ". ¿Continuar?",
     "batch_large_run_warning": "Selección grande — considere dividirla en varias ejecuciones más pequeñas (p. ej., 20-25 territorios cada una) para mantener la ejecución confiable. Si se interrumpe, los resultados parciales siguen disponibles en la página Ejecuciones Anteriores.",
     "batch_processing_ellipsis": "Procesando…",
     "batch_stop_btn": "⏹ Detener tras el actual",
