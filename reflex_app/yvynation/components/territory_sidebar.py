@@ -82,6 +82,24 @@ def _territory_tools_section() -> rx.Component:
             align_items="center",
         ),
 
+        # Current territory type — fixed for this session, chosen on the
+        # portal (no more in-page switch between indigenous lands and
+        # conservation units; that choice now happens before entering here).
+        rx.hstack(
+            rx.text(AppState.tr["territory_type"] + ":", font_size="xs", color="gray", font_weight="600"),
+            rx.badge(
+                rx.cond(
+                    AppState.territory_type == "conservation",
+                    AppState.tr["conservation_units_btn"],
+                    AppState.tr["indigenous_lands_btn"],
+                ),
+                color_scheme=rx.cond(AppState.territory_type == "conservation", "green", "violet"),
+            ),
+            spacing="2",
+            align_items="center",
+            width="100%",
+        ),
+
         # Country selector
         rx.vstack(
             rx.text(AppState.tr["country"], font_size="sm", font_weight="600"),
@@ -91,33 +109,6 @@ def _territory_tools_section() -> rx.Component:
                 on_change=AppState.set_country,
                 size="1",
                 width="100%",
-            ),
-            spacing="2",
-            width="100%",
-        ),
-
-        # Territory type selector (indigenous lands vs conservation units)
-        rx.vstack(
-            rx.text(AppState.tr["territory_type"], font_size="sm", font_weight="600"),
-            rx.hstack(
-                rx.button(
-                    AppState.tr["indigenous_lands_btn"],
-                    on_click=lambda: AppState.set_territory_type("indigenous"),
-                    size="1",
-                    variant=rx.cond(AppState.territory_type == "indigenous", "solid", "outline"),
-                    color_scheme="violet",
-                    flex="1",
-                ),
-                rx.button(
-                    AppState.tr["conservation_units_btn"],
-                    on_click=lambda: AppState.set_territory_type("conservation"),
-                    size="1",
-                    variant=rx.cond(AppState.territory_type == "conservation", "solid", "outline"),
-                    color_scheme="green",
-                    flex="1",
-                ),
-                width="100%",
-                spacing="1",
             ),
             spacing="2",
             width="100%",

@@ -166,11 +166,28 @@ class UIMixin(rx.State, mixin=True):
         if bg_task is not None:
             yield bg_task
 
-    def go_to_territory_analysis(self):
-        """Navigate to territory analysis page, then kick off background EE load."""
+    def go_to_territory_analysis(self, territory_type: str = "indigenous"):
+        """Navigate to territory analysis for indigenous lands or conservation
+        units, then kick off background loading for that type.
+
+        The portal picks the territory type up front (indigenous vs.
+        conservation are now separate entry points, no in-page switch), so on
+        a first-ever visit this seeds ``territory_type`` before
+        ``initialize_app`` does its one-time load; on a later visit (EE
+        already initialized) it reuses ``set_territory_type`` to (re)load the
+        right GeoPackage if the user picked a different type this time.
+        """
         self.analysis_mode = "territory"
         self.show_indigenous_lands = True
-        bg_task = self.initialize_app()
+        if territory_type not in ("indigenous", "conservation"):
+            territory_type = "indigenous"
+
+        if not self.ee_initialized:
+            self.territory_type = territory_type
+            bg_task = self.initialize_app()
+        else:
+            bg_task = self.set_territory_type(territory_type)
+
         if bg_task is not None:
             yield bg_task
 
