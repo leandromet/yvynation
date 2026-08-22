@@ -1204,7 +1204,13 @@ def _write_multi_window_section(
     mw_dir = f"{base_dir}/mapbiomas_multi_window"
     fig_dir = f"{mw_dir}/figures"
     sfx = name_suffix
-    years_tag = "_".join(str(y) for y in years)
+    # Join every year only for short lists; longer lists (1-2 year steps can
+    # resolve to 20-40 years) collapse to a range + count so the filename
+    # stays well under filesystem path-component limits (~255 bytes).
+    if len(years) <= 6:
+        years_tag = "_".join(str(y) for y in years)
+    else:
+        years_tag = f"{years[0]}-{years[-1]}_n{len(years)}"
     base_name = f"{slug}_mapbiomas_multi_window_{years_tag}"
 
     # ---- Combined long-format CSV ---------------------------------------
