@@ -170,6 +170,7 @@ TRANSLATIONS_ES = {
     "mapbiomas_process_error": "Error al procesar clase {class_id}: {error}",
     "mapbiomas_analysis_title": "Análisis de Cobertura Terrestre MapBiomas",
     "mapbiomas_year_range": "Rango de años: {start} - {end}",
+    "area_basis_note": "El área se calcula a partir del tamaño geodésico real de cada píxel (pixelArea de Earth Engine), no de una suposición fija de 900 m² (0,09 ha) — así se mantiene precisa en cualquier latitud.",
 
     # Hansen specific
     "hansen_tree_cover": "Cobertura Forestal",

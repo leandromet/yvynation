@@ -115,6 +115,35 @@ def get_ee() -> ee.Image.__class__:
     return ee
 
 
+def mean_pixel_area_ha(geometry: "ee.Geometry", scale: int = 30, max_pixels: float = 1e9) -> float:
+    """True mean pixel area (ha) inside ``geometry``, in place of a flat 0.09 ha/pixel
+    (30 m) assumption that drifts with latitude — Earth Engine pixels are only exactly
+    ``scale``x``scale`` metres at the equator.
+
+    Pair with a ``frequencyHistogram`` reduceRegion on the same geometry/scale and
+    convert counts with ``count * mean_pixel_area_ha(...)`` instead of ``count * 0.09``.
+    Falls back to the nominal 0.09 ha (900 m² at 30 m) if the call fails, so callers
+    never need their own except-branch for this.
+    """
+    try:
+        stats = (
+            ee.Image.pixelArea()
+            .reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=geometry,
+                scale=scale,
+                maxPixels=max_pixels,
+            )
+            .getInfo()
+        )
+        mean_m2 = (stats or {}).get("area")
+        if mean_m2:
+            return float(mean_m2) / 10_000.0
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"mean_pixel_area_ha failed, falling back to nominal {scale}m: {e}")
+    return (scale * scale) / 10_000.0
+
+
 class EarthEngineService:
     """Service for Earth Engine operations."""
     
@@ -241,11 +270,12 @@ class EarthEngineService:
                 histogram_data = stats.get(band_key, {})
                 
                 if histogram_data:
+                    area_per_px_ha = mean_pixel_area_ha(ee_geometry, scale=30)
                     records = []
                     for class_id, count in histogram_data.items():
                         class_id = int(class_id)
                         class_name = MAPBIOMAS_LABELS.get(class_id, f"Class {class_id}")
-                        area_ha = count * 0.09
+                        area_ha = count * area_per_px_ha
                         records.append({
                             "Class_ID": class_id,
                             "Class": class_name,
@@ -293,11 +323,12 @@ class EarthEngineService:
             if stats:
                 # Process histogram into dataframe
                 histogram = stats.get('classification', {}) if 'classification' in stats else stats
+                area_per_px_ha = mean_pixel_area_ha(ee_geometry, scale=30)
                 records = []
                 for class_id_str, count in histogram.items():
                     class_id = int(class_id_str)
                     count = int(count)
-                    area_ha = count * 0.09
+                    area_ha = count * area_per_px_ha
                     records.append({
                         "Class_ID": class_id,
                         "Pixels": count,

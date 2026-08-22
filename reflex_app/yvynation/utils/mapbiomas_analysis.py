@@ -16,7 +16,7 @@ from .analysis import (
     compare_areas,
 )
 from ..config.config import MAPBIOMAS_LABELS, MAPBIOMAS_YEARS, MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION
-from ..utils.ee_service import get_ee
+from ..utils.ee_service import get_ee, mean_pixel_area_ha
 
 logger = logging.getLogger(__name__)
 
@@ -244,11 +244,12 @@ class MapBiomasAnalyzer:
 
             transitions: Dict[int, Dict[int, float]] = {}
             valid_transitions = 0
+            area_per_px_ha = mean_pixel_area_ha(geometry, scale=scale)
             for combined_str, count in raw.items():
                 combined_val = int(combined_str)
                 src = combined_val // 1000
                 tgt = combined_val % 1000
-                area_ha = count * 0.09  # 30m pixel = 900 m² = 0.09 ha
+                area_ha = count * area_per_px_ha
                 
                 # Include transitions if area is significant (at least one pixel)
                 # Allow class 0 on one side (nodata conversions) but not both.

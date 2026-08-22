@@ -8,6 +8,8 @@ import pandas as pd
 from typing import Dict, Optional, Any
 import logging
 
+from .ee_service import mean_pixel_area_ha
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,12 +90,13 @@ class AAFCAnalyzer:
                 return None
 
             # Convert histogram to DataFrame
+            area_per_px_ha = mean_pixel_area_ha(geometry, scale=30)
             records = []
             for value_str, count in histogram.items():
                 try:
                     value = int(value_str)
                     class_name = AAFC_LABELS.get(value, f"Class {value}")
-                    area_ha = count * 0.09  # 30m pixel = 0.09 ha
+                    area_ha = count * area_per_px_ha
 
                     records.append({
                         'Class_ID': value,

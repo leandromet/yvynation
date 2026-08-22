@@ -19,6 +19,19 @@ def _no_data_placeholder(message: str = "Run analysis to see results") -> rx.Com
     )
 
 
+def _area_basis_note() -> rx.Component:
+    """Short honesty note on how area (ha) is computed — every pixelArea-based
+    tab below shows this so 'Area (ha)' is never read as a nominal, fixed-scale
+    guess."""
+    return rx.hstack(
+        rx.icon("ruler", size=12, color="gray"),
+        rx.text(AppState.tr["area_basis_note"], font_size="2xs", color="gray", line_height="1.4"),
+        spacing="1",
+        align_items="flex-start",
+        width="100%",
+    )
+
+
 def _summary_metrics_row(analysis_results: dict) -> rx.Component:
     """Summary metrics row (Total Area, Classes, Top Class)."""
     return rx.cond(
@@ -660,6 +673,7 @@ def mapbiomas_tab() -> rx.Component:
     """MapBiomas land cover analysis tab. Displays mapbiomas_analysis_result or generic analysis_results."""
     return rx.vstack(
         rx.heading(AppState.tr["mapbiomas_analysis_title"], size="3"),
+        _area_basis_note(),
         # Analysis info
         rx.cond(
             (AppState.mapbiomas_analysis_result != None) | (AppState.analysis_results.get("type") == "mapbiomas"),
@@ -784,6 +798,7 @@ def hansen_tab() -> rx.Component:
 
     return rx.vstack(
         rx.heading(AppState.tr["hansen_analysis"], size="3"),
+        _area_basis_note(),
         rx.box(
             rx.hstack(
                 rx.box(rx.icon("info", size=20, color="#ed8936"), width="auto"),
@@ -970,6 +985,7 @@ def hansen_gfc_tab() -> rx.Component:
     """Hansen GFC (Global Forest Change) tab: cover 2000, loss 2000-2023, gain 2000-2012."""
     return rx.vstack(
         rx.heading(AppState.tr["hansen_gfc_label"], size="3"),
+        _area_basis_note(),
         rx.box(
             rx.hstack(
                 rx.box(rx.icon("info", size=20, color="#ed8936"), width="auto"),
@@ -1302,6 +1318,7 @@ def aafc_tab() -> rx.Component:
     """AAFC Annual Crop Inventory analysis tab (Canada)."""
     return rx.vstack(
         rx.heading(AppState.tr["aafc_legend"], size="3"),
+        _area_basis_note(),
         rx.divider(),
         rx.cond(
             AppState.selected_country == "Canada",
@@ -1471,6 +1488,7 @@ def comparison_tab() -> rx.Component:
 
     return rx.vstack(
         rx.heading(AppState.tr["year_comparison_results"], size="3"),
+        _area_basis_note(),
         rx.cond(
             AppState.comparison_available,
             rx.vstack(

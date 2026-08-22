@@ -14,6 +14,7 @@ from .analysis import (
     get_geometry_bounds,
 )
 from ..config.config import HANSEN_CONSOLIDATED_MAPPING, HANSEN_GFC_DATASET
+from .ee_service import mean_pixel_area_ha
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +265,9 @@ class HansenAnalyzer:
             from ..config.config import HANSEN_GFC_DATASET
             dataset = ee.Image(HANSEN_GFC_DATASET)
 
+            # Shared across all three histograms below — same geometry/scale.
+            area_per_px_ha = mean_pixel_area_ha(geometry, scale=scale)
+
             # ---- Tree Cover 2000 (band: treecover2000) --------------------
             cover_histogram: dict = {}
             try:
@@ -284,7 +288,7 @@ class HansenAnalyzer:
                 cover_records.append({
                     "Percent_Cover": pct,
                     "Pixels": int(cnt),
-                    "Area_ha": round(int(cnt) * 0.09, 2),
+                    "Area_ha": round(int(cnt) * area_per_px_ha, 2),
                 })
             df_cover = pd.DataFrame(cover_records).sort_values("Percent_Cover") if cover_records else pd.DataFrame()
 
@@ -309,7 +313,7 @@ class HansenAnalyzer:
                     "Year_Code": code,
                     "Year": "No Loss" if code == 0 else str(2000 + code),
                     "Pixels": int(cnt),
-                    "Area_ha": round(int(cnt) * 0.09, 2),
+                    "Area_ha": round(int(cnt) * area_per_px_ha, 2),
                 })
             df_loss = pd.DataFrame(loss_records).sort_values("Year_Code") if loss_records else pd.DataFrame()
 
@@ -334,7 +338,7 @@ class HansenAnalyzer:
                     "Gain_Code": code,
                     "Status": "Gain (2000-2012)" if code == 1 else "No Gain",
                     "Pixels": int(cnt),
-                    "Area_ha": round(int(cnt) * 0.09, 2),
+                    "Area_ha": round(int(cnt) * area_per_px_ha, 2),
                 })
             df_gain = pd.DataFrame(gain_records).sort_values("Gain_Code") if gain_records else pd.DataFrame()
 
@@ -456,11 +460,12 @@ class HansenAnalyzer:
                 return None
 
             records = []
+            area_per_px_ha = mean_pixel_area_ha(geometry, scale=scale)
             for class_id_str, count in data.items():
                 try:
                     class_id = int(class_id_str)
                     class_name = HANSEN_LABELS.get(class_id, f"Class {class_id}")
-                    area_ha = count * 0.9  # 30m pixel ≈ 0.9 ha
+                    area_ha = count * area_per_px_ha
 
                     records.append({
                         'Class_ID': class_id,

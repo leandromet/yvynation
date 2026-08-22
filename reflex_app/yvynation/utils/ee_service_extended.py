@@ -8,6 +8,8 @@ import pandas as pd
 import logging
 from typing import Dict, List, Tuple, Optional, Any
 
+from .ee_service import mean_pixel_area_ha
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,11 +183,12 @@ class ExtendedEarthEngineService:
             band_key = band  # Should be the band we selected
 
             if band_key in hist and hist[band_key]:
+                area_per_px_ha = mean_pixel_area_ha(geometry, scale=30)
                 for class_id_str, count in hist[band_key].items():
                     try:
                         class_id = int(class_id_str)
                         class_name = self.mapbiomas_labels.get(class_id, f"Class {class_id}")
-                        area_ha = count * 0.09  # 30m pixels = 0.09 ha
+                        area_ha = count * area_per_px_ha
 
                         records.append({
                             'Class_ID': class_id,
@@ -242,10 +245,11 @@ class ExtendedEarthEngineService:
             band_key = list(hist.keys())[0] if hist else None
             
             if band_key and hist[band_key]:
+                area_per_px_ha = mean_pixel_area_ha(geometry, scale=30)
                 for class_id_str, count in hist[band_key].items():
                     class_id = int(class_id_str)
                     class_name = self.hansen_labels.get(class_id, f"Class {class_id}")
-                    area_ha = count * 0.9  # 30m pixels
+                    area_ha = count * area_per_px_ha
                     
                     records.append({
                         'Class_ID': class_id,

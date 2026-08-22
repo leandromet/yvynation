@@ -170,6 +170,7 @@ TRANSLATIONS_FR = {
     "mapbiomas_process_error": "Erreur lors du traitement de la classe {class_id} : {error}",
     "mapbiomas_analysis_title": "Analyse de la Couverture Terrestre MapBiomas",
     "mapbiomas_year_range": "Plage d'années : {start} - {end}",
+    "area_basis_note": "La superficie est calculée à partir de la taille géodésique réelle de chaque pixel (pixelArea d'Earth Engine), et non d'une hypothèse fixe de 900 m² (0,09 ha) — elle reste donc précise à toute latitude.",
 
     # Hansen specific
     "hansen_tree_cover": "Couvert Forestier",

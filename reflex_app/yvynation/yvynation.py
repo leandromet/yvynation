@@ -18,5 +18,5 @@ app = rx.App(api_transformer=download_app())
 app.add_page(
     index,
     route="/",
-    title="Yvynation - Indigenous Land Monitoring Platform",
+    title="Yvynation - Land Monitoring Platform",
 )

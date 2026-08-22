@@ -1,5 +1,5 @@
 """
-Yvynation - Indigenous Land Monitoring Platform (Reflex Version)
+Yvynation - Land Monitoring Platform (Reflex Version)
 Interactive analysis tool for land cover changes in indigenous territories.
 """
 
