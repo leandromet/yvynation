@@ -437,12 +437,12 @@ def write_group_comparison(out, cfg, runs, summary, meta, panel, figs):
         "",
     ]
     if cfg.get("excluded"):
-        L += [
+        default_note = (
             f"> **Note.** {len(cfg['excluded'])} large polygon(s) exported in four "
             f"quadrants — {', '.join(cfg['excluded'])} — are omitted from the "
-            "aggregate metrics (the loader reads only single-tile exports).",
-            "",
-        ]
+            "aggregate metrics (the loader reads only single-tile exports)."
+        )
+        L += [cfg.get("excluded_note", default_note), ""]
     missing_terr = cfg.get("missing_territory") or []
     if missing_terr:
         L += [
@@ -734,9 +734,10 @@ def write_governance(out, cfg, runs, summary, meta, panel, panel_t, figs, tables
         "small strata (n<5) as indicative only.",
     ]
     if cfg.get("excluded"):
-        L.append(
+        L.append(cfg.get(
+            "excluded_caveat",
             f"- {len(cfg['excluded'])} large polygon(s) exported in quadrants "
-            f"({', '.join(cfg['excluded'])}) are omitted from all rates here.")
+            f"({', '.join(cfg['excluded'])}) are omitted from all rates here."))
     if cfg.get("missing_territory"):
         L.append(
             f"- **Coverage gap**: {len(cfg['missing_territory'])} of "
@@ -759,12 +760,14 @@ _RM_END = "<!-- governance-reports:end -->"
 
 def link_reports_in_readme(out, cfg):
     readme = out / "README.md"
+    pt_br = " ([pt-br](report_group_comparison.pt-br.md))" if cfg.get("pt_br") else ""
+    pt_br4 = " ([pt-br](report_governance_policy.pt-br.md))" if cfg.get("pt_br") else ""
     rows = [
         _RM_START,
         "## Governance, policy & manuscripts",
         "",
-        f"- [{cfg['title3']}](report_group_comparison.md)",
-        f"- [{cfg['title4']}](report_governance_policy.md)",
+        f"- [{cfg['title3']}](report_group_comparison.md){pt_br}",
+        f"- [{cfg['title4']}](report_governance_policy.md){pt_br4}",
     ]
     for m in cfg.get("manuscripts", []):
         rows.append(f"- [Manuscript — {m['title']}]({m['file']})")
@@ -953,6 +956,47 @@ DATASETS = {
              "title": "Governance, legislation and political cycles across Brazil's Biological Reserves"},
         ],
         "intro3": "__AUTOFILL__",
+    },
+    "parana_parques": {
+        "batch": "/media/leandromb/iron8/Downloads_ubuntuWD/yvynation_batch_20260822_142013",
+        "out": f"{ROOT}/parana_parques",
+        # label MUST contain "Conserv" so gov.chart_recognition_tiers fires its
+        # conservation branch.
+        "label": "Parques do Paraná (Conservação, Proteção Integral)",
+        "unit_word": "park",
+        "category_label": "*Parque*",
+        "group_label": "*Proteção Integral*",
+        "policy_span_note": ("every major forest/conservation-policy milestone since "
+                              "the state's oldest park (1965 Forest Code, 1988 "
+                              "Constitution, 2000 SNUC, 2004 PPCDAm, 2012 Forest Code)"),
+        "title3": "Report 3 — Parks of Paraná: core vs. buffer",
+        "title4": "Report 4 — Governance, ideology & policy recognition — Parks of Paraná",
+        "pt_br": True,
+        "excluded_note": (
+            "> **Note.** 1 unit — PARQUE NACIONAL MARINHO DAS ILHAS DOS CURRAIS — is "
+            "omitted from the aggregate metrics: it is a marine national park (a small "
+            "archipelago plus surrounding sea) with no usable terrestrial MapBiomas "
+            "land-cover signal, not a large-polygon export issue."),
+        "excluded_caveat": (
+            "- 1 unit (PARQUE NACIONAL MARINHO DAS ILHAS DOS CURRAIS, a marine park "
+            "with no terrestrial land-cover signal) is omitted from all rates here."),
+        "intro3": (
+            "**42 Parques** (Parque Nacional, Parque Estadual, Parque Municipal and "
+            "Parque Natural Municipal) selected around **Paraná** — 1 further unit, a "
+            "marine national park with no terrestrial land-cover signal, is excluded "
+            "from the metrics below (see note). 41 of the 42 sit in Paraná itself; the "
+            "remaining one, the federal *Parque Nacional de Ilha Grande*, sits on the "
+            "Paraná River and is recorded under Mato Grosso do Sul. All 42 share the "
+            "same SNUC category (*Parque*) and protection group (*Proteção "
+            "Integral* — strict protection, no extractive use), gazetted between "
+            "**1939 and 2024**, spanning three governance spheres — Federal (6), "
+            "Estadual (20) and Municipal (16) — analysed over 1985–2024. Each "
+            "protected **core** is referenced against its surrounding **10 km "
+            "buffer** ring; rates are area-normalised (% of each area per year) so "
+            "small and large units weigh equally and core and buffer are directly "
+            "comparable. This is a state-level, single-category selection: sphere "
+            "and creation era carry the cross-sectional variation, not category or "
+            "protection group, which are uniform here."),
     },
 }
 
