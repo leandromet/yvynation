@@ -482,7 +482,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_mw_mode": "Modo:",
     "batch_mw_step": "Paso (años):",
     "batch_mw_forced_note": "1985 → 2024 forzado como último año",
-    "batch_mw_custom_label": "Años personalizados (3 o 4, separados por comas, 1985–2024)",
+    "batch_mw_custom_label": "Años personalizados (3 a 10, separados por comas, 1985–2024)",
     "batch_mw_active_years": "Años activos: ",
     "batch_chk_timeline": "📈 Línea de tiempo de deforestación (Hansen + MapBiomas + Fuego) con contexto político",
     "batch_buffer_zone": "Zona de amortiguamiento",

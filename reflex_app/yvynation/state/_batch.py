@@ -526,7 +526,7 @@ class BatchMixin(rx.State, mixin=True):
     batch_multi_window_mode: str = "constant"
     # Step in years for the constant mode (one of 1, 2, 4, 5, 8).
     batch_multi_window_step: str = "8"
-    # Custom mode: 3 or 4 user-selected years, comma-separated.
+    # Custom mode: 3 to 10 user-selected years, comma-separated.
     batch_multi_window_custom_years: str = "1985, 1994, 2004, 2014, 2024"
     batch_territory_search: str = ""
     # Which GeoPackage backs the territory list view — always exactly one
@@ -1278,7 +1278,7 @@ class BatchMixin(rx.State, mixin=True):
 
         Constant mode: start at 1985, take steps of ``batch_multi_window_step``
         years, always include 2024 as the final year. Custom mode: parse the
-        comma-separated text and keep 3 or 4 valid years between 1985 and 2024.
+        comma-separated text and keep 3 to 10 valid years between 1985 and 2024.
         Returns an empty list when the input is invalid.
         """
         START, END = 1985, 2024
@@ -1294,7 +1294,7 @@ class BatchMixin(rx.State, mixin=True):
                     if START <= y <= END and y not in years:
                         years.append(y)
                 years.sort()
-                if 3 <= len(years) <= 4:
+                if 3 <= len(years) <= 10:
                     return years
                 return []
             # constant mode

@@ -251,7 +251,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
         """Active year list for the multi-window analysis.
 
         Constant mode: start at 1985, step by ``mw_step`` years, always include
-        2024.  Custom mode: parse 3–4 valid comma-separated years (1985–2024).
+        2024.  Custom mode: parse 3–10 valid comma-separated years (1985–2024).
         Returns an empty list when the input is invalid.
         """
         try:
@@ -268,7 +268,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                     if START_YEAR <= y <= END_YEAR and y not in years:
                         years.append(y)
                 years.sort()
-                return years if 3 <= len(years) <= 4 else []
+                return years if 3 <= len(years) <= 10 else []
             step = int(self.mw_step)
             if step <= 0:
                 return []

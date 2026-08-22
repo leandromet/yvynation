@@ -2120,7 +2120,7 @@ def multi_window_tab() -> rx.Component:
                         spacing="2", align_items="center",
                     ),
                     rx.vstack(
-                        rx.text("Custom years (3 or 4, comma-separated, 1985–2024)",
+                        rx.text("Custom years (3 to 10, comma-separated, 1985–2024)",
                                 font_size="xs", color="#6B7280"),
                         rx.input(value=AppState.mw_custom_years,
                                  on_change=AppState.set_mw_custom_years,
