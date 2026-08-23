@@ -1,0 +1,1807 @@
+"""
+Yvynation – Export service.
+
+Generates a ZIP archive with a predictable, self-describing folder/file
+structure so that exports from multiple territories can be merged into a
+single directory without name collisions:
+
+  yvynation_{territory_slug}_{YYYYMMDD_HHMM}.zip
+  │
+  ├── README.md               ← human-readable summary
+  ├── metadata.json           ← machine-readable metadata
+  │
+  ├── territory/
+  │   └── {slug}/
+  │       ├── boundary.geojson
+  │       ├── mapbiomas/
+  │       │   ├── {slug}_mapbiomas_{year}_landcover.csv
+  │       │   ├── {slug}_mapbiomas_{y1}_vs_{y2}_comparison.csv
+  │       │   ├── {slug}_mapbiomas_{y1}_vs_{y2}_transitions.json
+  │       │   └── figures/
+  │       │       ├── {slug}_mapbiomas_{year}_distribution.png + .html
+  │       │       ├── {slug}_mapbiomas_{year}_composition_pie.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_gains_losses.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_change_pct.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_sankey.png + .html
+  │       │       ├── {slug}_mapbiomas_{y1}_vs_{y2}_sunburst.png + .html
+  │       │       └── {slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix.png + .html
+  │       ├── hansen_glad/
+  │       │   ├── {slug}_hansen_glad_{year}_distribution.csv
+  │       │   └── figures/
+  │       │       └── {slug}_hansen_glad_{year}_distribution.png + .html
+  │       ├── hansen_gfc/
+  │       │   ├── {slug}_hansen_gfc_summary.csv
+  │       │   ├── {slug}_hansen_gfc_loss_by_year.csv
+  │       │   ├── {slug}_hansen_gfc_gain.csv
+  │       │   └── figures/
+  │       │       ├── {slug}_hansen_gfc_summary.png + .html
+  │       │       └── {slug}_hansen_gfc_loss_by_year.png + .html
+  │       └── mapbiomas_multi_window/     (when the multi-window analysis ran)
+  │           ├── {slug}_mapbiomas_multi_window_{years}_transitions.csv
+  │           └── figures/
+  │               ├── {slug}_mapbiomas_multi_window_{years}_sankey.png + .html
+  │               └── {slug}_mapbiomas_{y1}_vs_{y2}_sunburst.png + .html  (per pair)
+  │
+  └── buffer/
+      └── {buffer_slug}/      (e.g. {territory_slug}_Buffer_10km)
+          └── [same sub-structure as territory/]
+"""
+
+import io
+import json
+import re
+import threading
+import zipfile
+from contextlib import contextmanager
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Export delivery via the upload dir (HTTP download instead of data-URI)
+# ---------------------------------------------------------------------------
+#
+# ``rx.download(data=...)`` ships the whole archive as a base64 data-URI over
+# the websocket — unreliable beyond a few tens of MB and ~3× the RAM.  Large
+# exports are therefore written under ``uploaded_files/exports/``:
+#
+#     rel = save_export_to_upload_dir(zip_bytes, filename)
+#     return rx.download(url=get_download_url(rel), filename=filename)
+#
+# Use get_download_url(), not rx.get_upload_url(), for anything that might
+# exceed ~32 MiB. Locally/small files it's the same /_upload static mount;
+# on Cloud Run (GCS_EXPORT_BUCKET set) exports/ is a GCS FUSE volume and
+# Cloud Run's proxy caps fixed-Content-Length responses at ~32 MiB, so
+# get_download_url() hands back a signed GCS URL instead — the browser
+# downloads straight from GCS, bypassing that cap entirely.
+#
+# For very large archives, build the ZIP directly on disk instead of BytesIO:
+#
+#     path = get_export_dir() / filename
+#     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf: ...
+#     prune_old_exports()
+
+#: Trailing "_YYYYMMDD_HHMM…zip" — stripped to group exports by kind
+_EXPORT_TS_RE = re.compile(r"_\d{8}_\d{4}.*\.zip$")
+
+
+class DirExportWriter:
+    """``zipfile.ZipFile``-compatible ``writestr()`` that writes straight to a
+    folder instead of an archive.
+
+    Used by the batch pipeline so every CSV/PNG/HTML becomes visible on disk
+    (and downloadable via the ``/_upload`` mount) the moment it is produced,
+    instead of being locked inside a growing, unreadable ZIP. No compression
+    happens during the run — the folder is deflated once at the end with
+    :func:`zip_directory`.
+    """
+
+    def __init__(self, root):
+        from pathlib import Path
+
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def writestr(self, arcname: str, data) -> None:
+        path = self.root / arcname
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        path.write_bytes(data)
+
+    # Context-manager protocol so it can replace ``with zipfile.ZipFile(...)``
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+#: Already-compressed payloads — deflating them burns CPU for ~0% gain, so they
+#: go in stored. Everything else (CSV, JSON, HTML, MD, SVG) compresses well.
+_INCOMPRESSIBLE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".zip", ".gz", ".pdf"}
+
+
+def _zip_member(src_dir, path):
+    """Read one file and prepare its ZIP entry. Runs on a reader thread."""
+    info = zipfile.ZipInfo.from_file(path, path.relative_to(src_dir).as_posix())
+    info.compress_type = (
+        zipfile.ZIP_STORED
+        if path.suffix.lower() in _INCOMPRESSIBLE
+        else zipfile.ZIP_DEFLATED
+    )
+    return info, path.read_bytes()
+
+
+def zip_directory(src_dir, zip_path, workers: int = 8, window: int = 16) -> int:
+    """Archive *src_dir* recursively into *zip_path*; returns the ZIP size.
+
+    **Reads concurrently, writes sequentially.** On Cloud Run the source folder
+    is a GCS FUSE mount, where every file open/stat/read is a network round trip
+    to GCS. A 31-territory run archived ~1500 small files at roughly **1 MB/s**
+    — 644 MB took 10.6 minutes — which is per-file latency, not CPU: deflating
+    that volume is well under a minute of actual work. Overlapping the reads
+    hides the latency behind other reads.
+
+    ``zipfile`` is not safe for concurrent writes, so only the *reads* fan out:
+    a sliding window of at most *window* files is in flight, and entries are
+    written in the same sorted order as before, so archives stay reproducible.
+
+    Peak extra memory is *window* × the average file size — about 10 MB for a
+    typical batch run. Keep *window* modest for that reason; the gain comes from
+    hiding latency, and it flattens out well before the memory cost matters.
+    """
+    import time
+    from collections import deque
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+
+    src_dir = Path(src_dir)
+    zip_path = Path(zip_path)
+    files = sorted(p for p in src_dir.rglob("*") if p.is_file())
+    window = max(2, window)
+    t0 = time.monotonic()
+    raw = 0
+
+    with ThreadPoolExecutor(
+        max_workers=max(1, workers), thread_name_prefix="zipread"
+    ) as pool, zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        pending = iter(files)
+        inflight = deque()
+
+        def _submit_next() -> bool:
+            nxt = next(pending, None)
+            if nxt is None:
+                return False
+            inflight.append(pool.submit(_zip_member, src_dir, nxt))
+            return True
+
+        for _ in range(window):
+            if not _submit_next():
+                break
+        while inflight:
+            info, data = inflight.popleft().result()
+            zf.writestr(info, data)
+            raw += len(data)
+            _submit_next()
+
+    size = zip_path.stat().st_size
+    elapsed = max(time.monotonic() - t0, 1e-9)
+    logger.info(
+        f"Archived {len(files)} files ({raw / 1e6:.0f} MB → {size / 1e6:.0f} MB) "
+        f"in {elapsed:.0f}s ({raw / 1e6 / elapsed:.1f} MB/s read, "
+        f"{workers} readers)"
+    )
+    return size
+
+
+def get_export_dir():
+    """Return (and create) ``uploaded_files/exports/`` as a ``Path``."""
+    import reflex as rx
+
+    export_dir = rx.get_upload_dir() / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    return export_dir
+
+
+def prune_old_exports(keep_per_prefix: int = 10) -> None:
+    """Delete older export ZIPs and leftover run folders.
+
+    ZIPs: keeps the newest *keep_per_prefix* of each kind (kind = name with
+    the trailing ``_YYYYMMDD_HHMM`` stripped), so interactive exports never
+    evict a freshly built batch archive. Ten is deliberately generous — a batch
+    archive can be an hour of compute, and Previous Runs is the only way back to
+    one, so the cost of keeping a stale ZIP is far below the cost of dropping a
+    real run.
+
+    Folders: deleted ONLY when their completed marker — a same-name ``.zip``
+    — exists (the batch normally removes its own folder after compressing;
+    this just sweeps leftovers). A folder without a matching ZIP is NEVER
+    touched: it is either a run still in progress (deleting it mid-run would
+    silently empty that run's final archive — mtime is no indicator, a run
+    folder's root mtime never updates while files land in subfolders) or a
+    crashed run kept for manual salvage.
+    """
+    import shutil
+
+    try:
+        export_dir = get_export_dir()
+        zip_groups: Dict[str, list] = {}
+        completed_dirs: list = []
+        for p in export_dir.iterdir():
+            if p.is_file() and p.suffix == ".zip":
+                zip_groups.setdefault(_EXPORT_TS_RE.sub("", p.name), []).append(p)
+            elif p.is_dir() and (export_dir / f"{p.name}.zip").exists():
+                completed_dirs.append(p)
+        for d in completed_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+        for files in zip_groups.values():
+            files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            for old in files[keep_per_prefix:]:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+    except Exception as e:
+        logger.warning(f"export prune failed: {e}")
+
+
+def save_export_to_upload_dir(zip_bytes: bytes, filename: str) -> str:
+    """Write *zip_bytes* to the export dir and return the upload-relative path
+    (``exports/<filename>``) for ``rx.get_upload_url``."""
+    path = get_export_dir() / filename
+    path.write_bytes(zip_bytes)
+    prune_old_exports()
+    logger.info(f"Export saved: {path} ({len(zip_bytes) // 1024} KB)")
+    return f"exports/{filename}"
+
+
+def get_download_url(relpath: str) -> str:
+    """URL for downloading an ``exports/``-relative path.
+
+    Always the app's own streaming download route — see
+    :mod:`yvynation.utils.download_routes`, which explains why the two obvious
+    alternatives both fail:
+
+    * Reflex's ``/_upload`` static mount sets ``Content-Length``, and Cloud Run
+      caps *non-streaming* responses at ~32 MiB — well under a batch ZIP.
+    * A direct ``https://storage.googleapis.com/…`` link is rejected outright by
+      ``rx.download()``, which requires the URL to start with ``/``. That raised
+      a ``ValueError`` in the handler the instant ``GCS_EXPORT_BUCKET`` was set,
+      which is why downloads worked locally and failed in production.
+
+    The streaming route is same-origin (so ``rx.download`` accepts it), chunked
+    (so the size cap does not apply), and reads with the runtime service
+    account's own credentials — no public bucket ACL required.
+    """
+    from .download_routes import download_url_for
+
+    return download_url_for(relpath)
+
+
+# ---------------------------------------------------------------------------
+# Previous Runs — browse/recover what's sitting in the exports dir
+#
+# Backs the "Previous Runs" page. A folder without a matching ZIP is either
+# a run still in progress or one that never finished (crashed / OOM-killed
+# mid-batch) — see prune_old_exports(), which deliberately never touches
+# such folders. list_export_runs() surfaces both kinds so a user coming back
+# after a crash can still find and recover what was written before it died.
+# ---------------------------------------------------------------------------
+
+def _dir_size_and_count(path) -> Tuple[int, int]:
+    size = 0
+    count = 0
+    for f in path.rglob("*"):
+        if f.is_file():
+            size += f.stat().st_size
+            count += 1
+    return size, count
+
+
+def _format_size(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+def list_export_runs() -> List[Dict[str, Any]]:
+    """List every finished export ZIP and every leftover run folder.
+
+    Returns dicts with: name, kind ("zip"|"partial"), relpath (upload-
+    relative path, only for "zip"), size_label, file_count (only for
+    "partial"), time_label — newest first.
+    """
+    export_dir = get_export_dir()
+    zip_stems = set()
+    runs: List[Dict[str, Any]] = []
+
+    entries = list(export_dir.iterdir())
+    for p in entries:
+        if p.is_file() and p.suffix == ".zip":
+            zip_stems.add(p.stem)
+            st = p.stat()
+            https_url, gs_uri = bucket_links(f"exports/{p.name}")
+            runs.append({
+                "name": p.stem,
+                "kind": "zip",
+                "relpath": f"exports/{p.name}",
+                "bucket_url": https_url,
+                "gs_uri": gs_uri,
+                "size_label": _format_size(st.st_size),
+                "file_count": 0,
+                "time_label": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": st.st_mtime,
+            })
+    for p in entries:
+        if p.is_dir() and p.name not in zip_stems:
+            size, count = _dir_size_and_count(p)
+            runs.append({
+                "name": p.name,
+                "kind": "partial",
+                "relpath": "",
+                # A partial run has no archive in the bucket yet.
+                "bucket_url": "",
+                "gs_uri": "",
+                "size_label": _format_size(size),
+                "file_count": count,
+                "time_label": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": p.stat().st_mtime,
+            })
+
+    runs.sort(key=lambda r: r["mtime"], reverse=True)
+    for r in runs:
+        del r["mtime"]
+    return runs
+
+
+def bucket_links(relpath: str) -> Tuple[str, str]:
+    """``(https_url, gs_uri)`` for a finished export, or ``("", "")``.
+
+    Empty when ``GCS_EXPORT_BUCKET`` is unset (local development), where there
+    is no bucket to link to. These are for the user to copy — the HTTPS one
+    only resolves for someone with read access to the bucket (or if the objects
+    are public); the ``gs://`` URI is what ``gcloud storage``/``gsutil`` want.
+    In-app downloading does not use either: see :func:`get_download_url`.
+    """
+    import os
+
+    bucket_name = os.environ.get("GCS_EXPORT_BUCKET", "")
+    if not bucket_name or not relpath:
+        return "", ""
+    blob = relpath[len("exports/"):] if relpath.startswith("exports/") else relpath
+    return (
+        f"https://storage.googleapis.com/{bucket_name}/{blob}",
+        f"gs://{bucket_name}/{blob}",
+    )
+
+
+def _run_exists(name: str, kind: str) -> bool:
+    """Is there anything on disk for this run at all?
+
+    Kept separate from :func:`_read_run_member` so "the archive is gone" and
+    "the archive has no summary in it" can be reported differently — they call
+    for completely different reactions from the user.
+    """
+    export_dir = get_export_dir()
+    if kind == "zip":
+        return (export_dir / f"{name}.zip").is_file()
+    run_dir = (export_dir / name).resolve()
+    return export_dir.resolve() in run_dir.parents and run_dir.is_dir()
+
+
+def _read_run_member(name: str, kind: str, member: str) -> Optional[bytes]:
+    """Read one file out of a finished ZIP or a leftover run folder."""
+    export_dir = get_export_dir()
+    if kind == "zip":
+        zip_path = export_dir / f"{name}.zip"
+        if not zip_path.is_file():
+            return None
+        with zipfile.ZipFile(zip_path) as zf:
+            try:
+                return zf.read(member)
+            except KeyError:
+                return None
+    run_dir = (export_dir / name).resolve()
+    # Guard against a crafted run name escaping the export directory.
+    if export_dir.resolve() not in run_dir.parents:
+        return None
+    path = run_dir / member
+    return path.read_bytes() if path.is_file() else None
+
+
+def _pct(value: Any) -> str:
+    try:
+        return f"{float(value):.1f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def read_run_details(name: str, kind: str) -> Dict[str, Any]:
+    """Summarise a run for the Previous Runs detail panel.
+
+    Reads the ``batch_summary.json`` the run already wrote, and falls back to
+    ``batch_report.md`` when the JSON is missing (older runs, or an export ZIP
+    that is not a batch at all). Everything is returned pre-formatted as
+    strings: the UI renders these straight into a Reflex ``foreach``, which
+    cannot introspect nested mixed-type data.
+
+    Never raises — a run that cannot be read shows a message rather than
+    breaking the page.
+    """
+    out: Dict[str, Any] = {
+        "name": name,
+        "available": False,
+        "message": "",
+        "generated": "",
+        "config": [],       # [{"label":…, "value":…}]
+        "performance": [],  # [{"label":…, "value":…}]
+        "verdict": "",
+        "territories": [],  # [{"name":…, "status":…, "detail":…}]
+        "report": "",
+    }
+
+    if not _run_exists(name, kind):
+        out["message"] = (
+            "This run is no longer in the exports directory — it may have been "
+            "pruned or deleted. Refresh the list."
+        )
+        return out
+
+    try:
+        raw = _read_run_member(name, kind, "batch_summary.json")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[RUN_DETAILS] {name}: could not open archive: {e}")
+        out["message"] = f"Could not open this run: {e}"
+        return out
+
+    if raw is None:
+        try:
+            md = _read_run_member(name, kind, "batch_report.md")
+        except Exception:
+            md = None
+        if md:
+            out["available"] = True
+            out["report"] = md.decode("utf-8", "replace")
+            return out
+        out["message"] = (
+            "No batch_summary.json in this archive — it may be an interactive "
+            "export rather than a batch run."
+        )
+        return out
+
+    try:
+        meta = json.loads(raw.decode("utf-8", "replace"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[RUN_DETAILS] {name}: bad JSON: {e}")
+        out["message"] = f"batch_summary.json could not be parsed: {e}"
+        return out
+
+    out["available"] = True
+    out["generated"] = str(meta.get("generated", ""))[:19].replace("T", " ")
+
+    y1, y2 = meta.get("mapbiomas_year1"), meta.get("mapbiomas_year2")
+    buffer_km = meta.get("buffer_km")
+    requested = meta.get("territories_requested", 0)
+    completed = meta.get("territories_completed", 0)
+    failed = meta.get("territories_failed", 0)
+
+    config = [
+        {"label": "MapBiomas", "value": f"{y1} → {y2}" if y1 and y2 else "—"},
+        {"label": "Hansen GLAD", "value": str(meta.get("hansen_glad_year") or "—")},
+        {"label": "Buffer", "value": f"{buffer_km:g} km" if buffer_km else "off"},
+        {"label": "Territories", "value": f"{completed} of {requested} completed"
+                                          + (f", {failed} failed" if failed else "")},
+    ]
+    out["config"] = config
+
+    # The concurrency block only exists on runs produced after the parallel
+    # pipeline landed; older archives simply have no performance section.
+    conc = meta.get("concurrency") or {}
+    if conc:
+        ee = conc.get("earth_engine") or {}
+        render = conc.get("render") or {}
+        out["performance"] = [
+            {"label": "Territory workers", "value": str(conc.get("territory_workers", "—"))},
+            {"label": "Wall time", "value": f"{ee.get('wall_s', '—')} s"},
+            {"label": "Earth Engine", "value":
+                f"{ee.get('calls', '—')} calls · busy {_pct(ee.get('busy_pct'))} · "
+                f"all {ee.get('capacity', '—')} slots busy {_pct(ee.get('saturated_pct'))} · "
+                f"peak {ee.get('peak_inflight', '—')}"},
+            {"label": "Rendering", "value":
+                f"{render.get('calls', '—')} tasks · busy {_pct(render.get('busy_pct'))} "
+                f"(serialized)"},
+        ]
+        out["verdict"] = str(conc.get("verdict", ""))
+
+    for row in meta.get("results") or []:
+        status = str(row.get("status", "?"))
+        if status == "ok":
+            bits = []
+            if row.get("mb_year1"):
+                bits.append(f"MapBiomas {row['mb_year1']}/{row.get('mb_year2')}")
+            if row.get("glad_year"):
+                bits.append(f"GLAD {row['glad_year']}")
+            if row.get("gfc"):
+                bits.append("GFC")
+            if row.get("buffer"):
+                bits.append("buffer")
+            detail = " · ".join(bits)
+        else:
+            detail = str(row.get("error", ""))[:160]
+        out["territories"].append({
+            "name": str(row.get("territory", "?")),
+            "status": status,
+            "detail": detail,
+        })
+
+    return out
+
+
+def zip_partial_run(run_name: str) -> Optional[str]:
+    """Compress a still-present run folder (in-progress or crashed) into a
+    downloadable ZIP. Returns the upload-relative path, or ``None`` if the
+    folder is gone or empty."""
+    export_dir = get_export_dir()
+    work_dir = (export_dir / run_name).resolve()
+    if export_dir.resolve() not in work_dir.parents or not work_dir.is_dir():
+        return None
+
+    zip_path = export_dir / f"{run_name}.zip"
+    size = zip_directory(work_dir, zip_path)
+    if size <= 0:
+        zip_path.unlink(missing_ok=True)
+        return None
+
+    import shutil
+    shutil.rmtree(work_dir, ignore_errors=True)
+    logger.info(f"Salvaged partial run '{run_name}' → {zip_path.name} ({size // 1024} KB)")
+    return f"exports/{zip_path.name}"
+
+
+def delete_export_run(name: str, kind: str) -> bool:
+    """Delete a finished ZIP (``kind="zip"``) or a leftover folder
+    (``kind="partial"``) from the exports dir. Returns whether it existed."""
+    export_dir = get_export_dir()
+    target = (export_dir / (f"{name}.zip" if kind == "zip" else name)).resolve()
+    if export_dir.resolve() not in target.parents:
+        return False
+    if kind == "zip" and target.is_file():
+        target.unlink()
+        return True
+    if kind == "partial" and target.is_dir():
+        import shutil
+        shutil.rmtree(target, ignore_errors=True)
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _slug(name: str) -> str:
+    """Turn an arbitrary territory / buffer name into a safe filesystem slug.
+
+    Examples:
+        "Terra Indígena Xingu (PA)"  → "Terra_Indigena_Xingu_PA"
+        "Xingu - Buffer 10km"        → "Xingu_Buffer_10km"
+    """
+    import unicodedata
+    # Normalize unicode (remove accents)
+    norm = unicodedata.normalize("NFD", str(name))
+    ascii_name = norm.encode("ascii", "ignore").decode("ascii")
+    # Replace common separators / brackets with underscores
+    ascii_name = re.sub(r"[\s\(\)\[\]{}/\\:;,\-–—]+", "_", ascii_name)
+    # Strip leading/trailing underscores, collapse multiples
+    ascii_name = re.sub(r"_+", "_", ascii_name).strip("_")
+    return ascii_name or "unknown"
+
+
+def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def _plotly_to_html_bytes(fig) -> Optional[bytes]:
+    try:
+        return fig.to_html(include_plotlyjs="cdn", full_html=True).encode("utf-8")
+    except Exception as e:
+        logger.warning(f"Plotly → HTML failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Thread-safe kaleido
+#
+# ``fig.to_image()`` drives one shared kaleido state, and concurrent calls
+# from different threads corrupt it — the exact shared object differs by
+# kaleido major version, so this module supports both:
+#
+# * **kaleido < 1** (``kaleido.scopes.plotly.PlotlyScope``): one module-global
+#   ``PlotlyScope`` talking to one Chrome subprocess over one pipe. A
+#   ``PlotlyScope`` *instance* owns its own Chrome, so giving each thread its
+#   own instance (``threading.local``) makes rendering thread-safe by
+#   construction. Measured: 8 renders of a 1600x1000 stacked bar took 1.48 s
+#   serially, 0.43 s across 4 scoped threads (3.4x).
+#
+# * **kaleido >= 1** (rewritten API, no ``PlotlyScope``): ``fig.to_image()``
+#   drives ``kaleido.calc_fig_sync()``, which — unless a persistent server is
+#   running — opens a **fresh headless Chrome, renders one image, and tears it
+#   down again on every single call**. Measured 1075 ms/render one-shot vs
+#   248 ms/render with ``kaleido.start_sync_server()`` warm (4.3x from
+#   reusing one browser alone). But the sync server processes its task queue
+#   one call at a time regardless of the ``n`` (tab) count it was opened
+#   with — measured 4 concurrent threads through it *slower* than 1 (extra
+#   idle tabs, zero parallelism gained) — so it cannot widen the lane.
+#   Real concurrency needs kaleido's lower-level async ``Kaleido(n=…)``
+#   browser directly: each of its tabs is handed out from an internal
+#   ``asyncio.Queue``, so N *concurrently awaited* ``calc_fig()`` coroutines
+#   really do use N tabs at once. This module keeps ONE such browser (opened
+#   with as many tabs as the kaleido lane is wide) on its own dedicated
+#   event-loop thread for the process lifetime, and each render-lane worker
+#   thread submits its coroutine via ``run_coroutine_threadsafe`` and blocks
+#   on the result — mirroring the v0 "one Chrome per worker" model, but as
+#   one shared multi-tab browser instead of N separate ones (kaleido v1 tabs
+#   are cheap to add to one browser; N full browsers is not what its API
+#   offers). Measured 4 tabs, 8 concurrent renders: 25 ms/render avg vs 67 ms
+#   serial on the same warm browser (2.7x).
+# ---------------------------------------------------------------------------
+
+_kaleido_local = threading.local()
+
+#: None until probed. True when concurrent rendering works here — the render
+#: lane may then run wider than one worker. False forces the serialized
+#: fallback (``fig.to_image()`` with no persistent server behind it).
+_SCOPED_KALEIDO: Optional[bool] = None
+
+#: Kaleido major version (0 or 1+), or -1 if kaleido is not importable at all.
+#: Decides which of the two concurrency strategies above applies.
+_KALEIDO_MAJOR: Optional[int] = None
+
+
+def _kaleido_major() -> int:
+    global _KALEIDO_MAJOR
+    if _KALEIDO_MAJOR is None:
+        try:
+            import importlib.metadata as importlib_metadata
+            from packaging.version import Version
+            _KALEIDO_MAJOR = Version(importlib_metadata.version("kaleido")).major
+        except Exception:  # noqa: BLE001
+            _KALEIDO_MAJOR = -1
+    return _KALEIDO_MAJOR
+
+
+def scoped_kaleido_available() -> bool:
+    """Probe (once) whether concurrent kaleido rendering works here.
+
+    The concurrency budget asks before widening the kaleido render lane: if
+    the probe fails we must keep the lane at one worker, because the fallback
+    path (``fig.to_image()`` with no persistent server) cannot take concurrent
+    callers without either corrupting output (v0) or serializing anyway (v1).
+
+    Deliberately does not launch a browser for either version — v0's probe
+    only instantiates a ``PlotlyScope`` object (cheap; Chrome launches lazily
+    on first ``.transform()``), and v1 defers opening the shared multi-tab
+    browser to the first real render — because :func:`reset_meters` calls
+    this indirectly via :func:`render_capacity` and must stay fast.
+    """
+    global _SCOPED_KALEIDO
+    if _SCOPED_KALEIDO is None:
+        major = _kaleido_major()
+        if major < 0:
+            logger.warning(
+                "kaleido is not importable — chart rendering stays "
+                "serialized on one worker"
+            )
+            _SCOPED_KALEIDO = False
+        elif major >= 1:
+            # Concurrency is provided by the shared multi-tab browser set up
+            # lazily in _ensure_kaleido_v1_browser(); nothing to probe here.
+            _SCOPED_KALEIDO = True
+        else:
+            try:
+                from kaleido.scopes.plotly import PlotlyScope  # noqa: F401
+                _get_kaleido_scope()
+                _SCOPED_KALEIDO = True
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    f"Per-thread kaleido scopes unavailable ({exc}) — chart "
+                    f"rendering stays serialized on one worker"
+                )
+                _SCOPED_KALEIDO = False
+    return _SCOPED_KALEIDO
+
+
+def _get_kaleido_scope():
+    """This thread's own ``PlotlyScope`` (and its own Chrome), created lazily.
+
+    kaleido v0 only — see :func:`_ensure_kaleido_v1_browser` for v1.
+    """
+    scope = getattr(_kaleido_local, "scope", None)
+    if scope is None:
+        from kaleido.scopes.plotly import PlotlyScope
+        scope = _kaleido_local.scope = PlotlyScope()
+    return scope
+
+
+# --- kaleido v1: one shared multi-tab browser on its own event-loop thread ---
+
+_kaleido_v1_lock = threading.Lock()
+_kaleido_v1_loop = None       # asyncio.AbstractEventLoop, once opened
+_kaleido_v1_browser = None    # kaleido.kaleido.Kaleido, once opened
+
+
+def _ensure_kaleido_v1_browser():
+    """Open the one shared kaleido v1 browser, sized to the kaleido lane
+    width, the first time it's needed. Reused for the process lifetime —
+    opening a browser costs a Chrome launch, same as v0's per-thread scopes
+    never being torn down between renders.
+    """
+    global _kaleido_v1_loop, _kaleido_v1_browser
+    if _kaleido_v1_browser is not None:
+        return
+    with _kaleido_v1_lock:
+        if _kaleido_v1_browser is not None:
+            return
+        import asyncio
+        import atexit
+        from kaleido.kaleido import Kaleido
+        from .ee_concurrency import lane_width
+
+        n = max(1, lane_width("kaleido"))
+        loop = asyncio.new_event_loop()
+        threading.Thread(
+            target=loop.run_forever, daemon=True, name="kaleido-v1-loop"
+        ).start()
+        browser = Kaleido(n=n)
+        asyncio.run_coroutine_threadsafe(browser.__aenter__(), loop).result(timeout=60)
+
+        def _close():
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    browser.__aexit__(None, None, None), loop
+                ).result(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+            loop.call_soon_threadsafe(loop.stop)
+
+        atexit.register(_close)
+        _kaleido_v1_loop = loop
+        _kaleido_v1_browser = browser
+        logger.info(f"kaleido v1 browser opened with {n} tab(s)")
+
+
+def _kaleido_v1_render(spec: dict, format: str, width, height, scale: float) -> bytes:
+    """Render one figure spec on the shared v1 browser from any thread.
+
+    Concurrent callers each block on their own ``run_coroutine_threadsafe``
+    future while the event-loop thread runs their ``calc_fig()`` coroutines
+    concurrently — each pulls a free tab from the browser's internal queue,
+    so up to *n* callers really do render at once.
+    """
+    import asyncio
+
+    _ensure_kaleido_v1_browser()
+    opts: dict = {"format": format, "scale": scale}
+    if width is not None:
+        opts["width"] = width
+    if height is not None:
+        opts["height"] = height
+    coro = _kaleido_v1_browser.calc_fig(spec, opts=opts)
+    return asyncio.run_coroutine_threadsafe(coro, _kaleido_v1_loop).result(timeout=90)
+
+
+def _plotly_to_png_bytes(
+    fig,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    scale: float = 1.0,
+) -> Optional[bytes]:
+    """Convert Plotly figure to PNG bytes (requires kaleido).
+
+    When *width*/*height* are omitted, kaleido uses the figure's own layout
+    dimensions (or its default 700×450 if none are set).  Pass ``scale`` > 1
+    for high-DPI export (scale=2 → @2× / print quality).
+
+    Renders concurrently — via a per-thread ``PlotlyScope`` on kaleido v0, or
+    the shared multi-tab browser on kaleido v1 (see the module docstring
+    above) — so several charts can render at once; falls back to
+    ``fig.to_image()`` only when scoped rendering is unavailable, in which
+    case the render lane stays single-worker.
+    """
+    try:
+        import plotly.graph_objects as go
+        spec = fig.to_dict() if isinstance(fig, go.Figure) else fig
+
+        if scoped_kaleido_available():
+            if _kaleido_major() >= 1:
+                return _kaleido_v1_render(spec, "png", width, height, scale)
+            kwargs: dict = {"format": "png", "scale": scale}
+            if width is not None:
+                kwargs["width"] = width
+            if height is not None:
+                kwargs["height"] = height
+            return _get_kaleido_scope().transform(spec, **kwargs)
+
+        kwargs = {"format": "png", "scale": scale}
+        if width is not None:
+            kwargs["width"] = width
+        if height is not None:
+            kwargs["height"] = height
+        return fig.to_image(**kwargs)
+    except Exception as e:
+        logger.warning(f"Plotly → PNG failed (install kaleido): {e}")
+        return None
+
+
+class FigureExportOptions:
+    """Run-scoped PNG policy for :func:`_write_fig`.
+
+    A batch run writes ~83 figures per territory through section writers nested
+    several calls deep, so threading per-run PNG settings down as parameters
+    would touch every writer signature. This is a deliberate module-level
+    default instead, with two rules that keep it safe:
+
+    * **Explicit arguments always win.** The interactive geometry/territory
+      export passes its own width/scale and pins ``png_enabled=True``, so it
+      keeps print-quality output no matter what a batch has configured.
+    * **Set once per run, never per territory**, via :func:`figure_export`. All
+      render lanes in a run share one value, so concurrent lanes cannot observe
+      a half-applied change.
+
+    ``png`` False skips PNG entirely — the HTML is always written, and PNGs are
+    ~90% of a batch archive's bytes (449 MB of 503 MB in a measured 18-territory
+    run). ``scale`` below 1.0 shrinks them further.
+    """
+
+    __slots__ = ("png", "scale")
+
+    def __init__(self, png: bool = True, scale: float = 1.0):
+        self.png = png
+        self.scale = scale
+
+
+#: Current run's policy. Batch runs set this; everything else leaves it alone.
+FIGURE_EXPORT = FigureExportOptions()
+
+
+@contextmanager
+def figure_export(png: bool = True, scale: float = 1.0):
+    """Apply a PNG policy for the duration of a run, then restore it."""
+    global FIGURE_EXPORT
+    previous = FIGURE_EXPORT
+    FIGURE_EXPORT = FigureExportOptions(png=png, scale=scale)
+    try:
+        yield FIGURE_EXPORT
+    finally:
+        FIGURE_EXPORT = previous
+
+
+def _write_fig(
+    zf: zipfile.ZipFile,
+    base_path: str,
+    fig,
+    png_width: Optional[int] = None,
+    png_height: Optional[int] = None,
+    png_scale: Optional[float] = None,
+    png_enabled: Optional[bool] = None,
+) -> None:
+    """Write both .html and (if kaleido available) .png versions of a figure.
+
+    *png_scale* / *png_enabled* default to the run-scoped
+    :data:`FIGURE_EXPORT` policy when not given; passing them explicitly
+    overrides it. Pass ``png_scale=2.0`` (leaving *png_width*/*png_height*
+    unset) so kaleido uses the figure's own layout dimensions at @2× pixel
+    density — print-ready quality.
+    """
+    if fig is None:
+        return
+    opts = FIGURE_EXPORT
+    want_png = opts.png if png_enabled is None else png_enabled
+    scale = opts.scale if png_scale is None else png_scale
+    try:
+        import plotly.graph_objects as go
+        if isinstance(fig, dict):
+            fig = go.Figure(fig)
+        # Always try HTML first (no extra deps) — it stays even when PNG is off,
+        # so a no-PNG run is still a complete, readable export.
+        html = _plotly_to_html_bytes(fig)
+        if html:
+            zf.writestr(base_path + ".html", html)
+        if not want_png:
+            return
+        png = _plotly_to_png_bytes(fig, width=png_width, height=png_height, scale=scale)
+        if png:
+            zf.writestr(base_path + ".png", png)
+    except Exception as e:
+        logger.warning(f"Could not write figure '{base_path}': {e}")
+
+
+def _geojson_from_features(features: List[Dict]) -> Dict:
+    fc = {"type": "FeatureCollection", "features": []}
+    for feat in features:
+        geom = feat.get("geometry")
+        if not geom and "coordinates" in feat:
+            geom = {"type": feat.get("type", "Polygon"), "coordinates": feat["coordinates"]}
+        if geom:
+            fc["features"].append({
+                "type": "Feature",
+                "geometry": geom,
+                "properties": feat.get("properties", {"name": feat.get("name", "Unknown")}),
+            })
+    return fc
+
+
+# ---------------------------------------------------------------------------
+# Section writers  (territory or buffer, same logic)
+# ---------------------------------------------------------------------------
+
+def _write_mapbiomas_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    single_year_result: Optional[Dict] = None,
+    single_year_result_extra: Optional[Dict] = None,
+    comparison_result: Optional[Dict] = None,
+    territory_result_y1: Optional[List[Dict]] = None,
+    territory_result_y2: Optional[List[Dict]] = None,
+    transitions: Optional[Dict] = None,
+    bar_chart=None,
+    pie_chart=None,
+    bar_chart_extra=None,
+    pie_chart_extra=None,
+    comparison_bar_chart=None,
+    gains_losses_chart=None,
+    change_pct_chart=None,
+    sankey_chart=None,
+    sunburst_chart=None,
+    treemap_chart=None,
+    transition_matrix_chart=None,
+    name_suffix: str = "",
+) -> None:
+    """Write MapBiomas CSVs + figures into base_dir/mapbiomas/.
+
+    ``name_suffix`` is appended to every base filename right before the
+    extension — used to tag buffer outputs (e.g. ``_Buffer_10km``).
+
+    ``single_year_result_extra`` (plus matching ``bar_chart_extra`` /
+    ``pie_chart_extra``) writes a second single-year landcover CSV +
+    distribution/pie figures — so a comparison run produces parallel y1
+    and y2 outputs for both territory and buffer.
+    """
+    mb_dir = f"{base_dir}/mapbiomas"
+    sfx = name_suffix
+
+    # --- Single-year land-cover CSVs (primary + optional extra) ---
+    single_pairs = [
+        (single_year_result, bar_chart, pie_chart),
+        (single_year_result_extra, bar_chart_extra, pie_chart_extra),
+    ]
+    seen_single_years = set()
+    for syr, _bc, _pc in single_pairs:
+        if not syr:
+            continue
+        data = syr.get("data", [])
+        year = syr.get("year", "")
+        if data and year not in seen_single_years:
+            df = pd.DataFrame(data)
+            zf.writestr(
+                f"{mb_dir}/{slug}_mapbiomas_{year}_landcover{sfx}.csv",
+                _df_to_csv_bytes(df),
+            )
+            seen_single_years.add(year)
+
+    # --- Raw year1 / year2 data rows (from territory_result / territory_result_year2) ---
+    if territory_result_y1 and comparison_result:
+        y1 = comparison_result.get("year_start", "")
+        df = pd.DataFrame(territory_result_y1)
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas_{y1}_raw_classes{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+    if territory_result_y2 and comparison_result:
+        y2 = comparison_result.get("year_end", "")
+        df = pd.DataFrame(territory_result_y2)
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas_{y2}_raw_classes{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # --- Comparison gains/losses CSV ---
+    if comparison_result:
+        data = comparison_result.get("data", [])
+        y1 = comparison_result.get("year_start", "")
+        y2 = comparison_result.get("year_end", "")
+        if data:
+            df = pd.DataFrame(data)
+            zf.writestr(
+                f"{mb_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison{sfx}.csv",
+                _df_to_csv_bytes(df),
+            )
+
+    # --- Transitions JSON ---
+    if transitions:
+        y1 = (comparison_result or {}).get("year_start", "")
+        y2 = (comparison_result or {}).get("year_end", "")
+        label = f"_{y1}_vs_{y2}" if y1 and y2 else ""
+        zf.writestr(
+            f"{mb_dir}/{slug}_mapbiomas{label}_transitions{sfx}.json",
+            json.dumps(transitions, indent=2, default=str),
+        )
+
+    # --- Figures ---
+    fig_dir = f"{mb_dir}/figures"
+    y1 = (comparison_result or {}).get("year_start", "")
+    y2 = (comparison_result or {}).get("year_end", "")
+
+    # Single-year distribution + pie for each provided result (skip duplicates)
+    seen_fig_years = set()
+    for syr, bc, pc in single_pairs:
+        if not syr:
+            continue
+        year = syr.get("year", "")
+        if not year or year in seen_fig_years:
+            continue
+        if bc is not None:
+            _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_distribution{sfx}", bc)
+        if pc is not None:
+            _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{year}_composition_pie{sfx}", pc)
+        seen_fig_years.add(year)
+
+    if comparison_bar_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_comparison_bars{sfx}", comparison_bar_chart)
+    if gains_losses_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_gains_losses{sfx}", gains_losses_chart)
+    if change_pct_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_change_pct{sfx}", change_pct_chart)
+    if sankey_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sankey{sfx}", sankey_chart)
+    if sunburst_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_sunburst{sfx}", sunburst_chart)
+    if treemap_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_class_transitions_treemap{sfx}", treemap_chart)
+    if transition_matrix_chart is not None and y1 and y2:
+        _write_fig(zf, f"{fig_dir}/{slug}_mapbiomas_{y1}_vs_{y2}_transition_matrix{sfx}", transition_matrix_chart)
+
+
+def _write_hansen_glad_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    glad_result: Optional[Dict] = None,
+    bar_chart=None,
+    name_suffix: str = "",
+) -> None:
+    """Write Hansen GLAD CSV + figure into base_dir/hansen_glad/."""
+    if not glad_result:
+        return
+    gl_dir = f"{base_dir}/hansen_glad"
+    sfx = name_suffix
+    data = glad_result.get("data", [])
+    year = glad_result.get("summary", {}).get("year", "")
+    if data:
+        df = pd.DataFrame(data)
+        zf.writestr(
+            f"{gl_dir}/{slug}_hansen_glad_{year}_distribution{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+    if bar_chart is not None and year:
+        _write_fig(
+            zf,
+            f"{gl_dir}/figures/{slug}_hansen_glad_{year}_distribution{sfx}",
+            bar_chart,
+        )
+
+
+def _write_hansen_gfc_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    gfc_result: Optional[Dict] = None,
+    bar_chart=None,
+    loss_chart=None,
+    name_suffix: str = "",
+) -> None:
+    """Write Hansen GFC CSVs + figures into base_dir/hansen_gfc/."""
+    if not gfc_result:
+        return
+    gfc_dir = f"{base_dir}/hansen_gfc"
+    sfx = name_suffix
+
+    # Summary metrics
+    data = gfc_result.get("data", [])
+    if data:
+        df = pd.DataFrame(data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_summary{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # Loss by year (Year_Code > 0)
+    loss_data = [r for r in gfc_result.get("tree_loss_data", []) if r.get("Year_Code", 0) > 0]
+    if loss_data:
+        df_loss = pd.DataFrame(loss_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_loss_by_year{sfx}.csv",
+            _df_to_csv_bytes(df_loss),
+        )
+
+    # Gain summary
+    gain_data = gfc_result.get("tree_gain_data", [])
+    if gain_data:
+        df_gain = pd.DataFrame(gain_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_gain{sfx}.csv",
+            _df_to_csv_bytes(df_gain),
+        )
+
+    # Tree cover categories
+    cover_data = gfc_result.get("tree_cover_data", [])
+    if cover_data:
+        df_cover = pd.DataFrame(cover_data)
+        zf.writestr(
+            f"{gfc_dir}/{slug}_hansen_gfc_tree_cover_2000{sfx}.csv",
+            _df_to_csv_bytes(df_cover),
+        )
+
+    fig_dir = f"{gfc_dir}/figures"
+    if bar_chart is not None:
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_summary{sfx}", bar_chart)
+    if loss_chart is not None and loss_data:
+        _write_fig(zf, f"{fig_dir}/{slug}_hansen_gfc_loss_by_year{sfx}", loss_chart)
+
+
+# ---------------------------------------------------------------------------
+# Multi-window MapBiomas section
+# ---------------------------------------------------------------------------
+
+def _write_multi_window_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    mw_result: Optional[Dict] = None,
+    name_suffix: str = "",
+    include_treemaps: bool = True,
+) -> None:
+    """Write the multi-time-window MapBiomas outputs.
+
+    ``mw_result`` must have the shape::
+
+        {
+            "years": [1985, 1993, 2001, ..., 2024],
+            "pairs": [
+                {"year_from": 1985, "year_to": 1993, "transitions": {...}},
+                ...
+            ],
+        }
+
+    Produces (inside ``base_dir/mapbiomas_multi_window/``):
+      * one combined long-format CSV with columns
+        ``year_from, year_to, class_from, class_to, area_ha``
+      * one combined multi-stage Sankey (PNG + HTML)
+      * one Sunburst per consecutive pair (PNG + HTML)
+    """
+    if not mw_result:
+        return
+    pairs = mw_result.get("pairs") or []
+    years = mw_result.get("years") or []
+    if not pairs or len(years) < 2:
+        return
+
+    mw_dir = f"{base_dir}/mapbiomas_multi_window"
+    fig_dir = f"{mw_dir}/figures"
+    sfx = name_suffix
+    # Join every year only for short lists; longer lists (1-2 year steps can
+    # resolve to 20-40 years) collapse to a range + count so the filename
+    # stays well under filesystem path-component limits (~255 bytes).
+    if len(years) <= 6:
+        years_tag = "_".join(str(y) for y in years)
+    else:
+        years_tag = f"{years[0]}-{years[-1]}_n{len(years)}"
+    base_name = f"{slug}_mapbiomas_multi_window_{years_tag}"
+
+    # ---- Combined long-format CSV ---------------------------------------
+    rows: List[Dict[str, Any]] = []
+    for pair in pairs:
+        y_from = pair.get("year_from")
+        y_to = pair.get("year_to")
+        for src_id, tgt_dict in (pair.get("transitions") or {}).items():
+            if not isinstance(tgt_dict, dict):
+                continue
+            for tgt_id, area in tgt_dict.items():
+                if not isinstance(area, (int, float)) or area <= 0:
+                    continue
+                rows.append({
+                    "year_from": y_from,
+                    "year_to": y_to,
+                    "class_from": src_id,
+                    "class_to": tgt_id,
+                    "area_ha": float(area),
+                })
+    if rows:
+        df = pd.DataFrame(rows)
+        zf.writestr(
+            f"{mw_dir}/{base_name}_transitions{sfx}.csv",
+            _df_to_csv_bytes(df),
+        )
+
+    # ---- Figures (Sankey + per-pair sunbursts + per-pair treemaps) ------
+    try:
+        from .visualization import (
+            create_multi_stage_sankey, create_sunburst_transitions,
+            create_class_transition_treemaps,
+        )
+    except Exception as e:
+        logger.warning(f"Could not import visualization helpers for multi-window: {e}")
+        return
+
+    try:
+        stages = [
+            (p["year_from"], p["year_to"], p.get("transitions") or {})
+            for p in pairs
+        ]
+        sankey_fig = create_multi_stage_sankey(stages)
+        if sankey_fig is not None:
+            _write_fig(zf, f"{fig_dir}/{base_name}_sankey{sfx}", sankey_fig)
+    except Exception as e:
+        logger.warning(f"multi-window sankey build failed: {e}")
+
+    for pair in pairs:
+        y_from = pair.get("year_from")
+        y_to = pair.get("year_to")
+        tdict = pair.get("transitions") or {}
+        if not tdict:
+            continue
+        try:
+            sun_fig = create_sunburst_transitions(tdict, year_start=y_from, year_end=y_to)
+            if sun_fig is not None:
+                _write_fig(
+                    zf,
+                    f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_sunburst{sfx}",
+                    sun_fig,
+                )
+        except Exception as e:
+            logger.warning(f"multi-window sunburst {y_from}->{y_to} failed: {e}")
+        if include_treemaps:
+            try:
+                tree_fig = create_class_transition_treemaps(tdict, y_from, y_to)
+                if tree_fig is not None:
+                    _write_fig(
+                        zf,
+                        f"{fig_dir}/{slug}_mapbiomas_{y_from}_vs_{y_to}_class_transitions_treemap{sfx}",
+                        tree_fig,
+                    )
+            except Exception as e:
+                logger.warning(f"multi-window treemap {y_from}->{y_to} failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Deforestation timeline section
+# ---------------------------------------------------------------------------
+
+def _write_timeline_section(
+    zf: zipfile.ZipFile,
+    base_dir: str,
+    slug: str,
+    *,
+    series: Optional[Dict[str, Dict]] = None,
+    year_start: int = 0,
+    year_end: int = 0,
+    state_code: Optional[str] = None,
+    territory_name: str = "",
+    territory_type: str = "indigenous",
+    title_extra: str = "",
+    name_suffix: str = "",
+) -> None:
+    """Write the deforestation-timeline CSV + 3 chart variants.
+
+    Mirrors the batch pipeline naming so interactive and batch exports merge
+    cleanly::
+
+        deforestation_timeline/{slug}_deforestation_timeline_{y1}_{y2}{sfx}.csv
+        deforestation_timeline/figures/
+            {slug}_deforestation_timeline_{y1}_{y2}_{raw|ma5|derivatives}{sfx}.png/.html
+
+    ``series`` is ``{indicator: {year: ha}}`` from
+    ``deforestation_timeline.collect_timeline``. Figures are rebuilt here (not
+    taken from state) so the export always carries the full context chart —
+    political stripes, ENSO strip, and policy rows included.
+    """
+    if not series or not year_start or not year_end:
+        return
+    y1, y2 = int(year_start), int(year_end)
+    if y2 < y1:
+        y1, y2 = y2, y1
+    tl_dir = f"{base_dir}/deforestation_timeline"
+    sfx = name_suffix
+
+    # Wide CSV: one row per year, one column per indicator (int or str year keys)
+    years = list(range(y1, y2 + 1))
+    rows: List[Dict[str, Any]] = []
+    for y in years:
+        row: Dict[str, Any] = {"year": y}
+        for k, ser in series.items():
+            try:
+                val = (ser or {}).get(y, (ser or {}).get(str(y), 0.0))
+                row[k] = float(val or 0.0)
+            except Exception:
+                row[k] = 0.0
+        rows.append(row)
+    zf.writestr(
+        f"{tl_dir}/{slug}_deforestation_timeline_{y1}_{y2}{sfx}.csv",
+        _df_to_csv_bytes(pd.DataFrame(rows)),
+    )
+
+    try:
+        from .visualization import create_deforestation_timeline_chart
+    except Exception as e:
+        logger.warning(f"timeline visualization import failed: {e}")
+        return
+
+    fig_dir = f"{tl_dir}/figures"
+    for variant, suffix in (
+        ("raw", "raw"),
+        ("moving_avg", "ma5"),
+        ("derivatives", "derivatives"),
+    ):
+        try:
+            fig = create_deforestation_timeline_chart(
+                series,
+                state_code=state_code,
+                year_start=y1,
+                year_end=y2,
+                variant=variant,
+                moving_window=5,
+                title_suffix=f"{territory_name}{title_extra}",
+                territory_name=territory_name,
+                territory_type=territory_type,
+            )
+            if fig is not None:
+                _write_fig(
+                    zf,
+                    f"{fig_dir}/{slug}_deforestation_timeline_{y1}_{y2}_{suffix}{sfx}",
+                    fig,
+                    # Interactive export: print quality, pinned so a batch's
+                    # run-scoped PNG policy can never downgrade it.
+                    png_width=1400, png_scale=2.0, png_enabled=True,
+                )
+        except Exception as e:
+            logger.warning(f"timeline figure ({variant}) failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Main export function
+# ---------------------------------------------------------------------------
+
+def create_export_zip(
+    # Territory identity
+    territory_name: str = "",
+    territory_year: int = 0,
+    territory_year2: Optional[int] = None,
+    territory_source: str = "MapBiomas",
+    # Territory analysis data
+    analysis_results: Optional[Dict[str, Any]] = None,
+    mapbiomas_analysis_result: Optional[Dict[str, Any]] = None,
+    comparison_result: Optional[Dict[str, Any]] = None,
+    territory_result: Optional[List[Dict]] = None,
+    territory_result_year2: Optional[List[Dict]] = None,
+    territory_transitions: Optional[Dict] = None,
+    glad_result: Optional[Dict[str, Any]] = None,
+    gfc_result: Optional[Dict[str, Any]] = None,
+    territory_geojson_cached: Optional[Dict] = None,
+    drawn_features: Optional[List[Dict]] = None,
+    # Territory figures
+    territory_figures: Optional[Dict[str, Any]] = None,
+    # Buffer identity + data
+    buffer_name: str = "",
+    buffer_mapbiomas_result: Optional[Dict[str, Any]] = None,
+    buffer_comparison_result: Optional[Dict[str, Any]] = None,   # year2 single-year
+    buffer_mapbiomas_comparison_result: Optional[Dict[str, Any]] = None,
+    buffer_territory_transitions: Optional[Dict] = None,
+    buffer_hansen_result: Optional[Dict[str, Any]] = None,
+    buffer_gfc_result: Optional[Dict[str, Any]] = None,
+    # Buffer figures
+    buffer_figures: Optional[Dict[str, Any]] = None,
+    # Advanced viz: multi-window transitions + deforestation timeline
+    mw_result: Optional[Dict[str, Any]] = None,
+    buffer_mw_result: Optional[Dict[str, Any]] = None,
+    #: {"series", "buffer_series", "state_code", "year_start", "year_end",
+    #:  "territory_type"} — from the interactive timeline run
+    timeline: Optional[Dict[str, Any]] = None,
+    # Legacy parameter (ignored, kept for backwards compat)
+    plotly_figures: Optional[Dict[str, Any]] = None,
+) -> bytes:
+    """Build and return a well-structured ZIP archive for download."""
+    buf = io.BytesIO()
+    analysis_results = analysis_results or {}
+    territory_figures = territory_figures or {}
+    buffer_figures = buffer_figures or {}
+
+    t_slug = _slug(territory_name) if territory_name else "territory"
+    b_slug = _slug(buffer_name) if buffer_name else (f"{t_slug}_buffer" if t_slug else "buffer")
+    timestamp = datetime.now().isoformat()
+
+    y1 = (comparison_result or {}).get("year_start", territory_year or "")
+    y2 = (comparison_result or {}).get("year_end", territory_year2 or "")
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+
+        # ── metadata.json ────────────────────────────────────────────────────
+        metadata = {
+            "app": "Yvynation – Indigenous Land Monitoring",
+            "export_timestamp": timestamp,
+            "territory": territory_name or "N/A",
+            "territory_slug": t_slug,
+            "year_primary": territory_year,
+            "year_comparison": territory_year2,
+            "source": territory_source,
+            "has_comparison": comparison_result is not None,
+            "has_multi_window": bool((mw_result or {}).get("pairs")),
+            "has_timeline": bool((timeline or {}).get("series")),
+            "has_buffer": bool(buffer_name),
+            "buffer_name": buffer_name or None,
+            "buffer_slug": b_slug if buffer_name else None,
+            "num_drawn_polygons": len(drawn_features) if drawn_features else 0,
+        }
+        zf.writestr("metadata.json", json.dumps(metadata, indent=2, default=str))
+
+        # ── README.md ────────────────────────────────────────────────────────
+        readme_lines = [
+            "# Yvynation Analysis Export",
+            "",
+            f"**Generated:** {timestamp}",
+            f"**Territory:** {territory_name or 'N/A'}",
+            f"**Source:** {territory_source}",
+        ]
+        if territory_year:
+            readme_lines.append(f"**Primary year:** {territory_year}")
+        if territory_year2:
+            readme_lines.append(f"**Comparison year:** {territory_year2}")
+        if buffer_name:
+            readme_lines.append(f"**Buffer zone:** {buffer_name}")
+        readme_lines += [
+            "",
+            "## Folder structure",
+            "",
+            "```",
+            "territory/{slug}/",
+            "  mapbiomas/                ← land-cover CSVs + figures",
+            "  hansen_glad/              ← forest-cover snapshot CSVs + figures",
+            "  hansen_gfc/               ← annual loss/gain CSVs + figures",
+            "  mapbiomas_multi_window/   ← multi-year Sankey/Sunburst transitions (when run)",
+            "  deforestation_timeline/   ← annual indicators + political/ENSO context (when run)",
+            "  boundary.geojson          ← territory polygon",
+            "buffer/{slug}/              ← same sub-structure for the buffer ring",
+            "geometries.geojson          ← any manually drawn features",
+            "```",
+            "",
+            "## File naming convention",
+            "",
+            "Every file is prefixed with the territory slug so that exports",
+            "from multiple territories can be merged into one flat folder",
+            "without name collisions. Buffer outputs append a `_Buffer_{km}km`",
+            "suffix at the end (just before the extension) so they sort",
+            "directly after the matching territory file.",
+            "",
+            "Pattern: `{territory_slug}_{dataset}_{year(s)}_{chart_type}[_Buffer_{km}km].ext`",
+            "",
+            "Examples:",
+            f"  `{t_slug}_mapbiomas_{territory_year}_landcover.csv`",
+            f"  `{t_slug}_mapbiomas_{y1}_vs_{y2}_gains_losses.png`",
+            f"  `{t_slug}_hansen_gfc_loss_by_year_Buffer_10km.csv`",
+        ]
+        zf.writestr("README.md", "\n".join(readme_lines))
+
+        # ── Drawn features ───────────────────────────────────────────────────
+        if drawn_features:
+            fc = _geojson_from_features(drawn_features)
+            zf.writestr("geometries.geojson", json.dumps(fc, indent=2, default=str))
+
+        # ── Territory boundary ───────────────────────────────────────────────
+        terr_base = f"territory/{t_slug}"
+        if territory_geojson_cached:
+            zf.writestr(
+                f"{terr_base}/boundary.geojson",
+                json.dumps(territory_geojson_cached, indent=2, default=str),
+            )
+
+        # ── Territory MapBiomas ──────────────────────────────────────────────
+        _write_mapbiomas_section(
+            zf, terr_base, t_slug,
+            single_year_result=mapbiomas_analysis_result or (
+                analysis_results if analysis_results.get("type") == "mapbiomas" else None
+            ),
+            comparison_result=comparison_result,
+            territory_result_y1=territory_result,
+            territory_result_y2=territory_result_year2,
+            transitions=territory_transitions,
+            bar_chart=territory_figures.get("mapbiomas_bar"),
+            pie_chart=territory_figures.get("mapbiomas_pie"),
+            comparison_bar_chart=territory_figures.get("comparison_bar"),
+            gains_losses_chart=territory_figures.get("gains_losses"),
+            change_pct_chart=territory_figures.get("change_pct"),
+            sankey_chart=territory_figures.get("sankey"),
+            sunburst_chart=territory_figures.get("sunburst"),
+            treemap_chart=territory_figures.get("treemap"),
+            transition_matrix_chart=territory_figures.get("transition_matrix"),
+        )
+
+        # ── Territory Hansen GLAD ────────────────────────────────────────────
+        _write_hansen_glad_section(
+            zf, terr_base, t_slug,
+            glad_result=glad_result,
+            bar_chart=territory_figures.get("hansen_glad_bar"),
+        )
+
+        # ── Territory Hansen GFC ─────────────────────────────────────────────
+        _write_hansen_gfc_section(
+            zf, terr_base, t_slug,
+            gfc_result=gfc_result,
+            bar_chart=territory_figures.get("gfc_bar"),
+            loss_chart=territory_figures.get("gfc_loss"),
+        )
+
+        # ── Territory multi-window MapBiomas transitions ─────────────────────
+        _write_multi_window_section(
+            zf, terr_base, t_slug,
+            mw_result=mw_result,
+        )
+
+        # ── Territory deforestation timeline ─────────────────────────────────
+        if timeline and timeline.get("series"):
+            _write_timeline_section(
+                zf, terr_base, t_slug,
+                series=timeline.get("series"),
+                year_start=timeline.get("year_start") or 0,
+                year_end=timeline.get("year_end") or 0,
+                state_code=timeline.get("state_code") or None,
+                territory_name=territory_name,
+                territory_type=timeline.get("territory_type") or "indigenous",
+            )
+
+        # ── Buffer sections (only when buffer data exists) ───────────────────
+        if any([
+            buffer_mapbiomas_result,
+            buffer_mapbiomas_comparison_result,
+            buffer_hansen_result,
+            buffer_gfc_result,
+            buffer_mw_result,
+            (timeline or {}).get("buffer_series"),
+        ]):
+            buf_base = f"buffer/{b_slug}"
+
+            # File-name slug stays as the territory slug; the buffer marker
+            # (e.g. "_Buffer_10km") is appended *after* the dataset/year so
+            # files like {terr}_hansen_gfc_summary_Buffer_10km.png group with
+            # their territory counterparts when listed alphabetically.
+            if b_slug.startswith(t_slug):
+                buf_suffix = b_slug[len(t_slug):]
+                if buf_suffix and not buf_suffix.startswith("_"):
+                    buf_suffix = "_" + buf_suffix
+            else:
+                buf_suffix = "_" + b_slug
+
+            # Buffer MapBiomas — single year comes from buffer_mapbiomas_result (year1)
+            # or buffer_comparison_result (year2); comparison from buffer_mapbiomas_comparison_result
+            _write_mapbiomas_section(
+                zf, buf_base, t_slug,
+                single_year_result=buffer_mapbiomas_result,
+                comparison_result=buffer_mapbiomas_comparison_result,
+                transitions=buffer_territory_transitions,
+                bar_chart=buffer_figures.get("mapbiomas_bar"),
+                comparison_bar_chart=buffer_figures.get("comparison_bar"),
+                gains_losses_chart=buffer_figures.get("gains_losses"),
+                change_pct_chart=buffer_figures.get("change_pct"),
+                sankey_chart=buffer_figures.get("sankey"),
+                sunburst_chart=buffer_figures.get("sunburst"),
+                treemap_chart=buffer_figures.get("treemap"),
+                transition_matrix_chart=buffer_figures.get("transition_matrix"),
+                name_suffix=buf_suffix,
+            )
+
+            # Buffer Hansen GLAD
+            _write_hansen_glad_section(
+                zf, buf_base, t_slug,
+                glad_result=buffer_hansen_result,
+                bar_chart=buffer_figures.get("hansen_glad_bar"),
+                name_suffix=buf_suffix,
+            )
+
+            # Buffer Hansen GFC
+            _write_hansen_gfc_section(
+                zf, buf_base, t_slug,
+                gfc_result=buffer_gfc_result,
+                bar_chart=buffer_figures.get("gfc_bar"),
+                loss_chart=buffer_figures.get("gfc_loss"),
+                name_suffix=buf_suffix,
+            )
+
+            # Buffer multi-window MapBiomas transitions
+            _write_multi_window_section(
+                zf, buf_base, t_slug,
+                mw_result=buffer_mw_result,
+                name_suffix=buf_suffix,
+            )
+
+            # Buffer deforestation timeline
+            if timeline and timeline.get("buffer_series"):
+                _write_timeline_section(
+                    zf, buf_base, t_slug,
+                    series=timeline.get("buffer_series"),
+                    year_start=timeline.get("year_start") or 0,
+                    year_end=timeline.get("year_end") or 0,
+                    state_code=timeline.get("state_code") or None,
+                    territory_name=territory_name,
+                    territory_type=timeline.get("territory_type") or "indigenous",
+                    title_extra=f" — {buffer_name}" if buffer_name else " — Buffer",
+                    name_suffix=buf_suffix,
+                )
+
+    buf.seek(0)
+    return buf.read()
+
+
+# ---------------------------------------------------------------------------
+# Convenience: collect export data from AppState
+# ---------------------------------------------------------------------------
+
+def collect_export_data_from_state(state) -> Dict[str, Any]:
+    """Collect all exportable data from an AppState instance."""
+
+    # ── Territory figures ────────────────────────────────────────────────────
+    terr_figs: Dict[str, Any] = {}
+    try:
+        if state.mapbiomas_bar_chart:
+            terr_figs["mapbiomas_bar"] = state.mapbiomas_bar_chart
+        if state.mapbiomas_pie_chart:
+            terr_figs["mapbiomas_pie"] = state.mapbiomas_pie_chart
+        if state.comparison_chart:
+            terr_figs["comparison_bar"] = state.comparison_chart
+        if state.gains_losses_chart:
+            terr_figs["gains_losses"] = state.gains_losses_chart
+        if state.change_pct_chart:
+            terr_figs["change_pct"] = state.change_pct_chart
+        if state.sankey_chart:
+            terr_figs["sankey"] = state.sankey_chart
+        if state.sunburst_transitions_chart:
+            terr_figs["sunburst"] = state.sunburst_transitions_chart
+        if state.treemap_transitions_chart:
+            terr_figs["treemap"] = state.treemap_transitions_chart
+        if state.transition_matrix_chart:
+            terr_figs["transition_matrix"] = state.transition_matrix_chart
+        if state.glad_bar_chart:
+            terr_figs["hansen_glad_bar"] = state.glad_bar_chart
+        elif state.hansen_balance_chart:
+            terr_figs["hansen_glad_bar"] = state.hansen_balance_chart
+        if state.gfc_bar_chart:
+            terr_figs["gfc_bar"] = state.gfc_bar_chart
+        if state.gfc_loss_chart:
+            terr_figs["gfc_loss"] = state.gfc_loss_chart
+    except Exception as e:
+        logger.warning(f"Error collecting territory figures: {e}")
+
+    # ── Buffer figures ───────────────────────────────────────────────────────
+    buf_figs: Dict[str, Any] = {}
+    try:
+        if state.buffer_mapbiomas_bar_chart:
+            buf_figs["mapbiomas_bar"] = state.buffer_mapbiomas_bar_chart
+        if state.buffer_comparison_chart:
+            buf_figs["comparison_bar"] = state.buffer_comparison_chart
+        if state.buffer_compare_gains_losses_chart:
+            buf_figs["gains_losses"] = state.buffer_compare_gains_losses_chart
+        if state.buffer_compare_change_pct_chart:
+            buf_figs["change_pct"] = state.buffer_compare_change_pct_chart
+        if state.buffer_sankey_chart:
+            buf_figs["sankey"] = state.buffer_sankey_chart
+        if state.buffer_sunburst_chart:
+            buf_figs["sunburst"] = state.buffer_sunburst_chart
+        if state.buffer_treemap_chart:
+            buf_figs["treemap"] = state.buffer_treemap_chart
+        if state.buffer_transition_matrix_chart:
+            buf_figs["transition_matrix"] = state.buffer_transition_matrix_chart
+        if state.buffer_hansen_bar_chart:
+            buf_figs["hansen_glad_bar"] = state.buffer_hansen_bar_chart
+        if state.buffer_gfc_bar_chart:
+            buf_figs["gfc_bar"] = state.buffer_gfc_bar_chart
+        if state.buffer_gfc_loss_chart:
+            buf_figs["gfc_loss"] = state.buffer_gfc_loss_chart
+    except Exception as e:
+        logger.warning(f"Error collecting buffer figures: {e}")
+
+    # ── Territory result data ────────────────────────────────────────────────
+    t_result = state.territory_result
+    t_result_y2 = state.territory_result_year2
+    t_data = t_result.get("data", []) if isinstance(t_result, dict) else (t_result or [])
+    t_data_y2 = t_result_y2.get("data", []) if isinstance(t_result_y2, dict) else (t_result_y2 or [])
+
+    # ── Cached territory GeoJSON ─────────────────────────────────────────────
+    cached_geojson = None
+    try:
+        feats = state.territory_geojson_features
+        if feats:
+            cached_geojson = feats[0].get("geometry")
+    except Exception:
+        pass
+
+    # ── Buffer name ─────────────────────────────────────────────────────────
+    buffer_name = ""
+    try:
+        buffer_name = state.current_buffer_for_analysis or ""
+        if not buffer_name and state.buffer_mapbiomas_result:
+            buffer_name = state.buffer_mapbiomas_result.get("territory", "")
+        if not buffer_name and state.buffer_mapbiomas_comparison_result:
+            buffer_name = state.buffer_mapbiomas_comparison_result.get("territory", "")
+        if not buffer_name and any([
+            state.buffer_mapbiomas_result,
+            state.buffer_gfc_result,
+            state.buffer_hansen_result,
+        ]):
+            t = state.territory_name or state.selected_territory or ""
+            buffer_name = f"{t} - Buffer {state.auto_buffer_km:g}km" if t else "Buffer"
+    except Exception:
+        pass
+
+    # ── Advanced viz: multi-window + deforestation timeline ─────────────────
+    mw_result = None
+    buffer_mw_result = None
+    timeline = None
+    try:
+        if (state.mw_result or {}).get("pairs"):
+            mw_result = state.mw_result
+        if (state.buffer_mw_result or {}).get("pairs"):
+            buffer_mw_result = state.buffer_mw_result
+        if state.timeline_series:
+            timeline = {
+                "series": state.timeline_series,
+                "buffer_series": state.buffer_timeline_series or None,
+                "state_code": state.timeline_state_code or None,
+                "year_start": state.timeline_year_start,
+                "year_end": state.timeline_year_end,
+                "territory_type": state.timeline_territory_type or "indigenous",
+            }
+    except Exception as e:
+        logger.warning(f"Error collecting advanced-viz results: {e}")
+
+    return {
+        "territory_name": state.territory_name or state.selected_territory or "",
+        "territory_year": state.territory_year or state.mapbiomas_current_year,
+        "territory_year2": state.territory_year2,
+        "territory_source": state.territory_source,
+        "analysis_results": state.analysis_results,
+        "mapbiomas_analysis_result": state.mapbiomas_analysis_result,
+        "comparison_result": state.mapbiomas_comparison_result,
+        "territory_result": t_data or None,
+        "territory_result_year2": t_data_y2 or None,
+        "territory_transitions": state.territory_transitions,
+        "glad_result": state.geometry_glad_result or None,
+        "gfc_result": state.geometry_gfc_result or None,
+        "territory_geojson_cached": cached_geojson,
+        "drawn_features": state.drawn_features,
+        "territory_figures": terr_figs or None,
+        # Buffer
+        "buffer_name": buffer_name,
+        "buffer_mapbiomas_result": state.buffer_mapbiomas_result,
+        "buffer_comparison_result": state.buffer_compare_result,
+        "buffer_mapbiomas_comparison_result": state.buffer_mapbiomas_comparison_result,
+        "buffer_territory_transitions": state.buffer_territory_transitions,
+        "buffer_hansen_result": state.buffer_hansen_result,
+        "buffer_gfc_result": state.buffer_gfc_result,
+        "buffer_figures": buf_figs or None,
+        # Advanced viz
+        "mw_result": mw_result,
+        "buffer_mw_result": buffer_mw_result,
+        "timeline": timeline,
+    }

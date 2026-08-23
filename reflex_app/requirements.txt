@@ -1,0 +1,48 @@
+#Requirements for Yvynation Reflex Application.
+#Optimized for Cloud Run deployment.
+
+
+# Core
+reflex==0.8.27
+python-dotenv==1.0.0
+
+# Google Cloud & Earth Engine
+google-cloud-storage==2.14.0
+google-auth==2.27.0
+google-auth-oauthlib==1.2.1
+earthengine-api==1.7.4
+
+# Data Processing
+pandas>=2.2.0
+numpy>=2.0.0
+
+# Visualization
+plotly>=6.1.1
+matplotlib>=3.8.0
+seaborn>=0.13.0
+# PNG export for plotly figures (batch ZIP + interactive exports). Kaleido 1.x
+# dropped its bundled headless renderer and delegates to a system
+# Chrome/Chromium instead — the Cloud Run image installs `chromium` via apt
+# for exactly this (see Dockerfile). Exact-pinned, not >=, because an
+# unpinned kaleido silently drifting ahead of this file is what caused a
+# render-lane regression before this comment existed: 0.2.1's API
+# (kaleido.scopes.plotly.PlotlyScope) was removed outright in 1.x, so
+# export_service.py's concurrency trick must match whichever major version is
+# actually installed — see export_service.py's kaleido docstring for both.
+kaleido==1.3.0
+
+# Mapping
+folium>=0.15.0
+
+# Geospatial
+geopandas>=0.14.0
+shapely>=2.0.2
+pyproj>=3.6.0
+
+# Utilities
+pillow>=10.1.0
+requests>=2.31.0
+pydantic>=2.5.0
+
+# Production server (uvicorn is bundled with Reflex; gunicorn not needed)
+uvicorn==0.25.0

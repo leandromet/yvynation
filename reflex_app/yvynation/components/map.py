@@ -1,0 +1,230 @@
+"""
+Map component for Yvynation Reflex app.
+Renders Folium map with Earth Engine layers using reactive state.
+Includes drawing capture with Leaflet Draw integration via JS bridge.
+"""
+
+import reflex as rx
+from ..state import AppState
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# JavaScript that reaches into the Folium iframe, extracts drawn features
+# via the bridge we injected in map_builder.py, and returns the GeoJSON
+# string to Reflex's call_script callback.
+EXTRACT_DRAWINGS_JS = """
+(function() {
+    // The Folium map is rendered inside an iframe by rx.html()
+    var iframes = document.querySelectorAll('#map-container iframe');
+    if (!iframes.length) {
+        // Might be embedded directly (no iframe)
+        if (window._yvyExportFeatures) {
+            var fc = window._yvyExportFeatures();
+            return JSON.stringify(fc);
+        }
+        return JSON.stringify({"error": "No map iframe found and no direct bridge"});
+    }
+
+    var iframe = iframes[iframes.length - 1];
+    try {
+        var iframeWin = iframe.contentWindow || iframe.contentDocument;
+        if (iframeWin && iframeWin._yvyExportFeatures) {
+            var fc = iframeWin._yvyExportFeatures();
+            return JSON.stringify(fc);
+        } else if (iframeWin && iframeWin._yvyDrawnFeatures) {
+            return JSON.stringify(iframeWin._yvyDrawnFeatures);
+        } else {
+            // Bridge not ready yet - try to find drawn items manually
+            if (iframeWin && iframeWin.L) {
+                var fc = {"type": "FeatureCollection", "features": []};
+                // Search for drawn layers
+                for (var key in iframeWin) {
+                    try {
+                        if (iframeWin[key] instanceof iframeWin.L.Map) {
+                            iframeWin[key].eachLayer(function(layer) {
+                                if (layer instanceof iframeWin.L.Path && layer.toGeoJSON && layer.editing) {
+                                    fc.features.push(layer.toGeoJSON());
+                                }
+                            });
+                            break;
+                        }
+                    } catch(e) {}
+                }
+                if (fc.features.length > 0) {
+                    return JSON.stringify(fc);
+                }
+            }
+            return JSON.stringify({"error": "Draw bridge not initialized. Draw something on the map first, then try again."});
+        }
+    } catch(e) {
+        return JSON.stringify({"error": "Cannot access iframe: " + e.message + ". This may be a cross-origin issue."});
+    }
+})()
+"""
+
+
+EXTRACT_TERRITORY_JS = """
+(function() {
+    // First check if popup set the territory in the global window scope
+    if (window._yvyTerritory) {
+        var name = window._yvyTerritory;
+        window._yvyTerritory = null;
+        console.log('[ExtractTerritory] Found in global scope:', name);
+        return name;
+    }
+    
+    // Fall back to checking iframe
+    var iframes = document.querySelectorAll('#map-container iframe');
+    if (!iframes.length) {
+        if (window._yvySelectedTerritory) {
+            var name = window._yvySelectedTerritory;
+            window._yvySelectedTerritory = null;
+            return name;
+        }
+        return "";
+    }
+    var iframe = iframes[iframes.length - 1];
+    try {
+        var iframeWin = iframe.contentWindow || iframe.contentDocument;
+        if (iframeWin && iframeWin._yvyTerritory) {
+            var name = iframeWin._yvyTerritory;
+            iframeWin._yvyTerritory = null;
+            console.log('[ExtractTerritory] Found in iframe:', name);
+            return name;
+        }
+        if (iframeWin && iframeWin._yvySelectedTerritory) {
+            var name = iframeWin._yvySelectedTerritory;
+            iframeWin._yvySelectedTerritory = null;
+            return name;
+        }
+    } catch(e) {}
+    return "";
+})()
+"""
+
+
+def create_base_map():
+    """
+    Create a base Folium map (fallback, not used in normal flow).
+    The actual map is generated via AppState.map_html computed property.
+    """
+    try:
+        m = folium.Map(
+            location=[-5, -60],
+            zoom_start=4,
+            tiles="OpenStreetMap"
+        )
+        
+        # Add layer control
+        folium.LayerControl(position='topright').add_to(m)
+        
+        return m._repr_html_()
+    except Exception as e:
+        logger.error(f"Error creating base map: {e}")
+        m = folium.Map(location=[-5, -60], zoom_start=4, tiles="OpenStreetMap")
+        folium.LayerControl().add_to(m)
+        return m._repr_html_()
+
+
+def leaflet_map() -> rx.Component:
+    """
+    Interactive map with Earth Engine layers and drawing capabilities.
+    Uses AppState.map_html computed property which auto-updates when layers change.
+    Popup buttons trigger territory loading via hidden button click.
+    """
+    
+    return rx.fragment(
+        # Map iframe container - explicit height, overflow hidden to clip the iframe
+        rx.box(
+            rx.html(AppState.map_html),
+            width="100%",
+            height="100%",
+            overflow="hidden",
+            id="map-container",
+            z_index="10",
+            position="relative",
+            # Force the iframe generated by rx.html to fill this box
+            sx={"& iframe": {"width": "100%", "height": "100%", "border": "none"}},
+        ),
+
+        # Hidden button that popup can trigger
+        rx.button(
+            "Load Territory",
+            on_click=rx.call_script(
+                EXTRACT_TERRITORY_JS,
+                callback=AppState.select_territory_from_map,
+            ),
+            color_scheme="purple",
+            size="1",
+            id="hidden-load-territory-btn",
+            display="none",
+        ),
+
+        # Drawing toolbar
+        rx.hstack(
+            rx.button(
+                "Save Drawing",
+                on_click=rx.call_script(
+                    EXTRACT_DRAWINGS_JS,
+                    callback=AppState.load_geojson_from_browser,
+                ),
+                color_scheme="green",
+                size="1",
+            ),
+            rx.button(
+                "Clear Drawings",
+                on_click=AppState.clear_drawn_features,
+                color_scheme="red",
+                size="1",
+            ),
+            rx.cond(
+                AppState.drawn_features.length() > 0,
+                rx.badge(
+                    AppState.drawn_features.length().to(str) + " saved",
+                    color_scheme="green",
+                    variant="solid",
+                    size="1",
+                ),
+                rx.box(),
+            ),
+            width="100%",
+            padding="0.5rem 1rem",
+            bg="white",
+            border_top="1px solid #e0e0e0",
+            spacing="2",
+            align_items="center",
+        ),
+    )
+
+
+def map_metrics() -> rx.Component:
+    """Display map metrics."""
+    return rx.hstack(
+        rx.badge(
+            rx.cond(
+                AppState.mapbiomas_displayed_years.length() > 0,
+                rx.text(
+                    f"🗺️ MapBiomas (",
+                    AppState.mapbiomas_displayed_years.length(),
+                    ")",
+                ),
+                "MapBiomas",
+            ),
+            color_scheme="green",
+        ),
+        rx.badge(
+            rx.cond(
+                AppState.hansen_displayed_layers.length() > 0,
+                rx.text(
+                    f"🌲 Hansen (",
+                    AppState.hansen_displayed_layers.length(),
+                    ")",
+                ),
+                "Hansen",
+            ),
+            color_scheme="blue",
+        ),
+        spacing="2",
+    )

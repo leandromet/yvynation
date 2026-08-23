@@ -8,14 +8,14 @@ env/
 venv/
 ENV/
 .venv
-
+.venv_stats
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
+*.zip
 # OS
 .DS_Store
 Thumbs.db
@@ -30,7 +30,6 @@ output/
 #*.ipynb
 *.csv
 *.geojson
-*.gpkg
 *.kmz
 .gitkeep
 

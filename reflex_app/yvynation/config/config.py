@@ -1,0 +1,498 @@
+"""
+Configuration and constants for Yvynation Reflex app.
+Adapted from original Streamlit version - no Streamlit dependencies.
+"""
+
+import os
+from typing import List, Optional  # used by aux-band helper annotations below
+
+# ==============================================================================
+# EARTH ENGINE PROJECT CONFIGURATION
+# ==============================================================================
+PROJECT_ID = "ee-leandromet"
+
+# Region of interest (Brazil)
+# Format: [min_longitude, min_latitude, max_longitude, max_latitude]
+REGION_OF_INTEREST = [-73.0, -33.0, -35.0, 5.0]
+
+# ==============================================================================
+# OUTPUT CONFIGURATION
+# ==============================================================================
+OUTPUT_BUCKET = "gs://yvynation-bucket"
+OUTPUT_PREFIX = "yvynation"
+OUTPUT_SCALE = 30  # Export resolution in meters
+
+# ==============================================================================
+# ABUSE CONTROL (utils/abuse_control.py, docs/ABUSE_CONTROL.md)
+# ==============================================================================
+# Rate limiting and access logging in front of run_batch_processing — the one
+# unauthenticated RPC that can be scripted into looping Earth Engine compute
+# indefinitely (up to BATCH_MAX_SELECTION territories per call). A dedicated
+# bucket, not OUTPUT_BUCKET: that one only ever receives finished exports, and
+# mixing rate-limit/log objects into it would need its own lifecycle rule and
+# lets a export-storage outage take the limiter down with it.
+ABUSE_BUCKET = os.getenv("YVY_ABUSE_BUCKET", "yvynation-abuse-control")
+ABUSE_SESSION_COOLDOWN_S = int(os.getenv("YVY_ABUSE_SESSION_COOLDOWN_S", "300"))
+ABUSE_IP_MAX_PER_WINDOW = int(os.getenv("YVY_ABUSE_IP_MAX_PER_WINDOW", "3"))
+ABUSE_IP_WINDOW_S = int(os.getenv("YVY_ABUSE_IP_WINDOW_S", "3600"))
+
+# ==============================================================================
+# MAPBIOMAS CONFIGURATION
+# ==============================================================================
+MAPBIOMAS_COLLECTIONS = {
+    # Collection 10.1 — latest (2024 data, Brazil LULC)
+    'v10_1': 'projects/mapbiomas-public/assets/brazil/lulc/collection10_1/mapbiomas_brazil_collection10_1_coverage_v1',
+    # Collection 10 — kept for backward compatibility
+    'v9': 'projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1',
+    'v8': 'projects/mapbiomas-public/assets/brazil/lulc/collection8/mapbiomas_collection80_integration_v1',
+}
+
+# Key of the collection to use everywhere by default
+MAPBIOMAS_DEFAULT_COLLECTION = 'v10_1'
+
+# ==============================================================================
+# HANSEN/GLAD GLOBAL LAND COVER CONFIGURATION
+# ==============================================================================
+HANSEN_DATASETS = {
+    '2000': 'projects/glad/GLCLU2020/v2/LCLUC_2000',
+    '2005': 'projects/glad/GLCLU2020/v2/LCLUC_2005',
+    '2010': 'projects/glad/GLCLU2020/v2/LCLUC_2010',
+    '2015': 'projects/glad/GLCLU2020/v2/LCLUC_2015',
+    '2020': 'projects/glad/GLCLU2020/v2/LCLUC_2020',
+    'change': 'projects/glad/GLCLU2020/v2/LCLUC'
+}
+
+HANSEN_OCEAN_MASK = 'projects/glad/OceanMask'
+
+# ==============================================================================
+# HANSEN GLOBAL FOREST CHANGE CONFIGURATION
+# ==============================================================================
+HANSEN_GFC_DATASET = 'UMD/hansen/global_forest_change_2025_v1_13'
+
+HANSEN_GFC_TREE_COVER_VIS = {
+    'bands': ['treecover2000'],
+    'min': 0,
+    'max': 100,
+    'palette': ['black', 'green']
+}
+
+HANSEN_GFC_TREE_LOSS_VIS = {
+    'bands': ['lossyear'],
+    'min': 0,
+    'max': 24,
+    'palette': ['yellow', 'red']
+}
+
+HANSEN_GFC_TREE_GAIN_VIS = {
+    'bands': ['gain'],
+    'min': 0,
+    'max': 1,
+    'palette': ['#000000', '#00FF00']
+}
+
+HANSEN_PALETTE = [
+    "FEFECC","FAFAC3","F7F7BB","F4F4B3","F1F1AB","EDEDA2","EAEA9A","E7E792","E4E48A",
+    "E0E081","DDDD79","DADA71","D7D769","D3D360","D0D058","CDCD50","CACA48","C6C63F","C3C337","C0C02F","BDBD27","B9B91E","B6B616",
+    "B3B30E","B0B006","609C60","5C985C","589558","549254","508E50","4C8B4C","488848","448544","408140","3C7E3C","387B38","347834",
+    "317431","2D712D","296E29","256B25","216721","1D641D","196119","155E15","115A11","0D570D","095409","065106","643700","643a00",
+    "643d00","644000","644300","644600","644900","654c00","654f00","655200","655500","655800","655a00","655d00","655000","656300",
+    "666600","666900","666c00","666f00","667200","667500","667800","667b00","ff99ff","FC92FC","F98BF9","F685F6","F37EF3","F077F0",
+    "ED71ED","EA6AEA","E763E7","E45DE4","E156E1","DE4FDE","DB49DB","D842D8","D53BD5","D235D2","CF2ECF","CC27CC","C921C9","C61AC6",
+    "C313C3","C00DC0","BD06BD","bb00bb","000003","000004","000005","BFC0C0","B7BDC2","AFBBC4","A8B8C6","A0B6C9","99B3CB","91B1CD",
+    "89AFD0","82ACD2","7AAAD4","73A7D6","6BA5D9","64A3DB","5CA0DD","549EE0","4D9BE2","4599E4","3E96E6","3694E9","2E92EB","278FED",
+    "1F8DF0","188AF2","1088F4","0986F7","55A5A5","53A1A2","519E9F","4F9B9C","4D989A","4B9597","499294","478F91","458B8F","43888C",
+    "418589","3F8286","3D7F84","3B7C81","39797E","37767B","357279","336F76","316C73","2F6970","2D666E","2B636B","296068","285D66",
+    "bb93b0","B78FAC","B48CA9","B18BA6","AE85A2","AA829F","A77F9C","A47B99","A17895","9E7592","9A718F","976E8C","946B88","916885",
+    "8D6482","8A617F","875E7B","845A78","815775","7D5472","7A506E","774D6B","744A68","714765","de7cbb","DA77B7","D772B3","D46EAF",
+    "D169AB","CE64A8","CB60A4","C85BA0","C4579C","C15298","BE4D95","BB4991","B8448D","B54089","B23B86","AF3682","AB327E","A82D7A",
+    "A52976","A22473","9F1F6F","9C1B6B","991667","961264","000000","000000","000000",
+    "1964EB","1555E4","1147DD","0E39D6","0A2ACF","071CC8","030EC1","0000BA",
+    "0000BA","040464","0000FF","3051cf","000000","000000","000000","000000",
+    "000000","000000","000000","000000","000000","000000","000000","000000",
+    "000000","000000","000000","000000","000000","000000","000000","000000",
+    "547FC4","4D77BA","466FB1","4067A7","395F9E","335895","335896","335897","ff2828","ffffff","d0ffff","ffe0d0","ff7d00","fac800","c86400",
+    "fff000","afcd96","afcd96","64dcdc","00ffff","00ffff","00ffff","111133","000000"
+]
+
+HANSEN_COLOR_MAP = {
+    0: "#FFFFFF", 1: "#2E8BC0", 2: "#1F4F2F", 3: "#2D5016", 4: "#3D5C2F", 5: "#4A7C3E",
+    6: "#3D6B3F", 7: "#8B7355", 8: "#A0826D", 9: "#C4B585", 10: "#D4C869", 11: "#E8D957",
+    12: "#4A6FA0", 13: "#FFD700", 14: "#FF6B35", 15: "#FFA500", 16: "#F0F8FF", 17: "#8B8680",
+}
+
+# ==============================================================================
+# MAPBIOMAS AUXILIARY RASTERS (collection 10 / 10.1 / fire collection 4)
+# ------------------------------------------------------------------------------
+# Each entry describes one EE Image that can be rendered as an additional PNG
+# in the batch map output. Fields:
+#
+#   asset          : full EE asset path
+#   label          : human-readable name (used in PNG file name / map title)
+#   band_template  : pattern with "{year}" placeholder when the dataset has one
+#                    band per year, or a constant band name for single-image
+#                    datasets (e.g. fire frequency, year of last fire).
+#   per_year       : True → renders for the configured batch year2; False →
+#                    one image covers the full record.
+#   vis            : default visualization (min/max/palette) passed to
+#                    EE Image.visualize(). Palettes are intentionally generic;
+#                    refine here without touching the rendering code.
+# ==============================================================================
+MAPBIOMAS_AUX_DATASETS = {
+    "deforestation_secondary": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10_1/"
+                 "mapbiomas_brazil_collection10_1_deforestation_secondary_vegetation_v3",
+        "label": "Deforestation & Secondary Vegetation",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "classification_{year}",  # This asset uses classification_YYYY bands
+        ],
+        "per_year": True,
+        "year_start": 1987,  # Deforestation/secondary veg asset bands start at classification_1987
+        "year_end": 2024,
+        # Official MapBiomas spec: 8 classes (0-7), each pixel is a class code.
+        #   0 Other (gray)               1 Anthropic (light orange)
+        #   2 Primary veg (forest green) 3 Secondary veg (light green)
+        #   4 Deforestation primary (red)5 Regrowth (bright green)
+        #   6 Deforestation secondary    7 Not applied (dark gray)
+        # min=0/max=7 + a discrete 8-entry palette ensures each class lands on
+        # the intended swatch instead of being interpolated.
+        "vis": {
+            "min": 0, "max": 7,
+            "palette": [
+                "808080",  # 0  Other
+                "FFB266",  # 1  Anthropic
+                "228B22",  # 2  Primary Vegetation
+                "90EE90",  # 3  Secondary Vegetation
+                "FF0000",  # 4  Deforestation in Primary
+                "00FF00",  # 5  Secondary Vegetation Regrowth
+                "FF4500",  # 6  Deforestation in Secondary
+                "A9A9A9",  # 7  Not applied
+            ],
+        },
+    },
+    "fire_scar_size": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_annual_burned_scar_size_range_v1",
+        "label": "Annual Burned Area (scar size)",
+        "value_semantics": "class_value",  # It's a class value (1-5), not raw area
+        "band_candidates": [
+            "scar_area_ha_{year}",  # Correct band pattern from error
+        ],
+        "per_year": True,
+        "year_start": 1987,  # Changed from 1985 - error shows collection starts 1987
+        "year_end": 2024,
+        "vis": {
+            "min": 1, "max": 5,  # Classes: 1=<10ha, 2=10-100, 3=100-1000, 4=1000-10000, 5=>10000
+            "palette": ["fee08b", "fdae61", "f46d43", "d73027", "7f0000"],
+        },
+    },
+    "fire_frequency": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_fire_frequency_v1",
+        "label": "Fire Frequency (1985–2024)",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "fire_frequency_1985_2024",  # Single band for the whole period
+            "fire_frequency",
+        ],
+        "per_year": False,
+        "year_start": 1985,
+        "year_end": 2024,
+        "vis": {
+            "min": 0, "max": 20,
+            "palette": ["ffffff", "ffffb2", "fecc5c", "fd8d3c", "f03b20", "bd0026"],
+        },
+    },
+    "fire_year_last": {
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
+                 "mapbiomas_fire_collection4_year_last_fire_v1",
+        "label": "Year of Last Fire",
+        "value_semantics": "year_value",
+        "band_candidates": [
+            "classification_{year}",  # Asset uses per-year classification bands like other fire datasets
+            "year_last_fire",
+            "last_fire_year",
+        ],
+        "per_year": False,
+        "year_start": 1987,
+        "year_end": 2024,
+        "vis": {
+            "min": 1985, "max": 2024,
+            "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
+        },
+    },
+    "mining_substances": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
+                 "mapbiomas_brazil_collection10_mining_substances_v3",
+        "label": "Mining Substances",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "classification_{year}",  # This asset has classification_YYYY bands
+        ],
+        "per_year": True,
+        "year_start": 1985,  # Collection10 might have 1985
+        "year_end": 2024,
+        "vis": {
+            "min": 0, "max": 50,  # Adjust based on actual mining class codes
+            "palette": ["000000", "9c0027", "e6194b", "f58231"],
+        },
+    },
+    "agriculture_cycles": {
+        "asset": "projects/mapbiomas-public/assets/brazil/lulc/collection10/"
+                 "mapbiomas_brazil_collection10_agriculture_number_cycles_v2",
+        "label": "Agriculture — Number of Cycles",
+        "value_semantics": "class_value",
+        "band_candidates": [
+            "classification_{year}",  # Collection10 pattern
+            "cycles_{year}",
+        ],
+        "per_year": True,
+        "year_start": 1985,
+        "year_end": 2024,
+        "vis": {
+            "min": 0, "max": 4,
+            "palette": ["ffffff", "edf8e9", "bae4b3", "74c476", "238b45"],
+        },
+    },
+}
+
+
+def resolve_aux_band(asset_id: str, candidates: List[str], year=None) -> Optional[str]:
+    """Return the first candidate band that exists in ``asset_id``.
+
+    Each candidate may contain ``{year}`` which is substituted with ``year``
+    before lookup. If a year-based band doesn't exist exactly, tries fallback
+    years (year, year+1, year+2, ...) to handle datasets with gaps (e.g., fire
+    collection starts 1987, not 1985).
+    
+    Available bands are pulled via a tiny EE call cached at module level —
+    one round-trip per asset across the whole run.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        bands = _list_aux_bands(asset_id)
+    except Exception as e:
+        logger.error(f"resolve_aux_band: _list_aux_bands failed for {asset_id}: {e}")
+        return None
+    if not bands:
+        logger.warning(f"resolve_aux_band: no bands returned for {asset_id}")
+        return None
+    available = set(bands)
+    logger.debug(f"resolve_aux_band: checking {len(candidates)} candidates against {len(available)} bands")
+    
+    for cand in candidates:
+        if "{year}" in cand:
+            if year is None:
+                logger.debug(f"resolve_aux_band: skipping template '{cand}' (no year provided)")
+                continue
+            # Try exact year first, then fallback to +1, +2, ..., +10 years
+            # (handles cases where data starts at 1987 instead of 1985)
+            for year_offset in range(11):
+                year_try = year + year_offset
+                name = cand.format(year=year_try)
+                if name in available:
+                    if year_offset > 0:
+                        logger.debug(
+                            f"resolve_aux_band: {cand} with year {year} "
+                            f"→ {name} (offset +{year_offset})"
+                        )
+                    else:
+                        logger.debug(f"resolve_aux_band: matched {name} (exact year)")
+                    return name
+            logger.debug(f"resolve_aux_band: template '{cand}' with year {year}: no match found")
+        else:
+            name = cand
+            if name in available:
+                logger.debug(f"resolve_aux_band: matched literal band '{name}'")
+                return name
+            logger.debug(f"resolve_aux_band: literal band '{name}' not found")
+    
+    logger.warning(f"resolve_aux_band: no candidates matched. Tried: {candidates}, Available: {list(available)[:10]}")
+    return None
+
+
+_AUX_BAND_CACHE: dict = {}
+
+
+def _list_aux_bands(asset_id: str) -> List[str]:
+    """One ``bandNames().getInfo()`` per asset, cached for the whole process."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if asset_id in _AUX_BAND_CACHE:
+        cached = _AUX_BAND_CACHE[asset_id]
+        logger.debug(f"_list_aux_bands: cache hit for {asset_id}, got {len(cached)} bands")
+        return cached
+    
+    try:
+        import ee
+        logger.debug(f"_list_aux_bands: querying EE for {asset_id}")
+        img = ee.Image(asset_id)
+        band_names = img.bandNames()
+        names = band_names.getInfo() or []
+        logger.info(f"_list_aux_bands: {asset_id} has {len(names)} bands: {names[:5] if len(names) > 5 else names}")
+    except Exception as e:
+        logger.error(
+            f"_list_aux_bands: could not list bands for {asset_id}: {type(e).__name__}: {e}"
+        )
+        names = []
+    
+    _AUX_BAND_CACHE[asset_id] = names
+    return names
+
+
+TERRITORY_COLLECTIONS = {
+    'indigenous': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/INDIGENOUS_TERRITORIES',
+    'biomes': 'projects/mapbiomas-territories/assets/TERRITORIES-OLD/LULC/BRAZIL/COLLECTION9/WORKSPACE/BIOMES'
+}
+
+# ==============================================================================
+# SATELLITE IMAGERY COLLECTIONS
+# ==============================================================================
+SENTINEL2_COLLECTION = "COPERNICUS/S2_SR_HARMONIZED"
+LANDSAT_COLLECTION = "LANDSAT/LC09/C02/T1_L2"
+SPOT_VISUAL_ASSET = 'projects/google/brazil_forest_code/spot_bfc_rgb_mosaic_metadata_v03'
+SPOT_ANALYTIC_ASSET = 'projects/google/brazil_forest_code/spot_bfc_ms_mosaic_v02'
+
+# ==============================================================================
+# PROCESSING PARAMETERS
+# ==============================================================================
+CLOUD_FILTER = 20
+FOREST_NDVI_THRESHOLD = 0.5
+URBAN_NDVI_THRESHOLD = 0.2
+
+# ==============================================================================
+# LAND COVER CLASSIFICATION LABELS & COLORS (MapBiomas Collection 10.1)
+# ==============================================================================
+MAPBIOMAS_LABELS = {
+    0: "No data", 1: "Forest", 2: "Natural Forest", 3: "Forest Formation", 4: "Savanna Formation",
+    5: "Mangrove", 6: "Floodable Forest", 7: "Flooded Forest", 8: "Wooded Restinga", 9: "Forest Plantation",
+    10: "Herbaceous", 11: "Wetland", 12: "Grassland", 13: "Other Natural Formation", 14: "Farming",
+    15: "Pasture", 16: "Agriculture", 17: "Perennial Crop", 18: "Agri", 19: "Temporary Crop",
+    20: "Sugar Cane", 21: "Mosaic of Uses", 22: "Non vegetated", 23: "Beach and Sand", 24: "Urban Area",
+    25: "Other non Vegetated Areas", 26: "Water", 27: "Not Observed", 28: "Rocky Outcrop", 29: "Rocky Outcrop",
+    30: "Mining", 31: "Aquaculture", 32: "Hypersaline Tidal Flat", 33: "River Lake and Ocean", 34: "Reservoir",
+    35: "Palm Oil", 36: "Perennial Crop", 37: "Semi-Perennial Crop", 38: "Annual Crop", 39: "Soybean",
+    40: "Rice", 41: "Other Temporary Crops", 42: "Other Annual Crop", 43: "Other Semi-Perennial Crop",
+    44: "Other Perennial Crop", 45: "Coffee", 46: "Coffee", 47: "Citrus", 48: "Other Perennial Crops",
+    49: "Wooded Sandbank Vegetation", 50: "Herbaceous Sandbank Vegetation", 51: "Salt Flat",
+    52: "Apicuns and Salines", 62: "Cotton", 146: "Other Land Use", 435: "Other Transition", 466: "Other Classification"
+}
+
+MAPBIOMAS_COLOR_MAP = {
+    0: "#ffffff", 1: "#1f8d49", 2: "#1f8d49", 3: "#1f8d49", 4: "#7dc975", 5: "#04381d",
+    6: "#007785", 7: "#005544", 8: "#33a02c", 9: "#7a5900", 10: "#d6bc74", 11: "#519799",
+    12: "#d6bc74", 13: "#ffffff", 14: "#ffefc3", 15: "#edde8e", 16: "#e974ed", 17: "#d082de",
+    18: "#e974ed", 19: "#c27ba0", 20: "#db7093", 21: "#ffefc3", 22: "#d4271e", 23: "#ffa07a",
+    24: "#d4271e", 25: "#db4d4f", 26: "#2532e4", 27: "#ffffff", 28: "#ffaa5f", 29: "#ffaa5f",
+    30: "#9c0027", 31: "#091077", 32: "#fc8114", 33: "#259fe4", 34: "#259fe4", 35: "#9065d0",
+    36: "#d082de", 37: "#d082de", 38: "#c27ba0", 39: "#f5b3c8", 40: "#c71585", 41: "#f54ca9",
+    42: "#f54ca9", 43: "#d082de", 44: "#d082de", 45: "#d68fe2", 46: "#d68fe2", 47: "#9932cc",
+    48: "#e6ccff", 49: "#02d659", 50: "#ad5100", 51: "#fc8114", 52: "#fc8114", 62: "#ff69b4",
+    146: "#ffefc3", 435: "#cccccc", 466: "#999999"
+}
+
+# Create visualization palette (0-62 range)
+MAPBIOMAS_PALETTE = []
+for i in range(63):
+    if i in MAPBIOMAS_COLOR_MAP:
+        MAPBIOMAS_PALETTE.append(MAPBIOMAS_COLOR_MAP[i].lstrip('#'))
+    else:
+        MAPBIOMAS_PALETTE.append('808080')
+
+# ==============================================================================
+# HANSEN/GLAD CONSOLIDATED CLASS GROUPING
+# ==============================================================================
+HANSEN_CONSOLIDATED_MAPPING = {
+    0: "Unvegetated", 1: "Unvegetated", 2: "Unvegetated", 3: "Unvegetated", 4: "Unvegetated",
+    5: "Unvegetated", 6: "Dense Short Vegetation", 75: "Dense Tree Cover", 92: "Tree Cover Gain",
+    116: "Tree Cover Loss", 120: "Unvegetated", 240: "Built-up", 250: "Water", 251: "Ice",
+    252: "Cropland", 254: "Ocean", 255: "No Data"
+}
+
+HANSEN_CONSOLIDATED_COLORS = {
+    "Unvegetated": "#D4D4A8", "Dense Short Vegetation": "#B8D4A8", "Open Tree Cover": "#90C090",
+    "Dense Tree Cover": "#1F8040", "Tree Cover Gain": "#4CAF50", "Tree Cover Loss": "#E53935",
+    "Built-up": "#FF6B35", "Water": "#2196F3", "Ice": "#E0F7FA", "Cropland": "#FFD700",
+    "Ocean": "#0D47A1", "No Data": "#CCCCCC",
+}
+
+# Hansen GLCLUC class labels (for histogram analysis)
+HANSEN_LABELS = {
+    0: "Terra Firma - 3% short vegetation cover",
+    1: "7% short vegetation cover", 2: "11% short vegetation cover", 3: "15% short vegetation cover",
+    4: "19% short vegetation cover", 5: "23% short vegetation cover", 6: "27% short vegetation cover",
+    7: "31% short vegetation cover", 8: "35% short vegetation cover", 9: "39% short vegetation cover",
+    10: "43% short vegetation cover", 11: "47% short vegetation cover", 12: "51% short vegetation cover",
+    13: "55% short vegetation cover", 14: "59% short vegetation cover", 15: "63% short vegetation cover",
+    16: "67% short vegetation cover", 17: "71% short vegetation cover", 18: "75% short vegetation cover",
+    19: "79% short vegetation cover", 20: "83% short vegetation cover", 21: "87% short vegetation cover",
+    22: "91% short vegetation cover", 23: "95% short vegetation cover", 24: "100% short vegetation cover",
+    25: "3m trees", 26: "4m trees", 27: "5m trees", 28: "6m trees", 29: "7m trees",
+    30: "8m trees", 31: "9m trees", 32: "10m trees", 33: "11m trees", 34: "12m trees",
+    35: "13m trees", 36: "14m trees", 37: "15m trees", 38: "16m trees", 39: "17m trees",
+    40: "18m trees", 41: "19m trees", 42: "20m trees", 43: "21m trees", 44: "22m trees",
+    45: "23m trees", 46: "24m trees", 47: "25m trees", 48: ">25m trees",
+    49: "Tree cover with previous disturbance",
+    50: "Tree cover disturbance", 51: "Tree cover disturbance", 52: "Tree cover disturbance",
+    53: "Tree cover disturbance", 54: "Tree cover disturbance", 55: "Tree cover disturbance",
+    56: "Tree cover disturbance", 57: "Tree cover disturbance", 58: "Tree cover disturbance",
+    59: "Tree cover disturbance",
+    60: "Wetland", 61: "Wetland", 62: "Water - seasonal", 63: "Water - permanent",
+    64: "Shrubland", 65: "Herbaceous vegetation", 66: "Sparse vegetation", 67: "Cropland",
+    68: "Built-up land", 69: "Barren land", 70: "Short vegetation", 71: "Built-up with vegetation",
+    72: "Mangrove", 73: "Sparse tree cover", 74: "Developed area", 75: "Water - seasonal",
+    76: "Irrigated - rice", 77: "Irrigated cropland", 78: "Rainfed cropland", 79: "Dense vegetation",
+    80: "Sparse vegetation", 81: "Urban/built-up", 82: "Bare rock", 83: "Seasonally flooded",
+    84: "Plantation forest", 85: "Ice/snow", 86: "Exposed rock", 87: "Clouds/shadow",
+    88: "Sparse vegetation", 89: "Moderate vegetation", 90: "Herbaceous - sparse", 91: "Herbaceous - dense",
+    92: "Urban area", 93: "Low-density trees", 94: "Glaciers/permanent ice", 95: "Water/clouds",
+    96: "Surface water", 97: "Not used", 98: "Bare ground", 99: "Developed - scattered",
+    100: "Wetland - 3% short vegetation cover",
+    # ... (more classes 101-199)
+    200: "Open surface water - 20-29% of year", 201: "30-39% of year", 202: "40-49% of year",
+    203: "50-59% of year", 204: "60-69% of year", 205: "70-79% of year", 206: "80-89% of year",
+    207: "90-100% of year", 208: "Not used", 209: "Herbaceous",
+    210: "Sparse trees", 211: "Moderate trees", 212: "Herbaceous", 213: "Corn/maize",
+    214: "Wheat", 215: "Rice", 216: "Sugar", 217: "Herbaceous", 218: "Young crop",
+    219: "Mature crop", 220: "Cotton", 221: "Soybeans", 222: "Vineyards/orchards",
+    223: "Horticulture", 224: "Oil palm young", 225: "Oil palm mature", 226: "Ephemeral",
+    227: "Coconut", 228: "Herbaceous", 229: "Coffee", 230: "Tea", 231: "Barren temporary",
+    232: "Rocky herbaceous", 233: "Pulpwood", 234: "Water - turbid", 235: "Water - clear",
+    236: "Shrub", 237: "Dense shrub", 238: "Ephemeral - dense", 239: "Dense tall shrub",
+    240: "Urban commercial", 241: "Urban residential", 242: "Moderate shrub", 243: "Open shrub",
+    244: "Sparse shrub", 245: "Mixed urban", 246: "Vegetated urban", 247: "Suburban sprawl",
+    248: "Industrial zone", 249: "Transport corridor", 250: "Permanent snow/ice", 251: "Not used",
+    252: "Subsistence crops", 253: "Not used", 254: "Ocean", 255: "No data"
+}
+
+# ==============================================================================
+# AAFC ANNUAL CROP INVENTORY (CANADA)
+# ==============================================================================
+AAFC_ACI_DATASET = 'AAFC/ACI'
+
+AAFC_LABELS = {
+    10: "Cloud", 20: "Water", 30: "Exposed Land and Barren", 34: "Urban and Developed",
+    35: "Greenhouses", 50: "Shrubland", 60: "Forest Fire and Burnt Area", 80: "Wetland",
+    85: "Peatland", 110: "Grassland", 120: "Agriculture (undifferentiated)", 121: "Cropland",
+    122: "Pasture and Forages", 130: "Too Wet to be Seeded", 131: "Fallow", 132: "Cereals",
+}
+
+# ==============================================================================
+# APP SETTINGS
+# ==============================================================================
+DEFAULT_LANGUAGE = "en"
+SUPPORTED_LANGUAGES = ["en", "pt", "es"]
+
+# Territory years available for MapBiomas analysis (Collection 10.1 adds 2024)
+MAPBIOMAS_YEARS = list(range(1985, 2025))  # 1985-2024
+
+# Hansen years
+HANSEN_YEARS = ['2000', '2005', '2010', '2015', '2020']
+
+# EE API rate limiting
+EE_MAX_PIXELS = 1e13
+EE_REDUCE_SCALE = 30
+EE_TIMEOUT = 300  # seconds
