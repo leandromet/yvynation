@@ -37,6 +37,14 @@ ABUSE_IP_MAX_PER_WINDOW = int(os.getenv("YVY_ABUSE_IP_MAX_PER_WINDOW", "3"))
 ABUSE_IP_WINDOW_S = int(os.getenv("YVY_ABUSE_IP_WINDOW_S", "3600"))
 
 # ==============================================================================
+# ANALYTICS
+# ==============================================================================
+# GA4 Measurement ID, shared with the portal and the other three subdomains
+# (same registrable domain umaterra.com.br, one unified property). Empty in
+# local dev so testing never pollutes real traffic data.
+GA_MEASUREMENT_ID = os.getenv("YVY_GA_MEASUREMENT_ID", "")
+
+# ==============================================================================
 # MAPBIOMAS CONFIGURATION
 # ==============================================================================
 MAPBIOMAS_COLLECTIONS = {

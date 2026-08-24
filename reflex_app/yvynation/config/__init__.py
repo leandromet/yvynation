@@ -29,6 +29,7 @@ from .config import (
     ABUSE_SESSION_COOLDOWN_S,
     ABUSE_IP_MAX_PER_WINDOW,
     ABUSE_IP_WINDOW_S,
+    GA_MEASUREMENT_ID,
 )
 
 __all__ = [
@@ -57,4 +58,5 @@ __all__ = [
     "ABUSE_SESSION_COOLDOWN_S",
     "ABUSE_IP_MAX_PER_WINDOW",
     "ABUSE_IP_WINDOW_S",
+    "GA_MEASUREMENT_ID",
 ]
