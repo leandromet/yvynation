@@ -38,7 +38,18 @@ def _ga_head_components() -> list[rx.Component]:
 # untouched. Large exports need a streaming, same-origin endpoint — see
 # utils/download_routes.py for why neither rx.download(data=…) nor a direct
 # bucket URL works.
-app = rx.App(api_transformer=download_app(), head_components=_ga_head_components())
+app = rx.App(
+    api_transformer=download_app(),
+    head_components=[
+        *_ga_head_components(),
+        # Idle tabs otherwise keep the Reflex WebSocket reconnecting forever,
+        # which pins a billed Cloud Run instance with nobody using it. Gated
+        # on AppState.idle_guard_busy (via #idle-guard-marker in
+        # pages/index.py) so it never fires mid-batch-run — see
+        # assets/idle_guard.js and assets/paused.html.
+        rx.el.script(src="/assets/idle_guard.js", defer=True),
+    ],
+)
 app.add_page(
     index,
     route="/",

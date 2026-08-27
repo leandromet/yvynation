@@ -72,6 +72,25 @@ class AppState(
     error_message: str = ""
 
     # ====================================================================
+    # Idle guard (assets/idle_guard.js)
+    # ====================================================================
+    @rx.var
+    def idle_guard_busy(self) -> bool:
+        """True while a real background job is running server-side.
+
+        Rendered as #idle-guard-marker's data-busy attribute (pages/index.py)
+        so the client-side inactivity timer defers pausing the session —
+        and disconnecting the WebSocket — instead of cutting off a batch run,
+        map build, moving-window pass or timeline build in progress.
+        """
+        return (
+            self.batch_running
+            or self.mapset_pending
+            or self.mw_pending
+            or self.timeline_pending
+        )
+
+    # ====================================================================
     # Language & preferences
     # ====================================================================
     language: str = "en"  # "en" | "pt" | "es" | "fr"

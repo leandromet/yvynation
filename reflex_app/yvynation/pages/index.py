@@ -512,7 +512,17 @@ def main_content_area() -> rx.Component:
 
 def index() -> rx.Component:
     """Main application layout with dynamic content based on analysis mode."""
-    return rx.cond(
+    return rx.fragment(
+        # Read by assets/idle_guard.js: while data-busy="true", the client-side
+        # inactivity timer defers pausing the session instead of disconnecting
+        # mid-batch-run. Present regardless of which branch below is active,
+        # since background jobs run independently of the displayed page.
+        rx.el.div(
+            id="idle-guard-marker",
+            custom_attrs={"data-busy": AppState.idle_guard_busy.to_string()},
+            display="none",
+        ),
+        rx.cond(
         AppState.analysis_mode == "portal",
         portal(),
         rx.cond(
@@ -566,4 +576,5 @@ def index() -> rx.Component:
         ),
         ),  # end rx.cond(previous_runs)
         ),  # end rx.cond(batch)
-    )  # end rx.cond(portal)
+        ),  # end rx.cond(portal)
+    )  # end rx.fragment
