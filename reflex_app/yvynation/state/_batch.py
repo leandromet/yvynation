@@ -1656,8 +1656,11 @@ class BatchMixin(rx.State, mixin=True):
                         geojson = svc.get_geojson_for_key(terr)
                         if geojson is None:
                             raise ValueError(f"Territory not found in GeoPackage: {terr}")
-                        import ee
-                        return ee.Geometry(geojson), geojson
+                        from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+                        ee_geom = convert_geojson_to_ee_geometry(geojson, terr)
+                        if ee_geom is None:
+                            raise ValueError(f"Unusable geometry for territory: {terr}")
+                        return ee_geom, geojson
 
                     ee_geom, raw_geojson = await loop.run_in_executor(io_pool, _get_ee_geom)
 

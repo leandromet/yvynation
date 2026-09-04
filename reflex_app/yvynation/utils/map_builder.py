@@ -515,8 +515,11 @@ def build_map(
 
                     clip_geom = None
                     if change_mask_geometry:
-                        clip_geom = ee.Geometry(change_mask_geometry)
-                        change = change.clip(clip_geom)
+                        from .buffer_utils import convert_geojson_to_ee_geometry
+                        clip_geom = convert_geojson_to_ee_geometry(
+                            change_mask_geometry, "change mask")
+                        if clip_geom is not None:
+                            change = change.clip(clip_geom)
 
                     vis = {"min": 0, "max": 1, "palette": ["#FF4444"]}
                     map_id = change.getMapId(vis)

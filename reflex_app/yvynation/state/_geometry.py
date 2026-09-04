@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 import hashlib
 import json
 
-import ee
 import reflex as rx
 
 logger = logging.getLogger(__name__)
@@ -265,18 +264,14 @@ class GeometryMixin(rx.State, mixin=True):
         if feature.get("_ee_geometry"):
             return feature["_ee_geometry"]
 
-        coords = feature.get("coordinates")
-        if coords:
-            try:
-                geom_type = feature.get("type")
-                if geom_type == "Polygon":
-                    return ee.Geometry.Polygon(coords)
-                elif geom_type == "LineString":
-                    return ee.Geometry.LineString(coords)
-                elif geom_type == "Point":
-                    return ee.Geometry.Point(coords)
-            except Exception as e:
-                logger.error(f"Error converting coordinates to EE geometry: {e}")
+        try:
+            from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+            return convert_geojson_to_ee_geometry(
+                feature,
+                feature.get("name") or f"drawing {self.selected_geometry_idx}",
+            )
+        except Exception as e:
+            logger.error(f"Error converting coordinates to EE geometry: {e}")
         return None
 
     # ---- GeoJSON from browser (JS bridge) -------------------------------

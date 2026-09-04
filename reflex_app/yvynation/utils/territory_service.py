@@ -288,7 +288,11 @@ class TerritoryService:
             return None
         try:
             import ee
-            return ee.Geometry(geojson)
+            from .geometry_handler import sanitize_geometry
+            clean = sanitize_geometry(geojson, display_key)
+            if clean is None:
+                return None
+            return ee.Geometry(clean)
         except Exception as exc:
             logger.error(f"Error creating EE geometry for {display_key}: {exc}")
             return None

@@ -255,7 +255,7 @@ MAPBIOMAS_AUX_DATASETS = {
             "cycles_{year}",
         ],
         "per_year": True,
-        "year_start": 1985,
+        "year_start": 2017,  # asset only carries classification_2017…2024
         "year_end": 2024,
         "vis": {
             "min": 0, "max": 4,
@@ -263,6 +263,18 @@ MAPBIOMAS_AUX_DATASETS = {
         },
     },
 }
+
+
+def _template_years(template: str, available) -> List[int]:
+    """Years present in *available* for a ``…{year}…`` band template."""
+    import re
+    pattern = re.compile("^" + re.escape(template).replace(r"\{year\}", r"(\d{4})") + "$")
+    years = []
+    for name in available:
+        m = pattern.match(name)
+        if m:
+            years.append(int(m.group(1)))
+    return years
 
 
 def resolve_aux_band(asset_id: str, candidates: List[str], year=None) -> Optional[str]:
@@ -292,23 +304,36 @@ def resolve_aux_band(asset_id: str, candidates: List[str], year=None) -> Optiona
     
     for cand in candidates:
         if "{year}" in cand:
-            if year is None:
-                logger.debug(f"resolve_aux_band: skipping template '{cand}' (no year provided)")
-                continue
-            # Try exact year first, then fallback to +1, +2, ..., +10 years
-            # (handles cases where data starts at 1987 instead of 1985)
-            for year_offset in range(11):
-                year_try = year + year_offset
-                name = cand.format(year=year_try)
-                if name in available:
-                    if year_offset > 0:
-                        logger.debug(
-                            f"resolve_aux_band: {cand} with year {year} "
-                            f"→ {name} (offset +{year_offset})"
-                        )
-                    else:
-                        logger.debug(f"resolve_aux_band: matched {name} (exact year)")
-                    return name
+            if year is not None:
+                # Try exact year first, then fallback to +1, +2, ..., +10 years
+                # (handles cases where data starts at 1987 instead of 1985)
+                for year_offset in range(11):
+                    year_try = year + year_offset
+                    name = cand.format(year=year_try)
+                    if name in available:
+                        if year_offset > 0:
+                            logger.debug(
+                                f"resolve_aux_band: {cand} with year {year} "
+                                f"→ {name} (offset +{year_offset})"
+                            )
+                        else:
+                            logger.debug(f"resolve_aux_band: matched {name} (exact year)")
+                        return name
+            # No year given, or none of the nearby years exist: scan the asset's
+            # actual band names for this template. Datasets flagged per_year=False
+            # can still be stored as per-year bands (e.g. the fire "year of last
+            # fire" asset is classification_1986…2024), and without this they
+            # resolve to nothing and the layer is silently dropped.
+            years_found = _template_years(cand, available)
+            if years_found:
+                best = (max(years_found) if year is None
+                        else min(years_found, key=lambda y: (abs(y - year), -y)))
+                name = cand.format(year=best)
+                logger.debug(
+                    f"resolve_aux_band: template '{cand}' resolved by scan → {name} "
+                    f"(requested year {year}, available {min(years_found)}-{max(years_found)})"
+                )
+                return name
             logger.debug(f"resolve_aux_band: template '{cand}' with year {year}: no match found")
         else:
             name = cand

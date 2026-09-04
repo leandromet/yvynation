@@ -1049,35 +1049,14 @@ class AnalysisMixin(rx.State, mixin=True):
             async with self:
                 self.loading_message = f"Resolving geometry for {territory}…"
 
-            import ee
             ee_geom = None
             if geojson_features:
-                feat = geojson_features[0]
-                geom = feat.get("geometry") or {}
-                geom_type = geom.get("type", "")
-                coords = geom.get("coordinates")
-                if coords:
-                    try:
-                        if geom_type == "MultiPolygon":
-                            valid = [[r for r in poly if len(r) >= 3] for poly in coords]
-                            valid = [p for p in valid if p]
-                            if valid:
-                                ee_geom = ee.Geometry.MultiPolygon(valid)
-                        elif geom_type == "Polygon":
-                            valid = [r for r in coords if len(r) >= 3]
-                            if valid:
-                                ee_geom = ee.Geometry.Polygon(valid)
-                    except Exception as geom_err:
-                        logger.warning(f"[COMPARISON] Geometry rebuild failed: {geom_err}")
-
-            # Robust fallback: let ee.Geometry parse the raw GeoJSON directly
-            # (handles odd ring nesting that the manual builder above trips on).
-            if ee_geom is None and geojson_features:
                 try:
                     from ..utils.buffer_utils import convert_geojson_to_ee_geometry
-                    ee_geom = convert_geojson_to_ee_geometry(geojson_features[0])
+                    ee_geom = convert_geojson_to_ee_geometry(
+                        geojson_features[0], territory or "territory")
                     if ee_geom is not None:
-                        logger.info("[COMPARISON] Geometry built via convert_geojson_to_ee_geometry")
+                        logger.info("[COMPARISON] Geometry built from cached GeoJSON")
                 except Exception as ce:
                     logger.warning(f"[COMPARISON] convert_geojson_to_ee_geometry failed: {ce}")
 

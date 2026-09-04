@@ -315,7 +315,11 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                             year_used = y_try
                             break
             else:
-                band = resolve_aux_band(asset_id, candidates)
+                # Pass the year even for non-per_year layers: some of these
+                # assets (e.g. fire "year of last fire") still store per-year
+                # bands, and resolve_aux_band skips {year} templates when it
+                # gets no year to substitute.
+                band = resolve_aux_band(asset_id, candidates, year=year)
             
             if band is None:
                 logger.warning(
@@ -741,8 +745,11 @@ def _resolve_raster_geometry(ee_geometry, buffer_geojson):
     if ee_geometry is None or not buffer_geojson:
         return ee_geometry
     try:
-        import ee
-        return ee_geometry.union(ee.Geometry(buffer_geojson), 1)
+        from .buffer_utils import convert_geojson_to_ee_geometry
+        buf = convert_geojson_to_ee_geometry(buffer_geojson, "buffer (raster clip)")
+        if buf is None:
+            return ee_geometry
+        return ee_geometry.union(buf, 1)
     except Exception as e:
         logger.warning(f"buffer union for raster clip failed: {e}")
         return ee_geometry

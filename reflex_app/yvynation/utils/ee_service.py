@@ -256,7 +256,11 @@ class EarthEngineService:
             image = mapbiomas.select(band)
             
             # Convert geometry dict to EE geometry
-            ee_geometry = ee.Geometry(geometry)
+            from .buffer_utils import convert_geojson_to_ee_geometry
+            ee_geometry = convert_geojson_to_ee_geometry(geometry, area_name)
+            if ee_geometry is None:
+                logger.error(f"Unusable geometry for {area_name}")
+                return None
             
             stats = image.reduceRegion(
                 reducer=ee.Reducer.frequencyHistogram(),
@@ -311,7 +315,11 @@ class EarthEngineService:
             hansen_image = ee.Image(HANSEN_DATASETS[str(year)]).updateMask(landmask)
             
             # Convert geometry dict to EE geometry
-            ee_geometry = ee.Geometry(geometry)
+            from .buffer_utils import convert_geojson_to_ee_geometry
+            ee_geometry = convert_geojson_to_ee_geometry(geometry, area_name)
+            if ee_geometry is None:
+                logger.error(f"Unusable geometry for {area_name}")
+                return None
             
             stats = hansen_image.reduceRegion(
                 reducer=ee.Reducer.frequencyHistogram(),

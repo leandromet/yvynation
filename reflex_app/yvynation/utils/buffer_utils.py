@@ -8,6 +8,8 @@ import ee
 import logging
 from typing import Optional, Dict, Any
 
+from .geometry_handler import sanitize_geometry
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,34 +111,40 @@ def convert_ee_geometry_to_geojson(ee_geometry: ee.Geometry) -> Optional[Dict[st
         return None
 
 
-def convert_geojson_to_ee_geometry(geojson: Dict) -> Optional[ee.Geometry]:
+def convert_geojson_to_ee_geometry(geojson: Dict, label: str = "") -> Optional[ee.Geometry]:
     """
     Convert a GeoJSON dict to an Earth Engine Geometry.
-    
+
+    This is the single choke point for GeoJSON → ``ee.Geometry``: the geometry
+    is sanitised first (see ``geometry_handler.sanitize_geometry``) because EE
+    only validates coordinates server-side, so a degenerate ring or a
+    mis-nested ``Polygon`` would otherwise surface much later as an opaque
+    ``GeometryConstructors.*`` error in the middle of an analysis.
+
     Parameters:
     -----------
     geojson : dict
-        GeoJSON geometry or Feature
-    
+        GeoJSON geometry, Feature, or app feature dict with a ``geometry`` key
+    label : str
+        Optional name of the subject, used in repair warnings
+
     Returns:
     --------
     ee.Geometry or None
-        Earth Engine geometry, or None if conversion fails
+        Earth Engine geometry, or None if the geometry is unusable
     """
     try:
-        # Extract geometry from Feature if needed
-        if geojson.get('type') == 'Feature':
-            geometry = geojson.get('geometry')
-        else:
-            geometry = geojson
-        
+        if not isinstance(geojson, dict):
+            return None
+
+        name = label or geojson.get("name") or (
+            geojson.get("properties", {}) or {}).get("name") or "geometry"
+        geometry = sanitize_geometry(geojson, name)
         if not geometry:
             return None
-        
-        # Create ee.Geometry from GeoJSON
-        ee_geometry = ee.Geometry(geometry)
-        return ee_geometry
-    
+
+        return ee.Geometry(geometry)
+
     except Exception as e:
         logger.error(f"Error converting GeoJSON to EE geometry: {e}")
         return None

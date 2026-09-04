@@ -536,48 +536,20 @@ class TerritoryMixin(rx.State, mixin=True):
         first (fast, no extra EE round-trip), then falls back to re-fetching
         from the EE service if the cache is empty.
         """
-        import ee
-
-        # Fast path: reconstruct from cached GeoJSON
+        # Fast path: reconstruct from cached GeoJSON. The sanitiser repairs
+        # degenerate rings and mis-nested coordinates, which Earth Engine only
+        # rejects server-side, mid-analysis.
         if self.territory_geojson_features:
-            feat = self.territory_geojson_features[0]
-            geom = feat.get("geometry") or {}
-            geom_type = geom.get("type", "")
-            coords = geom.get("coordinates")
-            if coords:
-                try:
-                    # For MultiPolygon, validate each ring has at least 3 points
-                    if geom_type == "MultiPolygon":
-                        # Filter out invalid rings (< 3 points)
-                        valid_polygons = []
-                        for polygon in coords:
-                            valid_rings = []
-                            for ring in polygon:
-                                if len(ring) >= 3:
-                                    valid_rings.append(ring)
-                            if valid_rings:
-                                valid_polygons.append(valid_rings)
-                        if valid_polygons:
-                            return ee.Geometry.MultiPolygon(valid_polygons)
-                        else:
-                            logger.warning("[TERRITORY_GEOM] All rings filtered out, falling back to EE service")
-                    elif geom_type == "Polygon":
-                        # Validate polygon rings
-                        valid_rings = []
-                        for ring in coords:
-                            if len(ring) >= 3:
-                                valid_rings.append(ring)
-                        if valid_rings:
-                            return ee.Geometry.Polygon(valid_rings)
-                        else:
-                            logger.warning("[TERRITORY_GEOM] Polygon has no valid rings, falling back to EE service")
-                    elif geom_type == "Point":
-                        return ee.Geometry.Point(coords)
-                    elif geom_type == "LineString":
-                        if len(coords) >= 2:
-                            return ee.Geometry.LineString(coords)
-                except Exception as e:
-                    logger.warning(f"[TERRITORY_GEOM] Failed to reconstruct from cache: {e}")
+            from ..utils.buffer_utils import convert_geojson_to_ee_geometry
+            geom = convert_geojson_to_ee_geometry(
+                self.territory_geojson_features[0],
+                self.selected_territory or "territory",
+            )
+            if geom is not None:
+                return geom
+            logger.warning(
+                "[TERRITORY_GEOM] Cached GeoJSON unusable, falling back to EE service"
+            )
 
         # Slow path: re-fetch from the backing GeoPackage service
         if not self.selected_territory:
