@@ -446,6 +446,14 @@ BATCH_WARN_THRESHOLD_HEAVY = 25
 # ---------------------------------------------------------------------------
 BATCH_MAX_SELECTION = 100
 
+# How many territory rows the selector actually draws. Unrelated to the cap
+# above: this one is about DOM cost, not run size. `rx.foreach` builds a row
+# per entry, and the unfiltered conservation list is 3,247 of them — enough
+# to make the selector visibly slow to open, worst on the phones that can
+# least afford it. Search and the attribute filters are how you reach past
+# it; every handler still operates on the full filtered list.
+BATCH_LIST_RENDER_CAP = 300
+
 # ---------------------------------------------------------------------------
 # Attribute-filter dropdown vocabularies — hardcoded rather than scanned from
 # the GeoPackage. These come from fixed government classification schemes
@@ -552,6 +560,18 @@ class BatchMixin(rx.State, mixin=True):
     batch_sort_by: str = "name_asc"
     # Selected-territories review panel (see review_selection_modal)
     batch_show_review: bool = False
+
+    # ---- Stage flow (pages/batch_processing.py) ------------------------------
+    #: Which of the three stages the page is on: "select" | "configure" | "run".
+    #: Read through `batch_stage_effective` below, never directly — a run in
+    #: flight overrides it.
+    batch_stage: str = "select"
+    #: Which groups of the configuration accordion are open
+    #: (components/batch_config_panel.py). Its own list rather than the
+    #: analysis sidebar's `open_groups`: the two panels have nothing to do
+    #: with each other and sharing one list would have opening a batch group
+    #: silently change the map page's sidebar.
+    batch_config_groups: List[str] = ["years", "analyses"]
     # ---- Paste/upload a name list to auto-select areas ------------------------
     batch_paste_text: str = ""
     batch_paste_feedback: str = ""
@@ -560,6 +580,19 @@ class BatchMixin(rx.State, mixin=True):
     # ---- Runtime status ------------------------------------------------------
     batch_running: bool = False
     batch_done: bool = False
+    #: Set the instant a run is dispatched, cleared once `batch_running` takes
+    #: over (or the run bails out early).
+    #:
+    #: `run_batch_processing` is a background task that does not reach
+    #: `batch_running = True` for several seconds: it first snapshots the
+    #: configuration, then awaits two abuse-control checks in the executor.
+    #: The Start button is gated on `batch_running`, so for that whole window
+    #: it stayed live — and a second click launched a second, concurrent run
+    #: over the same selection. Reported from a real session: two ZIPs, same
+    #: contents, a few seconds apart. This flag closes the window, and unlike
+    #: `batch_running` it is set synchronously in the click handler itself,
+    #: before any await, so the second event cannot slip past it.
+    batch_starting: bool = False
     #: Friction step in front of run_batch_processing — see request_batch_run.
     #: Server-side enforcement is abuse_control.py, not this flag; this only
     #: deters an accidental/reflexive click.
@@ -807,6 +840,86 @@ class BatchMixin(rx.State, mixin=True):
     @rx.var
     def batch_selected_count(self) -> int:
         return len(self.batch_selected_territories)
+
+    # ---- Stage flow ---------------------------------------------------------
+
+    @rx.var
+    def batch_stage_effective(self) -> str:
+        """Which stage the page actually shows.
+
+        Forced to "run" from the moment a job is dispatched — `batch_starting`,
+        not just `batch_running` — so the several seconds of configuration
+        snapshot and abuse-control checks before the progress bar exists are
+        spent looking at the Run stage saying so, rather than at a Start button
+        that appears not to have done anything. `batch_reset()` clears all
+        three flags, which drops the user back to whatever stage they were on.
+        """
+        if self.batch_starting or self.batch_running or self.batch_done:
+            return "run"
+        return self.batch_stage
+
+    @rx.var
+    def batch_busy(self) -> bool:
+        """Dispatched but not yet finished — the window in which no second
+        run may be started, and the Start button must not look clickable."""
+        return self.batch_starting or self.batch_running
+
+    def set_batch_stage(self, name: str):
+        """Move to a stage. Ignores anything unrecognised rather than
+        rendering an empty body."""
+        if name in ("select", "configure", "run"):
+            self.batch_stage = name
+
+    def set_batch_config_groups(self, value):
+        """The configuration accordion's own `on_value_change`.
+
+        Typed loosely for the same reason as `state/_ui.py::set_open_groups`:
+        Reflex's accordion event spec is shared with `type="single"`, which
+        reports a bare string, so the signature has to accept both to pass
+        its type check even though this accordion is always
+        `type="multiple"`.
+        """
+        self.batch_config_groups = [value] if isinstance(value, str) else list(value)
+
+    @rx.var
+    def batch_capped_territories(self) -> List[str]:
+        """The territory rows actually rendered.
+
+        Purely presentational: unfiltered, the conservation list is 3,247
+        entries and `rx.foreach` builds a DOM row for every one of them,
+        which is most of what makes the selector slow to open on a phone.
+        Every handler — `batch_select_all_filtered` above all — still works
+        off the full `batch_filtered_territories`, so selecting "all
+        filtered" selects all of them, not the visible 300.
+        """
+        return self.batch_filtered_territories[:BATCH_LIST_RENDER_CAP]
+
+    @rx.var
+    def batch_list_is_capped(self) -> bool:
+        return len(self.batch_filtered_territories) > BATCH_LIST_RENDER_CAP
+
+    # Explicit deps: the deferred `get_translations` import below defeats
+    # Reflex's automatic dependency detection (it walks the source and cannot
+    # resolve a relative import made inside the body), and an undetected
+    # dependency means a stale note.
+    @rx.var(auto_deps=False,
+            deps=["language", "batch_filtered_territories"])
+    def batch_list_capped_note(self) -> str:
+        """"Showing the first 300 of 3,247 — refine your filters…".
+
+        Built here rather than concatenated in the component: `AppState.tr[…]`
+        is a Var, and a Var has no `.format`, so assembling it in the UI would
+        mean splicing prefix/suffix keys around the numbers and pinning every
+        language to English word order.
+        """
+        from ..utils.translations import get_translations
+
+        total = len(self.batch_filtered_territories)
+        if total <= BATCH_LIST_RENDER_CAP:
+            return ""
+        return get_translations(self.language)["batch_list_capped"].format(
+            shown=BATCH_LIST_RENDER_CAP, total=total
+        )
 
     @rx.var
     def batch_has_active_filters(self) -> bool:
@@ -1314,21 +1427,34 @@ class BatchMixin(rx.State, mixin=True):
     def request_batch_run(self):
         """Friction step in front of run_batch_processing (see abuse_control.py
         for the actual server-side enforcement — this only deters a reflexive
-        click, since a script can call run_batch_processing directly)."""
+        click, since a script can call run_batch_processing directly).
+
+        Also the double-dispatch guard. This handler is synchronous, so two
+        clicks arrive as two events processed in order against the same state:
+        setting `batch_starting` here, before returning, is enough for the
+        second one to find the door shut. Doing it in `run_batch_processing`
+        instead would be too late — it is a background task, and it does not
+        set `batch_running` until after two awaited abuse-control checks.
+        """
         if not self.batch_selected_territories:
+            return None
+        if self.batch_starting or self.batch_running:
             return None
         if self.batch_confirm_pending:
             self.batch_confirm_pending = False
+            self.batch_starting = True
             return type(self).run_batch_processing()
         self.batch_confirm_pending = True
         return None
 
     def cancel_batch_run(self):
         self.batch_confirm_pending = False
+        self.batch_starting = False
 
     def batch_stop(self):
         """Signal the running batch to stop after the current territory."""
         self.batch_running = False
+        self.batch_starting = False
         self.batch_confirm_pending = False
         self._batch_append_log("⏹ Stop requested — will halt after current territory")
 
@@ -1358,6 +1484,7 @@ class BatchMixin(rx.State, mixin=True):
         """Reset batch state for a new run."""
         self.batch_zip_relpath = ""
         self.batch_running = False
+        self.batch_starting = False
         self.batch_done = False
         self.batch_confirm_pending = False
         self.batch_zip_ready = False
@@ -1389,6 +1516,7 @@ class BatchMixin(rx.State, mixin=True):
                 year2 = int(self.batch_year2)
             except (ValueError, TypeError):
                 self.error_message = "Invalid year selection."
+                self.batch_starting = False
                 return
             hansen_year = str(self.batch_hansen_year)
             buf_km = float(self.batch_buffer_km)
@@ -1421,6 +1549,7 @@ class BatchMixin(rx.State, mixin=True):
 
             if not territories:
                 self.error_message = "No territories selected for batch processing."
+                self.batch_starting = False
                 return
             if len(territories) > BATCH_MAX_SELECTION:
                 # Defense in depth — every UI path that adds to the selection
@@ -1430,6 +1559,7 @@ class BatchMixin(rx.State, mixin=True):
                     f"Selection exceeds the {BATCH_MAX_SELECTION}-territory "
                     f"limit ({len(territories)} selected) — remove some before running."
                 )
+                self.batch_starting = False
                 return
 
             # Captured now (inside the state lock) for the abuse-control check
@@ -1445,24 +1575,46 @@ class BatchMixin(rx.State, mixin=True):
         # See utils/abuse_control.py and docs/ABUSE_CONTROL.md.
         from ..utils import abuse_control
         loop = asyncio.get_event_loop()
-        ok, reason = await loop.run_in_executor(
-            None, abuse_control.check_session_cooldown, client_token
-        )
-        if ok:
+        # Wrapped because these are the last awaits before `batch_running`
+        # takes over the double-dispatch guard: an exception escaping here
+        # would leave `batch_starting` set with no run behind it, and the UI
+        # would sit on "Starting…" forever with Start refusing every click.
+        # The Stop button stays mounted through `batch_busy` as a second
+        # line of defence, but a stall the user has to notice and clear by
+        # hand is not a resting state worth shipping.
+        try:
             ok, reason = await loop.run_in_executor(
-                None, abuse_control.check_ip_rate_limit, client_ip
+                None, abuse_control.check_session_cooldown, client_token
             )
-        abuse_control.log_event(
-            ip=client_ip, client_token=client_token, session_id=session_id,
-            action="batch_run", outcome="allowed" if ok else "refused",
-            detail={"n_territories": len(territories)},
-        )
+            if ok:
+                ok, reason = await loop.run_in_executor(
+                    None, abuse_control.check_ip_rate_limit, client_ip
+                )
+            abuse_control.log_event(
+                ip=client_ip, client_token=client_token, session_id=session_id,
+                action="batch_run", outcome="allowed" if ok else "refused",
+                detail={"n_territories": len(territories)},
+            )
+        except Exception as guard_err:
+            logger.error("Abuse-control check failed: %s", guard_err, exc_info=True)
+            async with self:
+                self.error_message = (
+                    "Could not start the run — the rate-limit check failed. "
+                    "Try again in a moment."
+                )
+                self.batch_starting = False
+            return
         if not ok:
             async with self:
                 self.error_message = reason
+                self.batch_starting = False
             return
 
         async with self:
+            # `batch_running` takes over the guard from here; every early
+            # return above clears `batch_starting` itself, since none of them
+            # ever reach this line.
+            self.batch_starting = False
             self.batch_running = True
             self.batch_done = False
             self.batch_zip_ready = False
@@ -1513,6 +1665,7 @@ class BatchMixin(rx.State, mixin=True):
                     "EE_SERVICE_ACCOUNT_EMAIL env vars on the Cloud Run service, "
                     "or grant the runtime service account access to Earth Engine."
                 )
+                self.batch_starting = False
                 self.batch_running = False
                 self.batch_done = True
             logger.error(f"EE init failed in batch: {ee_err}", exc_info=True)

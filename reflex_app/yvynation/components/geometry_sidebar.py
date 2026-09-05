@@ -7,7 +7,10 @@ import reflex as rx
 from ..state import AppState
 from ..config import MAPBIOMAS_YEARS, HANSEN_YEARS
 from .geometry_upload import geometry_file_upload
-from .sidebar import _section, _active_count_badge
+from .sidebar import _active_count_badge
+from .layout import group, sidebar_groups_root, sidebar_shell
+from .tutorial import tutorial_section
+from .layer_reference import layer_reference_guide
 
 
 def _region_selector() -> rx.Component:
@@ -648,76 +651,49 @@ def _map_overlays_section() -> rx.Component:
 
 
 def geometry_sidebar() -> rx.Component:
-    """Geometry analysis sidebar: draw, upload, analyze."""
-    return rx.vstack(
-        # Back to portal
-        rx.button(
-            "← Back to Portal",
-            on_click=AppState.go_to_portal,
-            size="1",
-            variant="outline",
-            color_scheme="gray",
-            width="100%",
-            margin_bottom="0.5rem",
-        ),
+    """Geometry analysis sidebar: draw, upload, analyze.
 
-        # Region selector
+    Four collapsible groups (components/layout.py::group), not the six flat
+    sections this replaced. This sidebar had the worse version of the shared
+    -boolean defect: geometry tools, buffer controls and map overlays all
+    toggled ``sidebar_geometry_expanded``, so opening any one of the three
+    opened all three. Group membership is now explicit and
+    ``AppState.open_groups`` carries one entry per group.
+
+    The "← Back to Portal" button that used to sit at the top is gone — the
+    navbar already carries a translated one.
+    """
+    return sidebar_shell(
         _region_selector(),
-
-        rx.divider(),
-
-        # Geometry tools: draw + upload + list (unified)
-        _section(
-            "geometry_tools",
-            _geometry_tools_section(),
-            AppState.sidebar_geometry_expanded,
-            lambda: AppState.toggle_sidebar_section("geometry"),
-            _active_count_badge(AppState.drawn_features.length(), "orange"),
+        sidebar_groups_root(
+            group(
+                "study_area", "target", AppState.tr["group_study_area"],
+                _geometry_tools_section(),
+                _buffer_section(),
+                badge=_active_count_badge(
+                    AppState.drawn_features.length(), "orange"),
+            ),
+            group(
+                "analysis", "chart-column", AppState.tr["group_analysis"],
+                _analysis_section(),
+            ),
+            group(
+                "layers", "layers", AppState.tr["group_layers"],
+                _mapbiomas_layers_section(),
+                _hansen_layers_section(),
+                _map_overlays_section(),
+                badge=rx.hstack(
+                    _active_count_badge(
+                        AppState.mapbiomas_displayed_years.length(), "green"),
+                    _active_count_badge(
+                        AppState.hansen_displayed_layers.length(), "blue"),
+                    spacing="1",
+                ),
+            ),
+            group(
+                "help", "circle-help", AppState.tr["group_help"],
+                tutorial_section(),
+                layer_reference_guide(),
+            ),
         ),
-
-        # Buffer controls
-        _section(
-            "buffer_controls",
-            _buffer_section(),
-            AppState.sidebar_geometry_expanded,
-            lambda: AppState.toggle_sidebar_section("geometry"),
-        ),
-
-        # Analysis (full + individual buttons)
-        _section(
-            "analysis_settings",
-            _analysis_section(),
-            AppState.sidebar_mapbiomas_expanded,
-            lambda: AppState.toggle_sidebar_section("mapbiomas"),
-        ),
-
-        # MapBiomas layers
-        _section(
-            "mapbiomas_section_title",
-            _mapbiomas_layers_section(),
-            AppState.sidebar_mapbiomas_expanded,
-            lambda: AppState.toggle_sidebar_section("mapbiomas"),
-            _active_count_badge(AppState.mapbiomas_displayed_years.length(), "green"),
-        ),
-
-        # Hansen GFC layers
-        _section(
-            "hansen_section_title",
-            _hansen_layers_section(),
-            AppState.sidebar_hansen_expanded,
-            lambda: AppState.toggle_sidebar_section("hansen"),
-            _active_count_badge(AppState.hansen_displayed_layers.length(), "blue"),
-        ),
-
-        # Map overlays
-        _section(
-            "map_overlays",
-            _map_overlays_section(),
-            AppState.sidebar_geometry_expanded,
-            lambda: AppState.toggle_sidebar_section("geometry"),
-        ),
-
-        width="100%",
-        spacing="0",
-        padding="0.5rem",
     )

@@ -78,25 +78,76 @@ class UIMixin(rx.State, mixin=True):
         elif section == "upload_file":
             self.upload_file_expanded = not self.upload_file_expanded
 
-    def start_resize(self):
-        """Begin sidebar resize drag."""
-        self.is_resizing_sidebar = True
-
-    def end_resize(self):
-        """End sidebar resize drag."""
-        self.is_resizing_sidebar = False
-
     def update_sidebar_width(self, width: int):
-        """Update sidebar width (constrained 200–500 px)."""
-        self.sidebar_width = max(200, min(500, width))
+        """Set the sidebar width (constrained 200–640 px).
+
+        Legacy: the live workspace no longer routes width through state at
+        all. Dragging it is pure client-side DOM
+        (pages/index.py::_PANEL_SCRIPT) and the chosen width is kept in the
+        viewer's own localStorage — a state round trip per `pointermove`
+        would be visibly laggy, and this is a per-viewer convenience nothing
+        else reads. Only the unrouted pages/{geometry,territory}_analysis.py
+        still size their sidebar from `sidebar_width`.
+
+        The bound is 640 rather than the 500 this used to clamp to, matching
+        the drag range in the script. The old value was a silent trap: the
+        navbar's "wide" preset button asked for 600 and got 500 with no
+        indication that it had been overruled.
+        """
+        try:
+            px = int(width)
+        except (TypeError, ValueError):
+            return
+        self.sidebar_width = max(200, min(640, px))
+
+    # ---- Sidebar groups (accordion) --------------------------------------
+
+    def set_open_groups(self, value):
+        """The sidebar accordion's own `on_value_change`.
+
+        Every manual open/close passes back through here as the whole new
+        array (`type="multiple"`), same as any other controlled Radix
+        component. Accepts a bare string too because Reflex's accordion
+        event spec is shared with `type="single"`, which reports one — this
+        accordion is always `type="multiple"`, but the signature has to
+        accept both to pass Reflex's own event-handler type check.
+        """
+        self.open_groups = [value] if isinstance(value, str) else list(value)
+
+    def _open_group(self, name: str) -> None:
+        """Force one sidebar group open, once per session.
+
+        A first-time user has no reason to know that the controls answering
+        "what did that just do?" are inside a collapsed group until
+        something puts them in front of them. One-shot, so a user who then
+        deliberately collapses the group stays collapsed — the same guard
+        naturametrics' `_open_study_area` uses, and for the same reason.
+        """
+        if name in self._groups_auto_opened:
+            return
+        self._groups_auto_opened = [*self._groups_auto_opened, name]
+        if name not in self.open_groups:
+            self.open_groups = [*self.open_groups, name]
 
     # ---- Full-screen results panel --------------------------------------
     # (The map uses Leaflet's own full-screen control; only the results area
     #  needs an app-level toggle.)
 
     def toggle_fullscreen_results(self):
-        """Expand the results area to fill the content area (toggle to split)."""
+        """Expand the results drawer to fill the workspace (toggle to split).
+
+        The height itself is set client-side, by the same script that owns
+        every other drawer/sheet size (pages/index.py::_PANEL_SCRIPT): once
+        the drawer has been dragged, its inline `height` is pinned, and a
+        max-height coming from a Reflex prop could neither grow nor shrink
+        it. One owner for the height, and the flag here only decides which
+        label the button shows.
+        """
         self.fullscreen_panel = "" if self.fullscreen_panel == "results" else "results"
+        on = "true" if self.fullscreen_panel == "results" else "false"
+        yield rx.call_script(
+            f"window.__yvyResultsDrawerFull && window.__yvyResultsDrawerFull({on})"
+        )
 
     # ---- Tutorial -------------------------------------------------------
 

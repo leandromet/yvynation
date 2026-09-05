@@ -260,12 +260,90 @@ def _territory_row(t: str) -> rx.Component:
     )
 
 
-def territory_selector() -> rx.Component:
-    """Scrollable checkable list of territories with type/area/attribute filters and search."""
+def _filters_disclosure() -> rx.Component:
+    """Area range, attribute dropdowns, sorting and the paste/upload box, all
+    behind one collapsed disclosure.
+
+    Together they are eight controls plus a four-row text area — taller than
+    a phone screen, so before this the list they filter was not visible at
+    all until you scrolled past them. Closed by default: the common case is
+    typing a name into the search box that stays above, not building a
+    multi-attribute query.
+    """
+    return rx.accordion.root(
+        rx.accordion.item(
+            rx.accordion.header(
+                rx.accordion.trigger(
+                    rx.hstack(
+                        rx.icon("sliders-horizontal", size=14),
+                        rx.text(AppState.tr["batch_filters_toggle"], font_size="sm",
+                                font_weight="600"),
+                        rx.cond(
+                            AppState.batch_has_active_filters,
+                            rx.badge("●", color_scheme="orange", variant="solid",
+                                     size="1"),
+                            rx.box(),
+                        ),
+                        spacing="2", align="center",
+                    ),
+                ),
+            ),
+            rx.accordion.content(
+                rx.vstack(
+                    _area_range_filter(),
+                    _attribute_filters(),
+                    rx.hstack(
+                        _sort_select(),
+                        rx.spacer(),
+                        width="100%", align_items="center",
+                    ),
+                    _paste_upload_box(),
+                    spacing="3", width="100%",
+                ),
+                # Radix bakes 16px of its own horizontal padding into
+                # AccordionContent, which sits on top of the card's — same
+                # adjustment components/layout.py::group makes.
+                padding_x="0",
+            ),
+            value="filters",
+        ),
+        type="single", collapsible=True, variant="ghost",
+        color_scheme="orange", width="100%",
+    )
+
+
+def territory_selector(*, list_height: str | None = None) -> rx.Component:
+    """Scrollable checkable list of territories with type/area/attribute
+    filters and search.
+
+    Two sizing modes, because the two places this renders give it genuinely
+    different room:
+
+    * ``list_height=None`` (the desktop column) — the card is a flex column
+      filling its parent and the list takes whatever is left below the
+      fixed-height controls. This needs an unbroken flex chain from the
+      column down; see ``_section_card(fill=True)`` for the half of it that
+      is easy to get wrong.
+    * ``list_height="60dvh"`` (the narrow stage) — the stage is one
+      scrolling column, so there is no "space left over" to fill and the
+      list is given a definite share of the viewport instead, with the
+      how-to guide scrolling below it.
+
+    Either way it replaces ``calc(100vh - 380px)``, where 380 was a guess at
+    the height of the desktop chrome above it — on a landscape phone (390px
+    tall) that resolved to a 10px list.
+    """
+    if list_height is None:
+        list_box = {"flex": "1", "min_height": "140px"}
+        card = {"fill": True, "flex": "1", "min_height": "0"}
+    else:
+        list_box = {"height": list_height}
+        card = {}
     return _section_card(
         # Header
         rx.hstack(
-            rx.heading(AppState.tr["batch_select_territories"], size="3", color="#1a472a"),
+            rx.heading(AppState.tr["batch_select_territories"], size="3",
+                       color="#1a472a"),
             rx.spacer(),
             rx.button(
                 "📋 " + AppState.tr["batch_review_btn"],
@@ -280,12 +358,12 @@ def territory_selector() -> rx.Component:
                 ),
                 color_scheme="orange", variant="soft",
             ),
-            width="100%", align_items="center",
+            width="100%", align_items="center", wrap="wrap", flex_shrink="0",
         ),
         _type_toggle(),
-        _area_range_filter(),
-        _attribute_filters(),
-        # Search
+        # Search stays outside the disclosure: it is the one filter almost
+        # every session uses, and hiding it behind a tap would be the same
+        # mistake in miniature.
         rx.input(
             placeholder=AppState.tr["batch_search_placeholder"],
             value=AppState.batch_territory_search,
@@ -293,40 +371,59 @@ def territory_selector() -> rx.Component:
             width="100%",
             size="2",
         ),
-        # Select-all / Clear row
+        # Select-all / Clear, above the filter disclosure rather than below
+        # it: they act on whatever the list currently shows, so they belong
+        # with the search box that most sessions narrow it with, not tucked
+        # under a collapsible most sessions never open. `size="2"` — these
+        # are the two bulk actions of the whole stage, and at "1" they read
+        # as incidental next to the row of small filter chips.
         rx.hstack(
             rx.button(
                 AppState.tr["batch_select_all_filtered"],
                 on_click=AppState.batch_select_all_filtered,
-                size="1",
-                variant="outline",
+                size="2",
+                variant="solid",
                 color_scheme="orange",
+                cursor="pointer",
             ),
             rx.button(
                 AppState.tr["clear_all"],
                 on_click=AppState.batch_clear_selection,
-                size="1",
-                variant="ghost",
+                size="2",
+                variant="outline",
                 color_scheme="gray",
+                cursor="pointer",
             ),
             rx.spacer(),
-            _sort_select(),
             rx.text(
-                AppState.batch_filtered_territories.length().to(str) + AppState.tr["batch_shown_suffix"],
+                AppState.batch_filtered_territories.length().to(str)
+                + AppState.tr["batch_shown_suffix"],
                 font_size="xs", color="#9CA3AF",
             ),
-            width="100%", align_items="center",
+            width="100%", align_items="center", wrap="wrap", spacing="2",
+            flex_shrink="0",
         ),
-        _paste_upload_box(),
-        # Scrollable list
+        _filters_disclosure(),
+        # Scrollable list. `batch_capped_territories`, not
+        # `batch_filtered_territories` — see that var for why, and note that
+        # "select all filtered" above still acts on the full list.
         rx.box(
-            rx.foreach(AppState.batch_filtered_territories, _territory_row),
-            height="calc(100vh - 380px)",
+            rx.foreach(AppState.batch_capped_territories, _territory_row),
+            rx.cond(
+                AppState.batch_list_is_capped,
+                rx.text(
+                    AppState.batch_list_capped_note,
+                    font_size="xs", color="#B45309", padding="0.5rem",
+                    text_align="center",
+                ),
+                rx.box(),
+            ),
             overflow_y="auto",
             width="100%",
             border="1px solid #e5e7eb",
-            border_radius="lg",
+            border_radius="var(--radius-3)",
             padding="0.5rem",
+            **list_box,
         ),
-        height="100%",
+        **card,
     )

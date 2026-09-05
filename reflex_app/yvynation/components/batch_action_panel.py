@@ -1,4 +1,10 @@
-"""Start/stop/download controls for the batch-processing page."""
+"""Start/stop/download controls for the batch-processing page.
+
+Lives in the bar pinned to the bottom of the viewport
+(pages/batch_processing.py::_action_bar), so everything here has to read as
+the page's primary action at a glance rather than as one more row of
+controls — it is the only thing down there.
+"""
 
 import reflex as rx
 from ..state import AppState
@@ -12,7 +18,7 @@ def large_run_warning() -> rx.Component:
     into a few smaller ones, which keeps peak memory bounded per run.
     """
     return rx.cond(
-        AppState.batch_is_large_run & ~AppState.batch_running & ~AppState.batch_done,
+        AppState.batch_is_large_run & ~AppState.batch_busy & ~AppState.batch_done,
         rx.hstack(
             rx.icon("triangle-alert", size=16, color="#B45309"),
             rx.text(
@@ -59,36 +65,124 @@ def _start_confirm() -> rx.Component:
     )
 
 
+def _no_selection_hint() -> rx.Component:
+    """Says *why* Start does nothing yet.
+
+    A disabled button explains nothing — the run needs at least one
+    territory, and until this the only signal was that clicking had no
+    effect. Tapping the hint goes to the Select stage, which is where the
+    answer is (and on a phone that stage is not even on screen).
+    """
+    return rx.hstack(
+        rx.icon("info", size=15, color="#92400E", flex_shrink="0"),
+        rx.text(
+            AppState.tr["batch_no_selection_hint"],
+            font_size="xs", color="#92400E", flex="1",
+        ),
+        rx.icon("chevron-right", size=14, color="#92400E", flex_shrink="0"),
+        on_click=AppState.set_batch_stage("select"),
+        cursor="pointer",
+        padding="0.55rem 0.75rem",
+        bg="#FFFBEB",
+        border="1px solid #FDE68A",
+        border_radius="md",
+        align_items="center",
+        spacing="2",
+        width="100%",
+        _hover={"bg": "#FEF3C7"},
+    )
+
+
+def _start_button() -> rx.Component:
+    """The page's primary action, and styled to look like it.
+
+    A ring and a coloured shadow, not just a filled background: this sits in
+    a bar at the bottom of the viewport with nothing around it to give it
+    weight, and the plain fill read as chrome rather than as the thing to
+    press.
+    """
+    return rx.button(
+        rx.icon("play", size=16),
+        rx.text(
+            AppState.tr["batch_start_btn"] + " ("
+            + AppState.batch_selected_count.to(str)
+            + " " + AppState.tr["territories_word"] + ")",
+        ),
+        on_click=AppState.request_batch_run,
+        size="3",
+        bg=ORANGE,
+        color="white",
+        font_weight="bold",
+        _hover={"bg": ORANGE_DARK, "transform": "translateY(-1px)"},
+        box_shadow=f"0 2px 10px {ORANGE}59, 0 0 0 3px {ORANGE}26",
+        transition="transform 120ms ease, box-shadow 120ms ease",
+        cursor="pointer",
+        width="100%",
+    )
+
+
+def _starting_button() -> rx.Component:
+    """The gap between the click and the progress bar.
+
+    `run_batch_processing` snapshots the configuration and then awaits two
+    abuse-control checks before it sets `batch_running`, which took seconds
+    in practice. With nothing on screen changing, that read as a click that
+    had not registered — and a second click started a genuine second run,
+    producing two identical ZIPs seconds apart. `batch_starting` closes that
+    window on the state side; this is the half the user can see.
+    """
+    return rx.hstack(
+        rx.button(
+            rx.spinner(size="2"),
+            rx.text(AppState.tr["batch_starting_label"], font_weight="bold"),
+            is_disabled=True,
+            size="3",
+            bg=ORANGE,
+            color="white",
+            opacity="0.85",
+            flex="1",
+        ),
+        # Stop is mounted here too, not only once `batch_running` is set.
+        # Partly so these seconds are cancellable like the rest of the run,
+        # and partly as the escape hatch if anything ever strands
+        # `batch_starting`: `batch_stop` clears it, so the page can always be
+        # recovered without a reload.
+        rx.button(
+            AppState.tr["batch_stop_btn"],
+            on_click=AppState.batch_stop,
+            size="2",
+            variant="outline",
+            color_scheme="red",
+            flex_shrink="0",
+        ),
+        width="100%", align_items="center", spacing="2",
+    )
+
+
 def action_panel() -> rx.Component:
     return rx.vstack(
         large_run_warning(),
         rx.hstack(
-            # Start button (shown when not running and not done)
+            # Idle: either the reason Start is unavailable, the confirm step,
+            # or Start itself.
             rx.cond(
-                ~AppState.batch_running & ~AppState.batch_done,
+                ~AppState.batch_busy & ~AppState.batch_done,
                 rx.cond(
-                    AppState.batch_confirm_pending,
-                    _start_confirm(),
-                    rx.button(
-                        rx.cond(
-                            AppState.batch_selected_count > 0,
-                            AppState.tr["batch_start_btn"] + " ("
-                            + AppState.batch_selected_count.to(str)
-                            + " " + AppState.tr["territories_word"] + ")",
-                            AppState.tr["batch_start_btn"],
-                        ),
-                        on_click=AppState.request_batch_run,
-                        is_disabled=AppState.batch_selected_count == 0,
-                        size="3",
-                        bg=rx.cond(
-                            AppState.batch_selected_count > 0, ORANGE, "#9CA3AF"
-                        ),
-                        color="white",
-                        font_weight="bold",
-                        _hover={"bg": ORANGE_DARK},
-                        width="100%",
+                    AppState.batch_selected_count == 0,
+                    _no_selection_hint(),
+                    rx.cond(
+                        AppState.batch_confirm_pending,
+                        _start_confirm(),
+                        _start_button(),
                     ),
                 ),
+                rx.box(),
+            ),
+
+            # Dispatched, not yet reporting progress.
+            rx.cond(
+                AppState.batch_starting,
+                _starting_button(),
                 rx.box(),
             ),
 
