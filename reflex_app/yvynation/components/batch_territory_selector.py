@@ -371,22 +371,28 @@ def territory_selector(*, list_height: str | None = None) -> rx.Component:
             width="100%",
             size="2",
         ),
-        _filters_disclosure(),
-        # Select-all / Clear row
+        # Select-all / Clear, above the filter disclosure rather than below
+        # it: they act on whatever the list currently shows, so they belong
+        # with the search box that most sessions narrow it with, not tucked
+        # under a collapsible most sessions never open. `size="2"` — these
+        # are the two bulk actions of the whole stage, and at "1" they read
+        # as incidental next to the row of small filter chips.
         rx.hstack(
             rx.button(
                 AppState.tr["batch_select_all_filtered"],
                 on_click=AppState.batch_select_all_filtered,
-                size="1",
-                variant="outline",
+                size="2",
+                variant="solid",
                 color_scheme="orange",
+                cursor="pointer",
             ),
             rx.button(
                 AppState.tr["clear_all"],
                 on_click=AppState.batch_clear_selection,
-                size="1",
-                variant="ghost",
+                size="2",
+                variant="outline",
                 color_scheme="gray",
+                cursor="pointer",
             ),
             rx.spacer(),
             rx.text(
@@ -394,8 +400,10 @@ def territory_selector(*, list_height: str | None = None) -> rx.Component:
                 + AppState.tr["batch_shown_suffix"],
                 font_size="xs", color="#9CA3AF",
             ),
-            width="100%", align_items="center", wrap="wrap", flex_shrink="0",
+            width="100%", align_items="center", wrap="wrap", spacing="2",
+            flex_shrink="0",
         ),
+        _filters_disclosure(),
         # Scrollable list. `batch_capped_territories`, not
         # `batch_filtered_territories` — see that var for why, and note that
         # "select all filtered" above still acts on the full list.
