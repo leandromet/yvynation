@@ -40,6 +40,11 @@ app = rx.App(
               #yvy-desktop-sidebar, #yvy-sidebar-resize,
               #yvy-results-drawer { display: none !important; }
               #yvy-mobile-sheet { display: flex !important; }
+              /* The batch page's own two-column / single-stage split, same
+                 reasoning: side-by-side columns need height as much as width,
+                 and a rotated phone has none to give. */
+              #batch-wide-body { display: none !important; }
+              #batch-narrow-body { display: flex !important; }
             }
         """),
         # `rx.plotly`'s `config.responsive` resizes a chart through its own

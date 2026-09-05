@@ -446,6 +446,14 @@ BATCH_WARN_THRESHOLD_HEAVY = 25
 # ---------------------------------------------------------------------------
 BATCH_MAX_SELECTION = 100
 
+# How many territory rows the selector actually draws. Unrelated to the cap
+# above: this one is about DOM cost, not run size. `rx.foreach` builds a row
+# per entry, and the unfiltered conservation list is 3,247 of them — enough
+# to make the selector visibly slow to open, worst on the phones that can
+# least afford it. Search and the attribute filters are how you reach past
+# it; every handler still operates on the full filtered list.
+BATCH_LIST_RENDER_CAP = 300
+
 # ---------------------------------------------------------------------------
 # Attribute-filter dropdown vocabularies — hardcoded rather than scanned from
 # the GeoPackage. These come from fixed government classification schemes
@@ -552,6 +560,18 @@ class BatchMixin(rx.State, mixin=True):
     batch_sort_by: str = "name_asc"
     # Selected-territories review panel (see review_selection_modal)
     batch_show_review: bool = False
+
+    # ---- Stage flow (pages/batch_processing.py) ------------------------------
+    #: Which of the three stages the page is on: "select" | "configure" | "run".
+    #: Read through `batch_stage_effective` below, never directly — a run in
+    #: flight overrides it.
+    batch_stage: str = "select"
+    #: Which groups of the configuration accordion are open
+    #: (components/batch_config_panel.py). Its own list rather than the
+    #: analysis sidebar's `open_groups`: the two panels have nothing to do
+    #: with each other and sharing one list would have opening a batch group
+    #: silently change the map page's sidebar.
+    batch_config_groups: List[str] = ["years", "analyses"]
     # ---- Paste/upload a name list to auto-select areas ------------------------
     batch_paste_text: str = ""
     batch_paste_feedback: str = ""
@@ -807,6 +827,77 @@ class BatchMixin(rx.State, mixin=True):
     @rx.var
     def batch_selected_count(self) -> int:
         return len(self.batch_selected_territories)
+
+    # ---- Stage flow ---------------------------------------------------------
+
+    @rx.var
+    def batch_stage_effective(self) -> str:
+        """Which stage the page actually shows.
+
+        Forced to "run" while a job is in flight or finished, so starting one
+        moves the user to the progress view without every start path having
+        to remember to — and so nobody can wander back to the selector while
+        a run they cannot change is under way. `batch_reset()` clears
+        `batch_done`, which drops them back to whatever stage they were on.
+        """
+        return "run" if (self.batch_running or self.batch_done) else self.batch_stage
+
+    def set_batch_stage(self, name: str):
+        """Move to a stage. Ignores anything unrecognised rather than
+        rendering an empty body."""
+        if name in ("select", "configure", "run"):
+            self.batch_stage = name
+
+    def set_batch_config_groups(self, value):
+        """The configuration accordion's own `on_value_change`.
+
+        Typed loosely for the same reason as `state/_ui.py::set_open_groups`:
+        Reflex's accordion event spec is shared with `type="single"`, which
+        reports a bare string, so the signature has to accept both to pass
+        its type check even though this accordion is always
+        `type="multiple"`.
+        """
+        self.batch_config_groups = [value] if isinstance(value, str) else list(value)
+
+    @rx.var
+    def batch_capped_territories(self) -> List[str]:
+        """The territory rows actually rendered.
+
+        Purely presentational: unfiltered, the conservation list is 3,247
+        entries and `rx.foreach` builds a DOM row for every one of them,
+        which is most of what makes the selector slow to open on a phone.
+        Every handler — `batch_select_all_filtered` above all — still works
+        off the full `batch_filtered_territories`, so selecting "all
+        filtered" selects all of them, not the visible 300.
+        """
+        return self.batch_filtered_territories[:BATCH_LIST_RENDER_CAP]
+
+    @rx.var
+    def batch_list_is_capped(self) -> bool:
+        return len(self.batch_filtered_territories) > BATCH_LIST_RENDER_CAP
+
+    # Explicit deps: the deferred `get_translations` import below defeats
+    # Reflex's automatic dependency detection (it walks the source and cannot
+    # resolve a relative import made inside the body), and an undetected
+    # dependency means a stale note.
+    @rx.var(auto_deps=False,
+            deps=["language", "batch_filtered_territories"])
+    def batch_list_capped_note(self) -> str:
+        """"Showing the first 300 of 3,247 — refine your filters…".
+
+        Built here rather than concatenated in the component: `AppState.tr[…]`
+        is a Var, and a Var has no `.format`, so assembling it in the UI would
+        mean splicing prefix/suffix keys around the numbers and pinning every
+        language to English word order.
+        """
+        from ..utils.translations import get_translations
+
+        total = len(self.batch_filtered_territories)
+        if total <= BATCH_LIST_RENDER_CAP:
+            return ""
+        return get_translations(self.language)["batch_list_capped"].format(
+            shown=BATCH_LIST_RENDER_CAP, total=total
+        )
 
     @rx.var
     def batch_has_active_filters(self) -> bool:
