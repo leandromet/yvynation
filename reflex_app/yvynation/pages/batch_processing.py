@@ -35,7 +35,7 @@ from ..components.batch_howto_panel import howto_panel
 from ..components.batch_action_panel import action_panel
 from ..components.batch_navbar import batch_navbar
 from ..components.batch_review_modal import review_selection_modal
-from ..components.batch_shared import ORANGE_BORDER, stage_bar
+from ..components.batch_shared import ORANGE_BORDER, ORANGE_LIGHT, stage_bar
 
 #: Same Radix breakpoint scale the analysis workspace uses
 #: (``[initial, 30em, 48em, 62em]``); the split is at "md" (48em / 768px).
@@ -115,8 +115,11 @@ def _wide_body() -> rx.Component:
             border_right="1px solid #E5E7EB",
         ),
         _scroll_column(
+            # `batch_busy`, not `batch_running`: the panel has to be on
+            # screen during the dispatch gap too, which is what it now
+            # explains (see _starting_notice there).
             rx.cond(
-                AppState.batch_running | AppState.batch_done,
+                AppState.batch_busy | AppState.batch_done,
                 status_panel(),
                 rx.box(),
             ),
@@ -177,7 +180,16 @@ def _action_bar() -> rx.Component:
         align_items="center",
         spacing="3",
         padding="0.6rem 1rem",
-        bg="white",
+        # Tinted once a run is actually startable, plain otherwise. The bar
+        # was reported as easy to miss at the bottom of the page: white on
+        # white, it read as a footer. The tint fires exactly when there is
+        # something to press.
+        bg=rx.cond(
+            (AppState.batch_selected_count > 0) & ~AppState.batch_busy
+            & ~AppState.batch_done,
+            ORANGE_LIGHT,
+            "white",
+        ),
         border_top=f"2px solid {ORANGE_BORDER}",
         box_shadow="0 -2px 12px rgba(0, 0, 0, 0.08)",
         flex_shrink="0",

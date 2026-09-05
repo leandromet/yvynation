@@ -25,9 +25,36 @@ def _active_row(row: dict) -> rx.Component:
     )
 
 
+def _starting_notice() -> rx.Component:
+    """Shown between dispatch and the first progress tick.
+
+    `run_batch_processing` snapshots the configuration and awaits two
+    abuse-control checks before it sets `batch_running`, so there is a real
+    gap during which the progress bar reads 0% with nothing happening. Saying
+    what is going on is the difference between "it's working on it" and "my
+    click did nothing" — and the latter is what produced a second click, and
+    two identical ZIPs.
+    """
+    return rx.cond(
+        AppState.batch_starting,
+        rx.hstack(
+            rx.spinner(size="2", color=ORANGE),
+            rx.text(AppState.tr["batch_starting_hint"], font_size="sm",
+                    color="#92400E"),
+            padding="0.6rem 0.75rem",
+            bg="#FFFBEB",
+            border="1px solid #FDE68A",
+            border_radius="md",
+            align_items="center", spacing="2", width="100%",
+        ),
+        rx.box(),
+    )
+
+
 def status_panel() -> rx.Component:
     """Progress bar, current step, and scrollable log."""
     return _section_card(
+        _starting_notice(),
         # Header + progress percentage
         rx.hstack(
             rx.heading(AppState.tr["batch_progress"], size="3", color="#1a472a"),

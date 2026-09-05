@@ -65,7 +65,7 @@ def batch_navbar() -> rx.Component:
             ),
             rx.badge(
                 rx.cond(
-                    AppState.batch_running,
+                    AppState.batch_busy,
                     AppState.tr["batch_processing_ellipsis"],
                     rx.cond(
                         AppState.batch_selected_count > 0,
@@ -74,7 +74,7 @@ def batch_navbar() -> rx.Component:
                     ),
                 ),
                 color_scheme=rx.cond(
-                    AppState.batch_running,
+                    AppState.batch_busy,
                     "orange",
                     rx.cond(AppState.batch_selected_count > 0, "green", "gray"),
                 ),
