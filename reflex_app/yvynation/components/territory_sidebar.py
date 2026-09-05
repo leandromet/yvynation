@@ -7,7 +7,10 @@ buffer, MapBiomas/Hansen layers.
 import reflex as rx
 from ..state import AppState
 from ..config import MAPBIOMAS_YEARS, HANSEN_YEARS
-from .sidebar import _section, _active_count_badge
+from .sidebar import _active_count_badge
+from .layout import group, sidebar_groups_root, sidebar_shell
+from .tutorial import tutorial_section
+from .layer_reference import layer_reference_guide
 
 
 def _region_selector() -> rx.Component:
@@ -630,81 +633,107 @@ def _aafc_placeholder() -> rx.Component:
     )
 
 
-def territory_sidebar() -> rx.Component:
-    """Sidebar for territory analysis: select, analyze, buffer, layers."""
-    return rx.vstack(
-        # Back to portal
-        rx.button(
-            "← Back to Portal",
-            on_click=AppState.go_to_portal,
-            size="1",
-            variant="outline",
-            color_scheme="gray",
-            width="100%",
-            margin_bottom="0.5rem",
-        ),
+def _comparison_controls() -> rx.Component:
+    """Pick two MapBiomas years and run the comparison.
 
-        # Region selector
-        _region_selector(),
-
-        rx.divider(),
-
-        # Territory selection (toggle + country + search + list)
-        _section(
-            "territory_selection",
-            _territory_tools_section(),
-            AppState.sidebar_territory_expanded,
-            lambda: AppState.toggle_sidebar_section("territory"),
+    This used to be a row of the layer-summary bar above the map
+    (``pages/index.py::active_layers_summary``). It is a control, not a
+    status readout, so it belongs with the other analysis controls — and
+    moving it out is part of what lets the map own its whole column.
+    """
+    return rx.cond(
+        AppState.selected_territory != None,
+        rx.vstack(
+            rx.text(AppState.tr["compare_label"], font_size="xs", color="gray",
+                    font_weight="600"),
+            rx.hstack(
+                rx.select(
+                    [str(y) for y in range(1985, 2025)],
+                    value=AppState.comparison_year1_str,
+                    on_change=AppState.set_comparison_year1,
+                    size="1",
+                    width="90px",
+                ),
+                rx.text(AppState.tr["vs_label"], font_size="xs", color="gray"),
+                rx.select(
+                    [str(y) for y in range(1985, 2025)],
+                    value=AppState.comparison_year2_str,
+                    on_change=AppState.set_comparison_year2,
+                    size="1",
+                    width="90px",
+                ),
+                spacing="2",
+                align_items="center",
+                wrap="wrap",
+            ),
             rx.cond(
-                AppState.selected_territory != None,
-                rx.badge("1", color_scheme="purple", size="1", variant="solid"),
-                rx.box(),
+                AppState.mapbiomas_analysis_pending,
+                rx.button(rx.spinner(size="1"), is_disabled=True, size="1",
+                          color_scheme="blue", width="100%"),
+                rx.button(
+                    AppState.tr["compare_btn"],
+                    on_click=AppState.run_territory_comparison,
+                    size="1", color_scheme="green", variant="solid",
+                    width="100%",
+                ),
+            ),
+            spacing="2",
+            width="100%",
+            align_items="stretch",
+        ),
+        rx.box(),
+    )
+
+
+def territory_sidebar() -> rx.Component:
+    """Sidebar for territory analysis: select, analyze, buffer, layers.
+
+    Four collapsible groups (components/layout.py::group), not the six flat
+    sections this replaced — those were driven by only four booleans, so
+    opening "MapBiomas layers" also opened "Analysis settings" and opening
+    "Hansen GFC" also opened "AAFC". Which groups are open is now one
+    controlled list on the state (``AppState.open_groups``), one entry per
+    group.
+
+    The "← Back to Portal" button that used to sit at the top is gone: the
+    navbar already carries a translated one, and this was the untranslated
+    duplicate.
+    """
+    return sidebar_shell(
+        _region_selector(),
+        sidebar_groups_root(
+            group(
+                "study_area", "target", AppState.tr["group_study_area"],
+                _territory_tools_section(),
+                _buffer_section(),
+                badge=rx.cond(
+                    AppState.selected_territory != None,
+                    rx.badge("1", color_scheme="purple", size="1", variant="solid"),
+                    rx.box(),
+                ),
+            ),
+            group(
+                "analysis", "chart-column", AppState.tr["group_analysis"],
+                _territory_analysis_section(),
+                _comparison_controls(),
+            ),
+            group(
+                "layers", "layers", AppState.tr["group_layers"],
+                _mapbiomas_layers_section(),
+                _hansen_layers_section(),
+                _aafc_placeholder(),
+                badge=rx.hstack(
+                    _active_count_badge(
+                        AppState.mapbiomas_displayed_years.length(), "green"),
+                    _active_count_badge(
+                        AppState.hansen_displayed_layers.length(), "blue"),
+                    spacing="1",
+                ),
+            ),
+            group(
+                "help", "circle-help", AppState.tr["group_help"],
+                tutorial_section(),
+                layer_reference_guide(),
             ),
         ),
-
-        # Buffer controls
-        _section(
-            "buffer_controls",
-            _buffer_section(),
-            AppState.sidebar_geometry_expanded,
-            lambda: AppState.toggle_sidebar_section("geometry"),
-        ),
-
-        # Analysis (year comparison + MapBiomas + Hansen GLAD + Hansen GFC)
-        _section(
-            "analysis_settings",
-            _territory_analysis_section(),
-            AppState.sidebar_mapbiomas_expanded,
-            lambda: AppState.toggle_sidebar_section("mapbiomas"),
-        ),
-
-        # MapBiomas layers
-        _section(
-            "mapbiomas_section_title",
-            _mapbiomas_layers_section(),
-            AppState.sidebar_mapbiomas_expanded,
-            lambda: AppState.toggle_sidebar_section("mapbiomas"),
-            _active_count_badge(AppState.mapbiomas_displayed_years.length(), "green"),
-        ),
-
-        # Hansen GFC layers
-        _section(
-            "hansen_section_title",
-            _hansen_layers_section(),
-            AppState.sidebar_hansen_expanded,
-            lambda: AppState.toggle_sidebar_section("hansen"),
-            _active_count_badge(AppState.hansen_displayed_layers.length(), "blue"),
-        ),
-
-        # AAFC (Canada)
-        _section(
-            "aafc_section_title",
-            _aafc_placeholder(),
-            AppState.sidebar_hansen_expanded,
-            lambda: AppState.toggle_sidebar_section("hansen"),
-        ),
-
-        width="100%",
-        spacing="0",
-        padding="0.5rem",
     )

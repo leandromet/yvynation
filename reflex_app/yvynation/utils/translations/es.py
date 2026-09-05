@@ -323,9 +323,19 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     # =====================================================================
     "nav_hide": "☰ Ocultar",
     "nav_show": "☰ Mostrar",
-    "sidebar_narrow": "Estrecha",
-    "sidebar_normal": "Normal",
-    "sidebar_wide": "Ancha",
+    # Estructura del área de trabajo: grupos de la barra lateral, tiradores
+    # de arrastre, redimensionado del panel de resultados
+    "group_study_area": "Área de estudio",
+    "group_analysis": "Análisis",
+    "group_layers": "Capas del mapa",
+    "group_help": "Ayuda y leyenda",
+    "sidebar_hide_aria": "Ocultar el panel de controles",
+    "sidebar_show_aria": "Mostrar el panel de controles",
+    "sidebar_resize_aria": "Redimensionar el panel de controles — arrastre o use las flechas; doble clic para restablecer",
+    "sheet_handle_aria": "Redimensionar el panel — arrastre, toque o use las flechas",
+    "results_resize_label": "Tamaño",
+    "results_resize_aria": "Alternar la altura del panel de resultados entre tres tamaños",
+    "save_drawing": "Guardar Dibujo",
     "geometry_analysis_label": "🔷 Análisis de Geometría",
     "territory_analysis_label": "🗺️ Análisis de Territorio",
     "back_to_portal": "← Volver al Portal",

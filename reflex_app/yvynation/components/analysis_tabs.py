@@ -2401,6 +2401,13 @@ def analysis_tabs() -> rx.Component:
                 rx.tabs.trigger("🌀 Multi-window", value="multiwindow"),
                 rx.tabs.trigger("📈 Timeline", value="timeline"),
                 rx.tabs.trigger(AppState.tr["about_tab"], value="about"),
+                # Ten triggers do not fit a phone, and Radix's own tab list
+                # wraps them into a four-line block that eats most of a
+                # 45vh sheet before any content shows. Scroll them instead:
+                # one line, swipe sideways.
+                overflow_x="auto",
+                flex_shrink="0",
+                style={"whiteSpace": "nowrap", "scrollbarWidth": "thin"},
             ),
             rx.tabs.content(mapbiomas_tab(), value="mapbiomas"),
             rx.tabs.content(hansen_tab(), value="hansen"),
@@ -2414,10 +2421,14 @@ def analysis_tabs() -> rx.Component:
             rx.tabs.content(about_tab(), value="about"),
             value=AppState.active_analysis_tab,
             on_change=AppState.set_active_analysis_tab,
+            width="100%",
         ),
         width="100%",
         border="1px solid #e0e0e0",
         border_radius="md",
         bg="white",
-        overflow="hidden",
+        # `hidden` used to clip a wide chart or table outright, with no
+        # scrollbar and no way to reach it — this panel sits inside a
+        # sheet/drawer narrower than its own min-content width on a phone.
+        overflow="auto",
     )

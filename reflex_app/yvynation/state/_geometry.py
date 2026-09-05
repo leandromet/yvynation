@@ -223,8 +223,8 @@ class GeometryMixin(rx.State, mixin=True):
         )
         self._register_target("drawing", label, feature)
         self.analysis_mode = "geometry"
-        # Expand the geometry section so the user sees the selection
-        self.sidebar_geometry_expanded = True
+        # Expand the study-area group so the user sees the selection
+        self._open_group("study_area")
         self._attach_buffer_for_active()
         self.geometry_version += 1
         logger.info(

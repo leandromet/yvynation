@@ -238,8 +238,13 @@ class AppState(
     active_tab: str = "map"   # "map" | "analysis" | "tutorial" | "about"
     analysis_mode: str = "portal"  # "portal" | "geometry" | "territory"
     sidebar_open: bool = True
+    #: Legacy. The live workspace's sidebar width is owned entirely by the
+    #: browser: dragged client-side (pages/index.py::_PANEL_SCRIPT) and
+    #: persisted to that viewer's own localStorage, because it is a
+    #: per-viewer convenience no other part of the app reads — and state
+    #: would lose it on reload anyway. This remains only for the unrouted
+    #: pages/{geometry,territory}_analysis.py, which still read it.
     sidebar_width: int = 300
-    is_resizing_sidebar: bool = False
     show_tutorial: bool = False
     tutorial_expanded_steps: List[int] = []
     show_layer_reference: bool = False
@@ -254,11 +259,25 @@ class AppState(
     #: Whether to automatically create a buffer when a territory is selected
     auto_buffer_enabled: bool = True
 
-    # Sidebar section expansion
+    #: Which of the sidebar's accordion groups are open (components/
+    #: layout.py::group, assembled in components/{territory,geometry}_sidebar.py).
+    #: Controlled rather than left to Radix's own uncontrolled state so the
+    #: backend can force a group open — see `_open_group` — while every
+    #: ordinary user toggle still flows through `set_open_groups`.
+    open_groups: List[str] = ["study_area"]
+    #: Group ids `_open_group` has already forced open this session. Each is
+    #: a one-shot: only the FIRST time something happens should it override
+    #: what the user has since chosen to collapse.
+    _groups_auto_opened: List[str] = []
+
+    # Sidebar section expansion. Legacy — the live sidebars use `open_groups`
+    # above. These remain only for components/sidebar.py::sidebar() and the
+    # unrouted pages/geometry_analysis.py, which still reference them.
     sidebar_mapbiomas_expanded: bool = False
     sidebar_hansen_expanded: bool = False
     sidebar_territory_expanded: bool = False
     sidebar_geometry_expanded: bool = False
+    #: Still live: the upload sub-collapsible inside the geometry tools section.
     upload_file_expanded: bool = False
 
     # Pending territory confirmation
