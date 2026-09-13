@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.8+-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Latest-red)
 ![Earth Engine](https://img.shields.io/badge/Google%20Earth%20Engine-API-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![License](https://img.shields.io/badge/License-GPL--3.0-yellow)
 
 > 🚀 **[Try the Live Demo](https://yvynation-652582010777.us-west1.run.app/)** - Access the platform now!
 
@@ -255,7 +255,10 @@ For development guidelines, see [REFACTOR_GUIDE.md](docs/REFACTOR_GUIDE.md).
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU GPL v3 - see [LICENSE](LICENSE) file for details. The
+same licence covers Naturametrics and Camposcope, the two sibling apps this codebase shares
+engineering with. Outputs (analyses, figures, exported files) this application generates are
+CC BY 4.0, independent of the code licence.
 
 ## 🔗 Related Links
 

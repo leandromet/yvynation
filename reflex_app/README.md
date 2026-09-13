@@ -142,7 +142,13 @@ flake8 yvynation/
 
 ### 📄 License
 
-Same as original Yvynation project
+**Code: GNU GPL v3** — see [LICENSE](../LICENSE) at the repository root. The same licence
+covers Naturametrics and Camposcope, the two sibling apps this codebase shares engineering
+with.
+
+**Outputs: CC BY 4.0** — the land-cover analyses, figures, and exported files this
+application generates are public, open and free to use with attribution (see the licence
+notice in the portal footer).
 
 ### 🤝 Contributing
 

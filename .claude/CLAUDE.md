@@ -3,7 +3,8 @@
 Plataforma interativa de monitoramento de terras indígenas brasileiras com análise de cobertura florestal via Google Earth Engine e MapBiomas.
 
 **Autor**: Leandro Meneguelli Biondo (PhD Candidate, UBC Okanagan)  
-**Licença**: MIT
+**Licença**: GNU GPL v3 (código — ver `LICENSE`); CC BY 4.0 (dados e análises gerados pela
+ferramenta — ver o rodapé do portal)
 
 > O diretório de trabalho primário é `yvynation/`, mas **o app ativo fica em
 > `yvynation/reflex_app/`** — todo desenvolvimento ocorre lá.
