@@ -49,7 +49,6 @@ htmlcov/
 *.shx
 *.dbf
 *.prj
-*.geojson
 data/
 
 # Cache

@@ -29,7 +29,6 @@ data/raw/
 output/
 #*.ipynb
 *.csv
-*.geojson
 *.kmz
 .gitkeep
 
