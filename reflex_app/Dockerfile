@@ -47,7 +47,13 @@ import plotly.graph_objects as go; \
 from yvynation.utils.export_service import _plotly_to_png_bytes; \
 png = _plotly_to_png_bytes(go.Figure(go.Bar(x=['a'], y=[1])), width=200, height=200); \
 assert png and png[:8] == b'\x89PNG\r\n\x1a\n', 'kaleido PNG export failed'; \
-print('Kaleido PNG export OK')"
+print('Kaleido PNG export OK')" && \
+    python -c "\
+from yvynation import report_kit as rk; \
+pdf = rk.render_pdf(rk.Report(rk.ReportMeta('Yvynation', 'https://x', '0', 'Smoke', 'test'), \
+    [rk.Section('S', [rk.Paragraph('ỹ g̃ ç'), rk.LocatorMap({'type': 'Point', 'coordinates': [-55, -12]})])])); \
+assert pdf[:5] == b'%PDF-', 'report_kit PDF failed'; \
+print('report_kit PDF OK')"
 
 # ── Runtime configuration ────────────────────────────────────────────────────
 ENV PYTHONUNBUFFERED=1

@@ -3,12 +3,34 @@ Analysis execution and multi-result management event handlers.
 Covers territory/geometry MapBiomas & Hansen analysis, comparison, and
 the result-store (switch / remove result).
 """
+import copy
 import logging
 from typing import Any, Dict, Optional
 
 import reflex as rx
 
 logger = logging.getLogger(__name__)
+
+#: Per-area results that live in flat state fields rather than in the result
+#: bundle. switch_result used to restore only the bundle's own entries
+#: (result/comparison/timeline/mw), so after switching areas these still held
+#: the LAST area analysed — the results panel, the export ZIP, "Download all"
+#: and the planned PDF report (docs/PDF_REPORT.md §1) then mixed two areas.
+#: Each handler that writes them now saves a copy into the analysed area's
+#: bundle (_save_area_fields), and switch_result restores them. All default
+#: to None, which is also what an area that never ran one of them gets back.
+AREA_RESULT_FIELDS = (
+    "mapbiomas_analysis_result",
+    "territory_result", "territory_result_year2", "territory_transitions",
+    "geometry_glad_result", "geometry_gfc_result",
+    "buffer_mapbiomas_result", "buffer_hansen_result", "buffer_compare_result",
+    "buffer_mapbiomas_comparison_result", "buffer_gfc_result",
+    "buffer_territory_transitions",
+)
+#: Labels saved alongside, restored only when the bundle carries them (a
+#: drawn-geometry bundle has no territory name to restore).
+AREA_LABEL_FIELDS = ("territory_name", "territory_year", "territory_year2",
+                     "territory_source")
 
 
 class AnalysisMixin(rx.State, mixin=True):
@@ -63,6 +85,29 @@ class AnalysisMixin(rx.State, mixin=True):
         self.all_analysis_results[key] = bundle
         self._mark_target_analyzed(key)
 
+    def _save_area_fields(self, key: str):
+        """Copy the per-area flat fields (AREA_RESULT_FIELDS + labels) into the
+        bundle of the area *key* that was just analysed. Called by every
+        handler that writes them, right after it does, with the key of the
+        area it analysed — never inferred from active_result_key, which the
+        territory handlers do not set. Deep copies: bundles must not alias the
+        live fields the next analysis will overwrite."""
+        if not key:
+            return
+        bundle = dict(self.all_analysis_results.get(key) or {})
+        bundle["area"] = {
+            f: copy.deepcopy(getattr(self, f, None))
+            for f in AREA_RESULT_FIELDS + AREA_LABEL_FIELDS
+        }
+        self.all_analysis_results[key] = bundle
+
+    def _clear_area_fields(self):
+        """Forget the per-area flat fields — on selecting another area, so the
+        previous area's GLAD/GFC/buffer numbers cannot be shown or exported
+        under the new one's name. They survive in their own bundle."""
+        for f in AREA_RESULT_FIELDS:
+            setattr(self, f, None)
+
     def switch_result(self, key: str):
         """Activate a previously stored result and zoom to its geometry."""
         if key not in self.all_analysis_results:
@@ -71,6 +116,15 @@ class AnalysisMixin(rx.State, mixin=True):
         self.active_result_key = key
         self.analysis_results = bundle.get("result", {})
         self.mapbiomas_comparison_result = bundle.get("comparison")
+
+        # Per-area flat fields (see AREA_RESULT_FIELDS): this area's own, or
+        # None for any it never ran — never the previous area's.
+        area = bundle.get("area") or {}
+        for f in AREA_RESULT_FIELDS:
+            setattr(self, f, copy.deepcopy(area.get(f)))
+        for f in AREA_LABEL_FIELDS:
+            if f in area:
+                setattr(self, f, area[f])
 
         # Advanced-viz payloads stored per area (empty when never run for it)
         tl = bundle.get("timeline") or {}
@@ -378,6 +432,7 @@ class AnalysisMixin(rx.State, mixin=True):
                     except Exception as buf_e:
                         logger.warning(f"Buffer MapBiomas analysis failed (non-fatal): {buf_e}")
 
+            self._save_area_fields(f"territory::{self.selected_territory}")
             self.mapbiomas_analysis_pending = False
             self.clear_loading()
 
@@ -543,6 +598,7 @@ class AnalysisMixin(rx.State, mixin=True):
                     except Exception as buf_e:
                         logger.warning(f"Buffer Hansen GLAD failed (non-fatal): {buf_e}")
 
+            self._save_area_fields(f"territory::{self.selected_territory}")
             self.hansen_analysis_pending = False
             self.clear_loading()
 
@@ -602,6 +658,7 @@ class AnalysisMixin(rx.State, mixin=True):
             elif result_dict and "error" in result_dict:
                 self.error_message = result_dict["error"]
 
+            self._save_area_fields(f"territory::{self.selected_territory}")
             self.geometry_analysis_pending = False
             self.clear_loading()
 
@@ -800,6 +857,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 key = f"geometry::{self.selected_geometry_idx}"
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
+                self._save_area_fields(key)
                 self.set_active_tab("analysis")
                 self.loading_message = ""
 
@@ -857,6 +915,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 self._store_result(key, result_dict, geojson_feature=feat)
                 # Store in dedicated GLAD var so GFC tab results are not overwritten
                 self.geometry_glad_result = result_dict
+                self._save_area_fields(key)
                 self.set_active_tab("analysis")
                 self.active_analysis_tab = "hansen"
                 self.loading_message = ""
@@ -906,6 +965,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 key = f"geometry::{self.selected_geometry_idx}"
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
+                self._save_area_fields(key)
                 self.set_active_tab("analysis")
                 self.active_analysis_tab = "gfc"
                 self.loading_message = ""
@@ -982,6 +1042,7 @@ class AnalysisMixin(rx.State, mixin=True):
             key = f"geometry::{self.selected_geometry_idx}"
             feat = self.drawn_features[self.selected_geometry_idx]
             self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=feat)
+            self._save_area_fields(key)
             self._mark_target_analyzed(key)
 
             self.show_change_mask = True
@@ -1287,8 +1348,13 @@ class AnalysisMixin(rx.State, mixin=True):
                     if buf_trans:
                         self.buffer_territory_transitions = buf_trans
                 key = f"territory::{territory}"
-                bundle = {"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None}
+                # Merge, like _store_result: replacing the bundle outright
+                # dropped any timeline/multi-window payload (and the saved
+                # per-area fields) already attached to this area.
+                bundle = dict(self.all_analysis_results.get(key) or {})
+                bundle.update({"result": result_dict, "comparison": comparison_dict, "geojson": geojson_features[0] if geojson_features else None})
                 self.all_analysis_results[key] = bundle
+                self._save_area_fields(key)
                 self.active_result_key = key
                 self._mark_target_analyzed(key)
                 self.loading_message = f"✓ Comparison {y1}→{y2} complete ({len(df1)} / {len(df2)} classes)"

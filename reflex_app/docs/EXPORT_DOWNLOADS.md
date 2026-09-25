@@ -4,6 +4,10 @@ How a finished batch ZIP reaches the browser, and why it is served the way it
 is. Relevant files: [`utils/download_routes.py`](../yvynation/utils/download_routes.py),
 `utils/export_service.get_download_url`, `yvynation.py`.
 
+The laid-out PDF/HTML report ([PDF_REPORT.md](PDF_REPORT.md)) uses this same route for
+single-area downloads. The file is written at the root of `exports/`, because the route accepts
+plain file names only.
+
 ## The route
 
 ```

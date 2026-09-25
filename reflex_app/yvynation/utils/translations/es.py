@@ -573,4 +573,29 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "previous_runs_detail_loading": "Leyendo detalles de la ejecución…",
     "previous_runs_files_suffix": "archivos",
     "previous_runs_empty": "Aún no hay ejecuciones anteriores — las descargas de lotes/exportaciones aparecerán aquí.",
+
+    # =====================================================================
+    # Laid-out report (docs/PDF_REPORT.md) — export panel + batch
+    # =====================================================================
+    "export_tab_data": "Datos y figuras",
+    "export_tab_maps": "Mapas en PDF",
+    "export_tab_report": "Informe",
+    "report_heading": "Informe",
+    "report_intro": "Un documento maquetado: identificación, mapas, gráficos y tablas con explicaciones breves. Idioma = el de la interfaz.",
+    "report_chk_maps": "Mapas",
+    "report_chk_figures": "Gráficos",
+    "report_chk_tables": "Tablas resumen",
+    "report_chk_appendix": "Apéndice",
+    "report_btn_pdf": "PDF",
+    "report_btn_html": "HTML",
+    "report_stage_snapshot": "Reuniendo resultados…",
+    "report_stage_maps": "Mapas: obteniendo de Earth Engine…",
+    "report_stage_charts": "Gráficos {n}/{total}",
+    "report_stage_compose": "Componiendo {fmt}…",
+    "report_stage_done": "Informe listo — descarga iniciada.",
+    "report_disabled_no_result": "Analice primero una Tierra Indígena o Unidad de Conservación. Los informes cubren territorios, no polígonos dibujados.",
+    "report_disabled_busy": "Se está generando un informe…",
+    "report_error": "Error en el informe: {err}",
+    "batch_chk_report_pdf": "📄 Informe PDF por área",
+    "batch_report_pdf_hint": "Un PDF legible por área, en el idioma de la interfaz: identificación, mapas, gráficos y tablas con explicaciones breves. Se guarda como territory/<nombre>/<nombre>_report.pdf.",
 }

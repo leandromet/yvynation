@@ -500,3 +500,173 @@ class ExportMixin(rx.State, mixin=True):
                 self.export_pending = False
                 self.loading_message = ""
                 self.error_message = f"Download-all failed: {e}"
+
+    # ---- Laid-out report (docs/PDF_REPORT.md §5, §7, §8) -----------------
+    #
+    # One readable PDF or HTML for the active territory result: identification,
+    # maps, charts and tables with short explanations, in the interface
+    # language. start_report is the normal handler (guard + busy flag); the
+    # work happens in the background build_report, which never renders on the
+    # event loop: Earth Engine thumbnails on the I/O pool, charts on the
+    # kaleido lane one at a time (so the stage line can count them), reportlab
+    # on the default executor.
+
+    exp_report_maps: bool = True
+    exp_report_figures: bool = True
+    exp_report_tables: bool = True
+    exp_report_appendix: bool = False
+    report_busy: bool = False
+    report_stage: str = ""
+    report_error: str = ""
+
+    def toggle_exp_report_maps(self, val: bool):
+        self.exp_report_maps = bool(val)
+
+    def toggle_exp_report_figures(self, val: bool):
+        self.exp_report_figures = bool(val)
+
+    def toggle_exp_report_tables(self, val: bool):
+        self.exp_report_tables = bool(val)
+
+    def toggle_exp_report_appendix(self, val: bool):
+        self.exp_report_appendix = bool(val)
+
+    @rx.var(auto_deps=False, deps=["active_result_key", "report_busy", "language"])
+    def report_disabled_reason(self) -> str:
+        """Why the report buttons are disabled ("" when enabled)."""
+        from ..utils.translations import t
+        if self.report_busy:
+            return t("report_disabled_busy", self.language)
+        if not str(self.active_result_key or "").startswith("territory::"):
+            return t("report_disabled_no_result", self.language)
+        return ""
+
+    def start_report(self, fmt: str):
+        """PDF / HTML button: validate, mark busy, hand off to build_report."""
+        from ..utils.translations import t
+        if self.report_busy:
+            return
+        if not str(self.active_result_key or "").startswith("territory::"):
+            self.report_error = t("report_disabled_no_result", self.language)
+            return
+        self.report_busy = True
+        self.report_error = ""
+        self.report_stage = t("report_stage_snapshot", self.language)
+        return type(self).build_report("html" if fmt == "html" else "pdf")
+
+    @rx.event(background=True)
+    async def build_report(self, fmt: str):
+        import asyncio
+
+        from ..utils import report_builder as rb
+        from ..utils.ee_concurrency import get_io_executor, get_render_executor
+        from ..utils.export_service import (
+            collect_export_data_from_state, get_download_url, save_export_to_upload_dir,
+        )
+        from ..utils.translations import t
+
+        loop = asyncio.get_running_loop()
+        io_pool = get_io_executor()
+        fmt = "html" if fmt == "html" else "pdf"
+        lang = "en"
+        try:
+            # 1. Snapshot — everything read from state, inside the lock, as
+            #    plain data. The per-area fields are already this area's own
+            #    (state/_analysis.py::AREA_RESULT_FIELDS), so no owner check.
+            async with self:
+                lang = self.language or "en"
+                key = str(self.active_result_key or "")
+                name = key.split("::", 1)[1] if key.startswith("territory::") else ""
+                if not name:
+                    self.report_error = t("report_disabled_no_result", lang)
+                    self.report_busy = False
+                    self.report_stage = ""
+                    return
+                export = collect_export_data_from_state(self)
+                terr_figs = export.pop("territory_figures", None) or {}
+                buf_figs = export.pop("buffer_figures", None) or {}
+                figure_json = {k: rb.fig_to_json(v) for k, v in terr_figs.items()}
+                for k in ("comparison_bar", "gains_losses"):
+                    figure_json[f"buffer:{k}"] = rb.fig_to_json(buf_figs.get(k))
+                figure_json = {k: v for k, v in figure_json.items() if v}
+                for drop in ("drawn_features", "analysis_results", "mapbiomas_analysis_result"):
+                    export.pop(drop, None)
+                export = rb.plain(export)
+                entry = rb.plain(self.analysis_targets.get(key) or {})
+                bundle_geo = rb.plain((self.all_analysis_results.get(key) or {}).get("geojson"))
+                geometry = entry.get("geojson") or bundle_geo
+                buffer_feat = entry.get("buffer_geojson") or (
+                    rb.plain(self.buffer_geojson_features[0])
+                    if self.buffer_geojson_features else None)
+                buffer_km = (rb.parse_buffer_km(entry.get("buffer_name"))
+                             or rb.parse_buffer_km(self.current_buffer_for_analysis)
+                             or rb.parse_buffer_km(export.get("buffer_name"))
+                             or float(self.auto_buffer_km or 10.0))
+                territory_type = self.territory_type or "indigenous"
+                options = {"maps": bool(self.exp_report_maps),
+                           "figures": bool(self.exp_report_figures),
+                           "tables": bool(self.exp_report_tables),
+                           "appendix": bool(self.exp_report_appendix),
+                           "fmt": fmt, "batch": False}
+
+            snap = rb.snapshot_from_export(
+                export, territory_type=territory_type, geometry=geometry,
+                buffer_geometry=buffer_feat, buffer_km=buffer_km, figure_json=figure_json)
+            snap["name"] = name
+            extra = await loop.run_in_executor(io_pool, rb.extra_figures, snap)
+            snap["figures"].update(extra)
+            meta = await loop.run_in_executor(io_pool, rb.lookup_meta, name, territory_type)
+
+            # 2. Maps — Earth Engine thumbnails, off the event loop.
+            maps = None
+            if options["maps"]:
+                async with self:
+                    self.report_stage = t("report_stage_maps", lang)
+
+                def _maps(snap=snap, lang=lang):
+                    from ..utils.ee_service import initialize_earth_engine
+                    initialize_earth_engine()
+                    return rb.fetch_report_maps(snap, lang)
+
+                try:
+                    maps = await loop.run_in_executor(io_pool, _maps)
+                except Exception as me:  # noqa: BLE001
+                    logger.warning(f"[REPORT] maps failed: {me}")
+                    maps = {"error": str(me)[:300]}
+
+            # 3. Charts — kaleido lane, one figure per call so the stage line
+            #    counts them. HTML embeds the figure JSON instead.
+            pngs = {}
+            if fmt == "pdf":
+                keys = rb.figure_plan(snap, options)
+                kaleido = get_render_executor("kaleido")
+                for i, k in enumerate(keys, 1):
+                    async with self:
+                        self.report_stage = t("report_stage_charts", lang, n=i, total=len(keys))
+                    pngs.update(await loop.run_in_executor(
+                        kaleido, rb.render_pngs, snap["figures"], [k]))
+
+            # 4. Compose — reportlab on the default executor, never a lane.
+            async with self:
+                self.report_stage = t("report_stage_compose", lang, fmt=fmt.upper())
+
+            def _compose():
+                report = rb.build_territory_report(snap, meta, pngs, maps, lang, options)
+                return rb.render(report, fmt)
+
+            data = await loop.run_in_executor(None, _compose)
+            filename = rb.report_filename(name, fmt)
+            rel = await loop.run_in_executor(io_pool, save_export_to_upload_dir, data, filename)
+            url = await loop.run_in_executor(None, get_download_url, rel)
+            logger.info(f"[REPORT] {filename}: {len(data) // 1024} KB")
+            async with self:
+                self.report_busy = False
+                self.report_stage = t("report_stage_done", lang)
+            yield rx.download(url=url, filename=filename)
+
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[REPORT] failed: {e}", exc_info=True)
+            async with self:
+                self.report_busy = False
+                self.report_stage = ""
+                self.report_error = t("report_error", lang, err=str(e)[:200])

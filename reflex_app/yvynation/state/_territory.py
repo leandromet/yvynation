@@ -307,9 +307,12 @@ class TerritoryMixin(rx.State, mixin=True):
 
         logger.info(f"[TERRITORY_SET] Dispatching background load for: {territory}")
 
-        # Clear stale results instantly so the UI reflects the new selection
-        self.territory_result = None
-        self.territory_result_year2 = None
+        # Clear stale results instantly so the UI reflects the new selection.
+        # All per-area flat fields, not just territory_result: GLAD/GFC/buffer
+        # results used to survive the switch and be shown/exported under the
+        # new territory's name (AnalysisMixin.AREA_RESULT_FIELDS). The previous
+        # area keeps them in its own bundle; switch_result brings them back.
+        self._clear_area_fields()
         self.selected_territory = territory
         self.pending_territory = None
         self.territory_name = territory

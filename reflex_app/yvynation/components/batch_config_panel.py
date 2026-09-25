@@ -139,6 +139,11 @@ def _figures_group() -> rx.Component:
         "figures", "image", AppState.tr["batch_group_figures"],
         rx.vstack(
             _label(AppState.tr["batch_figs_label"]),
+            # One laid-out PDF per area (docs/PDF_REPORT.md §5, §7).
+            _check(AppState.tr["batch_chk_report_pdf"],
+                   AppState.batch_run_report_pdf,
+                   AppState.batch_toggle_report_pdf,
+                   hint=AppState.tr["batch_report_pdf_hint"]),
             _check(AppState.tr["batch_chk_export_png"],
                    AppState.batch_export_png,
                    AppState.batch_toggle_export_png,

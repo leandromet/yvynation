@@ -230,30 +230,27 @@ def get_basemap_image(bounds: Tuple[float, float, float, float],
     return composite, actual_bounds
 
 
-def get_ee_layer_image(bounds: Tuple[float, float, float, float],
-                       ee_geometry,
-                       layer_type: str = 'mapbiomas',
-                       year: int = 2023,
-                       vis_params: Optional[Dict] = None):
+def ee_layer_image(layer_type: str = 'mapbiomas',
+                   year: Optional[int] = 2023,
+                   geometry=None,
+                   vis_params: Optional[Dict] = None):
+    """The already-visualised ``ee.Image`` for one raster layer, or None.
+
+    Single source of the layer's asset, band and palette: the PNG map export
+    (:func:`get_ee_layer_image`) and the laid-out report
+    (``utils/report_builder.py`` → ``report_kit.maps.fetch_thumbnail``) both
+    build their pixels here, so the two can never disagree on colours.
+
+    ``layer_type``: ``"mapbiomas"`` (``classification_{year}``), ``"hansen"``
+    (GLAD GLCLU2020 epoch ``year``), ``"gfc_loss"`` (Hansen GFC ``lossyear``,
+    masked to loss pixels — the screen's tree-loss tile layer) or
+    ``"aux:<key>"`` (``MAPBIOMAS_AUX_DATASETS``). ``geometry`` (an
+    ``ee.Geometry``) clips the image when given; the report passes None and
+    clips with vectors instead, so no geometry travels to Earth Engine.
     """
-    Download Earth Engine raster layer as PIL Image.
-
-    Returns (PIL.Image, bounds) or (None, None).
-    """
-    try:
-        import ee
-        from PIL import Image
-        import requests
-    except ImportError as e:
-        logger.error(f"Missing dependency for EE layer: {e}")
-        return None, None
+    import ee
 
     try:
-        min_lon, min_lat, max_lon, max_lat = bounds
-        lon_span = max_lon - min_lon
-        max_px_width = 1024
-        scale = max(10, int(lon_span * 111000 / max_px_width))
-
         if layer_type == 'mapbiomas':
             from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_PALETTE
             asset = MAPBIOMAS_COLLECTIONS.get(MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_COLLECTIONS['v10_1'])
@@ -266,7 +263,7 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
             if year_str in HANSEN_DATASETS:
                 image = ee.Image(HANSEN_DATASETS[year_str])
             else:
-                return None, None
+                return None
             if vis_params is None:
                 vis_params = {'min': 0, 'max': 255}
         elif isinstance(layer_type, str) and layer_type.startswith('aux:'):
@@ -281,7 +278,7 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
             spec = MAPBIOMAS_AUX_DATASETS.get(aux_key)
             if spec is None:
                 logger.warning(f"Unknown aux layer key: {aux_key}")
-                return None, None
+                return None
             asset_id = spec["asset"]
             candidates = spec.get("band_candidates") or []
             
@@ -326,7 +323,7 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                     f"aux layer {aux_key}: no candidate band found in "
                     f"{asset_id}. Tried: {candidates}"
                 )
-                return None, None
+                return None
             try:
                 image = ee.Image(asset_id).select(band)
             except Exception as ee_err:
@@ -334,7 +331,7 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                     f"aux layer {aux_key}: select('{band}') failed on "
                     f"{asset_id} — {ee_err}"
                 )
-                return None, None
+                return None
             if vis_params is None:
                 vis_params = dict(spec.get("vis") or {})
             logger.info(
@@ -342,11 +339,51 @@ def get_ee_layer_image(bounds: Tuple[float, float, float, float],
                 + (f" (year {year} → {year_used})"
                    if year_used != year else "")
             )
+        elif layer_type == 'gfc_loss':
+            from ..config.config import HANSEN_GFC_DATASET, HANSEN_GFC_TREE_LOSS_VIS
+            loss = ee.Image(HANSEN_GFC_DATASET).select(['lossyear'])
+            image = loss.updateMask(loss.gt(0))
+            if vis_params is None:
+                vis_params = {k: v for k, v in HANSEN_GFC_TREE_LOSS_VIS.items() if k != 'bands'}
         else:
-            return None, None
+            return None
 
-        # Clip and visualize
-        image = image.clip(ee_geometry).visualize(**vis_params)
+        if geometry is not None:
+            image = image.clip(geometry)
+        return image.visualize(**vis_params)
+    except Exception as e:
+        logger.error(f"EE layer image ({layer_type}, {year}) failed: {e}")
+        return None
+
+
+def get_ee_layer_image(bounds: Tuple[float, float, float, float],
+                       ee_geometry,
+                       layer_type: str = 'mapbiomas',
+                       year: int = 2023,
+                       vis_params: Optional[Dict] = None):
+    """
+    Download Earth Engine raster layer as PIL Image.
+
+    The image itself comes from :func:`ee_layer_image` (shared with the
+    report). Returns (PIL.Image, bounds) or (None, None).
+    """
+    try:
+        import ee
+        from PIL import Image
+        import requests
+    except ImportError as e:
+        logger.error(f"Missing dependency for EE layer: {e}")
+        return None, None
+
+    try:
+        min_lon, min_lat, max_lon, max_lat = bounds
+        lon_span = max_lon - min_lon
+        max_px_width = 1024
+        scale = max(10, int(lon_span * 111000 / max_px_width))
+
+        image = ee_layer_image(layer_type, year, ee_geometry, vis_params)
+        if image is None:
+            return None, None
 
         # Download
         region = ee.Geometry.Rectangle([min_lon, min_lat, max_lon, max_lat])

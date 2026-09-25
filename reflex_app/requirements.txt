@@ -41,6 +41,9 @@ pyproj>=3.6.0
 
 # Utilities
 pillow>=10.1.0
+# Laid-out PDF report (yvynation/report_kit, vendored from Naturametrics —
+# docs/PDF_REPORT.md). Pure wheel, no system packages.
+reportlab>=4.2,<5
 requests>=2.31.0
 pydantic>=2.5.0
 

@@ -422,6 +422,7 @@ STEPS = {
     "maps_fetch":   "🛰 Downloading map rasters…",
     "maps":         "🗺️  Rendering PNG maps…",
     "export":       "📦 Packaging data…",
+    "report":       "📄 Composing the PDF report…",
     "done":         "✅ Done",
 }
 
@@ -499,6 +500,9 @@ class BatchMixin(rx.State, mixin=True):
     batch_run_glad: bool = True
     batch_run_gfc: bool = True
     batch_run_pdf_maps: bool = True
+    #: One laid-out PDF per area (docs/PDF_REPORT.md §5), in the interface
+    #: language at batch start. Never fails an area: the ZIP/CSVs come first.
+    batch_run_report_pdf: bool = True
     # ── MapBiomas auxiliary raster layers (each rendered as one PNG when on) ──
     # Per-year layers use the configured batch year2; full-period layers
     # (fire_frequency) render one image regardless of year selection.
@@ -1322,6 +1326,9 @@ class BatchMixin(rx.State, mixin=True):
     def batch_toggle_run_pdf_maps(self, val: bool):
         self.batch_run_pdf_maps = val
 
+    def batch_toggle_report_pdf(self, val: bool):
+        self.batch_run_report_pdf = bool(val)
+
     # ── Figure export / timeline-band toggles ────────────────────────────
     def batch_toggle_export_png(self, val: bool):
         self.batch_export_png = val
@@ -1536,6 +1543,8 @@ class BatchMixin(rx.State, mixin=True):
             if self.batch_run_aux_mining_substances:aux_layer_keys.append("mining_substances")
             if self.batch_run_aux_agriculture_cycles:aux_layer_keys.append("agriculture_cycles")
             run_timeline = bool(self.batch_run_deforestation_timeline)
+            run_report = bool(self.batch_run_report_pdf)
+            report_lang = self.language or "en"
             # Resolved per-territory (not a single global value) so a run can
             # mix indigenous lands and conservation units in one selection.
             territory_type_map: Dict[str, str] = {
@@ -1791,8 +1800,86 @@ class BatchMixin(rx.State, mixin=True):
                    else "off — saves ~90% of archive size")
             )
 
+        from datetime import timezone as _tz
+        run_started = datetime.now(_tz.utc).isoformat(timespec="seconds")
+
         with figure_export(png=_png_on, scale=_png_scale), \
                 DirExportWriter(work_dir) as master_zf:
+
+            async def _build_area_report(terr, ttype, geojson, buf_ee, buf_gj,
+                                         regions, tl) -> str:
+                """One laid-out PDF for *terr* (docs/PDF_REPORT.md §5).
+
+                Quadrants are merged first (never ``total_area``, which reads
+                the last quadrant only). Order follows the lane rules: every
+                Earth Engine fetch (buffer shape, map thumbnails) on the I/O
+                pool BEFORE the kaleido lane; charts re-rendered at report size
+                on the kaleido lane; reportlab on the default executor.
+                """
+                from ..utils import report_builder as rb
+                from ..utils.export_service import _slug
+
+                options = {"maps": True, "figures": True, "tables": True,
+                           "appendix": False, "fmt": "pdf", "batch": True}
+
+                def _prepare():
+                    merged = rb.merge_regions(regions)
+                    bgj = buf_gj
+                    if bgj is None and buf_ee is not None:
+                        try:
+                            bgj = buf_ee.getInfo()
+                        except Exception as be:  # noqa: BLE001
+                            logger.warning(f"report buffer shape for {terr}: {be}")
+                    meta = rb.lookup_meta(terr, ttype)
+                    timeline = None
+                    if tl:
+                        series = rb.sum_timeline_series(
+                            [v for k, v in tl.items() if k and k[0] == "t"])
+                        if series:
+                            from ..utils.deforestation_timeline import first_state_code
+                            timeline = {
+                                "series": series,
+                                "state_code": first_state_code(
+                                    (meta.get("info") or {}).get("uf_sigla")),
+                                "year_start": min(int(year1), int(year2)),
+                                "year_end": max(int(year1), int(year2)),
+                                "territory_type": ttype,
+                            }
+                    snap = rb.snapshot_from_batch(
+                        merged, name=terr, territory_type=ttype, geometry=geojson,
+                        buffer_geometry=bgj, buffer_km=buf_km if buf_enabled else None,
+                        hansen_year=hansen_year, y1=year1, y2=year2, timeline=timeline,
+                        computed_at=run_started)
+                    return snap, meta, rb.fetch_report_maps(snap, report_lang)
+
+                snap, meta, maps = await loop.run_in_executor(io_pool, _prepare)
+
+                def _charts(snap=snap):
+                    figs = _build_territory_figures(
+                        mb_y1_records=snap.get("t_y1"), mb_y2_records=snap.get("t_y2"),
+                        transitions=snap.get("transitions"),
+                        glad_records=(snap.get("glad") or {}).get("data"),
+                        gfc_dict=snap.get("gfc"), y1=snap.get("y1"), y2=snap.get("y2"),
+                        hansen_year=hansen_year, run_treemap=False,
+                    )
+                    snap["figures"].update(rb.canonical_batch_figures(figs))
+                    snap["figures"].update(rb.extra_figures(snap))
+                    return rb.render_pngs(snap["figures"], rb.figure_plan(snap, options))
+
+                pngs = await _render(loop, _charts, "report charts", "kaleido")
+
+                def _compose():
+                    report = rb.build_territory_report(snap, meta, pngs, maps,
+                                                       report_lang, options)
+                    data = rb.render(report, "pdf")
+                    slug = _slug(terr)
+                    rel = f"territory/{slug}/{slug}_report.pdf"
+                    master_zf.writestr(rel, data)
+                    return rel, len(data)
+
+                rel, size = await loop.run_in_executor(None, _compose)
+                logger.info(f"[BATCH] report {rel}: {size // 1024} KB")
+                return rel
 
             async def _process_territory(territory: str):
                 t_result: Dict[str, Any] = {"territory": territory, "status": "error"}
@@ -1864,6 +1951,10 @@ class BatchMixin(rx.State, mixin=True):
                     # Accumulate (region_name, ee_geom, gfc_result) for maps +
                     # timeline tasks that run after the regions loop.
                     region_map_data: List[tuple] = []
+                    # Per-region result dicts for the PDF report — the same
+                    # objects the ZIP writer receives; no extra EE calls.
+                    region_report_data: List[Dict[str, Any]] = []
+                    buf_gj_pre = None
 
                     # Timeline series, filled by the per-region fan-out below.
                     # Deliberately NOT a second round of requests after the
@@ -2262,6 +2353,15 @@ class BatchMixin(rx.State, mixin=True):
                         # buffer_geom is the quadrant-clipped buffer (or full buffer for
                         # non-split territories); None when buffer is not enabled.
                         region_map_data.append((region_name, region_ee_geom, gfc_result, region_buf_geom))
+                        if run_report:
+                            region_report_data.append({
+                                "name": region_name,
+                                "mb1": mb_y1_result, "mb2": mb_y2_result, "cmp": cmp_result,
+                                "glad": glad_result, "gfc": gfc_result,
+                                "bmb": buf_mb_result, "bcmp": buf_cmp_result,
+                                "bglad": buf_glad_result, "bgfc": buf_gfc_result,
+                                "mw": multi_window_result, "bmw": buf_multi_window_result,
+                            })
 
                         # Merge the timeline series for this region. The Hansen
                         # loss series is derived locally from `gfc_result` — it
@@ -2818,6 +2918,26 @@ class BatchMixin(rx.State, mixin=True):
                             async with self:
                                 self._batch_append_log(f"  ⚠ Timeline skipped: {te}")
 
+                    # ─── Laid-out PDF report (docs/PDF_REPORT.md §5) ─────────
+                    # Never fails the area: the ZIP and CSVs are the primary
+                    # output, so an error here is logged into the area status.
+                    report_rel = report_err = None
+                    if run_report and region_report_data:
+                        await _set_step(territory, STEPS["report"])
+                        try:
+                            report_rel = await _build_area_report(
+                                territory, territory_type_map[territory], raw_geojson,
+                                buf_ee_geom, buf_gj_pre, region_report_data,
+                                tl_series if run_timeline else None,
+                            )
+                        except Exception as rep_err:  # noqa: BLE001
+                            report_err = str(rep_err)[:200]
+                            logger.warning(f"PDF report for {territory} failed: {rep_err}",
+                                           exc_info=True)
+                            async with self:
+                                self._batch_append_log(
+                                    f"  ⚠ {territory}: PDF report skipped — {report_err}")
+
                     # ── Mark as completed ────────────────────────────────────
                     total_area = (
                         mb_y2_result["data"][0].get("Area_ha", 0)
@@ -2833,6 +2953,10 @@ class BatchMixin(rx.State, mixin=True):
                         "gfc": gfc_result is not None,
                         "buffer": buf_enabled and buf_ee_geom is not None,
                     }
+                    if report_rel:
+                        t_result["report"] = report_rel
+                    if report_err:
+                        t_result["report_error"] = report_err
                     async with self:
                         self.batch_completed = self.batch_completed + [territory]
                         self._batch_append_log(f"  ✅ {territory} — complete")
@@ -2966,6 +3090,13 @@ class BatchMixin(rx.State, mixin=True):
                     "",
                     "## Failed territories",
                 ] + ([f"- {f}" for f in fail] if fail else ["None"])
+                reports = [r for r in summary if r.get("report") or r.get("report_error")]
+                if reports:
+                    report_lines += ["", "## Area reports (PDF)"] + [
+                        f"- {r['territory']}: {r['report']}" if r.get("report")
+                        else f"- {r['territory']}: failed — {r['report_error']}"
+                        for r in reports
+                    ]
                 zf.writestr("batch_report.md", "\n".join(report_lines).encode())
 
             # Snapshot the pools *before* the final ZIP. Compression uses

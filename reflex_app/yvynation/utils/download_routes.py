@@ -63,6 +63,14 @@ def _safe_name(raw: str) -> Optional[str]:
     return raw
 
 
+def _media_type(name: str) -> str:
+    """ZIPs by default; the laid-out report is also delivered here as .pdf or
+    .html (docs/PDF_REPORT.md §8)."""
+    import mimetypes
+
+    return mimetypes.guess_type(name)[0] or "application/zip"
+
+
 def _iter_local(path) -> Iterator[bytes]:
     with open(path, "rb") as fh:
         while True:
@@ -108,7 +116,7 @@ async def _download_export(request: Request):
         path = get_export_dir() / name
         if path.is_file():
             return StreamingResponse(
-                _iter_local(path), media_type="application/zip", headers=headers
+                _iter_local(path), media_type=_media_type(name), headers=headers
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"[DOWNLOAD] local lookup for {name} failed: {exc}")
@@ -124,7 +132,7 @@ async def _download_export(request: Request):
             if client.bucket(bucket_name).blob(name).exists(client):
                 return StreamingResponse(
                     _iter_gcs(bucket_name, name),
-                    media_type="application/zip",
+                    media_type=_media_type(name),
                     headers=headers,
                 )
             logger.warning(f"[DOWNLOAD] {name} not in gs://{bucket_name}")

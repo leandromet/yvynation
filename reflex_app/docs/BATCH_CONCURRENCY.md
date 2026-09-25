@@ -11,6 +11,7 @@ Partner Tier uplift expires.
 | **Target runtime** | Cloud Run, 2 vCPU / 8 GiB |
 | **Config** | [`yvynation/utils/ee_concurrency.py`](../yvynation/utils/ee_concurrency.py) |
 | **Pipeline** | [`yvynation/state/_batch.py`](../yvynation/state/_batch.py) — `run_batch_processing` |
+| **Per-area PDF report** | [PDF_REPORT.md](PDF_REPORT.md) §5: EE fetches first, then charts on the kaleido lane, then reportlab on the default executor, never on a render lane |
 
 ---
 

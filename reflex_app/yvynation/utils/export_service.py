@@ -89,6 +89,9 @@ logger = logging.getLogger(__name__)
 
 #: Trailing "_YYYYMMDD_HHMM…zip" — stripped to group exports by kind
 _EXPORT_TS_RE = re.compile(r"_\d{8}_\d{4}.*\.zip$")
+#: Trailing "_YYYYMMDD-HHMM.pdf|.html" of a laid-out report (docs/PDF_REPORT.md
+#: §8) — stripped the same way, so reports are kept per area like ZIPs.
+_REPORT_TS_RE = re.compile(r"_\d{8}-\d{4}\.(pdf|html)$")
 
 
 class DirExportWriter:
@@ -237,6 +240,8 @@ def prune_old_exports(keep_per_prefix: int = 10) -> None:
         for p in export_dir.iterdir():
             if p.is_file() and p.suffix == ".zip":
                 zip_groups.setdefault(_EXPORT_TS_RE.sub("", p.name), []).append(p)
+            elif p.is_file() and _REPORT_TS_RE.search(p.name):
+                zip_groups.setdefault("report:" + _REPORT_TS_RE.sub("", p.name), []).append(p)
             elif p.is_dir() and (export_dir / f"{p.name}.zip").exists():
                 completed_dirs.append(p)
         for d in completed_dirs:
