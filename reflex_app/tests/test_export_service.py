@@ -17,6 +17,7 @@ from yvynation.utils.export_service import (
     _df_to_csv_bytes,
     _plotly_to_html_bytes,
     create_export_zip,
+    figure_export,
 )
 
 
@@ -104,7 +105,7 @@ class TestCreateExportZip:
         with zipfile.ZipFile(buf, 'r') as zf:
             names = zf.namelist()
             assert "metadata.json" in names
-            assert "README.txt" in names
+            assert "README.md" in names
 
     def test_zip_with_analysis_data(self):
         """ZIP includes CSV when analysis data is present."""
@@ -167,20 +168,33 @@ class TestCreateExportZip:
         with zipfile.ZipFile(buf, 'r') as zf:
             metadata = json.loads(zf.read("metadata.json"))
             assert metadata["territory"] == "Xingu"
-            assert metadata["year"] == 2023
+            assert metadata["year_primary"] == 2023
             assert metadata["source"] == "MapBiomas"
             assert "export_timestamp" in metadata
 
     def test_zip_with_plotly_figures(self):
-        """ZIP includes Plotly HTML figures."""
+        """ZIP includes Plotly HTML figures.
+
+        Figures travel in ``territory_figures`` (keyed by chart role) and are
+        written next to the section whose data they plot; the old
+        ``plotly_figures`` parameter is accepted but ignored. PNG is switched
+        off so the test does not need kaleido/Chromium.
+        """
         import plotly.graph_objects as go
         fig = go.Figure(data=[go.Bar(x=[1, 2], y=[3, 4])])
-        result = create_export_zip(
-            analysis_results={"type": "test"},
-            plotly_figures={"test_chart": fig.to_dict()},
-        )
+        with figure_export(png=False):
+            result = create_export_zip(
+                territory_name="Test Territory",
+                analysis_results={"type": "mapbiomas", "year": 2023,
+                                  "data": [{"Class_ID": 3, "Area_ha": 10}]},
+                territory_figures={"mapbiomas_bar": fig.to_dict()},
+            )
         buf = io.BytesIO(result)
         with zipfile.ZipFile(buf, 'r') as zf:
             names = zf.namelist()
             html_files = [n for n in names if n.endswith('.html')]
-            assert len(html_files) >= 1
+            assert html_files == [
+                "territory/Test_Territory/mapbiomas/figures/"
+                "Test_Territory_mapbiomas_2023_distribution.html"
+            ]
+            assert not [n for n in names if n.endswith('.png')]
