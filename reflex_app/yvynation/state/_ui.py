@@ -24,7 +24,17 @@ class UIMixin(rx.State, mixin=True):
         Runs client-side via navigator.language (no permission prompt, unlike
         geolocation) and feeds the result to apply_browser_language. Skipped
         when the user has already picked a language or disabled auto-detect.
+        A ``?lang=`` query param, when valid, takes precedence over both.
         """
+        # An explicit ?lang= (e.g. from the umaterra.com.br portal) beats
+        # browser auto-detect, and counts as a manual choice.
+        from ..utils.translations import TRANSLATIONS
+
+        requested = (self.router.page.params or {}).get("lang")
+        if requested in TRANSLATIONS:
+            self.language = requested
+            self.language_user_set = True
+            return
         if self.language_user_set or not self.auto_detect_enabled:
             return
         yield rx.call_script(
