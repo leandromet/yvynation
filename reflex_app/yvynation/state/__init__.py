@@ -292,6 +292,43 @@ class AppState(
     place_territory_hits: List[str] = []
     #: The full how-to dialog (wraps components/tutorial.py's guide).
     howto_open: bool = False
+    #: Canadian provinces whose protected areas THIS session shows (list,
+    #: overview layer). BC on start — the suite's focus; another province is
+    #: added when the user clicks or searches there (state/_territory.py::
+    #: add_ca_province). Per session on purpose: the CPCAD service caching the
+    #: files is shared by every session on the server.
+    ca_provinces: List[str] = ["BC"]
+    #: Parts of the selected Canadian protected area (one record is often many
+    #: separate polygons — Muskwa-Kechika has 39). ``ca_parts`` holds the
+    #: largest few hundred for the list; any part can still be picked on the
+    #: map. Ids are the part's stable index in the stored geometry, as str.
+    ca_parts: List[Dict[str, Any]] = []
+    ca_parts_total: int = 0
+    #: Parts ticked but not yet analysed.
+    ca_part_pick: List[str] = []
+    #: Parts the current analysis target is made of; empty = the whole area.
+    ca_parts_applied: List[str] = []
+
+    @rx.var
+    def ca_parts_status(self) -> str:
+        """"Analysing all 39 parts" / "Analysing 3 of 39 parts"."""
+        tr = self.tr
+        n, total = len(self.ca_parts_applied), self.ca_parts_total
+        if not n:
+            return tr["ca_parts_analysing_all"].format(total=total)
+        return tr["ca_parts_analysing_some"].format(n=n, total=total)
+
+    @rx.var
+    def ca_parts_more_note(self) -> str:
+        if self.ca_parts_total <= len(self.ca_parts):
+            return ""
+        return self.tr["ca_parts_more"].format(n=len(self.ca_parts),
+                                               total=self.ca_parts_total)
+
+    @rx.var
+    def ca_part_pick_count(self) -> int:
+        return len(self.ca_part_pick)
+
     #: "1" once this browser dismissed the quick-start card. Browser storage:
     #: a per-viewer convenience that must survive a reload and never follow a
     #: user to someone else's screen.
@@ -301,7 +338,7 @@ class AppState(
     def show_quickstart(self) -> bool:
         return self.quickstart_seen != "1"
 
-    @rx.var
+    @rx.var(cache=True, deps=["place_hits"], auto_deps=False)
     def place_attribution(self) -> str:
         """Credit exactly the sources the listed places came from."""
         from ..utils.address import attributions
@@ -385,6 +422,7 @@ class AppState(
             "show_hansen_gfc_tree_cover", "show_hansen_gfc_tree_loss",
             "show_hansen_gfc_tree_gain",
             "buffer_geojson_features",
+            "ca_provinces",
         ],
     )
     def map_html(self) -> str:
@@ -436,6 +474,7 @@ class AppState(
                 change_mask_geometry=change_geom,
                 show_indigenous_lands=show_il,
                 territory_type=self.territory_type,
+                ca_provinces=list(self.ca_provinces),
                 analysis_tile_layers=self.analysis_tile_layers or [],
                 show_gfc_tree_cover=self.show_hansen_gfc_tree_cover,
                 show_gfc_tree_loss=self.show_hansen_gfc_tree_loss,

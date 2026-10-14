@@ -24,6 +24,17 @@ class PlaceSearchMixin(rx.State, mixin=True):
 
     # ---- helpers ---------------------------------------------------------
 
+    def _province_events(self, lat: float, lon: float) -> list:
+        """In Canadian protected-area mode, a search that lands in a province
+        this session does not show yet loads it — the same rule as a click."""
+        if getattr(self, "territory_type", "") != "conservation_ca":
+            return []
+        from ..utils.territory_kinds import service_for
+        code = service_for("conservation_ca").province_at(lat, lon)
+        if code and code not in (getattr(self, "ca_provinces", []) or []):
+            return [self.__class__.add_ca_province(code)]
+        return []
+
     def _territory_names(self) -> list:
         # Only where choosing one means something: the territory workspace.
         if getattr(self, "analysis_mode", "") == "geometry":
@@ -88,8 +99,9 @@ class PlaceSearchMixin(rx.State, mixin=True):
             async with self:
                 self.place_echo = self._echo_for(r)
                 self.place_echo_kind = "coordenada"
-            return rx.call_script(place_search.frame_js(
-                pin=[c.lat, c.lon], zoom=address.ZOOM_BY_PRECISION["endereco"] - 2))
+            return [rx.call_script(place_search.frame_js(
+                pin=[c.lat, c.lon], zoom=address.ZOOM_BY_PRECISION["endereco"] - 2)),
+                *self._province_events(c.lat, c.lon)]
 
         if r.kind == "territorio":
             async with self:
@@ -135,10 +147,11 @@ class PlaceSearchMixin(rx.State, mixin=True):
         self.place_query = f"{title}, {subtitle}" if subtitle else title
         self.place_echo = f"{self.tr['ps_echo_place']} — {self.tr['ps_place_hint']}"
         self.place_echo_kind = "lugar"
+        more = self._province_events(pin[0], pin[1])
         if place.get("bounds") and precision not in address.POINT_PRECISIONS:
-            return rx.call_script(place_search.frame_js(bounds=place["bounds"], pin=pin))
-        return rx.call_script(place_search.frame_js(
-            pin=pin, zoom=address.ZOOM_BY_PRECISION.get(precision, 14)))
+            return [rx.call_script(place_search.frame_js(bounds=place["bounds"], pin=pin)), *more]
+        return [rx.call_script(place_search.frame_js(
+            pin=pin, zoom=address.ZOOM_BY_PRECISION.get(precision, 14))), *more]
 
     def choose_place_territory(self, name: str):
         """Hand a territory match to the ordinary selection, which loads its

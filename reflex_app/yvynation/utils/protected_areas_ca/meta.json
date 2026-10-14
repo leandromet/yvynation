@@ -1,0 +1,32 @@
+{
+  "source": "Canadian Protected and Conserved Areas Database (CPCAD), ECCC",
+  "service": "https://maps-cartes.ec.gc.ca/arcgis/rest/services/CWS_SCF/CPCAD/MapServer/0",
+  "fetched": "2026-10-14T06:01:01+00:00",
+  "release_month": "202610",
+  "licence": "Open Government Licence – Canada (https://open.canada.ca/en/open-government-licence-canada)",
+  "attribution": "Contains information licensed under the Open Government Licence – Canada. Canadian Protected and Conserved Areas Database (CPCAD), Environment and Climate Change Canada.",
+  "filter": "BIOME = 'T' (terrestrial / freshwater)",
+  "generalisation_deg": 0.0005,
+  "records_fetched": 21509,
+  "records_without_usable_polygon": 13,
+  "ocap_rule": "a protected area is excluded when any of its zones has IPCA = Yes, GOV_TYPE = Indigenous peoples or OWNER_TYPE = Indigenous",
+  "ocap_excluded_areas": 43,
+  "protected_areas_written": 17792,
+  "per_province": {
+    "AB": 1147,
+    "BC": 2160,
+    "MB": 777,
+    "NB": 1168,
+    "NL": 101,
+    "NS": 2604,
+    "NT": 72,
+    "NU": 32,
+    "ON": 2280,
+    "PE": 236,
+    "QC": 5273,
+    "SK": 1913,
+    "YT": 29
+  },
+  "provinces_file": "provinces.geojson.gz",
+  "provinces_source": "https://geo.statcan.gc.ca/geo_wa/rest/services/2021/Cartographic_boundary_files/MapServer/0"
+}

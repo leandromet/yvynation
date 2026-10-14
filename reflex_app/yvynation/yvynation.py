@@ -7,6 +7,8 @@ from yvynation.config import GA_MEASUREMENT_ID
 from yvynation.pages.index import index
 from yvynation.state import AppState
 from yvynation.utils.download_routes import download_app
+from yvynation.canada.pages.index import canada_index
+from yvynation.canada.state import CanadaState
 
 
 def _ga_head_components() -> list[rx.Component]:
@@ -113,4 +115,15 @@ app.add_page(
     index,
     route="/",
     title="Yvynation - Land Monitoring Platform",
+)
+
+# The Canada page: its own state, sidebar, results and native Leaflet map
+# (canada/, ported from camposcope's Canada page), so Brazil-only datasets and
+# controls never appear where they cannot answer. Protected areas from CPCAD,
+# BC first.
+app.add_page(
+    canada_index,
+    route="/canada",
+    title="Yvynation — Canada protected areas",
+    on_load=CanadaState.on_load,
 )

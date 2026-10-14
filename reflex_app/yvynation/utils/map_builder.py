@@ -46,6 +46,7 @@ def build_map(
     show_indigenous_lands: bool = False,
     territory_type: str = "indigenous",
     fit_bounds: Optional[list] = None,
+    ca_provinces: Optional[List[str]] = None,
 ) -> str:
     """
     Build a complete Folium map with Earth Engine layers, geometry overlays,
@@ -120,8 +121,23 @@ def build_map(
         # on territory_type; both expose the same popup → hidden-button bridge.
         if show_indigenous_lands or indigenous_lands_tile_url:
             try:
-                is_conservation = territory_type == "conservation"
-                if is_conservation:
+                is_conservation = territory_type in ("conservation", "conservation_ca")
+                if territory_type == "conservation_ca":
+                    # Canadian protected areas (CPCAD) — only the provinces
+                    # this session shows (BC on start; others on demand).
+                    from .conservation_service import get_ca_protected_area_service
+                    svc = get_ca_protected_area_service()
+                    layer_label = "Protected Areas — Canada (Interactive)"
+                    base_style = {
+                        "fillColor": "#0F766E", "color": "#14B8A6",
+                        "weight": 1.2, "opacity": 0.5, "fillOpacity": 0.06,
+                    }
+                    highlight_style = {
+                        "fillColor": "#0D9488", "color": "#5EEAD4",
+                        "weight": 2.5, "opacity": 0.9, "fillOpacity": 0.22,
+                    }
+                    accent = "#0F766E"
+                elif is_conservation:
                     from .conservation_service import get_conservation_unit_service
                     svc = get_conservation_unit_service()
                     layer_label = "Conservation Units (Interactive)"
@@ -149,7 +165,11 @@ def build_map(
                     }
                     accent = "#4B0082"
 
-                territories_geojson = svc.get_all_geojson_fc()  # cached after first call
+                if territory_type == "conservation_ca":
+                    svc.ensure_provinces(ca_provinces or ["BC"])
+                    territories_geojson = svc.get_all_geojson_fc(provinces=ca_provinces or ["BC"])
+                else:
+                    territories_geojson = svc.get_all_geojson_fc()  # cached after first call
                 territory_count = len(territories_geojson.get("features", []))
                 logger.info(f"Building interactive {layer_label}: {territory_count} features")
 

@@ -300,6 +300,17 @@ def analysis_choice_section() -> rx.Component:
                             width="100%",
                             font_weight="bold",
                         ),
+                        # Canada's protected and conserved areas (CPCAD), BC
+                        # first. No Canadian Indigenous-lands entry, by design
+                        # (OCAP — utils/territory_kinds.py).
+                        rx.button(
+                            AppState.tr["portal_conservation_ca_btn"],
+                            on_click=lambda: AppState.go_to_territory_analysis("conservation_ca"),
+                            size="2",
+                            variant="soft",
+                            color_scheme="teal",
+                            width="100%",
+                        ),
                         spacing="2",
                     ),
                     padding="1.5rem",

@@ -66,8 +66,23 @@ class UIMixin(rx.State, mixin=True):
         """
         self.selected_country = country
         from ..utils.place_search import REGION_BOUNDS, frame_js
-        if country in REGION_BOUNDS:
-            return rx.call_script(frame_js(bounds=REGION_BOUNDS[country]))
+        from ..utils.territory_kinds import CONSERVATION_KINDS, conservation_kind_for
+
+        events = []
+        kind = self.territory_type
+        # In protected-area mode the region IS the dataset: Brazil → CNUC,
+        # Canada → CPCAD. There is no Canadian counterpart for Indigenous
+        # lands (OCAP — utils/territory_kinds.py), so that mode keeps its
+        # FUNAI list and the sidebar explains why.
+        if (self.analysis_mode == "territory" and kind in CONSERVATION_KINDS
+                and country in ("Brazil", "Canada")):
+            kind = conservation_kind_for(country)
+            if kind != self.territory_type:
+                events.append(type(self).set_territory_type(kind))
+        target = "BC" if kind == "conservation_ca" else country
+        if target in REGION_BOUNDS:
+            events.insert(0, rx.call_script(frame_js(bounds=REGION_BOUNDS[target])))
+        return events or None
 
     # ---- Active tab -----------------------------------------------------
 
@@ -250,8 +265,10 @@ class UIMixin(rx.State, mixin=True):
         """
         self.analysis_mode = "territory"
         self.show_indigenous_lands = True
-        if territory_type not in ("indigenous", "conservation"):
+        from ..utils.territory_kinds import KINDS, country_of
+        if territory_type not in KINDS:
             territory_type = "indigenous"
+        self.selected_country = country_of(territory_type)
 
         if not self.ee_initialized:
             self.territory_type = territory_type
@@ -261,6 +278,11 @@ class UIMixin(rx.State, mixin=True):
 
         if bg_task is not None:
             yield bg_task
+        if territory_type == "conservation_ca":
+            # Open on BC, the province loaded first; frame_js retries until
+            # the map document exists.
+            from ..utils.place_search import REGION_BOUNDS, frame_js
+            yield rx.call_script(frame_js(bounds=REGION_BOUNDS["BC"]))
 
     def go_to_batch_processing(self):
         """Navigate to batch processing page, loading territories in background."""

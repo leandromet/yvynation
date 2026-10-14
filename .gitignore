@@ -16,6 +16,9 @@ ENV/
 *.swo
 *~
 *.zip
+# ...except the CPCAD province GeoPackages the app reads in place (/vsizip/);
+# rebuild with: python -m yvynation.utils.build_ca_protected_areas
+!reflex_app/yvynation/utils/protected_areas_ca/*.gpkg.zip
 # OS
 .DS_Store
 Thumbs.db

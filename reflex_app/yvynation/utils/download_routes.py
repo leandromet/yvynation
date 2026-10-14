@@ -158,13 +158,17 @@ def download_app() -> Starlette:
     underneath it, so this route is matched first and everything else falls
     through to Reflex unchanged.
     """
+    # The Canada page's geometry routes ride on the same app (canada/api.py).
+    from ..canada.api import routes as canada_routes
+
     return Starlette(
         routes=[
             Route(
                 f"{DOWNLOAD_PREFIX}/{{filename}}",
                 _download_export,
                 methods=["GET"],
-            )
+            ),
+            *canada_routes(),
         ]
     )
 

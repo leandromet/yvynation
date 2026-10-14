@@ -562,13 +562,18 @@ def snapshot_from_batch(merged: Dict[str, Any], *, name: str, territory_type: st
 def lookup_meta(name: str, territory_type: str = "indigenous") -> Dict[str, Any]:
     """FUNAI / CNUC attributes of ``name`` (attributes only, no geometry
     load). Tries the requested type first, then the other one."""
-    order = ["conservation", "indigenous"] if territory_type == "conservation" \
-        else ["indigenous", "conservation"]
+    if territory_type == "conservation_ca":
+        # A Canadian protected area never falls back to the Brazilian files.
+        order = ["conservation_ca"]
+    elif territory_type == "conservation":
+        order = ["conservation", "indigenous"]
+    else:
+        order = ["indigenous", "conservation"]
     for kind in order:
         try:
-            if kind == "conservation":
-                from .conservation_service import get_conservation_unit_service
-                svc = get_conservation_unit_service()
+            if kind in ("conservation", "conservation_ca"):
+                from .territory_kinds import service_for
+                svc = service_for(kind)
                 info = svc.get_territory_info(name) or {}
                 if info:
                     return {"type": kind, "info": info,
@@ -847,7 +852,19 @@ def _identification(snap, meta, lang) -> Tuple[List[Tuple[str, str]], str]:
     y1, y2 = snap.get("y1"), snap.get("y2")
     computed = sum(a for _, a in class_areas(snap.get("t_y2") or snap.get("t_y1")).values())
     rows: List[Tuple[str, str]] = []
-    if kind == "conservation":
+    if kind == "conservation_ca":
+        creation = meta.get("creation") or {}
+        rows += [
+            (s("id_name", lang), _v(info.get("nome_uc") or snap.get("name"))),
+            (s("id_cpcad", lang), _v(info.get("cd_cnuc"))),
+            (s("id_designation", lang), _v(info.get("categoria"))),
+            (s("id_pa_oecm", lang), _v(info.get("grupo"))),
+            (s("id_governance", lang), _v(info.get("esfera"))),
+            (s("id_province", lang), _v(info.get("uf_sigla"))),
+            (s("id_creation_year", lang), _v(creation.get("creation_year"))),
+        ]
+        caption = s("id_caption_pa_ca", lang)
+    elif kind == "conservation":
         creation = meta.get("creation") or {}
         rows += [
             (s("id_name", lang), _v(info.get("nome_uc") or snap.get("name"))),
@@ -948,7 +965,8 @@ def build_territory_report(snapshot: Dict[str, Any], meta: Dict[str, Any],
     km = snap.get("buffer_km")
     name = (meta.get("info") or {}).get("terrai_nom") or (meta.get("info") or {}).get(
         "nome_uc") or snap.get("name") or "—"
-    kind_label = s("kind_uc" if kind == "conservation" else "kind_ti", lang)
+    kind_label = s({"conservation": "kind_uc", "conservation_ca": "kind_pa_ca"}
+                   .get(kind, "kind_ti"), lang)
     from .. import __version__ as app_version
     report = Report(meta=ReportMeta(
         app=APP_NAME, app_url=APP_URL, app_version=app_version,
@@ -965,7 +983,9 @@ def build_territory_report(snapshot: Dict[str, Any], meta: Dict[str, Any],
     geom = snap.get("geometry")
     ident_blocks: List[Any] = []
     kv = KeyValues(rows=kv_rows, caption=kv_caption)
-    if geom:
+    # The locator is a map of Brazil's states; a Canadian province code would
+    # light up a namesake UF ("PE" — Prince Edward Island / Pernambuco).
+    if geom and meta.get("type") != "conservation_ca":
         tol = 0.01
         ident_blocks.append(SideBySide(kv, LocatorMap(
             geometry=_simplify(geom, tol), label=s("locator_label", lang),
@@ -1175,7 +1195,8 @@ def build_territory_report(snapshot: Dict[str, Any], meta: Dict[str, Any],
         attributions.append(s("attr_glad", lang))
     if opts["maps"] and maps.get("imagery_attr"):
         attributions.append(maps["imagery_attr"])
-    attributions.append(s("attr_uc" if kind == "conservation" else "attr_ti", lang))
+    attributions.append(s({"conservation": "attr_uc", "conservation_ca": "attr_pa_ca"}
+                          .get(kind, "attr_ti"), lang))
     attributions.append(s("attr_ibge", lang))
     sections["citation"] = Section(s("sec_citation", lang), [
         Paragraph(tr("citation_acknowledgment_text", lang)),
