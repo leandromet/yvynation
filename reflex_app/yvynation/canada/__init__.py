@@ -1,34 +1,38 @@
-"""The ``/canada`` workspace — a rural-property analysis of British Columbia.
+"""The ``/canada`` workspace — Canadian protected and conserved areas.
 
-A self-contained sibling of the Brazil app, not a fork of it. The two answer the
-same question — *what has happened on and around this rural property* — over
-different cadastres and different land-cover products, so what is shared is the
-engineering (Earth Engine access, the tile cache, the persistent Leaflet map,
-the zone abstraction, provenance, the ODS writer) and what is separate is every
-dataset, every legend and every piece of cadastral vocabulary.
+Ported from Camposcope's Canada page (``camposcope/canada/``), which analyses
+British Columbia land parcels, and reshaped around a different object: a
+protected or conserved area from CPCAD, the federal register compiled by
+Environment and Climate Change Canada (``utils/build_ca_protected_areas.py``,
+``utils/conservation_service.py``). The question is Yvynation's — *what has
+happened inside this protected area and around it* — and the engineering is the
+port's (Earth Engine access, the tile cache, the persistent Leaflet map, the
+zone abstraction, provenance, the ODS writer).
 
-The substitutions, one for one:
+What changed in the port:
 
 ======================  ==========================================
-Brazil                  Canada / British Columbia
+Camposcope /canada      Yvynation /canada
 ======================  ==========================================
-CAR / SICAR             ParcelMap BC parcel fabric (LTSA)
-MapBiomas Coll. 10.1    AAFC Annual Crop Inventory (2009–2025)
-SPOT 2008 validation    NTEMS VLCE2 vs. the ACI, same year
-MapBiomas Fogo Coll. 5  MODIS MCD64A1 burned area (2001–2025)
-IBGE biomes             Ecozones of Canada (National Ecological
-                        Framework, AAFC)
-IBGE municípios         BC municipalities and regional districts
+ParcelMap BC parcel     CPCAD protected or conserved area
+BC only                 every province and territory; BC loads
+                        first, others when a click or search
+                        lands there
+one polygon             multi-part areas, analysable part by part
+parcel start date       CPCAD establishment year (Hansen split)
 ======================  ==========================================
 
-Hansen Global Forest Change and ESA CCI Biomass are global and are used
-unchanged — only what they are *anchored on* differs (a parcel's start date
-rather than a CAR registration, and no Forest Code cutoff at all).
+Unchanged from the port: the AAFC Annual Crop Inventory, NTEMS VLCE2 and stand
+age, Hansen Global Forest Change, ESA CCI Biomass, MODIS burned area, and the
+Ecozones of Canada.
 
-**British Columbia only, deliberately.** ParcelMap BC is a provincial cadastre;
-there is no national Canadian parcel fabric to fall back on, and pretending
-otherwise would mean a search box that silently fails everywhere east of the
-Rockies. The land-cover half of the page would work Canada-wide — the property
-half is what bounds it, and the UI says so rather than leaving a user to
-discover it by clicking.
+Internal names still say ``parcel`` (``CanadaAreaMixin`` keeps Camposcope's
+``parcel`` / ``zones`` / ``select_at_point`` contract), deliberately: the ported
+analysis mixins run unchanged against a protected area. A ``parcel`` here is
+the selected protected area or part.
+
+**Indigenous lands are not analysed here.** Areas the register records as
+Indigenous Protected and Conserved Areas, as governed by Indigenous peoples, or
+as Indigenous-owned are removed when the data are built, in keeping with the
+First Nations principles of OCAP® — see ``utils/build_ca_protected_areas.py``.
 """
