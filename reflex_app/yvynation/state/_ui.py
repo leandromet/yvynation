@@ -56,8 +56,18 @@ class UIMixin(rx.State, mixin=True):
     # ---- Country --------------------------------------------------------
 
     def set_country(self, country: str):
-        """Change selected country/region."""
+        """Change selected country/region — and frame the map on it.
+
+        The map always opened on Brazil, so choosing Canada changed the
+        sidebar but left the user looking at South America. The view moves in
+        the browser (``place_search.frame_js``) rather than through a Folium
+        rebuild, which would re-mint every Earth Engine layer to change a
+        viewport.
+        """
         self.selected_country = country
+        from ..utils.place_search import REGION_BOUNDS, frame_js
+        if country in REGION_BOUNDS:
+            return rx.call_script(frame_js(bounds=REGION_BOUNDS[country]))
 
     # ---- Active tab -----------------------------------------------------
 

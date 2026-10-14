@@ -22,11 +22,15 @@ Design of the battery (adapts to each dataset's factor structure):
   5. Two-way ANOVA (only where a second balanced factor exists, e.g. group x region)
   6. Cross-sectional OLS with heteroskedasticity-robust (HC3) SE
   7. Panel econometric model: cluster-robust OLS on the territory x year x scope
-     governance panel (scope + governance posture), SE clustered by territory
+     governance panel (scope + governance posture), SE clustered by territory.
+     Datasets with panel="scope" fit only the scope contrast with territory+year
+     fixed effects (no governance terms) and add annual rates by scope.
+  8. Geographic gradients (geography=True): distance to the Atlantic coast and
+     latitude from data/territory_geography.csv (utils/territory_geography.py).
 
 Run:
-  .venv_stats/bin/python utils/manuscript_statistics.py            # all four
-  .venv_stats/bin/python utils/manuscript_statistics.py root para_state
+  .venv_stats/bin/python utils/manuscript_statistics.py            # all datasets
+  .venv_stats/bin/python utils/manuscript_statistics.py root_core_buffer
 """
 from __future__ import annotations
 
@@ -68,6 +72,9 @@ class DS:
     trend_var: str | None = None # continuous timing var to headline (else None)
     require_buffer: bool = True  # False when a group has no buffer ring exported
     notes: str = ""
+    out_name: str = "statistics"  # output folder under `d`
+    panel: str = "governance"     # "governance" (Models A-C) | "scope" (scope + FE only)
+    geography: bool = False       # RQ2 step: distance to coast + latitude
 
 DATASETS = {
     "root": DS(
@@ -80,6 +87,23 @@ DATASETS = {
         ols_formula="gap ~ C(group) + C(region) + log_area + protection_year_c",
         notes="Indigenous (n=46) vs Conservation (n=45); recognition_tier spans "
               "both systems (singleton tiers dropped).",
+    ),
+    # Paper 1 (2026-10 revision): same 91 areas, core/buffer analysis only --
+    # no governance/political terms anywhere; adds the RQ2 geography step.
+    # Written to statistics_core_buffer/ so the governance registry in
+    # statistics/ stays intact for the governance manuscript.
+    "root_core_buffer": DS(
+        key="root_core_buffer", d=ROOT,
+        label="Indigenous Lands vs Conservation Units (91 protected areas) — core/buffer only",
+        manuscript="revision/proofread/Paper1-The Buffer Clears, the Core Burns (proofread)",
+        primary_factor="group",
+        anova_factors=["group", "region", "recognition_tier"],
+        twoway=("group", "region"),
+        ols_formula="gap ~ C(group) + C(region) + log_area + protection_year_c",
+        notes="Indigenous (n=46) vs Conservation (n=45); recognition_tier spans "
+              "both systems (singleton tiers dropped). Governance analysis removed: "
+              "the panel step fits the scope contrast only.",
+        out_name="statistics_core_buffer", panel="scope", geography=True,
     ),
     "indigenous_selection": DS(
         key="indigenous_selection", d=ROOT / "indigenous_selection",
@@ -457,16 +481,22 @@ def paired_core_buffer(rep, res, df):
         _dz = lambda x: x.mean() / x.std(ddof=1) if x.std(ddof=1) else np.nan
         dz = _dz(diff.values)
         dz_lo, dz_hi = boot_ci(_dz, diff.values, paired=True)
+        # large-sample analytic CI, SE(dz) = sqrt(1/n + dz^2/(2n)); unlike the
+        # percentile bootstrap it cannot disagree with the paired t on the sign
+        n = len(d)
+        se_dz = np.sqrt(1 / n + dz ** 2 / (2 * n))
+        dz_alo, dz_ahi = dz - 1.96 * se_dz, dz + 1.96 * se_dz
         rep.p(f"**{name}** — buffer mean {d[b_col].mean():.2f} vs core mean "
               f"{d[a_col].mean():.2f} (mean paired diff {diff.mean():+.2f}, n={len(d)}):")
         rep.code(
             f"Paired t-test:     t = {tt.statistic:.3f}, p = {_fmt_p(tt.pvalue)}\n"
             f"Wilcoxon signed:   W = {w.statistic:.1f}, p = {_fmt_p(w.pvalue)}\n"
-            f"Cohen dz:          dz = {dz:.3f}  95% CI {_fmt_ci(dz_lo, dz_hi)}")
+            f"Cohen dz:          dz = {dz:.3f}  95% CI {_fmt_ci(dz_lo, dz_hi)} (bootstrap), "
+            f"{_fmt_ci(dz_alo, dz_ahi)} (analytic)")
         res[name] = dict(buffer_mean=d[b_col].mean(), core_mean=d[a_col].mean(),
                          mean_diff=diff.mean(), t=tt.statistic, p_t=tt.pvalue,
                          wilcoxon_p=w.pvalue, cohen_dz=dz, cohen_dz_ci=[dz_lo, dz_hi],
-                         n=len(d))
+                         cohen_dz_ci_analytic=[dz_alo, dz_ahi], n=n)
         rep.register_p("paired_core_buffer", f"{name} (paired t)", tt.pvalue,
                        test="paired_t")
 
@@ -549,6 +579,8 @@ def panel_model(rep, res, ds: DS):
     multi_region = pan["region"].nunique() > 1
     n_clusters = int(pan["territory"].nunique())
     res["panel"] = {}
+    if ds.panel == "scope":
+        return scope_panel(rep, res, pan, n_clusters)
 
     # --- Model A: baseline pooled panel (scope + posture [+ region]) ---------
     rhsA = "C(scope) + C(posture)" + (" + C(region)" if multi_region else "")
@@ -623,6 +655,213 @@ def panel_model(rep, res, ds: DS):
                 coef=ctC.reset_index().rename(columns={"index": "term"}).to_dict("records"))
         except Exception as e:  # noqa: BLE001
             rep.p(f"Model C ({name}) skipped ({type(e).__name__}: {e}).")
+
+
+def _panel_structure(pan):
+    cells = pan.groupby(["territory", "scope"]).size().unstack()
+    one_scope = cells[cells.isna().any(axis=1)].index.tolist()
+    return dict(n_obs=len(pan), n_territories=int(pan["territory"].nunique()),
+                years=[int(pan["year"].min()), int(pan["year"].max())],
+                n_years=int(pan["year"].nunique()), single_scope_territories=one_scope)
+
+
+def scope_panel(rep, res, pan, n_clusters):
+    """Scope-only panel: the core-vs-buffer contrast with territory + year FE.
+
+    No governance terms. The same specification is fitted to the annual Hansen
+    loss rate (pre-specified, enters the FDR family) and, as supporting
+    evidence for the displacement/fire asymmetry, to the MapBiomas primary
+    deforestation and fire rates (reported, not FDR-registered)."""
+    ps = _panel_structure(pan)
+    res["panel"]["structure"] = ps
+    rep.p(f"Panel structure: {ps['n_obs']:,} territory × year × scope observations, "
+          f"{ps['n_territories']} territories, {ps['years'][0]}–{ps['years'][1]} "
+          f"({ps['n_years']} years). Unbalanced: "
+          f"{len(ps['single_scope_territories'])} territories have one scope only "
+          f"({', '.join(ps['single_scope_territories']) or 'none'}).")
+    res["panel"]["scope_fe"] = {}
+    for rate, name, primary in [("hansen_loss_rate", "Hansen loss", True),
+                                ("mb_defor_primary_rate", "Primary deforestation", False),
+                                ("mb_fire_scar_rate", "Fire scars", False)]:
+        sub = pan.dropna(subset=[rate])
+        rhs = "C(scope) + C(year) + C(territory)"
+        try:
+            m, ct = _cluster_ols(f"{rate} ~ {rhs}", sub, sub["territory"])
+        except Exception as e:  # noqa: BLE001
+            rep.p(f"Scope FE model ({name}) skipped ({type(e).__name__}: {e}).")
+            continue
+        rep.p(f"**Scope FE — {name}** ({'pre-specified' if primary else 'supporting'}): "
+              f"`{rate} ~ {rhs}`, SE clustered by territory ({n_clusters} clusters), "
+              f"N = {int(m.nobs)}, R² = {m.rsquared:.3f}. C(scope)[T.territory] = core minus "
+              f"buffer, pp of area per year (negative = the buffer loses more).")
+        rep.table(ct)
+        term = [t for t in ct.index if t.startswith("C(scope)")][0]
+        rep.register_p("panel", f"[FE panel, {name}] {term}", ct.loc[term, "p"],
+                       test="twoway_fe_ols", primary=primary)
+        res["panel"]["scope_fe"][rate] = dict(
+            formula=f"{rate} ~ {rhs}", n=int(m.nobs), r2=m.rsquared, primary=primary,
+            coef=float(ct.loc[term, "coef"]), se=float(ct.loc[term, "cluster_se"]),
+            p=float(ct.loc[term, "p"]))
+
+
+def annual_rates_by_scope(rep, res, ds: DS):
+    """Per-area mean annual rates, core vs buffer (descriptive + paired, supporting)."""
+    p = ds.d / "data" / "governance_rate_panel.csv"
+    if not p.is_file():
+        return
+    pan = pd.read_csv(p)
+    rows = []
+    for rate, name in [("mb_defor_primary_rate", "Primary deforestation"),
+                       ("mb_fire_scar_rate", "Fire scars"),
+                       ("hansen_loss_rate", "Hansen loss")]:
+        per = pan.groupby(["territory", "scope"])[rate].mean().unstack()
+        d = per.dropna()
+        core, buf = d["territory"], d["buffer"]
+        tt = st.ttest_rel(buf, core)
+        w = st.wilcoxon(buf, core)
+        rows.append(dict(rate=name, n=len(d), core_mean=core.mean(), buffer_mean=buf.mean(),
+                         ratio_buffer_core=buf.mean() / core.mean(),
+                         ratio_core_buffer=core.mean() / buf.mean(),
+                         buffer_higher_n=int((buf > core).sum()),
+                         paired_t=tt.statistic, p_t=tt.pvalue, wilcoxon_p=w.pvalue))
+        rep.register_p("annual_rates", f"{name} annual rate, buffer vs core (paired t)",
+                       tt.pvalue, test="paired_t", primary=False)
+    tab = pd.DataFrame(rows).set_index("rate")
+    rep.p("Mean annual rate per area (% of scope area per year), averaged over each "
+          "area's years and then across areas; paired across the areas that have both "
+          "scopes. Supporting evidence for the displacement/fire asymmetry (not in the "
+          "FDR family).")
+    rep.table(tab)
+    res["table"] = tab.reset_index().to_dict("records")
+
+
+def geography(rep, res, df, ds: DS, fig_dir: Path):
+    """RQ2: does the core-buffer relation vary with distance to the ocean or latitude?"""
+    p = ds.d / "data" / "territory_geography.csv"
+    if not p.is_file():
+        rep.p("data/territory_geography.csv missing — run utils/territory_geography.py.")
+        return
+    g = pd.read_csv(p)[["group", "territory", "dist_coast_km", "dist_coast_min_km", "lat", "lon"]]
+    d = df.merge(g, on=["group", "territory"], how="left")
+    d["log10_dist"] = np.log10(d["dist_coast_km"])
+    d["lat_c"] = d["lat"] - d["lat"].mean()
+    d["fire_diff"] = d["core_fire_pct"] - d["buffer_fire_pct"]
+    r_ld, p_ld = st.pearsonr(d["log10_dist"], d["lat"])
+    rep.p(f"Distance from each polygon centroid to the nearest Atlantic coastline "
+          f"(Natural Earth 1:10m, Brazil Polyconic) and centroid latitude, N = {d['dist_coast_km'].notna().sum()}. "
+          f"Median distance {d['dist_coast_km'].median():.0f} km (IQR "
+          f"{d['dist_coast_km'].quantile(.25):.0f}–{d['dist_coast_km'].quantile(.75):.0f}; range "
+          f"{d['dist_coast_km'].min():.0f}–{d['dist_coast_km'].max():.0f}); latitude "
+          f"{d['lat'].min():.1f}° to {d['lat'].max():.1f}°. Correlation of log10 distance with "
+          f"latitude: r = {r_ld:.2f} (p = {_fmt_p(p_ld)}), low enough to fit both together.")
+    res["summary"] = dict(dist_median=d["dist_coast_km"].median(),
+                          dist_q1=d["dist_coast_km"].quantile(.25),
+                          dist_q3=d["dist_coast_km"].quantile(.75),
+                          lat_min=d["lat"].min(), lat_max=d["lat"].max(),
+                          r_logdist_lat=r_ld, p_logdist_lat=p_ld)
+
+    # (a) rank correlations, supporting
+    outs = ["gap", "core_loss", "buffer_loss", "core_fire_pct", "buffer_fire_pct", "fire_diff"]
+    rows = []
+    for o in outs:
+        for x in ["dist_coast_km", "lat"]:
+            sub = d[[o, x]].dropna()
+            rho, pr = st.spearmanr(sub[x], sub[o])
+            rows.append(dict(outcome=o, predictor=x, n=len(sub), spearman_rho=rho, p=pr))
+    cor = pd.DataFrame(rows).set_index(["outcome", "predictor"])
+    rep.p("Spearman rank correlations (supporting; fire_diff = core minus buffer cumulative "
+          "fire scar, % of area):")
+    rep.table(cor)
+    res["spearman"] = cor.reset_index().to_dict("records")
+
+    # (b) pre-specified RQ2 model: gap on distance + latitude (+ group, size), HC3
+    res["ols"] = {}
+    for outcome, primary in [("gap", True), ("core_loss", False), ("buffer_loss", False),
+                             ("fire_diff", False)]:
+        f = f"{outcome} ~ C(group) + log10_dist + lat_c + log_area"
+        sub = d.dropna(subset=[outcome, "log10_dist", "lat_c", "log_area", "group"])
+        m = smf.ols(f, data=sub).fit(cov_type="HC3")
+        ct = pd.DataFrame({"coef": m.params, "robust_se": m.bse, "p": m.pvalues,
+                           "ci_low": m.conf_int()[0], "ci_high": m.conf_int()[1]})
+        rep.p(f"**{'RQ2 model' if primary else 'Supporting model'} — "
+              f"{OUTCOMES.get(outcome, outcome)}**: `{f}` (HC3), N = {int(m.nobs)}, "
+              f"R² = {m.rsquared:.3f}. log10_dist coefficient = change per tenfold "
+              f"increase in distance; lat_c = per degree north (centered).")
+        rep.table(ct)
+        for term in ("log10_dist", "lat_c"):
+            rep.register_p("geography", f"{outcome} ~ {term} (HC3 OLS)", m.pvalues[term],
+                           test="ols_hc3", primary=primary)
+        res["ols"][outcome] = dict(formula=f, n=int(m.nobs), r2=m.rsquared, primary=primary,
+                                   coef=ct.reset_index().rename(columns={"index": "term"}).to_dict("records"))
+
+    # (c) distance bands, supporting
+    bands = pd.cut(d["dist_coast_km"], [0, 100, 500, np.inf],
+                   labels=["<100 km", "100–500 km", ">500 km"])
+    d["coast_band"] = bands.astype(str)
+    tab = d.groupby("coast_band")[["gap", "core_loss", "buffer_loss", "core_fire_pct",
+                                   "buffer_fire_pct"]].agg(["count", "mean"]).round(2)
+    rep.p("Means by distance-to-coast band (supporting):")
+    rep.table(tab)
+    groups = [x["gap"].dropna().values for _, x in d.groupby("coast_band")]
+    kw = st.kruskal(*groups)
+    rep.code(f"Kruskal-Wallis, gap by coast band: H = {kw.statistic:.3f}, p = {_fmt_p(kw.pvalue)}")
+    res["bands"] = dict(table={str(k): v for k, v in tab.to_dict().items()},
+                        kruskal_H=kw.statistic, kruskal_p=kw.pvalue)
+    rep.register_p("geography", "gap ~ coast band (Kruskal-Wallis)", kw.pvalue,
+                   test="kruskal", primary=False)
+    d[["group", "territory", "dist_coast_km", "lat", "coast_band", "gap", "core_loss",
+       "buffer_loss", "core_fire_pct", "buffer_fire_pct"]].to_csv(
+        fig_dir.parent / "tables" / "geography_by_area.csv", index=False)
+    fig_geography(d, fig_dir)
+
+
+def fig_geography(d, out: Path):
+    """(a,b) protection gap vs distance to coast / latitude; (c,d) core and buffer
+    cumulative fire scar vs the same, symlog y (a few cores burn almost yearly)."""
+    from statsmodels.nonparametric.smoothers_lowess import lowess
+    colors = {"Indigenous Lands": CB[0], "Conservation Units": CB[1]}
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 7.5))
+    xs_spec = [("dist_coast_km", "Distance to the Atlantic coast (km, log scale)", True),
+               ("lat", "Latitude (°)", False)]
+
+    def _smooth(ax, x, y, logx, logy=False, **kw):
+        sub = pd.DataFrame({"x": x, "y": y}).dropna()
+        xx = np.log10(sub["x"]) if logx else sub["x"]
+        yy = np.log10(1 + sub["y"]) if logy else sub["y"]
+        lw = lowess(yy, xx, frac=.6)
+        ys = 10 ** lw[:, 1] - 1 if logy else lw[:, 1]
+        ax.plot(10 ** lw[:, 0] if logx else lw[:, 0], ys, **kw)
+
+    for col, (x, xl, logx) in enumerate(xs_spec):
+        ax = axes[0, col]
+        for grp, c in colors.items():
+            s_ = d[d["group"] == grp]
+            ax.scatter(s_[x], s_["gap"], s=22, color=c, alpha=.75, edgecolor="white", lw=.4, label=grp)
+        _smooth(ax, d[x], d["gap"], logx, color="#333", lw=1.6)
+        ax.axhline(0, color="#888", lw=.8, ls="--")
+        ax.set_ylabel("Protection gap (pp)", fontsize=9)
+        ax = axes[1, col]
+        ax.scatter(d[x], d["core_fire_pct"], s=20, color=CB[2], alpha=.75, edgecolor="white",
+                   lw=.4, label="Core")
+        ax.scatter(d[x], d["buffer_fire_pct"], s=20, facecolor="none", edgecolor=CB[3], lw=1,
+                   label="Buffer")
+        _smooth(ax, d[x], d["core_fire_pct"], logx, logy=True, color=CB[2], lw=1.8)
+        _smooth(ax, d[x], d["buffer_fire_pct"], logx, logy=True, color=CB[3], lw=1.8, ls="--")
+        ax.set_yscale("symlog", linthresh=10)
+        ax.set_ylabel("Cumulative fire scar 1985–2024 (% of area)", fontsize=9)
+        for a in (axes[0, col], ax):
+            if logx:
+                a.set_xscale("log")
+            a.set_xlabel(xl, fontsize=9)
+            a.grid(alpha=.25)
+    for a, tag in zip(axes.flat, "abcd"):
+        a.set_title(f"({tag})", loc="left", fontsize=10)
+    axes[0, 0].legend(fontsize=8, frameon=False)
+    axes[1, 0].legend(fontsize=8, frameon=False)
+    fig.tight_layout()
+    path = out / "geography_gap_fire.png"
+    fig.savefig(path, dpi=200); plt.close(fig)
+    return path
 
 
 def multiplicity(rep, res, out: Path):
@@ -734,8 +973,18 @@ def fig_qq(resid, out: Path, name):
 # Driver                                                                       #
 # --------------------------------------------------------------------------- #
 
+def _panel_note(ds: DS) -> str:
+    if ds.panel == "scope":
+        return ("The panel step fits the core-vs-buffer scope contrast with two-way "
+                "territory+year fixed effects and territory-clustered SE (no governance "
+                "terms).")
+    return ("The panel step fits three specifications — (A) pooled scope+posture, "
+            "(B) two-way territory+year fixed effects, (C) MapBiomas rates on continuous "
+            "combined_pressure + change_window — all with territory-clustered SE.")
+
+
 def run(ds: DS):
-    out = ds.d / "statistics"
+    out = ds.d / ds.out_name
     (out / "tables").mkdir(parents=True, exist_ok=True)
     (out / "figures").mkdir(parents=True, exist_ok=True)
     df = build_frame(ds)
@@ -817,8 +1066,17 @@ def run(ds: DS):
         rep.p(f"OLS skipped ({type(e).__name__}: {e}).")
 
     # Step 8 — panel econometrics
-    s = rep.step("panel", "Panel econometric model (cluster-robust)")
+    s = rep.step("panel", "Panel econometric model (cluster-robust)"
+                 + (" — scope contrast only" if ds.panel == "scope" else ""))
     panel_model(rep, s, ds)
+    if ds.panel == "scope":
+        s = rep.step("annual_rates", "Annual rates by scope (core vs buffer)")
+        annual_rates_by_scope(rep, s, ds)
+
+    # Step 8b — geographic gradients (RQ2)
+    if ds.geography:
+        s = rep.step("geography", "Distance to the ocean and latitude (RQ2)")
+        geography(rep, s, df, ds, out / "figures")
 
     # Step 9 — multiplicity correction across the pre-specified family
     s = rep.step("multiplicity", "Multiplicity correction (Benjamini–Hochberg FDR)")
@@ -828,14 +1086,13 @@ def run(ds: DS):
     rep.p(f"""
         Re-run with `.venv_stats/bin/python utils/manuscript_statistics.py {ds.key}`.
         Inputs: `data/summary_metrics.csv`, `data/territory_metadata.csv`,
-        `data/governance_rate_panel.csv`. Outputs in `statistics/`
+        `data/governance_rate_panel.csv`{', `data/territory_geography.csv`' if ds.geography else ''}.
+        Outputs in `{ds.out_name}/`
         (`STATISTICS_REPORT.md`, `results.json`, `tables/`, `figures/`).
         Significance threshold alpha = 0.05 throughout; effect-size conventions:
         Hedges g / Cohen dz (0.2/0.5/0.8), eta^2 (0.01/0.06/0.14). Effect sizes carry
         percentile bootstrap 95% CIs (2,000 resamples for g/dz, 1,000 for eta^2;
-        seed 42). The panel step fits three specifications — (A) pooled scope+posture,
-        (B) two-way territory+year fixed effects, (C) MapBiomas rates on continuous
-        combined_pressure + change_window — all with territory-clustered SE. A final
+        seed 42). {_panel_note(ds)} A final
         Benjamini-Hochberg step FDR-adjusts the pre-specified primary tests
         (`tables/fdr_correction.csv`).
     """)

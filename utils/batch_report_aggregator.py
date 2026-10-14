@@ -349,6 +349,13 @@ def build_timeline_long(runs: List[BatchRun]) -> pd.DataFrame:
                 if area is None or area.timeline is None:
                     continue
                 df = area.timeline
+                # The app's buffer deforestation_timeline exports carry hansen_loss = 0
+                # in every year (export bug); the same area's hansen_gfc_loss_by_year
+                # file has the real annual loss. For cores the two agree exactly, so
+                # take Hansen from loss_by_year whenever it exists (0 for 1985-2000).
+                gfc = None
+                if area.gfc_loss_by_year is not None and {"Year", "Area_ha"} <= set(area.gfc_loss_by_year.columns):
+                    gfc = area.gfc_loss_by_year.set_index("Year")["Area_ha"]
                 for _, r in df.iterrows():
                     row = {
                         "group": run.label,
@@ -359,6 +366,8 @@ def build_timeline_long(runs: List[BatchRun]) -> pd.DataFrame:
                     for col in TIMELINE_SERIES:
                         if col in df.columns:
                             row[col] = r[col]
+                    if gfc is not None:
+                        row["hansen_loss"] = float(gfc.get(int(r["year"]), 0.0))
                     rows.append(row)
     return pd.DataFrame(rows)
 

@@ -72,6 +72,33 @@ def _tutorial_step(
     )
 
 
+def tutorial_steps() -> rx.Component:
+    """The intro and the seven collapsible steps, without the outer toggle —
+    shared by the sidebar's Help group (below) and the navbar's full how-to
+    dialog (components/place_search.py::howto_dialog), where a second
+    collapsed header would be one click too many."""
+    return rx.vstack(
+        rx.box(
+            rx.vstack(
+                rx.heading(AppState.tr["getting_started_title"], size="3"),
+                rx.text(AppState.tr["getting_started_intro"], font_size="sm",
+                        color="gray"),
+                spacing="1",
+            ),
+            padding="0.5rem 1rem",
+        ),
+        _tutorial_step("step_language_region", "step0_language_region_intro", "step0_content", 0),
+        _tutorial_step("step_custom_polygon", "step1_draw_intro", "step1_content", 1),
+        _tutorial_step("step_territory", "step2_territory_intro", "step2_content", 2),
+        _tutorial_step("step_comparison", "step3_comparison_intro", "step3_content", 3),
+        _tutorial_step("step_export", "step4_export_intro", "step4_content", 4),
+        _tutorial_step("step_map_controls", "step5_map_controls_intro", "step5_content", 5),
+        _tutorial_step("step_data_understanding", "step6_data_understanding_intro", "step6_content", 6),
+        spacing="0",
+        width="100%",
+    )
+
+
 def tutorial_section() -> rx.Component:
     """Complete Getting Started tutorial with collapsible steps."""
     return rx.box(
@@ -103,34 +130,7 @@ def tutorial_section() -> rx.Component:
         rx.cond(
             AppState.show_tutorial,
             rx.box(
-                rx.vstack(
-                    # Intro text
-                    rx.box(
-                        rx.vstack(
-                            rx.heading(
-                                AppState.tr["getting_started_title"],
-                                size="3",
-                            ),
-                            rx.text(
-                                AppState.tr["getting_started_intro"],
-                                font_size="sm",
-                                color="gray",
-                            ),
-                            spacing="1",
-                        ),
-                        padding="0.5rem 1rem",
-                    ),
-                    # Steps
-                    _tutorial_step("step_language_region", "step0_language_region_intro", "step0_content", 0),
-                    _tutorial_step("step_custom_polygon", "step1_draw_intro", "step1_content", 1),
-                    _tutorial_step("step_territory", "step2_territory_intro", "step2_content", 2),
-                    _tutorial_step("step_comparison", "step3_comparison_intro", "step3_content", 3),
-                    _tutorial_step("step_export", "step4_export_intro", "step4_content", 4),
-                    _tutorial_step("step_map_controls", "step5_map_controls_intro", "step5_content", 5),
-                    _tutorial_step("step_data_understanding", "step6_data_understanding_intro", "step6_content", 6),
-                    spacing="0",
-                    width="100%",
-                ),
+                tutorial_steps(),
                 padding="0.25rem 0",
             ),
             rx.box(),

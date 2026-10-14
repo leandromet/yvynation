@@ -32,6 +32,7 @@ from ._export import ExportMixin
 from ._batch import BatchMixin
 from ._advanced_viz import AdvancedVizMixin
 from ._previous_runs import PreviousRunsMixin
+from ._search import PlaceSearchMixin
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class AppState(
     GeometryMixin,
     TerritoryMixin,
     MapMixin,
+    PlaceSearchMixin,
     UIMixin,
     rx.State,
 ):
@@ -274,6 +276,36 @@ class AppState(
     tutorial_expanded_steps: List[int] = []
     show_layer_reference: bool = False
     show_citation: bool = False
+
+    # ====================================================================
+    # "Find a place" box (state/_search.py, utils/place_search.py) and the
+    # first-visit quick-start card (components/quickstart.py)
+    # ====================================================================
+    place_query: str = ""
+    #: Human-readable "read as …", shown before anything is searched.
+    place_echo: str = ""
+    place_echo_kind: str = ""
+    place_error: str = ""
+    place_searching: bool = False
+    place_hits: List[Dict[str, Any]] = []
+    #: Territory names matching the query — offered, never auto-selected.
+    place_territory_hits: List[str] = []
+    #: The full how-to dialog (wraps components/tutorial.py's guide).
+    howto_open: bool = False
+    #: "1" once this browser dismissed the quick-start card. Browser storage:
+    #: a per-viewer convenience that must survive a reload and never follow a
+    #: user to someone else's screen.
+    quickstart_seen: str = rx.LocalStorage("", name="yvynation_quickstart_v1")
+
+    @rx.var
+    def show_quickstart(self) -> bool:
+        return self.quickstart_seen != "1"
+
+    @rx.var
+    def place_attribution(self) -> str:
+        """Credit exactly the sources the listed places came from."""
+        from ..utils.address import attributions
+        return attributions(self.place_hits)
     #: Portal "Data sources" list — collapsed by default to keep the landing
     #: page readable; the detail matters to few first-time visitors.
     portal_data_sources_open: bool = False

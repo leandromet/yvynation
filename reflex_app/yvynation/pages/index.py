@@ -27,6 +27,8 @@ from ..components.geometry_popup import geometry_info_popup
 from ..components.loading_indicator import loading_indicator
 from ..components.language_selector import language_selector
 from ..components.citation import citation_modal, cite_trigger
+from ..components.place_search import howto_dialog, howto_trigger, place_search
+from ..components.quickstart import quickstart_card
 from .portal import portal
 from .batch_processing import batch_processing_page
 from .previous_runs import previous_runs_page
@@ -446,10 +448,16 @@ def sidebar_content() -> rx.Component:
     their own. The map is not like that and is built exactly once, in
     ``_map()``.
     """
-    return rx.cond(
-        AppState.analysis_mode == "geometry",
-        geometry_sidebar(),
-        territory_sidebar(),
+    return rx.fragment(
+        # Above either sidebar, so the box is in the same place in both
+        # modes — and first in the phone sheet, where it is the first thing
+        # the quick-start card tells a new user to do.
+        place_search(),
+        rx.cond(
+            AppState.analysis_mode == "geometry",
+            geometry_sidebar(),
+            territory_sidebar(),
+        ),
     )
 
 
@@ -746,6 +754,7 @@ def navbar() -> rx.Component:
                 display=["none", "none", "none", "flex"],
             ),
             language_selector(),
+            howto_trigger(),
             cite_trigger(),
             rx.button(
                 AppState.tr["back_to_portal"],
@@ -942,6 +951,7 @@ def _map() -> rx.Component:
     """
     return rx.box(
         leaflet_map(),
+        quickstart_card(AppState, accent=ACCENT, desktop_from=2),
         # Tablet and up: the results drawer, floating over the map's bottom
         # edge rather than sharing the column with it. z-index must clear
         # Leaflet's own panes (~700) or it renders under the map. Mounted
@@ -1013,6 +1023,7 @@ def workspace() -> rx.Component:
         loading_indicator(),
         geometry_info_popup(),
         citation_modal(),
+        howto_dialog(),
         width="100vw",
         height=["100dvh", "100dvh", "100dvh", "100vh"],
         spacing="0",
