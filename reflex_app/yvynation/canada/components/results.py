@@ -439,7 +439,7 @@ def floresta_tab() -> rx.Component:
                 rx.vstack(
                     rx.cond(
                         ~S.hansen_is_split,
-                        rx.callout(S.tr["floresta_no_start_date_note"],
+                        rx.callout(S.hansen_unsplit_note,
                                   icon="info", color_scheme="gray", size="1"),
                     ),
                     rx.hstack(

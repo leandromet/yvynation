@@ -135,6 +135,7 @@ def land_cover_history(zones: Sequence[Zone], *, years: List[int] | None = None
     if not df.empty:
         df["class_en"] = df["class_id"].map(lambda c: cfg.label(int(c), "en"))
         df["class_pt"] = df["class_id"].map(lambda c: cfg.label(int(c), "pt"))
+        df["class_fr"] = df["class_id"].map(lambda c: cfg.label(int(c), "fr"))
         df["color"] = df["class_id"].map(lambda c: cfg.color(int(c)))
         order = {z.key: i for i, z in enumerate(zones)}
         df["_o"] = df["zone_key"].map(order)

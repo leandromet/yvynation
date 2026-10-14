@@ -70,6 +70,36 @@ class CanadaForestMixin(rx.State, mixin=True):
     def hansen_is_split(self) -> bool:
         return bool(self.hansen_split_year)
 
+    @rx.var(cache=True, deps=["parcel", "hansen_split_year", "language"],
+            auto_deps=False)
+    def hansen_unsplit_note(self) -> str:
+        """Why the loss series is not split at an establishment year — worded
+        for the actual reason, since all three read very differently:
+
+        * **no year on record** — nothing to split at;
+        * **year within or before the first year of the record** (Hansen
+          starts 2001) — every year of loss on the chart is after
+          establishment, which is a finding, not a gap;
+        * **year after the record ends** — every year on the chart is before.
+
+        Empty when the series *is* split. Mirrors ``hansen.splits_at`` so the
+        note can never disagree with the buckets the chart draws.
+        """
+        if self.hansen_split_year:
+            return ""
+        tr = get_translations(getattr(self, "language", "en"))
+        year = int(getattr(self, "parcel", {}).get("start_year") or 0)
+        first, last = hansen.LOSS_YEAR_START, hansen.LOSS_YEAR_END
+        if not year:
+            return tr["floresta_no_start_date_note"]
+        if year <= first:
+            return tr["floresta_year_before_record_note"].format(
+                year=year, first=first)
+        if year > last:
+            return tr["floresta_year_after_record_note"].format(
+                year=year, last=last)
+        return tr["floresta_no_start_date_note"]
+
     @rx.var(cache=True, deps=["active_zone", "hansen_loss_rows", "language"],
             auto_deps=False)
     def hansen_table_rows(self) -> List[Dict[str, Any]]:

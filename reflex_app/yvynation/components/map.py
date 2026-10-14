@@ -188,11 +188,6 @@ def drawing_toolbar() -> rx.Component:
     )
 
 
-def _click_bridge_js() -> str:
-    from ..utils.place_search import CLICK_BRIDGE_JS
-    return CLICK_BRIDGE_JS
-
-
 def leaflet_map() -> rx.Component:
     """
     Interactive map with Earth Engine layers and drawing capabilities.
@@ -235,28 +230,10 @@ def leaflet_map() -> rx.Component:
 
         drawing_toolbar(),
 
-        # Canadian protected areas load per province: a click outside the
-        # provinces this session shows loads the one clicked (see
-        # utils/place_search.py::CLICK_BRIDGE_JS for the iframe side).
-        rx.cond(
-            AppState.territory_type == "conservation_ca",
-            rx.button(
-                "province",
-                id="yvy-ca-click-btn",
-                display="none",
-                on_click=rx.call_script(
-                    "JSON.stringify(window.__yvyCaClick || null)",
-                    callback=AppState.on_ca_map_click,
-                ),
-            ),
-            rx.fragment(),
-        ),
-
         width="100%",
         height="100%",
         position="relative",
         overflow="hidden",
-        on_mount=rx.call_script(_click_bridge_js()),
     )
 
 

@@ -299,11 +299,13 @@ def build_geojson(level: str = "ecozone") -> dict:
         ecozone_id = props.get(level_cfg.ecozone_id_field)
         zone_name_en = cfg.name(ecozone_id or 0, "en")
         zone_name_pt = cfg.name(ecozone_id or 0, "pt")
+        zone_name_fr = cfg.name(ecozone_id or 0, "fr")
 
         if level_cfg.name_en_field:
             name_en = (props.get(level_cfg.name_en_field) or "").strip() \
                 or zone_name_en
-            name_fr = (props.get(level_cfg.name_fr_field) or "").strip()
+            # The source's own French name; English where it carries none.
+            name_fr = (props.get(level_cfg.name_fr_field) or "").strip() or name_en
             name_pt = zone_name_pt if level == "ecozone" else name_en
             parent_name_en = parent_name_fr = ""
         else:
@@ -327,6 +329,7 @@ def build_geojson(level: str = "ecozone") -> dict:
                 "ecozone_id": ecozone_id,
                 "zone_name_en": zone_name_en,
                 "zone_name_pt": zone_name_pt,
+                "zone_name_fr": zone_name_fr,
                 "parent_name_en": parent_name_en,
                 "parent_name_fr": parent_name_fr,
             },
@@ -394,10 +397,15 @@ def geojson_gzipped(level: str = "ecozone") -> bytes:
 # Layer spec
 # --------------------------------------------------------------------------- #
 _LEVEL_LABEL = {
-    "ecozone": ("Ecozone", "Ecozona"),
-    "ecoregion": ("Ecoregion", "Ecorregião"),
-    "ecodistrict": ("Ecodistrict", "Ecodistrito"),
+    "ecozone": ("Ecozone", "Ecozona", "Écozone"),
+    "ecoregion": ("Ecoregion", "Ecorregião", "Écorégion"),
+    "ecodistrict": ("Ecodistrict", "Ecodistrito", "Écodistrict"),
 }
+
+
+def _by_lang(triple, lang: str) -> str:
+    """Pick from an (en, pt, fr) triple."""
+    return {"pt": triple[1], "fr": triple[2]}.get(lang, triple[0])
 
 
 def vector_spec(level: str = "ecozone", *, opacity: float = 0.45,
@@ -418,27 +426,27 @@ def vector_spec(level: str = "ecozone", *, opacity: float = 0.45,
     if level not in cfg.LEVELS:
         raise ValueError(f"Unknown ecological-framework level: {level!r}")
     level_cfg = cfg.LEVELS[level]
-    label_en, label_pt = _LEVEL_LABEL[level]
-    name_prop = "name_pt" if lang == "pt" else "name_en"
-    zone_prop = "zone_name_pt" if lang == "pt" else "zone_name_en"
+    label_triple = _LEVEL_LABEL[level]
+    label_en = label_triple[0]
+    name_prop = {"pt": "name_pt", "fr": "name_fr"}.get(lang, "name_en")
+    zone_prop = {"pt": "zone_name_pt", "fr": "zone_name_fr"}.get(lang, "zone_name_en")
 
-    tooltip = [{"label": label_pt if lang == "pt" else label_en,
+    tooltip = [{"label": _by_lang(label_triple, lang),
                "property": name_prop}]
     if level in ("ecoregion", "ecodistrict"):
         # A finer unit's own name says little without the ecozone it sits
         # in — the ecozone layer alone doesn't need this line, it *is* that
         # name.
-        zone_label_en, zone_label_pt = _LEVEL_LABEL["ecozone"]
-        tooltip.append({"label": zone_label_pt if lang == "pt" else zone_label_en,
+        tooltip.append({"label": _by_lang(_LEVEL_LABEL["ecozone"], lang),
                         "property": zone_prop})
     if level == "ecodistrict":
         # No PT gloss is maintained for 218 ecoregion names the way there is
         # for the fifteen ecozones — the English name is shown regardless of
         # UI language rather than silently going blank in Portuguese.
-        region_label_en, region_label_pt = _LEVEL_LABEL["ecoregion"]
-        tooltip.append({"label": region_label_pt if lang == "pt" else region_label_en,
-                        "property": "parent_name_en"})
-    if level == "ecozone":
+        tooltip.append({"label": _by_lang(_LEVEL_LABEL["ecoregion"], lang),
+                        "property": "parent_name_fr" if lang == "fr" else "parent_name_en"})
+    if level == "ecozone" and lang != "fr":
+        # An extra row only where the name above is not already the French one.
         tooltip.append({"label": "Français", "property": "name_fr"})
 
     return {

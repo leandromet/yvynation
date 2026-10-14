@@ -460,24 +460,6 @@ def quick_settings() -> rx.Component:
             spacing="1",
         ),
         rx.spacer(),
-        # Region
-        rx.hstack(
-            rx.button(
-                "Brasil",
-                on_click=lambda: AppState.set_country("Brazil"),
-                size="1",
-                variant=rx.cond(AppState.selected_country == "Brazil", "solid", "outline"),
-                color_scheme=rx.cond(AppState.selected_country == "Brazil", "green", "gray"),
-            ),
-            rx.button(
-                "Canada",
-                on_click=lambda: AppState.set_country("Canada"),
-                size="1",
-                variant=rx.cond(AppState.selected_country == "Canada", "solid", "outline"),
-                color_scheme=rx.cond(AppState.selected_country == "Canada", "green", "gray"),
-            ),
-            spacing="1",
-        ),
         width="100%",
         padding="0.5rem 0.75rem",
         border_bottom="1px solid #e8e8e8",

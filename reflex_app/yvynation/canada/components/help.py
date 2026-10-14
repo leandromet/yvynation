@@ -10,7 +10,8 @@ from __future__ import annotations
 import reflex as rx
 
 from ..config.citation import (
-    CITATION_TEXT_EN, CITATION_TEXT_PT, DATA_SOURCES_EN, DATA_SOURCES_PT,
+    CITATION_TEXT_EN, CITATION_TEXT_FR, CITATION_TEXT_PT, DATA_SOURCES_EN,
+    DATA_SOURCES_FR, DATA_SOURCES_PT,
 )
 from ..state import CanadaState as S
 
@@ -87,19 +88,21 @@ def how_to_use_dialog() -> rx.Component:
     )
 
 
-def _source_row(name_pt: str, desc_pt: str, url_pt: str,
-                name_en: str, desc_en: str, url_en: str) -> rx.Component:
+def _pick(en, pt, fr):
+    """The text for the page language (English for anything else)."""
+    return rx.match(S.language, ("pt", pt), ("fr", fr), en)
+
+
+def _source_row(pt: tuple, en: tuple, fr: tuple) -> rx.Component:
+    """One data source, each of name/description/link in the page language."""
     return rx.vstack(
         rx.hstack(
-            rx.text(rx.cond(S.language == "pt", name_pt, name_en),
-                    size="2", weight="medium"),
+            rx.text(_pick(en[0], pt[0], fr[0]), size="2", weight="medium"),
             rx.link(rx.icon("external-link", size=12),
-                   href=rx.cond(S.language == "pt", url_pt, url_en),
-                   is_external=True),
+                   href=_pick(en[2], pt[2], fr[2]), is_external=True),
             spacing="1", align="center",
         ),
-        rx.text(rx.cond(S.language == "pt", desc_pt, desc_en),
-               size="1", color="var(--gray-11)"),
+        rx.text(_pick(en[1], pt[1], fr[1]), size="1", color="var(--gray-11)"),
         spacing="0", align_items="start", width="100%",
     )
 
@@ -122,19 +125,17 @@ def how_to_cite_dialog() -> rx.Component:
                 rx.vstack(
                     rx.text(S.tr["cite_example_title"], size="2", weight="bold"),
                     rx.box(
-                        rx.text(rx.cond(S.language == "pt", CITATION_TEXT_PT,
-                                       CITATION_TEXT_EN),
+                        rx.text(_pick(CITATION_TEXT_EN, CITATION_TEXT_PT,
+                                      CITATION_TEXT_FR),
                                size="2", style={"lineHeight": "1.6"}),
                         padding="0.75rem", background="var(--gray-3)",
                         border_radius="6px", width="100%",
                     ),
                     rx.button(
                         rx.icon("copy", size=13),
-                        rx.cond(S.language == "pt", "Copiar citação",
-                               "Copy citation"),
+                        _pick("Copy citation", "Copiar citação", "Copier la citation"),
                         on_click=rx.set_clipboard(
-                            rx.cond(S.language == "pt", CITATION_TEXT_PT,
-                                   CITATION_TEXT_EN)),
+                            _pick(CITATION_TEXT_EN, CITATION_TEXT_PT, CITATION_TEXT_FR)),
                         size="1", variant="soft", color_scheme="jade",
                     ),
 
@@ -144,9 +145,9 @@ def how_to_cite_dialog() -> rx.Component:
                            color="var(--gray-11)"),
                     rx.vstack(
                         *[
-                            _source_row(n_pt, d_pt, u_pt, n_en, d_en, u_en)
-                            for (n_pt, d_pt, u_pt), (n_en, d_en, u_en)
-                            in zip(DATA_SOURCES_PT, DATA_SOURCES_EN)
+                            _source_row(pt, en, fr)
+                            for pt, en, fr in zip(DATA_SOURCES_PT, DATA_SOURCES_EN,
+                                                  DATA_SOURCES_FR)
                         ],
                         spacing="3", align_items="start", width="100%",
                     ),

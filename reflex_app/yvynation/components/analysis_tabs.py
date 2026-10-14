@@ -1,6 +1,6 @@
 """
 Phase 4: Analysis tabs component - 6 analysis tabs matching Streamlit app.
-Tabs: MapBiomas | Hansen/GLAD | Hansen GFC | AAFC | Comparison | About
+Tabs: MapBiomas | Hansen/GLAD | Hansen GFC | Comparison | About
 All text uses AppState.tr for i18n support.
 """
 
@@ -1311,52 +1311,6 @@ def hansen_gfc_tab() -> rx.Component:
 
 
 # -----------------------------------------------------------------------
-# Tab 4: AAFC (Canada)
-# -----------------------------------------------------------------------
-
-def aafc_tab() -> rx.Component:
-    """AAFC Annual Crop Inventory analysis tab (Canada)."""
-    return rx.vstack(
-        rx.heading(AppState.tr["aafc_legend"], size="3"),
-        _area_basis_note(),
-        rx.divider(),
-        rx.cond(
-            AppState.selected_country == "Canada",
-            _no_data_placeholder("AAFC analysis coming soon"),
-            rx.vstack(
-                rx.icon("info", size=24, color="blue"),
-                rx.text(
-                    "AAFC data is only available for Canada. Switch region in the sidebar.",
-                    font_size="sm", color="gray",
-                ),
-                align="center",
-                padding="2rem",
-            ),
-        ),
-        # Buffer note for AAFC (Canada-only, territories in Brazil)
-        rx.box(
-            rx.hstack(
-                rx.icon("info", size=14, color="#93C5FD"),
-                rx.text(
-                    "Buffer zone comparison for AAFC is not applicable to Brazilian indigenous territories. "
-                    "Buffer analysis uses MapBiomas (Brazil) and Hansen (global) datasets.",
-                    font_size="xs", color="#1D4ED8",
-                ),
-                spacing="2", align_items="center",
-            ),
-            padding="0.5rem 0.75rem",
-            border="1px dashed #93C5FD",
-            border_radius="md",
-            bg="blue.50",
-            width="100%",
-        ),
-        width="100%",
-        spacing="3",
-        padding="1rem",
-    )
-
-
-# -----------------------------------------------------------------------
 # Tab 5: Comparison
 # -----------------------------------------------------------------------
 
@@ -1733,11 +1687,6 @@ def about_tab() -> rx.Component:
                         rx.text("Forest change 2000–2023 (Global)", font_size="xs"),
                         spacing="2",
                     ),
-                    rx.hstack(
-                        rx.badge("AAFC", color_scheme="orange"),
-                        rx.text("Crop inventory 2009–2023 (Canada)", font_size="xs"),
-                        spacing="2",
-                    ),
                     spacing="2",
                 ),
                 spacing="3",
@@ -1834,20 +1783,6 @@ def about_tab() -> rx.Component:
                         rx.text(
                             "UMD/hansen/global_forest_change_2025_v1_13 · Resolution: 30 m · "
                             "Cover 2000 | Loss 2001–2024 (annual) | Gain 2000–2012 · Global coverage",
-                            font_size="xs", color="gray",
-                        ),
-                        spacing="0",
-                    ),
-                    spacing="2",
-                    align_items="start",
-                    flex_wrap="wrap",
-                ),
-                rx.hstack(
-                    rx.badge("AAFC", color_scheme="orange", variant="solid"),
-                    rx.vstack(
-                        rx.text("Annual Crop Inventory — Canada land cover", font_size="xs"),
-                        rx.text(
-                            "Resolution: 30 m · Period: 2009–2023 · Canada coverage only",
                             font_size="xs", color="gray",
                         ),
                         spacing="0",
@@ -2386,7 +2321,7 @@ def timeline_tab() -> rx.Component:
 def analysis_tabs() -> rx.Component:
     """
     Full analysis panel with 6 tabs matching the Streamlit app:
-    MapBiomas | Hansen/GLAD | Hansen GFC | AAFC | Comparison | About
+    MapBiomas | Hansen/GLAD | Hansen GFC | Comparison | About
     """
     return rx.box(
         rx.tabs.root(
@@ -2394,7 +2329,6 @@ def analysis_tabs() -> rx.Component:
                 rx.tabs.trigger(AppState.tr["mapbiomas_label"], value="mapbiomas"),
                 rx.tabs.trigger("Hansen/GLAD", value="hansen"),
                 rx.tabs.trigger("Hansen GFC", value="gfc"),
-                rx.tabs.trigger("AAFC", value="aafc"),
                 rx.tabs.trigger(AppState.tr["compare_btn"], value="comparison"),
                 rx.tabs.trigger("🟦 Treemaps", value="treemaps"),
                 rx.tabs.trigger("🗺️ Maps", value="maps"),
@@ -2412,7 +2346,6 @@ def analysis_tabs() -> rx.Component:
             rx.tabs.content(mapbiomas_tab(), value="mapbiomas"),
             rx.tabs.content(hansen_tab(), value="hansen"),
             rx.tabs.content(hansen_gfc_tab(), value="gfc"),
-            rx.tabs.content(aafc_tab(), value="aafc"),
             rx.tabs.content(comparison_tab(), value="comparison"),
             rx.tabs.content(treemap_tab(), value="treemaps"),
             rx.tabs.content(maps_tab(), value="maps"),

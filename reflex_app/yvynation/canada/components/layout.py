@@ -103,6 +103,8 @@ def section(title: str, *children, info=None, **props) -> rx.Component:
 
 
 def header() -> rx.Component:
+    from ...components.region_toggle import region_toggle
+    from ...components.suite_links import suite_links
     from .help import header_actions
 
     return rx.hstack(
@@ -127,20 +129,16 @@ def header() -> rx.Component:
             flex_shrink="1",
         ),
         rx.spacer(),
-        rx.link(
-            rx.button(
-                rx.text("🇧🇷", font_size="0.95rem"),
-                rx.text(S.tr["go_to_brazil"],
-                        display=["none", "none", "block", "block"]),
-                size="1", variant="soft", color_scheme="gray",
-                aria_label=S.tr["go_to_brazil"],
-            ),
-            href=S.brazil_href,
-        ),
+        suite_links("yvynation", region="canada", language=S.language, accent=ACCENT),
+        region_toggle("canada", language=S.language,
+                      labels=(S.tr["region_brazil"], S.tr["region_canada"]),
+                      aria_label=S.tr["region_label"], accent=ACCENT),
         header_actions(),
         rx.segmented_control.root(
-            rx.segmented_control.item("🇨🇦 EN", value="en"),
-            rx.segmented_control.item("🇧🇷 PT", value="pt"),
+            # Plain text: the region toggle is the only flagged control.
+            rx.segmented_control.item("EN", value="en"),
+            rx.segmented_control.item("PT", value="pt"),
+            rx.segmented_control.item("FR", value="fr"),
             value=S.language, on_change=S.set_language, size="1",
             aria_label=S.tr["language_label"],
         ),

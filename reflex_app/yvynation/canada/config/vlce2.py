@@ -110,16 +110,24 @@ VLCE2_LABELS_PT: Dict[int, str] = {
     230: "Floresta mista",
 }
 
+VLCE2_LABELS_FR: Dict[int, str] = {
+    0: "Non classé", 20: "Eau", 31: "Neige et glace", 32: "Roche et débris rocheux",
+    33: "Terre exposée et stérile", 40: "Bryoïdes", 50: "Arbustes", 80: "Milieux humides",
+    81: "Milieux humides — boisés", 100: "Herbacées", 210: "Conifères", 220: "Feuillus",
+    230: "Forêt mixte",
+}
+
 VLCE2_LABELS: Dict[str, Dict[int, str]] = {
     "en": VLCE2_LABELS_EN,
     "pt": VLCE2_LABELS_PT,
+    "fr": VLCE2_LABELS_FR,
 }
 
 
 def label(class_id: int, lang: str = "en") -> str:
     table = VLCE2_LABELS.get(lang, VLCE2_LABELS_EN)
     return table.get(
-        class_id, f"Classe {class_id}" if lang == "pt" else f"Class {class_id}"
+        class_id, f"Classe {class_id}" if lang in ("pt", "fr") else f"Class {class_id}"
     )
 
 
@@ -241,8 +249,16 @@ for _code in aafc.ACI_LABELS_EN:
 del _code
 
 
+GROUP_LABELS_FR: Dict[str, str] = {
+    "forest": "Forêt", "wetland": "Milieux humides", "shrub_herb": "Arbustes et herbacées",
+    "cropland": "Terres cultivées et pâturages", "water": "Eau",
+    "barren": "Sol nu, roche, neige", "urban": "Zones urbaines et aménagées",
+    "other": "Autre / sans données",
+}
+
+
 def group_label(group: str, lang: str = "en") -> str:
-    table = GROUP_LABELS_PT if lang == "pt" else GROUP_LABELS_EN
+    table = {"pt": GROUP_LABELS_PT, "fr": GROUP_LABELS_FR}.get(lang, GROUP_LABELS_EN)
     return table.get(group, group)
 
 

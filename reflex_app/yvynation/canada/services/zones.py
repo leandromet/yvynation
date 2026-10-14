@@ -169,7 +169,7 @@ def _ring_label(inner_m: int, outer_m: int, lang: str = "en") -> str:
         if m < 1000:
             return f"{m} m"
         text = f"{m / 1000:g} km"
-        return text.replace(".", ",") if lang == "pt" else text
+        return text.replace(".", ",") if lang in ("pt", "fr") else text
 
     return f"{fmt(inner_m)} – {fmt(outer_m)}" if inner_m else f"0 – {fmt(outer_m)}"
 

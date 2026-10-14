@@ -178,8 +178,17 @@ OUTLINE_WIDTH = 1.5
 LABEL_MIN_ZOOM = 5
 
 
+ECOZONE_NAMES_FR: Dict[int, str] = {
+    1: "Cordillère arctique", 2: "Haut-Arctique", 3: "Bas-Arctique",
+    4: "Plaines de la taïga", 5: "Bouclier de la taïga", 6: "Bouclier boréal",
+    7: "Maritime de l'Atlantique", 8: "Plaines à forêts mixtes", 9: "Plaines boréales",
+    10: "Prairies", 11: "Cordillère de la taïga", 12: "Cordillère boréale",
+    13: "Maritime du Pacifique", 14: "Cordillère montagnarde", 15: "Plaines hudsoniennes",
+}
+
+
 def name(ecozone_id: int, lang: str = "en") -> str:
-    table = ECOZONE_NAMES_PT if lang == "pt" else ECOZONE_NAMES_EN
+    table = {"pt": ECOZONE_NAMES_PT, "fr": ECOZONE_NAMES_FR}.get(lang, ECOZONE_NAMES_EN)
     return table.get(int(ecozone_id), f"Ecozone {ecozone_id}")
 
 
@@ -227,7 +236,7 @@ LEVELS: Dict[str, LevelConfig] = {
         ecozone_id_field="ECOZONE_ID",
         simplify_m=2000, coord_decimals=2, label_min_zoom=5,
         geojson_path="/_ecozones.geojson",
-        cache_filename="canada_ecozones.json.gz",
+        cache_filename="canada_ecozones.v2.json.gz",
     ),
     "ecoregion": LevelConfig(
         key="ecoregion", label_en="Ecoregion",
@@ -239,7 +248,7 @@ LEVELS: Dict[str, LevelConfig] = {
         # the ecozone's 2 km would visibly fuse adjacent small ecoregions.
         simplify_m=800, coord_decimals=3, label_min_zoom=7,
         geojson_path="/_ecoregions.geojson",
-        cache_filename="canada_ecoregions.json.gz",
+        cache_filename="canada_ecoregions.v2.json.gz",
     ),
     "ecodistrict": LevelConfig(
         key="ecodistrict", label_en="Ecodistrict",
@@ -249,7 +258,7 @@ LEVELS: Dict[str, LevelConfig] = {
         ecozone_id_field="ECOZONE_ID",
         simplify_m=400, coord_decimals=3, label_min_zoom=9,
         geojson_path="/_ecodistricts.geojson",
-        cache_filename="canada_ecodistricts.json.gz",
+        cache_filename="canada_ecodistricts.v2.json.gz",
     ),
 }
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import reflex as rx
 
+from ..config import cpcad_vocab
 from ..state import CanadaState as S
 from .layout import BORDER, MUTED, section
 
@@ -28,8 +29,21 @@ def _row(label, value, *, mono: bool = False, emphasis: bool = False) -> rx.Comp
     )
 
 
-def _opt_row(label, value) -> rx.Component:
-    return rx.cond(value, _row(label, value))
+def _vocab(value, table: str):
+    """A register fixed-list value in the page language (see
+    ``config/cpcad_vocab.py``). English is the stored form; unknown values
+    fall through unchanged."""
+    def in_lang(lang: str):
+        return rx.match(
+            value,
+            *[(en, tr[lang]) for en, tr in cpcad_vocab.TABLES[table].items()],
+            value)
+    return rx.match(S.language, ("pt", in_lang("pt")), ("fr", in_lang("fr")), value)
+
+
+def _opt_row(label, value, table: str | None = None) -> rx.Component:
+    shown = value if table is None else _vocab(value, table)
+    return rx.cond(value, _row(label, shown))
 
 
 def _coordinate_row() -> rx.Component:
@@ -70,13 +84,13 @@ def area_card() -> rx.Component:
             _coordinate_row(),
             _row(S.tr["area_province"], S.parcel["province"]),
             _row(S.tr["park_designation"], S.parcel["designation"]),
-            _row(S.tr["area_pa_oecm"], S.parcel["designation_type"]),
-            _opt_row(S.tr["park_iucn_category"], S.parcel["iucn_category"]),
-            _opt_row(S.tr["park_status"], S.parcel["park_status"]),
+            _row(S.tr["area_pa_oecm"], _vocab(S.parcel["designation_type"], "pa_oecm")),
+            _opt_row(S.tr["park_iucn_category"], S.parcel["iucn_category"], "iucn"),
+            _opt_row(S.tr["park_status"], S.parcel["park_status"], "status"),
             rx.cond(S.parcel["status_year"],
                     _row(S.tr["park_status_year"], S.parcel["status_year"])),
-            _row(S.tr["area_governance"], S.parcel["governance"]),
-            _opt_row(S.tr["area_owner_type"], S.parcel["owner_type"]),
+            _row(S.tr["area_governance"], _vocab(S.parcel["governance"], "governance")),
+            _opt_row(S.tr["area_owner_type"], S.parcel["owner_type"], "owner"),
             _opt_row(S.tr["park_managing_authority"], S.parcel["managing_authority"]),
             _row(S.tr["area_cpcad_id"], S.parcel["cpcad_id"], mono=True),
             _area_block(),

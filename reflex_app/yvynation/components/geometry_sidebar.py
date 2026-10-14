@@ -13,31 +13,6 @@ from .tutorial import tutorial_section
 from .layer_reference import layer_reference_guide
 
 
-def _region_selector() -> rx.Component:
-    """Compact Brazil/Canada region toggle."""
-    return rx.hstack(
-        rx.text("Region:", font_size="xs", color="gray", font_weight="600"),
-        rx.button(
-            "Brasil",
-            on_click=lambda: AppState.set_country("Brazil"),
-            size="1",
-            variant=rx.cond(AppState.selected_country == "Brazil", "solid", "outline"),
-            color_scheme=rx.cond(AppState.selected_country == "Brazil", "green", "gray"),
-        ),
-        rx.button(
-            "Canada",
-            on_click=lambda: AppState.set_country("Canada"),
-            size="1",
-            variant=rx.cond(AppState.selected_country == "Canada", "solid", "outline"),
-            color_scheme=rx.cond(AppState.selected_country == "Canada", "green", "gray"),
-        ),
-        width="100%",
-        spacing="1",
-        align_items="center",
-        padding="0.5rem 0.25rem",
-    )
-
-
 def _geometry_tools_section() -> rx.Component:
     """Draw tools, upload, and list of your geometries — all in one place."""
     return rx.vstack(
@@ -664,7 +639,6 @@ def geometry_sidebar() -> rx.Component:
     navbar already carries a translated one.
     """
     return sidebar_shell(
-        _region_selector(),
         sidebar_groups_root(
             group(
                 "study_area", "target", AppState.tr["group_study_area"],

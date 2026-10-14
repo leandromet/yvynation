@@ -58,7 +58,7 @@ class CanadaUIMixin(rx.State, mixin=True):
         than the app-wide Portuguese one — arriving bare at ``/canada`` reads
         as English, exactly as arriving bare at ``/`` reads as Portuguese.
         """
-        requested = (self.router.page.params or {}).get("lang")
+        requested = self.router.url.query_parameters.get("lang", "")
         if requested in SUPPORTED_LANGUAGES:
             self.language = requested
 

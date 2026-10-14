@@ -15,6 +15,7 @@ from __future__ import annotations
 from ._yvynation_en import YVY_EN
 from ._yvynation_pt import YVY_PT
 from .en import TRANSLATIONS_EN as _CS_EN
+from .fr import TRANSLATIONS_FR
 from .pt import TRANSLATIONS_PT as _CS_PT
 
 #: camposcope's Canada text (en.py / pt.py, ported) with Yvynation's own
@@ -25,6 +26,7 @@ TRANSLATIONS_PT = {**_CS_PT, **YVY_PT}
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": TRANSLATIONS_EN,
     "pt": TRANSLATIONS_PT,
+    "fr": TRANSLATIONS_FR,
 }
 
 

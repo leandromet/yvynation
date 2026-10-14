@@ -66,6 +66,11 @@ YVY_PT: dict[str, str] = {
         "latitude — esperado acima de cerca de 54–58°N, não é uma falha. As "
         "abas Cobertura do solo, Floresta, Biomassa e Fogo continuam "
         "respondendo.",
+    "fogo_aci_empty": "Ainda sem dados de Culturas (AAFC) para esta zona — abra essa "
+        "aba, ou aguarde o carregamento terminar. A classe de área queimada vem "
+        "dessa mesma busca, sem custo adicional.",
+    "cite_sources_desc": "Todas as fontes que esta página utiliza, mesmo que a área "
+        "atual não use todas elas.",
     "tab_vlce2": "Cobertura do solo",
     "legend_vlce2": "Cobertura do solo (NTEMS VLCE2)",
     "legend_vlce2_palette": "As classes aparecem aqui quando o histórico carregar.",
@@ -86,6 +91,13 @@ YVY_PT: dict[str, str] = {
     "floresta_no_start_date_note": "O CPCAD não registra ano de criação para "
         "esta área, então a perda aparece como uma série única, sem dividir "
         "numa data inventada.",
+    "floresta_year_before_record_note": "Esta área foi criada em {year}, "
+        "antes do início do registro de perda do Hansen ({first}) — então "
+        "todos os anos de perda mostrados são posteriores à criação, e não há "
+        "período anterior para comparar.",
+    "floresta_year_after_record_note": "Esta área foi criada em {year}, "
+        "depois do fim do registro de perda do Hansen ({last}) — então todos "
+        "os anos de perda mostrados são anteriores à criação.",
     "paisagem_legend_note": "A contagem de fragmentos segue as classes do "
         "inventário agrícola, que separam culturas em detalhe e floresta de "
         "forma grosseira — comparável entre esta área protegida e seus "
@@ -252,4 +264,7 @@ YVY_PT: dict[str, str] = {
     "help_limit_4": "Nenhum parecer sobre gestão ou conformidade é emitido: "
         "os números descrevem a cobertura do solo, não a gestão.",
     "cite_dialog_desc": "O Yvynation Canadá e os dados que ele usa.",
+    "region_brazil": "Brasil",
+    "region_canada": "Canadá",
+    "region_label": "Região",
 }

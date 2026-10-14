@@ -20,6 +20,11 @@ from ..config import aafc as mb
 _STACK_PRIORITY = mb.STACK_PRIORITY
 
 
+def _t(lang: str, en: str, pt: str, fr: str) -> str:
+    """The text for ``lang`` (English for anything else)."""
+    return {"pt": pt, "fr": fr}.get(lang, en)
+
+
 def _order_classes(class_ids: List[int]) -> List[int]:
     def key(c: int):
         if c in _STACK_PRIORITY:
@@ -49,7 +54,7 @@ def land_cover_history_figure(
 
     if sub.empty:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
         return _style(fig, lang, normalise, start_year, years=[])
@@ -85,8 +90,8 @@ def land_cover_history_figure(
 def _style(fig: go.Figure, lang: str, normalise: bool,
            start_year: Optional[int], years: List[int]) -> go.Figure:
     unit = "%" if normalise else "ha"
-    y_title = ("Área (%)" if normalise else "Área (ha)") if lang == "pt" else \
-              ("Area (%)" if normalise else "Area (ha)")
+    y_title = (_t(lang, "Area (%)", "Área (%)", "Superficie (%)") if normalise
+               else _t(lang, "Area (ha)", "Área (ha)", "Superficie (ha)"))
 
     fig.update_layout(
         barmode="stack", bargap=0.06, template="plotly_white",
@@ -115,7 +120,7 @@ def _style(fig: go.Figure, lang: str, normalise: bool,
         fig.update_yaxes(range=[0, 100])
 
     if start_year and years and years[0] <= start_year <= years[-1]:
-        label = "criação" if lang == "pt" else "established"
+        label = _t(lang, "established", "criação", "création")
         fig.add_vline(
             x=start_year, line_width=1.5, line_dash="dash", line_color="#f5a524",
             annotation_text=f"{label} ({start_year})", annotation_position="top",
@@ -143,10 +148,16 @@ _HANSEN_PERIOD_LABEL_PT = {
     "apos_a_parcela": "Depois da criação",
     "sem_divisao": "Perda (não dividida)",
 }
+_HANSEN_PERIOD_LABEL_FR = {
+    "antes_da_parcela": "Avant la création",
+    "apos_a_parcela": "Après la création",
+    "sem_divisao": "Perte (non divisée)",
+}
 
 
 def hansen_period_labels(lang: str = "en") -> Dict[str, str]:
-    return _HANSEN_PERIOD_LABEL_PT if lang == "pt" else _HANSEN_PERIOD_LABEL_EN
+    return {"pt": _HANSEN_PERIOD_LABEL_PT, "fr": _HANSEN_PERIOD_LABEL_FR}.get(
+        lang, _HANSEN_PERIOD_LABEL_EN)
 
 
 def hansen_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
@@ -154,7 +165,7 @@ def hansen_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
     fig = go.Figure()
     if not rows:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
     else:
@@ -176,7 +187,7 @@ def hansen_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
         dragmode=False,
         xaxis=dict(title=None, tickmode="linear", dtick=2, fixedrange=True,
                   tickangle=-90, tickfont=dict(size=9)),
-        yaxis=dict(title="Perda (ha)" if lang == "pt" else "Loss (ha)",
+        yaxis=dict(title=_t(lang, "Loss (ha)", "Perda (ha)", "Perte (ha)"),
                    fixedrange=True),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
@@ -188,7 +199,7 @@ def biomass_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
     ordered = sorted(rows, key=lambda r: r["year"]) if rows else []
     if not ordered:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
     else:
@@ -203,7 +214,7 @@ def biomass_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
         dragmode=False,
         xaxis=dict(title=None, tickmode="linear", dtick=2, fixedrange=True,
                   tickangle=-90, tickfont=dict(size=9)),
-        yaxis=dict(title="Biomassa (Mg/ha)" if lang == "pt" else "Biomass (Mg/ha)",
+        yaxis=dict(title=_t(lang, "Biomass (Mg/ha)", "Biomassa (Mg/ha)", "Biomasse (Mg/ha)"),
                    fixedrange=True),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
@@ -223,7 +234,7 @@ def fire_figure(rows: List[Dict[str, Any]], lang: str = "en",
     fig = go.Figure()
     if not rows:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
     else:
@@ -231,7 +242,7 @@ def fire_figure(rows: List[Dict[str, Any]], lang: str = "en",
         is_current = [current_year is not None and r["year"] == current_year
                      for r in ordered]
         labels = [
-            (f"{r['year']} ({'ano em andamento' if lang == 'pt' else 'year in progress'})"
+            (f"{r['year']} ({_t(lang, 'year in progress', 'ano em andamento', 'année en cours')})"
              if flag else str(r["year"]))
             for r, flag in zip(ordered, is_current)
         ]
@@ -249,7 +260,7 @@ def fire_figure(rows: List[Dict[str, Any]], lang: str = "en",
         dragmode=False,
         xaxis=dict(title=None, tickmode="linear", dtick=2, fixedrange=True,
                   tickangle=-90, tickfont=dict(size=9)),
-        yaxis=dict(title="Área queimada (%)" if lang == "pt" else "Burned area (%)",
+        yaxis=dict(title=_t(lang, "Burned area (%)", "Área queimada (%)", "Superficie brûlée (%)"),
                    fixedrange=True),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
@@ -266,7 +277,7 @@ def aci_burn_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
     fig = go.Figure()
     if not rows:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
     else:
@@ -281,7 +292,7 @@ def aci_burn_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Figure:
         dragmode=False,
         xaxis=dict(title=None, tickmode="linear", dtick=2, fixedrange=True,
                   tickangle=-90, tickfont=dict(size=9)),
-        yaxis=dict(title="Área queimada (%)" if lang == "pt" else "Burned area (%)",
+        yaxis=dict(title=_t(lang, "Burned area (%)", "Área queimada (%)", "Superficie brûlée (%)"),
                    fixedrange=True),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
@@ -293,7 +304,7 @@ def landscape_meff_figure(rows: List[Dict[str, Any]], lang: str = "en") -> go.Fi
     fig = go.Figure()
     if not rows:
         fig.add_annotation(
-            text="Sem dados" if lang == "pt" else "No data",
+            text=_t(lang, "No data", "Sem dados", "Aucune donnée"),
             showarrow=False, font=dict(size=13, color="#888"),
         )
     else:

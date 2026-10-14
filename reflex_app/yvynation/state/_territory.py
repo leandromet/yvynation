@@ -2,7 +2,6 @@
 Territory selection and filtering event handlers.
 Handles map-click selection, EE geometry loading, zoom bounds, and GeoJSON overlay.
 """
-import json
 import logging
 import time
 from typing import Any, Optional
@@ -15,28 +14,14 @@ logger = logging.getLogger(__name__)
 def _get_service(territory_type: str):
     """Return the GeoPackage service backing *territory_type*.
 
-    All three services share the same public API (display keys, GeoJSON,
-    bounds, EE geometry, info), so callers can use the result
-    interchangeably — see utils/territory_kinds.py.
+    Both services share the same public API (display keys, GeoJSON, bounds,
+    EE geometry, info), so callers can use the result interchangeably.
     """
-    from ..utils.territory_kinds import service_for
-    return service_for(territory_type)
-
-
-#: How many parts the sidebar lists (largest first). The rest stay pickable
-#: by clicking them on the map.
-PART_LIST_LIMIT = 300
-
-
-def _display_keys(territory_type: str, ca_provinces=None) -> list:
-    """The selector list for a kind. Canadian protected areas are filtered to
-    the provinces *this session* has loaded — the service itself is shared by
-    every session on the server (utils/conservation_service.py)."""
-    svc = _get_service(territory_type)
-    if territory_type == "conservation_ca":
-        svc.ensure_provinces(ca_provinces or [])
-        return svc.get_all_display_keys(provinces=ca_provinces or [])
-    return svc.get_all_display_keys()
+    if territory_type == "conservation":
+        from ..utils.conservation_service import get_conservation_unit_service
+        return get_conservation_unit_service()
+    from ..utils.territory_service import get_territory_service
+    return get_territory_service()
 
 
 class TerritoryMixin(rx.State, mixin=True):
@@ -133,7 +118,6 @@ class TerritoryMixin(rx.State, mixin=True):
 
         async with self:
             ttype = self.territory_type
-            ca_provinces = list(self.ca_provinces)
 
         try:
             # ------------------------------------------------------------------
@@ -141,7 +125,7 @@ class TerritoryMixin(rx.State, mixin=True):
             # the first call (singleton loads the file ~20 MB once).
             # ------------------------------------------------------------------
             def _load_local():
-                return _display_keys(ttype, ca_provinces)
+                return _get_service(ttype).get_all_display_keys()
 
             try:
                 territory_list = await asyncio.get_event_loop().run_in_executor(
@@ -239,8 +223,7 @@ class TerritoryMixin(rx.State, mixin=True):
         GeoPackage service; the map overlay follows via ``territory_type`` in
         the ``map_html`` deps.
         """
-        from ..utils.territory_kinds import KINDS
-        if territory_type not in KINDS:
+        if territory_type not in ("indigenous", "conservation"):
             return
         if territory_type == self.territory_type:
             return
@@ -258,110 +241,13 @@ class TerritoryMixin(rx.State, mixin=True):
         self.available_territories = []
         self.geometry_version += 1
         self.error_message = ""
-        self.loading_message = {
-            "conservation": "Loading conservation units…",
-            "conservation_ca": "Loading protected areas…",
-        }.get(territory_type, "Loading indigenous lands…")
+        self.loading_message = (
+            "Loading conservation units…"
+            if territory_type == "conservation"
+            else "Loading indigenous lands…"
+        )
         self.loading_type = "territory"
         return type(self).load_territories_background()
-
-    # ---- Canadian protected areas: parts of one area ---------------------
-
-    def toggle_ca_part(self, part_id: str):
-        pick = list(self.ca_part_pick)
-        if part_id in pick:
-            pick.remove(part_id)
-        else:
-            pick.append(part_id)
-        self.ca_part_pick = pick
-
-    def clear_ca_part_pick(self):
-        self.ca_part_pick = []
-
-    def apply_ca_parts(self):
-        """Analyse only the ticked parts — as a new target named after them."""
-        if not self.ca_part_pick or not self.selected_territory:
-            return
-        self._clear_area_fields()
-        self.ca_parts_applied = sorted(self.ca_part_pick, key=int)
-        self.buffer_geojson_features = []
-        self.loading_message = "Loading selected parts…"
-        self.loading_type = "territory"
-        return type(self).load_territory_geometry_bg()
-
-    def analyse_all_ca_parts(self):
-        if not self.selected_territory or not self.ca_parts_applied:
-            return
-        self._clear_area_fields()
-        self.ca_parts_applied = []
-        self.ca_part_pick = []
-        self.buffer_geojson_features = []
-        return type(self).load_territory_geometry_bg()
-
-    def zoom_to_ca_part(self, part_id: str):
-        from ..utils.place_search import frame_js
-        for p in self.ca_parts:
-            if p.get("id") == part_id:
-                return rx.call_script(frame_js(bounds=p["bounds"]))
-
-    # ---- Canadian protected areas: provinces on demand -------------------
-
-    @rx.event(background=True)
-    async def add_ca_province(self, code: str):
-        """Show another province's protected areas in this session.
-
-        The file is loaded into the shared service (once per server process),
-        then this session's list and map overlay grow to include it. A no-op
-        for a province already shown or one CPCAD has no file for.
-        """
-        import asyncio
-        from ..utils.territory_kinds import service_for
-
-        async with self:
-            if self.territory_type != "conservation_ca" or code in self.ca_provinces:
-                return
-            svc = service_for("conservation_ca")
-            if code not in svc.available_provinces():
-                return
-            self.loading_message = f"Loading protected areas for {code}…"
-            self.loading_type = "territory"
-            provinces = list(self.ca_provinces) + [code]
-
-        keys = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _display_keys("conservation_ca", provinces))
-
-        async with self:
-            self.ca_provinces = provinces
-            self.available_territories = keys
-            self.geometry_version += 1
-            self.loading_message = ""
-            self.loading_type = ""
-
-    def on_ca_map_click(self, payload: str):
-        """A click on the map (JS bridge in components/map.py): if it landed in
-        a province this session does not show yet, load that province."""
-        if self.territory_type != "conservation_ca" or not payload:
-            return
-        try:
-            lat, lon, *view = json.loads(payload)
-        except (ValueError, TypeError):
-            return
-        from ..utils.territory_kinds import service_for
-        svc = service_for("conservation_ca")
-        # Inside the selected multi-part area: the click picks a part.
-        if self.selected_territory and self.ca_parts_total > 1:
-            pid = svc.part_at(self.selected_territory, float(lat), float(lon))
-            if pid is not None:
-                return type(self).toggle_ca_part(pid)
-        code = svc.province_at(float(lat), float(lon))
-        if code and code not in self.ca_provinces:
-            events = [type(self).add_ca_province(code)]
-            if len(view) == 3:
-                # Loading the province rebuilds the map; come back to this view
-                # rather than to the BC framing the session opened with.
-                from ..utils.place_search import frame_js
-                events.insert(0, rx.call_script(frame_js(view=[float(v) for v in view])))
-            return events
 
     # ---- Selection ------------------------------------------------------
 
@@ -429,11 +315,6 @@ class TerritoryMixin(rx.State, mixin=True):
         self._clear_area_fields()
         self.selected_territory = territory
         self.pending_territory = None
-        # A new area starts whole; its parts are listed once it loads.
-        self.ca_parts = []
-        self.ca_parts_total = 0
-        self.ca_part_pick = []
-        self.ca_parts_applied = []
         self.territory_name = territory
         self.territory_geojson_features = []
         self.map_zoom_bounds = {}
@@ -463,7 +344,6 @@ class TerritoryMixin(rx.State, mixin=True):
         async with self:
             territory = self.selected_territory
             ttype = self.territory_type
-            applied_parts = list(self.ca_parts_applied) if ttype == "conservation_ca" else []
             buffer_km = float(self.auto_buffer_km)
             buffer_enabled = bool(self.auto_buffer_enabled)
 
@@ -475,34 +355,14 @@ class TerritoryMixin(rx.State, mixin=True):
         # ------------------------------------------------------------------
         def _load_local_geom_data():
             svc = _get_service(ttype)
-            parts = svc.get_parts(territory) if ttype == "conservation_ca" else []
-            if applied_parts:
-                # Only the chosen parts — framed on them, not on the whole area.
-                geojson = svc.get_parts_geojson(territory, applied_parts)
-                chosen = [p for p in parts if p["id"] in set(applied_parts)]
-                s_ = min(p["bounds"][0][0] for p in chosen); w_ = min(p["bounds"][0][1] for p in chosen)
-                n_ = max(p["bounds"][1][0] for p in chosen); e_ = max(p["bounds"][1][1] for p in chosen)
-                bounds = {"min_lat": s_, "max_lat": n_, "min_lon": w_, "max_lon": e_,
-                          "center_lat": (s_ + n_) / 2, "center_lon": (w_ + e_) / 2}
-            else:
-                geojson = svc.get_geojson_for_key(territory)
-                bounds = svc.get_bounds_for_key(territory)
-            return geojson, bounds, parts
+            geojson = svc.get_geojson_for_key(territory)
+            bounds = svc.get_bounds_for_key(territory)
+            return geojson, bounds
 
         try:
-            raw_geojson, map_zoom_bounds_local, parts = await asyncio.get_event_loop().run_in_executor(
+            raw_geojson, map_zoom_bounds_local = await asyncio.get_event_loop().run_in_executor(
                 None, _load_local_geom_data
             )
-            async with self:
-                self.ca_parts_total = len(parts)
-                self.ca_parts = [
-                    {**p, "label": f"#{p['rank']} · {p['ha']:,.0f} ha"}
-                    for p in parts[:PART_LIST_LIMIT]
-                ] if len(parts) > 1 else []
-            # A part selection is its own analysis target, so different
-            # selections of one area can be run and compared side by side.
-            if applied_parts and parts:
-                territory = f"{territory} · {len(applied_parts)} of {len(parts)} parts"
         except Exception as load_err:
             logger.error(f"[TERRITORY_BG] Local geometry load error: {load_err}", exc_info=True)
             async with self:
@@ -644,8 +504,8 @@ class TerritoryMixin(rx.State, mixin=True):
     def add_territory_geometry(self, territory_name: str):
         """Add a territory as a drawable geometry feature for custom analysis."""
         try:
-            if self.territory_type in ("conservation", "conservation_ca"):
-                territory_geom = _get_service(self.territory_type).get_ee_geometry(territory_name)
+            if self.territory_type == "conservation":
+                territory_geom = _get_service("conservation").get_ee_geometry(territory_name)
             else:
                 from ..utils.ee_service_extended import get_ee_service
                 ee_service = get_ee_service()
@@ -698,8 +558,8 @@ class TerritoryMixin(rx.State, mixin=True):
         if not self.selected_territory:
             return None
         try:
-            if self.territory_type in ("conservation", "conservation_ca"):
-                geom = _get_service(self.territory_type).get_ee_geometry(self.selected_territory)
+            if self.territory_type == "conservation":
+                geom = _get_service("conservation").get_ee_geometry(self.selected_territory)
             else:
                 from ..utils.ee_service_extended import get_ee_service
                 ee_service = get_ee_service()

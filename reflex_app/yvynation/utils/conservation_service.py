@@ -35,6 +35,9 @@ _LAYER_NAME = "cnuc"
 #: per province/territory, read in place through GDAL's /vsizip/.
 _CA_DIR = os.path.join(os.path.dirname(__file__), "protected_areas_ca")
 _CA_LAYER = "cpcad"
+#: Albers equal-area — preserves area exactly, wherever its parameters centre it.
+_EQUAL_AREA = ("+proj=aea +lat_1=50 +lat_2=70 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 "
+               "+ellps=GRS80 +units=m +no_defs")
 #: The province loaded on start — the suite's focus. Others load on demand.
 CA_DEFAULT_PROVINCES = ("BC",)
 
@@ -357,8 +360,11 @@ class ConservationUnitService:
     def get_parts(self, display_key: str) -> List[Dict[str, Any]]:
         """Every part, largest first: ``{id, rank, ha, bounds}`` where ``id``
         is the part's stable index (string) and ``bounds`` is
-        ``[[s, w], [n, e]]``. Area from an equal-area projection (EPSG:3978,
-        Canada Atlas Lambert — adequate for Brazil's relative ranking too)."""
+        ``[[s, w], [n, e]]``. Area is measured in an Albers equal-area
+        projection — the same kind ``canada/_shared/zones.py`` uses for the
+        zone figures, so a part's hectares and the zone card agree. (An
+        earlier version used EPSG:3978; that is Lambert *conformal*, which
+        distorts area — about 5% off at 58°N.)"""
         cache = self.__dict__.setdefault("_parts_cache", {})
         if display_key in cache:
             return cache[display_key]
@@ -366,7 +372,7 @@ class ConservationUnitService:
         if not parts:
             return []
         import geopandas as gpd
-        ha = gpd.GeoSeries(parts, crs="EPSG:4326").to_crs(epsg=3978).area / 1e4
+        ha = gpd.GeoSeries(parts, crs="EPSG:4326").to_crs(_EQUAL_AREA).area / 1e4
         order = sorted(range(len(parts)), key=lambda i: -float(ha.iloc[i]))
         out = []
         for rank, i in enumerate(order, start=1):

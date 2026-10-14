@@ -50,13 +50,13 @@ DATA_SOURCES_EN = [
     ("AAFC Annual Crop Inventory",
      "Agriculture and Agri-Food Canada — Annual Crop Inventory, 2009–2025, "
      "30 m. National coverage from 2011; the inventory stops at roughly "
-     "54–58°N. Basis of the «Cobertura» and «Transições» tabs. Open "
+     "54–58°N. Basis of the «Crops (AAFC)» and «Transitions» tabs. Open "
      "Government Licence — Canada.",
      "https://www.agr.gc.ca/atlas/aci"),
     ("NTEMS VLCE2 — Canada land cover",
      "Hermosilla, T., Wulder, M. A., White, J. C., Coops, N. C. — Virtual Land "
-     "Cover Engine v2, Canadian Forest Service NTEMS, 1984–2022, 30 m. The "
-     "independent product the «Validação» tab checks the ACI against.",
+     "Cover Engine v2, Canadian Forest Service NTEMS, 1984–2022, 30 m. Basis of the «Land cover» tab, and the "
+     "independent product the «Validation» tab checks the ACI against.",
      "https://opendata.nfis.org/mapserver/nfis-change_eng.html"),
     ("National Ecological Framework for Canada",
      "Agriculture and Agri-Food Canada / Environment Canada — terrestrial "
@@ -67,23 +67,23 @@ DATA_SOURCES_EN = [
     ("Hansen Global Forest Change",
      "Hansen, M. C. et al. (2013). High-Resolution Global Maps of "
      "21st-Century Forest Cover Change. Science 342, 850–853. CC BY 4.0. "
-     "Basis of the «Floresta» tab. Gain is a single undated 2000–2012 layer "
+     "Basis of the «Forest» tab. Gain is a single undated 2000–2012 layer "
      "and is never summed with dated loss.",
      "https://glad.earthengine.app/view/global-forest-change"),
     ("NTEMS Canada forest age",
      "Natural Resources Canada / NFIS — measured stand age as of 2019, 30 m, "
-     "masked to forested pixels. Shown alongside Hansen in the «Floresta» tab.",
+     "masked to forested pixels. Shown alongside Hansen in the «Forest» tab.",
      "https://opendata.nfis.org"),
     ("ESA CCI Biomass (Biomass_cci) v6.0",
      "Santoro, M.; Cartus, O. (2025). ESA Biomass Climate Change Initiative: "
      "global datasets of forest above-ground biomass for 2007, 2010 and "
      "2015–2022, v6.0. NERC EDS CEDA. "
-     "doi:10.5285/95913ffb6467447ca72c4e9d8cf30501. Basis of the «Biomassa» "
+     "doi:10.5285/95913ffb6467447ca72c4e9d8cf30501. Basis of the «Biomass» "
      "tab; the series has a real gap and is never interpolated.",
      "https://doi.org/10.5285/95913ffb6467447ca72c4e9d8cf30501"),
     ("MODIS MCD64A1 v6.1 Burned Area",
      "Giglio, L., Justice, C., Boschetti, L., Roy, D. — NASA LP DAAC, "
-     "2000–present, 463 m. Basis of the «Fogo» tab. Coarse: a fire under "
+     "2000–present, 463 m. Basis of the «Fire» tab. Coarse: a fire under "
      "roughly 20 ha does not register, so the tab reports whether the area "
      "is large enough for the numbers to mean anything.",
      "https://lpdaac.usgs.gov/products/mcd64a1v061/"),
@@ -120,13 +120,13 @@ DATA_SOURCES_PT = [
     ("AAFC Annual Crop Inventory",
      "Agriculture and Agri-Food Canada — inventário anual de culturas, "
      "2009–2025, 30 m. Cobertura nacional a partir de 2011; o inventário "
-     "termina por volta de 54–58°N. Base das abas «Cobertura» e «Transições». "
+     "termina por volta de 54–58°N. Base das abas «Culturas (AAFC)» e «Transições». "
      "Open Government Licence — Canada.",
      "https://www.agr.gc.ca/atlas/aci"),
     ("NTEMS VLCE2 — cobertura da terra do Canadá",
      "Hermosilla, T., Wulder, M. A., White, J. C., Coops, N. C. — Virtual Land "
      "Cover Engine v2, NTEMS / Serviço Florestal Canadense, 1984–2022, 30 m. "
-     "O produto independente contra o qual a aba «Validação» confere o ACI.",
+     "Base da aba «Cobertura do solo» e produto independente contra o qual a aba «Validação» confere o ACI.",
      "https://opendata.nfis.org/mapserver/nfis-change_eng.html"),
     ("Cadre écologique national pour le Canada",
      "Agriculture and Agri-Food Canada / Environment Canada — ecozonas "
@@ -179,5 +179,80 @@ DATA_SOURCES_PT = [
      "https://earthengine.google.com"),
     ("Mapas base",
      "Esri World Imagery; colaboradores do OpenStreetMap; Google.",
+     "https://www.openstreetmap.org/copyright"),
+]
+
+CITATION_TEXT_FR = (
+    f"Biondo, L. M. ({APP_YEAR}). Yvynation Canada : historique de l'occupation du "
+    "sol des aires protégées et de conservation. University of British Columbia "
+    f"Okanagan. Disponible à : {CANADA_URL}"
+)
+
+DATA_SOURCES_FR = [
+    ("BDCAPC — Base de données canadienne sur les aires protégées et de conservation",
+     "Environnement et Changement climatique Canada. Aires protégées et AMCEZ, "
+     "terrestres seulement; les aires gouvernées ou détenues par des peuples "
+     "autochtones sont exclues avant utilisation (PCAP®/OCAP®). Licence du "
+     "gouvernement ouvert — Canada.",
+     "https://www.canada.ca/fr/environnement-changement-climatique/services/reserves-nationales-faune/base-donnees-aires-protegees-conservation.html"),
+    ("Inventaire annuel des cultures d'AAC",
+     "Agriculture et Agroalimentaire Canada — Inventaire annuel des cultures, "
+     "2009–2025, 30 m. Couverture nationale à partir de 2011; l'inventaire "
+     "s'arrête vers 54–58° N. Base des onglets « Cultures (AAC) » et « Transitions ». "
+     "Licence du gouvernement ouvert — Canada.",
+     "https://www.agr.gc.ca/atlas/aci"),
+    ("SNSTE VLCE2 — Occupation du sol du Canada",
+     "Hermosilla, T., Wulder, M. A., White, J. C., Coops, N. C. — Virtual Land "
+     "Cover Engine v2, SNSTE du Service canadien des forêts, 1984–2022, 30 m. Base de "
+     "l'onglet « Occupation du sol » et produit indépendant auquel l'onglet "
+     "« Validation » compare l'inventaire des cultures.",
+     "https://opendata.nfis.org/mapserver/nfis-change_fra.html"),
+    ("Cadre écologique national du Canada",
+     "Agriculture et Agroalimentaire Canada / Environnement Canada — écozones "
+     "terrestres. Couche d'orientation; les limites sont approximatives à l'échelle "
+     "fournie ici et ne décident de rien. Licence du gouvernement ouvert — Canada.",
+     "https://open.canada.ca/data/fr/dataset/3ef8e8a9-8d05-4fea-a8bf-7f5023d2b6e1"),
+    ("Hansen Global Forest Change",
+     "Hansen, M. C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest "
+     "Cover Change. Science 342, 850–853. CC BY 4.0. Base de l'onglet « Forêt ». Le "
+     "gain est une couche unique non datée 2000–2012 et n'est jamais additionné aux "
+     "pertes datées.",
+     "https://glad.earthengine.app/view/global-forest-change"),
+    ("Âge des forêts du Canada (SNSTE)",
+     "Ressources naturelles Canada / SNIF — âge mesuré des peuplements en date de "
+     "2019, 30 m, limité aux pixels boisés. Présenté avec Hansen dans l'onglet « Forêt ».",
+     "https://opendata.nfis.org"),
+    ("ESA CCI Biomass (Biomass_cci) v6.0",
+     "Santoro, M.; Cartus, O. (2025). ESA Biomass Climate Change Initiative : global "
+     "datasets of forest above-ground biomass for 2007, 2010 and 2015–2022, v6.0. NERC "
+     "EDS CEDA. doi:10.5285/95913ffb6467447ca72c4e9d8cf30501. Base de l'onglet "
+     "« Biomasse »; la série comporte une vraie lacune et n'est jamais interpolée.",
+     "https://doi.org/10.5285/95913ffb6467447ca72c4e9d8cf30501"),
+    ("MODIS MCD64A1 v6.1 Burned Area",
+     "Giglio, L., Justice, C., Boschetti, L., Roy, D. — NASA LP DAAC, 2000–présent, "
+     "463 m. Base de l'onglet « Feux ». Grossier : un feu de moins d'environ 20 ha ne "
+     "s'enregistre pas; l'onglet indique donc si l'aire est assez grande pour que les "
+     "chiffres aient un sens.",
+     "https://lpdaac.usgs.gov/products/mcd64a1v061/"),
+    ("Composites annuels Landsat",
+     "USGS/NASA Landsat Collection 2 Tier 1 Level-2, composites annuels sans nuages "
+     "1984–2026. La série de référence visuelle, qui remonte bien avant le début de "
+     "l'inventaire des cultures.",
+     "https://developers.google.com/earth-engine/datasets/catalog/"
+     "LANDSAT_COMPOSITES_C02_T1_L2_ANNUAL"),
+    ("Provinces et territoires",
+     "Statistique Canada — fichier cartographique des limites du Recensement de 2021, "
+     "utilisé pour savoir dans quelle province tombe un clic ou une recherche. "
+     "Licence du gouvernement ouvert — Canada.",
+     "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/index2021-fra.cfm?year=21"),
+    ("Nominatim (OpenStreetMap)",
+     "Recherche de lieux. © contributeurs d'OpenStreetMap, licence ODbL.",
+     "https://nominatim.openstreetmap.org"),
+    ("Google Earth Engine",
+     "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial "
+     "analysis for everyone. Remote Sensing of Environment 202, 18–27.",
+     "https://earthengine.google.com"),
+    ("Fonds de carte",
+     "Esri World Imagery; contributeurs d'OpenStreetMap; Google.",
      "https://www.openstreetmap.org/copyright"),
 ]

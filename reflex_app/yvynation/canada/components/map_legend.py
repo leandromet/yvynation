@@ -70,7 +70,10 @@ def _basemap_section() -> rx.Component:
                     rx.select.trigger(width="100%"),
                     rx.select.content(
                         *[
-                            rx.select.item(conf["label_en"], value=key)
+                            rx.select.item(
+                                rx.match(S.language, ("pt", conf["label_pt"]),
+                                         ("fr", conf["label_fr"]), conf["label_en"]),
+                                value=key)
                             for key, conf in LANDSAT_RENDERINGS.items()
                         ],
                     ),

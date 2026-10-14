@@ -455,7 +455,7 @@ def _map() -> rx.Component:
         ),
         map_legend(),
         _start_hint(),
-        quickstart_card(S, accent=ACCENT, desktop_from=2),
+        quickstart_card(S, accent=ACCENT, desktop_from=2, hide_when=S.has_parcel),
         rx.box(
             _drag_handle(drawer_id="ca-results-drawer",
                         handle_id="ca-results-drag-handle", snap=False),

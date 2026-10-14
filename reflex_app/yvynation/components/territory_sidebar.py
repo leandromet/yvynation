@@ -13,157 +13,6 @@ from .tutorial import tutorial_section
 from .layer_reference import layer_reference_guide
 
 
-#: Canadian provinces/territories with a CPCAD file, for the "add" picker.
-_CA_PROVINCES = [
-    ("AB", "Alberta"), ("BC", "British Columbia"), ("MB", "Manitoba"),
-    ("NB", "New Brunswick"), ("NL", "Newfoundland and Labrador"),
-    ("NS", "Nova Scotia"), ("NT", "Northwest Territories"), ("NU", "Nunavut"),
-    ("ON", "Ontario"), ("PE", "Prince Edward Island"), ("QC", "Quebec"),
-    ("SK", "Saskatchewan"), ("YT", "Yukon"),
-]
-
-
-def _canada_panel() -> rx.Component:
-    """What the Canada side of the territory workspace needs to say.
-
-    * Protected-area mode: which provinces this session shows (BC first),
-      how to add another, the source, and that Indigenous-governed areas are
-      absent on purpose.
-    * Indigenous-lands mode with region Canada: why there is no Canadian
-      Indigenous-lands list (OCAP), and the way to the protected areas.
-    """
-    provinces_panel = rx.vstack(
-        rx.hstack(
-            rx.text(AppState.tr["ca_provinces_label"], font_size="xs",
-                    color="gray", font_weight="600"),
-            rx.foreach(AppState.ca_provinces,
-                       lambda p: rx.badge(p, color_scheme="teal", variant="soft")),
-            spacing="1", align="center", wrap="wrap", width="100%",
-        ),
-        rx.select.root(
-            rx.select.trigger(placeholder=AppState.tr["ca_add_province"],
-                              width="100%"),
-            rx.select.content(
-                *[rx.select.item(f"{name} ({code})", value=code)
-                  for code, name in _CA_PROVINCES],
-            ),
-            value="",
-            on_change=AppState.add_ca_province,
-            size="1",
-        ),
-        rx.text(AppState.tr["ca_provinces_hint"], font_size="xs", color="gray"),
-        rx.text(AppState.tr["ca_analysis_note"], font_size="xs", color="gray"),
-        rx.text(AppState.tr["ca_ocap_note"], font_size="xs", color="#0F766E"),
-        rx.text(AppState.tr["ca_source_note"], font_size="10px", color="gray"),
-        spacing="1", width="100%",
-        padding="0.5rem", border="1px solid #99f6e4", border_radius="md",
-        bg="#f0fdfa",
-    )
-    ocap_callout = rx.callout.root(
-        rx.callout.icon(rx.icon("shield", size=14)),
-        rx.callout.text(
-            rx.text.strong(AppState.tr["ca_indigenous_ocap_title"]), " ",
-            AppState.tr["ca_indigenous_ocap_body"],
-        ),
-        rx.button(AppState.tr["ca_show_protected_areas"], size="1",
-                  color_scheme="teal", variant="soft", margin_top="0.25rem",
-                  on_click=lambda: AppState.go_to_territory_analysis("conservation_ca")),
-        color_scheme="teal", size="1", width="100%",
-    )
-    return rx.cond(
-        AppState.territory_type == "conservation_ca",
-        provinces_panel,
-        rx.cond(
-            (AppState.territory_type == "indigenous")
-            & (AppState.selected_country == "Canada"),
-            ocap_callout,
-            rx.fragment(),
-        ),
-    )
-
-
-def _ca_parts_panel() -> rx.Component:
-    """Pick which separate polygons of a Canadian protected area to analyse.
-
-    CPCAD records are often many unconnected pieces (Muskwa-Kechika: 39; BC's
-    Old Growth Management Areas: 20,287 across the province). Parts are
-    listed largest first; the map picks any part, listed or not.
-    """
-    row = lambda p: rx.hstack(
-        rx.checkbox(
-            checked=AppState.ca_part_pick.contains(p["id"]),
-            on_change=lambda _v: AppState.toggle_ca_part(p["id"]),
-            size="1",
-        ),
-        rx.text(p["label"], font_size="xs", flex="1"),
-        rx.icon_button(
-            rx.icon("zoom-in", size=12),
-            on_click=AppState.zoom_to_ca_part(p["id"]),
-            size="1", variant="ghost", color_scheme="teal",
-            aria_label=AppState.tr["ca_parts_zoom"],
-        ),
-        spacing="2", align="center", width="100%",
-    )
-    return rx.cond(
-        (AppState.territory_type == "conservation_ca") & (AppState.ca_parts_total > 1),
-        rx.vstack(
-            rx.text(AppState.tr["ca_parts_title"], font_size="sm", font_weight="600"),
-            rx.text(AppState.ca_parts_status, font_size="xs", color="#0F766E"),
-            rx.text(AppState.tr["ca_parts_hint"], font_size="xs", color="gray"),
-            rx.hstack(
-                rx.button(
-                    AppState.tr["ca_parts_apply"], " (", AppState.ca_part_pick_count, ")",
-                    on_click=AppState.apply_ca_parts,
-                    disabled=AppState.ca_part_pick_count == 0,
-                    size="1", color_scheme="teal",
-                ),
-                rx.button(AppState.tr["ca_parts_all"], on_click=AppState.analyse_all_ca_parts,
-                          size="1", variant="soft", color_scheme="teal",
-                          disabled=AppState.ca_parts_applied.length() == 0),
-                rx.button(AppState.tr["ca_parts_clear"], on_click=AppState.clear_ca_part_pick,
-                          size="1", variant="ghost", color_scheme="gray"),
-                spacing="1", wrap="wrap",
-            ),
-            rx.box(
-                rx.vstack(rx.foreach(AppState.ca_parts, row), spacing="0", width="100%"),
-                max_height="240px", overflow_y="auto", width="100%",
-                border="1px solid #ccfbf1", border_radius="md", padding="0.25rem",
-            ),
-            rx.cond(AppState.ca_parts_more_note,
-                    rx.text(AppState.ca_parts_more_note, font_size="xs", color="gray"),
-                    rx.fragment()),
-            spacing="2", width="100%", padding="0.5rem",
-            border="1px solid #99f6e4", border_radius="md",
-        ),
-        rx.fragment(),
-    )
-
-
-def _region_selector() -> rx.Component:
-    """Compact Brazil/Canada region toggle."""
-    return rx.hstack(
-        rx.text("Region:", font_size="xs", color="gray", font_weight="600"),
-        rx.button(
-            "Brasil",
-            on_click=lambda: AppState.set_country("Brazil"),
-            size="1",
-            variant=rx.cond(AppState.selected_country == "Brazil", "solid", "outline"),
-            color_scheme=rx.cond(AppState.selected_country == "Brazil", "green", "gray"),
-        ),
-        rx.button(
-            "Canada",
-            on_click=lambda: AppState.set_country("Canada"),
-            size="1",
-            variant=rx.cond(AppState.selected_country == "Canada", "solid", "outline"),
-            color_scheme=rx.cond(AppState.selected_country == "Canada", "green", "gray"),
-        ),
-        width="100%",
-        spacing="1",
-        align_items="center",
-        padding="0.5rem 0.25rem",
-    )
-
-
 def _territory_tools_section() -> rx.Component:
     """Indigenous lands toggle, search, and territory list."""
     return rx.vstack(
@@ -217,29 +66,20 @@ def _territory_tools_section() -> rx.Component:
         rx.hstack(
             rx.text(AppState.tr["territory_type"] + ":", font_size="xs", color="gray", font_weight="600"),
             rx.badge(
-                rx.match(
-                    AppState.territory_type,
-                    ("conservation", AppState.tr["conservation_units_btn"]),
-                    ("conservation_ca", AppState.tr["ca_pa_badge"]),
+                rx.cond(
+                    AppState.territory_type == "conservation",
+                    AppState.tr["conservation_units_btn"],
                     AppState.tr["indigenous_lands_btn"],
                 ),
-                color_scheme=rx.match(
-                    AppState.territory_type,
-                    ("conservation", "green"), ("conservation_ca", "teal"), "violet"),
+                color_scheme=rx.cond(AppState.territory_type == "conservation", "green", "violet"),
             ),
             spacing="2",
             align_items="center",
             width="100%",
         ),
 
-        _canada_panel(),
-        _ca_parts_panel(),
-
-        # Country selector — Brazil-side only (its options are South American)
-        rx.cond(
-            AppState.selected_country == "Canada",
-            rx.fragment(),
-          rx.vstack(
+        # Country selector
+        rx.vstack(
             rx.text(AppState.tr["country"], font_size="sm", font_weight="600"),
             rx.select(
                 ["Brazil", "Colombia", "Peru"],
@@ -250,7 +90,6 @@ def _territory_tools_section() -> rx.Component:
             ),
             spacing="2",
             width="100%",
-          ),
         ),
 
         # Territory search
@@ -745,30 +584,6 @@ def _hansen_layers_section() -> rx.Component:
     )
 
 
-def _aafc_placeholder() -> rx.Component:
-    """AAFC section: active when Canada is selected, placeholder otherwise."""
-    return rx.cond(
-        AppState.selected_country == "Canada",
-        rx.vstack(
-            rx.text("AAFC Annual Crop Inventory (2009–2023)", font_size="xs", color="#555"),
-            rx.badge(
-                "Coming soon: Indigenous reserve boundaries",
-                color_scheme="orange",
-                variant="surface",
-                size="1",
-            ),
-            spacing="2",
-            width="100%",
-        ),
-        rx.text(
-            "Switch to Canada region to access AAFC crop inventory data.",
-            font_size="xs",
-            color="gray",
-            text_align="center",
-        ),
-    )
-
-
 def _comparison_controls() -> rx.Component:
     """Pick two MapBiomas years and run the comparison.
 
@@ -836,7 +651,6 @@ def territory_sidebar() -> rx.Component:
     duplicate.
     """
     return sidebar_shell(
-        _region_selector(),
         sidebar_groups_root(
             group(
                 "study_area", "target", AppState.tr["group_study_area"],
@@ -857,7 +671,6 @@ def territory_sidebar() -> rx.Component:
                 "layers", "layers", AppState.tr["group_layers"],
                 _mapbiomas_layers_section(),
                 _hansen_layers_section(),
-                _aafc_placeholder(),
                 badge=rx.hstack(
                     _active_count_badge(
                         AppState.mapbiomas_displayed_years.length(), "green"),

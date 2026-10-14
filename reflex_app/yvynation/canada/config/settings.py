@@ -112,7 +112,7 @@ DEFAULT_LANGUAGE = os.environ.get("CS_CA_LANGUAGE", "en")
 #: accepts only "pt"/"en" literally); this page names the set instead, since
 #: ``_ui.py`` checks against it in two places and a literal in each risks the
 #: two drifting apart.
-SUPPORTED_LANGUAGES = ("en", "pt")
+SUPPORTED_LANGUAGES = ("en", "pt", "fr")
 
 # --------------------------------------------------------------------------- #
 # Geocoding

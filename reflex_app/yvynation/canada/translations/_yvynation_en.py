@@ -74,6 +74,11 @@ YVY_EN: dict[str, str] = {
     "cobertura_out_of_range": "The AAFC crop inventory has no coverage this "
         "far north — expected above roughly 54–58°N, not a failure. The Land "
         "cover, Forest, Biomass and Fire tabs still answer.",
+    "fogo_aci_empty": "No Crops (AAFC) data yet for this zone — open that tab, or "
+        "wait for it to finish loading. The burnt-area class comes from that same "
+        "fetch, at no extra cost.",
+    "cite_sources_desc": "Every source this page draws on, whether or not the "
+        "current area happens to use all of them.",
     "tab_vlce2": "Land cover",
     "legend_vlce2": "Land cover (NTEMS VLCE2)",
     "legend_vlce2_palette": "Classes appear here once the history has loaded.",
@@ -94,6 +99,13 @@ YVY_EN: dict[str, str] = {
     "floresta_no_start_date_note": "CPCAD records no establishment year for "
         "this area, so loss is shown as one undivided series rather than "
         "split at an invented date.",
+    "floresta_year_before_record_note": "This area was established in {year}, "
+        "before Hansen's loss record begins ({first}) — so every year of loss "
+        "shown is after establishment, and there is no earlier period to "
+        "compare it with.",
+    "floresta_year_after_record_note": "This area was established in {year}, "
+        "after Hansen's loss record ends ({last}) — so every year of loss "
+        "shown is before establishment.",
     "paisagem_legend_note": "Patch counts follow the crop inventory's own "
         "classes, which resolve crops finely and forest coarsely — "
         "comparable between this protected area and its rings, not between "
@@ -254,4 +266,7 @@ YVY_EN: dict[str, str] = {
     "help_limit_4": "No verdict on management or compliance is issued: the "
         "figures describe land cover, not stewardship.",
     "cite_dialog_desc": "Yvynation Canada and the datasets it draws on.",
+    "region_brazil": "Brazil",
+    "region_canada": "Canada",
+    "region_label": "Region",
 }

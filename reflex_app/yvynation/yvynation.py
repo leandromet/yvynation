@@ -115,6 +115,7 @@ app.add_page(
     index,
     route="/",
     title="Yvynation - Land Monitoring Platform",
+    on_load=AppState.adopt_lang_param,
 )
 
 # The Canada page: its own state, sidebar, results and native Leaflet map

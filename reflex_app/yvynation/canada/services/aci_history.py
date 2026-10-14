@@ -186,6 +186,7 @@ def land_cover_history(
     if not df.empty:
         df["class_en"] = df["class_id"].map(lambda c: aafc.label(int(c), "en"))
         df["class_pt"] = df["class_id"].map(lambda c: aafc.label(int(c), "pt"))
+        df["class_fr"] = df["class_id"].map(lambda c: aafc.label(int(c), "fr"))
         df["color"] = df["class_id"].map(lambda c: aafc.color(int(c)))
         # Zones in the order they were passed (parcel first, rings outward),
         # not alphabetically — the order the UI reasons about them in.

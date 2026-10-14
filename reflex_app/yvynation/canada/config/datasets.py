@@ -65,6 +65,8 @@ LANDSAT_RENDERINGS: Dict[str, Dict[str, Any]] = {
         "label_pt": "Landsat — Cor natural",
         "note_en": "Annual cloud-free composite. Pick the year in the legend.",
         "note_pt": "Composto anual sem nuvens. Escolha o ano na legenda.",
+        "label_fr": "Landsat — Couleurs naturelles",
+        "note_fr": "Composite annuel sans nuages. Choisissez l'année dans la légende.",
         "vis": {"bands": ["red", "green", "blue"], "min": 0.0, "max": 0.3,
                 "gamma": 1.2},
         "max_native_zoom": 14,
@@ -72,10 +74,14 @@ LANDSAT_RENDERINGS: Dict[str, Dict[str, Any]] = {
     "landsat_nir": {
         "label_en": "Landsat — False colour (NIR)",
         "label_pt": "Landsat — Falsa-cor (NIR)",
+        "label_fr": "Landsat — Fausses couleurs (PIR)",
         "note_en": ("Near-infrared in the red channel: vegetation reads bright "
                     "red, which makes clearings, burns and cutblocks legible."),
         "note_pt": ("Infravermelho no canal vermelho: a vegetação aparece em "
                     "vermelho vivo, realçando cortes, queimadas e talhões."),
+        "note_fr": ("Proche infrarouge dans le canal rouge : la végétation apparaît en "
+                    "rouge vif, ce qui rend lisibles les coupes, les brûlis et les "
+                    "parterres de coupe."),
         "vis": {"bands": ["nir", "red", "green"], "min": 0.0, "max": 0.4,
                 "gamma": 1.2},
         "max_native_zoom": 14,

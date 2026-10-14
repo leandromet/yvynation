@@ -29,6 +29,8 @@ from ..components.language_selector import language_selector
 from ..components.citation import citation_modal, cite_trigger
 from ..components.place_search import howto_dialog, howto_trigger, place_search
 from ..components.quickstart import quickstart_card
+from ..components.region_toggle import region_toggle
+from ..components.suite_links import suite_links
 from .portal import portal
 from .batch_processing import batch_processing_page
 from .previous_runs import previous_runs_page
@@ -753,6 +755,12 @@ def navbar() -> rx.Component:
                 map_metrics(),
                 display=["none", "none", "none", "flex"],
             ),
+            # compact: this navbar is already full (target switcher, counts, actions).
+            suite_links("yvynation", region="brazil", language=AppState.language,
+                        accent=ACCENT, compact=True),
+            region_toggle("brazil", language=AppState.language,
+                          labels=(AppState.tr["region_brazil"], AppState.tr["region_canada"]),
+                          aria_label=AppState.tr["region_label"], accent=ACCENT),
             language_selector(),
             howto_trigger(),
             cite_trigger(),

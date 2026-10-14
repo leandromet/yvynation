@@ -127,9 +127,33 @@ ACI_LABELS_PT: Dict[int, str] = {
     210: "Conífera", 220: "Folhosa", 230: "Floresta mista",
 }
 
+ACI_LABELS_FR: Dict[int, str] = {
+    10: "Nuage", 20: "Eau", 30: "Terre exposée et stérile",
+    34: "Zones urbaines et aménagées", 35: "Serres", 50: "Terres arbustives",
+    60: "Feu de forêt et superficie brûlée", 80: "Terre humide", 85: "Tourbière",
+    110: "Prairie", 120: "Agriculture (non différenciée)", 121: "Terres cultivées",
+    122: "Pâturages et fourrages", 130: "Trop humide pour être ensemencé",
+    131: "Jachère", 132: "Céréales", 133: "Orge", 134: "Autres grains", 135: "Millet",
+    136: "Avoine", 137: "Seigle", 138: "Épeautre", 139: "Triticale", 140: "Blé",
+    141: "Panic raide", 142: "Sorgho", 143: "Quinoa", 145: "Blé d'hiver",
+    146: "Blé de printemps", 147: "Maïs-grain", 148: "Tabac", 149: "Ginseng",
+    150: "Oléagineux", 151: "Bourrache", 152: "Caméline", 153: "Canola et colza",
+    154: "Lin", 155: "Moutarde", 156: "Carthame", 157: "Tournesol", 158: "Soya",
+    159: "Autres oléagineux", 160: "Légumineuses à grain", 161: "Autres légumineuses",
+    162: "Pois", 163: "Pois chiches", 167: "Haricots", 168: "Féveroles", 174: "Lentilles",
+    175: "Légumes", 176: "Tomates", 177: "Pommes de terre", 178: "Betteraves sucrières",
+    179: "Autres légumes", 180: "Fruits", 181: "Petits fruits", 182: "Bleuets",
+    183: "Canneberges", 185: "Autres petits fruits", 188: "Vergers", 189: "Autres fruits",
+    190: "Vignobles", 191: "Houblon", 192: "Gazon", 193: "Fines herbes", 194: "Pépinière",
+    195: "Sarrasin", 196: "Alpiste des Canaries", 197: "Chanvre", 198: "Vesce",
+    199: "Autres cultures", 200: "Forêt (non différenciée)", 210: "Conifères",
+    220: "Feuillus", 230: "Forêt mixte",
+}
+
 ACI_LABELS: Dict[str, Dict[int, str]] = {
     "en": ACI_LABELS_EN,
     "pt": ACI_LABELS_PT,
+    "fr": ACI_LABELS_FR,
 }
 
 
@@ -137,7 +161,7 @@ def label(class_id: int, lang: str = "en") -> str:
     """Human label for an ACI class code, falling back to the code itself."""
     table = ACI_LABELS.get(lang, ACI_LABELS_EN)
     return table.get(
-        class_id, f"Classe {class_id}" if lang == "pt" else f"Class {class_id}"
+        class_id, f"Classe {class_id}" if lang in ("pt", "fr") else f"Class {class_id}"
     )
 
 

@@ -587,10 +587,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 # State code for the governor stripe — only meaningful for a
                 # real indigenous territory (drawings have no UF metadata).
                 state_code = ""
-                # Brazil only: the stripe is Brazilian state governors, and a
-                # Canadian province code can collide with a Brazilian UF
-                # ("PE" is both Prince Edward Island and Pernambuco).
-                if kind == "territory" and territory and ttype != "conservation_ca":
+                if kind == "territory" and territory:
                     try:
                         from ..utils.deforestation_timeline import first_state_code
                         if ttype == "conservation":

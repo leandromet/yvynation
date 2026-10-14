@@ -247,7 +247,7 @@ DEFAULT_VIEW = {"lat": -15.0, "lng": -52.0, "zoom": 5}   # utils/map_builder.py
 
 _FRAME_JS = """
 (function () {
-  var spec = {bounds: %(bounds)s, pin: %(pin)s, zoom: %(zoom)s, view: %(view)s};
+  var spec = {bounds: %(bounds)s, pin: %(pin)s, zoom: %(zoom)s};
   var DEF = %(default)s;
   function findMap() {
     var ifr = document.querySelectorAll('#map-container iframe');
@@ -260,7 +260,6 @@ _FRAME_JS = """
   }
   function apply(w, map, f) {
     if (f.bounds) map.fitBounds(f.bounds, {padding: [24, 24], maxZoom: 14});
-    else if (f.view) map.setView([f.view[0], f.view[1]], f.view[2]);
     else if (f.pin) map.setView(f.pin, f.zoom);
     if (w.__yvySearchPin) { map.removeLayer(w.__yvySearchPin); w.__yvySearchPin = null; }
     if (f.pin) {
@@ -296,38 +295,6 @@ _FRAME_JS = """
 })();
 """
 
-#: Map clicks → Reflex, for loading a Canadian province on demand. The Folium
-#: map lives in an iframe that is rebuilt now and then, so a light watcher
-#: binds a click listener to each new map document once. The listener only
-#: forwards when ``#yvy-ca-click-btn`` exists — rendered only in Canadian
-#: protected-area mode (components/map.py) — so no other mode sends a thing.
-CLICK_BRIDGE_JS = """
-(function () {
-  if (window.__yvyClickBridge) return;
-  window.__yvyClickBridge = true;
-  setInterval(function () {
-    var ifr = document.querySelectorAll('#map-container iframe');
-    var w = ifr.length ? ifr[ifr.length - 1].contentWindow : null;
-    if (!w || !w.L || w.__yvyClickBound) return;
-    var map = null;
-    for (var k in w) {
-      try { if (w[k] instanceof w.L.Map) { map = w[k]; break; } } catch (e) {}
-    }
-    if (!map) return;
-    w.__yvyClickBound = true;
-    map.on('click', function (e) {
-      var btn = document.getElementById('yvy-ca-click-btn');
-      if (!btn) return;
-      // The view travels with the point: loading a province rebuilds the
-      // map, and the rebuild should come back to where the user was looking.
-      var c = map.getCenter();
-      window.__yvyCaClick = [e.latlng.lat, e.latlng.lng, c.lat, c.lng, map.getZoom()];
-      btn.click();
-    });
-  }, 500);
-})();
-"""
-
 #: Forget the last framing and remove the pin (the search box's ✕).
 CLEAR_JS = """
 (function () {
@@ -343,14 +310,12 @@ CLEAR_JS = """
 
 
 def frame_js(*, bounds: Optional[list] = None, pin: Optional[list] = None,
-             zoom: int = 14, view: Optional[list] = None) -> str:
-    """JS that frames the Folium map on ``bounds`` (``[[s, w], [n, e]]``),
-    restores ``view`` (``[lat, lon, zoom]``, no pin), or centres it on ``pin``
-    (``[lat, lon]``) at ``zoom``, pinning ``pin``."""
+             zoom: int = 14) -> str:
+    """JS that frames the Folium map on ``bounds`` (``[[s, w], [n, e]]``) or
+    centres it on ``pin`` (``[lat, lon]``) at ``zoom``, pinning ``pin``."""
     import json
     return _FRAME_JS % {"bounds": json.dumps(bounds), "pin": json.dumps(pin),
-                        "zoom": int(zoom), "view": json.dumps(view),
-                        "default": json.dumps(DEFAULT_VIEW)}
+                        "zoom": int(zoom), "default": json.dumps(DEFAULT_VIEW)}
 
 
 #: Whole-region framings for the Brazil/Canada switch.
@@ -359,13 +324,11 @@ REGION_BOUNDS = {
     # Capped at 70°N: framing to the Arctic islands would leave the populated
     # south — where nearly every analysis happens — a strip along the bottom.
     "Canada": [[41.7, -141.0], [70.0, -52.6]],
-    # Where Canadian protected-area mode opens — the suite's focus province.
-    "BC": [[48.2, -139.1], [60.0, -114.0]],
 }
 
 
 __all__ = [
-    "CLEAR_JS", "CLICK_BRIDGE_JS", "Coordinate", "DEFAULT_VIEW", "GeocodeError", "Place",
+    "CLEAR_JS", "Coordinate", "DEFAULT_VIEW", "GeocodeError", "Place",
     "REGION_BOUNDS", "Resolution",
     "frame_js", "in_regions", "match_territories", "parse_coordinates",
     "resolve", "search_cep", "search_places", "search_postal",

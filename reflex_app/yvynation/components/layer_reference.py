@@ -144,29 +144,7 @@ def layer_reference_guide() -> rx.Component:
                         icon_name="tree-pine",
                         color="darkgreen",
                     ),
-                    rx.divider(),
-
-                    # AAFC (Canada)
-                    _legend_section(
-                        AppState.tr["aafc_legend"],
-                        [
-                            ("#cc6600", "Agriculture"),
-                            ("#ff9933", "Cropland"),
-                            ("#ffcc33", "Pasture/Forage"),
-                            ("#660000", "Cereals"),
-                            ("#a7b34d", "Wheat"),
-                            ("#d6ff70", "Canola"),
-                            ("#ffff99", "Corn"),
-                            ("#cc9933", "Soybeans"),
-                            ("#cccc00", "Grassland"),
-                            ("#009900", "Forest"),
-                            ("#3333ff", "Water"),
-                            ("#cc6699", "Urban/Developed"),
-                        ],
-                        icon_name="wheat",
-                        color="orange",
-                    ),
-                    rx.divider(),
+rx.divider(),
 
                     # Map overlays legend
                     rx.vstack(

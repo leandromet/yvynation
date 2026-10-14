@@ -1177,20 +1177,9 @@ _UC_GRUPO_COLORS: Dict[str, str] = {
 }
 
 
-#: CPCAD's PA/OECM classes (``grupo`` in the Canadian GeoPackage) — teal,
-#: matching the Canadian protected-area map overlay.
-_CA_PA_COLORS: Dict[str, str] = {
-    "Protected area (PA)": "#0f766e",
-    "Other effective area-based conservation measure (OECM)": "#5eead4",
-    "Interim - protected area (PA)": "#14b8a6",
-    "Interim - other effective area-based conservation measure (OECM)": "#99f6e4",
-}
-
-
 def _conservation_unit_demar_info(
     territory_name: str,
     years: List[int],
-    territory_type: str = "conservation",
 ) -> Tuple[Dict[int, str], str, List[Dict]]:
     """Return (year→fillcolor, subtitle_text, milestone_list) for a UC.
 
@@ -1200,8 +1189,8 @@ def _conservation_unit_demar_info(
     Returns ({}, "", []) on any failure.
     """
     try:
-        from .territory_kinds import service_for
-        info = service_for(territory_type).get_creation_info(territory_name)
+        from .conservation_service import get_conservation_unit_service
+        info = get_conservation_unit_service().get_creation_info(territory_name)
     except Exception as exc:
         logger.debug(f"UC creation info lookup failed for '{territory_name}': {exc}")
         return {}, "", []
@@ -1214,8 +1203,7 @@ def _conservation_unit_demar_info(
     grupo     = _UC_GRUPO_EN.get(info.get("grupo", ""),      info.get("grupo", ""))
     categoria = _UC_CATEGORIA_EN.get(info.get("categoria", ""), info.get("categoria", ""))
 
-    palette = _CA_PA_COLORS if territory_type == "conservation_ca" else _UC_GRUPO_COLORS
-    grupo_color = palette.get(info.get("grupo", ""), "#7ec8e3")
+    grupo_color = _UC_GRUPO_COLORS.get(info.get("grupo", ""), "#7ec8e3")
     y_min, y_max = min(years), max(years)
 
     year_colors: Dict[int, str] = {}
@@ -1231,9 +1219,7 @@ def _conservation_unit_demar_info(
     if creation_year is not None and y_min <= creation_year <= y_max:
         milestones.append({
             "year": creation_year,
-            "label": (f"Established: {categoria} ({esfera})"
-                      if territory_type == "conservation_ca"
-                      else f"UC established: {categoria} ({esfera})"),
+            "label": f"UC established: {categoria} ({esfera})",
             "bold": True,
         })
 
@@ -1655,16 +1641,12 @@ def _context_legend_shapes_and_annots(
 
     # ── Demarcation / UC status key ─────────────────────────────────────────────
     row_cy -= ROW_GAP
-    if demar_milestones and territory_type in ("conservation", "conservation_ca"):
+    if demar_milestones and territory_type == "conservation":
         # Conservation unit mode: simple 3-swatch key (not protected / Strict / Sustainable).
         UC_ITEMS = [
             ("#eeeeee",  "Not yet protected"),
             (_UC_GRUPO_COLORS["Proteção Integral"], "Strict Protection"),
             (_UC_GRUPO_COLORS["Uso Sustentável"],   "Sustainable Use"),
-        ] if territory_type == "conservation" else [
-            ("#eeeeee", "Not yet established"),
-            (_CA_PA_COLORS["Protected area (PA)"], "Protected area"),
-            (_CA_PA_COLORS["Other effective area-based conservation measure (OECM)"], "OECM"),
         ]
         UC_XS = [0.13, 0.40, 0.67]
         annots.append({
@@ -1999,14 +1981,6 @@ def create_deforestation_timeline_chart(
     if not timeline_data:
         return None
 
-    # A Canadian protected area: the president/governor stripes and the
-    # policy heat-rows are Brazilian history, and a province code can collide
-    # with a UF ("PE"). ENSO is global and stays.
-    if territory_type == "conservation_ca":
-        include_political = False
-        include_policy = False
-        state_code = None
-
     years = list(range(year_start, year_end + 1))
 
     # Pull each indicator into a list aligned to ``years``.
@@ -2088,16 +2062,14 @@ def create_deforestation_timeline_chart(
     # When the ENSO series is unavailable the strip is skipped and everything
     # keeps its original (unshifted) position.
     subtitle = ""
-    if territory_name and territory_type in ("conservation", "conservation_ca"):
-        demar_colors, subtitle, demar_milestones = _conservation_unit_demar_info(
-            territory_name, years, territory_type)
+    if territory_name and territory_type == "conservation":
+        demar_colors, subtitle, demar_milestones = _conservation_unit_demar_info(territory_name, years)
     elif territory_name:
         demar_colors, subtitle, demar_milestones = _territory_demar_info(territory_name, years)
     else:
         demar_colors, demar_milestones = {}, []
 
-    demar_row_label = {"conservation": "UC Status", "conservation_ca": "PA Status"}.get(
-        territory_type, "Demarcation")
+    demar_row_label = "UC Status" if territory_type == "conservation" else "Demarcation"
 
     # Each context band is optional. Omitting one drops its shapes *and* the
     # vertical space it reserved, so a trimmed chart has no blank gap where the

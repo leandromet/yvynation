@@ -58,7 +58,7 @@ class CanadaVlce2Mixin(rx.State, mixin=True):
     def vlce2_table_rows(self) -> List[Dict[str, Any]]:
         year = self.vlce2_layer_year
         lang = getattr(self, "language", "en")
-        class_key = "class_pt" if lang == "pt" else "class_en"
+        class_key = f"class_{lang}" if lang in ("pt", "fr") else "class_en"
         rows = [r for r in self.vlce2_rows_for_zone if r["year"] == year]
         total = sum(r["area_ha"] for r in rows) or 1.0
         out = [

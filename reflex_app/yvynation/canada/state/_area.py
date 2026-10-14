@@ -491,7 +491,7 @@ class CanadaAreaMixin(rx.State, mixin=True):
 
     def adopt_area_param(self):
         """Honour ``/canada?area=<display key>`` (a shareable selection)."""
-        key = (self.router.page.params or {}).get("area")
+        key = self.router.url.query_parameters.get("area", "")
         if key:
             return self.__class__.choose_area(key)
 

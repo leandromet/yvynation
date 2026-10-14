@@ -7,6 +7,8 @@ Allows users to choose between geometry or indigenous territory analysis.
 import reflex as rx
 from ..state import AppState
 from ..components.language_selector import language_selector
+from ..components.region_toggle import region_toggle
+from ..components.suite_links import suite_links
 from ..components.citation import citation_modal, cite_trigger
 
 
@@ -25,8 +27,15 @@ def portal_navbar() -> rx.Component:
         ),
         rx.spacer(),
         rx.hstack(
+            suite_links("yvynation", region="brazil", language=AppState.language,
+                        accent="green"),
+            # Brazil and Canada are separate pages; the portal is Brazil's door.
+            region_toggle("brazil", language=AppState.language,
+                          labels=(AppState.tr["region_brazil"], AppState.tr["region_canada"]),
+                          aria_label=AppState.tr["region_label"], accent="green"),
             language_selector(),
-            spacing="2",
+            spacing="3",
+            align_items="center",
         ),
         padding="0.75rem 1.5rem",
         bg="linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)",
@@ -300,15 +309,18 @@ def analysis_choice_section() -> rx.Component:
                             width="100%",
                             font_weight="bold",
                         ),
-                        # Canada's protected and conserved areas (CPCAD), BC
-                        # first. No Canadian Indigenous-lands entry, by design
-                        # (OCAP — utils/territory_kinds.py).
-                        rx.button(
-                            AppState.tr["portal_conservation_ca_btn"],
-                            on_click=lambda: AppState.go_to_territory_analysis("conservation_ca"),
-                            size="2",
-                            variant="soft",
-                            color_scheme="teal",
+                        # Canada's protected areas live on their own page
+                        # (/canada): different datasets, sidebar and results.
+                        # No Canadian Indigenous-lands entry, by design (OCAP).
+                        rx.link(
+                            rx.button(
+                                AppState.tr["go_to_canada_page"],
+                                size="2",
+                                variant="soft",
+                                color_scheme="teal",
+                                width="100%",
+                            ),
+                            href=f"/canada?lang={AppState.language}",
                             width="100%",
                         ),
                         spacing="2",

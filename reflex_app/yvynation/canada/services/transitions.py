@@ -61,6 +61,13 @@ class YearGapError(ValueError):
 def _check_gap(year_a: int, year_b: int, lang: str = "en") -> None:
     if abs(year_b - year_a) >= MIN_YEAR_GAP:
         return
+    if lang == "fr":
+        raise YearGapError(
+            f"Ces années sont trop rapprochées ({year_a}→{year_b}) : l'écart minimal "
+            f"pour un diagramme de transitions est de {MIN_YEAR_GAP} ans. Entre "
+            "années consécutives, la plupart des « transitions » de l'inventaire des "
+            "cultures sont des rotations de cultures, pas un changement d'usage du sol."
+        )
     if lang == "pt":
         raise YearGapError(
             f"Anos muito próximos ({year_a}→{year_b}): a diferença mínima para "

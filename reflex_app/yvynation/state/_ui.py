@@ -18,6 +18,24 @@ class UIMixin(rx.State, mixin=True):
         self.language = lang
         self.language_user_set = True
 
+    def adopt_lang_param(self):
+        """Honour an explicit ``?lang=`` on load — and nothing else.
+
+        The Canada page's region toggle links back here with the reader's
+        language (``/?lang=fr``). This is deliberately narrower than
+        :meth:`detect_browser_language`: that one also guesses from the
+        browser, and it is not wired to this page's ``on_load`` (it is only
+        referenced from ``app.py``, which is not the running app module), so
+        turning it on would silently change the language existing visitors
+        see. An explicit parameter is a choice somebody made.
+        """
+        from ..utils.translations import TRANSLATIONS
+
+        requested = self.router.url.query_parameters.get("lang", "")
+        if requested in TRANSLATIONS:
+            self.language = requested
+            self.language_user_set = True
+
     def detect_browser_language(self):
         """On page load, ask the browser for its preferred language.
 
@@ -30,7 +48,7 @@ class UIMixin(rx.State, mixin=True):
         # browser auto-detect, and counts as a manual choice.
         from ..utils.translations import TRANSLATIONS
 
-        requested = (self.router.page.params or {}).get("lang")
+        requested = self.router.url.query_parameters.get("lang", "")
         if requested in TRANSLATIONS:
             self.language = requested
             self.language_user_set = True
@@ -66,23 +84,8 @@ class UIMixin(rx.State, mixin=True):
         """
         self.selected_country = country
         from ..utils.place_search import REGION_BOUNDS, frame_js
-        from ..utils.territory_kinds import CONSERVATION_KINDS, conservation_kind_for
-
-        events = []
-        kind = self.territory_type
-        # In protected-area mode the region IS the dataset: Brazil → CNUC,
-        # Canada → CPCAD. There is no Canadian counterpart for Indigenous
-        # lands (OCAP — utils/territory_kinds.py), so that mode keeps its
-        # FUNAI list and the sidebar explains why.
-        if (self.analysis_mode == "territory" and kind in CONSERVATION_KINDS
-                and country in ("Brazil", "Canada")):
-            kind = conservation_kind_for(country)
-            if kind != self.territory_type:
-                events.append(type(self).set_territory_type(kind))
-        target = "BC" if kind == "conservation_ca" else country
-        if target in REGION_BOUNDS:
-            events.insert(0, rx.call_script(frame_js(bounds=REGION_BOUNDS[target])))
-        return events or None
+        if country in REGION_BOUNDS:
+            return rx.call_script(frame_js(bounds=REGION_BOUNDS[country]))
 
     # ---- Active tab -----------------------------------------------------
 
@@ -265,10 +268,8 @@ class UIMixin(rx.State, mixin=True):
         """
         self.analysis_mode = "territory"
         self.show_indigenous_lands = True
-        from ..utils.territory_kinds import KINDS, country_of
-        if territory_type not in KINDS:
+        if territory_type not in ("indigenous", "conservation"):
             territory_type = "indigenous"
-        self.selected_country = country_of(territory_type)
 
         if not self.ee_initialized:
             self.territory_type = territory_type
@@ -278,11 +279,6 @@ class UIMixin(rx.State, mixin=True):
 
         if bg_task is not None:
             yield bg_task
-        if territory_type == "conservation_ca":
-            # Open on BC, the province loaded first; frame_js retries until
-            # the map document exists.
-            from ..utils.place_search import REGION_BOUNDS, frame_js
-            yield rx.call_script(frame_js(bounds=REGION_BOUNDS["BC"]))
 
     def go_to_batch_processing(self):
         """Navigate to batch processing page, loading territories in background."""
