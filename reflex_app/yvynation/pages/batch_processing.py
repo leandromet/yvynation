@@ -42,6 +42,15 @@ from ..components.batch_shared import ORANGE_BORDER, ORANGE_LIGHT, stage_bar
 _WIDE_ONLY = ["none", "none", "flex", "flex"]
 _NARROW_ONLY = ["flex", "flex", "none", "none"]
 
+#: Room the pinned action bar leaves at its right end for Reflex's own
+#: "Built with Reflex" badge. The badge is ``position: fixed; bottom: 1rem;
+#: right: 1rem; z-index: 9998`` (reflex/components/core/sticky.py), so it floats
+#: over the bar's right end: Stop, Download and the end of Start were hidden under
+#: it. It is only rendered by a production build, which is why it never showed up
+#: in ``reflex run``. A 16px logo plus 0.375rem padding is ~3.5rem from the edge;
+#: from the 62em breakpoint the label ("Built with Reflex") joins it, ~11.5rem.
+_BADGE_CLEARANCE = ["3.5rem", "3.5rem", "3.5rem", "11.5rem"]
+
 
 def _scroll_column(*children: rx.Component, **props) -> rx.Component:
     """One independently scrolling column. Nothing scrolls at page level on
@@ -179,7 +188,9 @@ def _action_bar() -> rx.Component:
         width="100%",
         align_items="center",
         spacing="3",
-        padding="0.6rem 1rem",
+        padding_y="0.6rem",
+        padding_left="1rem",
+        padding_right=_BADGE_CLEARANCE,
         # Tinted once a run is actually startable, plain otherwise. The bar
         # was reported as easy to miss at the bottom of the page: white on
         # white, it read as a footer. The tint fires exactly when there is
