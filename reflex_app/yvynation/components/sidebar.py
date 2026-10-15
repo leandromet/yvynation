@@ -270,7 +270,7 @@ def territory_section() -> rx.Component:
                 # MapBiomas analysis
                 rx.hstack(
                     rx.select(
-                        [str(y) for y in range(1985, 2024)],
+                        [str(y) for y in MAPBIOMAS_YEARS],
                         value=AppState.mapbiomas_current_year_str,
                         on_change=AppState.set_mapbiomas_year,
                         size="1",
@@ -316,7 +316,7 @@ def territory_section() -> rx.Component:
                 rx.text(AppState.tr["compare_years"], font_size="xs", font_weight="600", color="gray"),
                 rx.hstack(
                     rx.select(
-                        [str(y) for y in range(1985, 2024)],
+                        [str(y) for y in MAPBIOMAS_YEARS],
                         value=AppState.comparison_year1_str,
                         on_change=AppState.set_comparison_year1,
                         size="1",
@@ -324,7 +324,7 @@ def territory_section() -> rx.Component:
                     ),
                     rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
                     rx.select(
-                        [str(y) for y in range(1985, 2024)],
+                        [str(y) for y in MAPBIOMAS_YEARS],
                         value=AppState.comparison_year2_str,
                         on_change=AppState.set_comparison_year2,
                         size="1",
@@ -397,7 +397,7 @@ def geometry_section() -> rx.Component:
             AppState.show_change_mask,
             rx.hstack(
                 rx.select(
-                    [str(y) for y in range(1985, 2024)],
+                    [str(y) for y in MAPBIOMAS_YEARS],
                     value=AppState.change_mask_year1_str,
                     on_change=AppState.set_change_mask_year1,
                     size="1",
@@ -405,7 +405,7 @@ def geometry_section() -> rx.Component:
                 ),
                 rx.text(AppState.tr["vs_label"], font_size="xs", color="gray", flex="0 0 auto"),
                 rx.select(
-                    [str(y) for y in range(1985, 2024)],
+                    [str(y) for y in MAPBIOMAS_YEARS],
                     value=AppState.change_mask_year2_str,
                     on_change=AppState.set_change_mask_year2,
                     size="1",

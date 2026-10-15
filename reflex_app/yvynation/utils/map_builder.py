@@ -539,7 +539,7 @@ def build_map(
                     # Add reference MapBiomas layers (deactivated) for the two years
                     try:
                         from ..config import MAPBIOMAS_PALETTE
-                        ref_vis = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+                        ref_vis = {'min': 0, 'max': len(MAPBIOMAS_PALETTE) - 1, 'palette': MAPBIOMAS_PALETTE}
                         for ref_year, ref_img in [(year1, img1), (year2, img2)]:
                             if clip_geom:
                                 ref_img = ref_img.clip(clip_geom)

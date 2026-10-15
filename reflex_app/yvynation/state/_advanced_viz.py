@@ -33,10 +33,12 @@ from typing import Any, Dict, List
 import reflex as rx
 from plotly.graph_objs import Figure
 
+from ..config.config import MAPBIOMAS_YEARS
+
 logger = logging.getLogger(__name__)
 
-# Inclusive MapBiomas year range (matches batch).
-START_YEAR, END_YEAR = 1985, 2024
+# Inclusive MapBiomas year range of the active collection (matches batch).
+START_YEAR, END_YEAR = MAPBIOMAS_YEARS[0], MAPBIOMAS_YEARS[-1]
 
 # Aux-layer toggle attribute → MAPBIOMAS_AUX_DATASETS key.  Mirrors the mapping
 # built in ``state/_batch.py`` (``aux_layer_keys``).
@@ -164,7 +166,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
     # ── Config: multi-window ───────────────────────────────────────────────
     mw_mode: str = "custom"                 # "constant" | "custom"
     mw_step: str = "8"                      # constant-mode step in years
-    mw_custom_years: str = "1985, 1994, 2004, 2014, 2024"
+    mw_custom_years: str = f"1985, 1995, 2005, 2015, {END_YEAR}"
 
     # ── Config: deforestation timeline ─────────────────────────────────────
     tl_include_hansen: bool = True

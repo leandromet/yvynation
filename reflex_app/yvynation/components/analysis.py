@@ -5,6 +5,7 @@ Handles territory analysis and visualization.
 
 import reflex as rx
 from ..state import AppState
+from ..config import MAPBIOMAS_YEARS
 from ..utils.translations import t
 
 
@@ -13,7 +14,7 @@ def mapbiomas_analysis_tab() -> rx.Component:
     return rx.vstack(
         rx.heading("MapBiomas Land Cover Analysis", size="3"),
         rx.text(
-            "Analyze land cover changes from 1985-2024",
+            f"Analyze land cover changes from {MAPBIOMAS_YEARS[0]}-{MAPBIOMAS_YEARS[-1]}",
             font_size="1",
             color="gray",
         ),

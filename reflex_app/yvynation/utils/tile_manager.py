@@ -29,7 +29,7 @@ class EETileManager:
             if cache_key in self._tile_cache:
                 return self._tile_cache[cache_key]
 
-            # Load MapBiomas — uses the configured default collection (Collection 10.1)
+            # Load MapBiomas — uses the configured default collection (Collection 11 unless YVY_MAPBIOMAS_COLLECTION)
             from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_PALETTE
 
             mapbiomas_asset = MAPBIOMAS_COLLECTIONS.get(

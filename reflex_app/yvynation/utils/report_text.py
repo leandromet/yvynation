@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..report_kit.text import fmt_ha, fmt_num, fmt_pct
 from ..report_kit.text import fmt_signed as _kit_signed
+from ..config.config import MAPBIOMAS_COLLECTION_LABEL as _MB  # "11" / "10.1"
 
 
 def fmt_signed(value, decimals: int = 1, lang: str = "en") -> str:
@@ -104,7 +105,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "legend_buffer": "Buffer ({km} km)",
         "legend_loss": "Loss {a}–{b}",
         # land cover
-        "lc_intro": "MapBiomas Collection 10.1 classifies every 30 m pixel of Brazil into land-cover and land-use classes for each year since 1985.",
+        "lc_intro": f"MapBiomas Collection {_MB} classifies every 30 m pixel of Brazil into land-cover and land-use classes for each year since 1985.",
         "lc_fig_caption": "Area per land-cover class inside the territory, {y1} and {y2}.",
         "lc_table_caption": "Land-cover classes inside the territory, {y1} vs {y2}.",
         "lc_reading": "Between {y1} and {y2}, {cls} inside the territory went from {a1} ({p1}) to {a2} ({p2}), {direction}.",
@@ -185,7 +186,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "prov_note_imagery": "Used only as a map backdrop, not in any number.",
         "prov_note_transitions": "Change-only: pixels that kept their class are excluded.",
         # citation
-        "attr_mapbiomas": "MapBiomas Project, Collection 10.1 — CC BY-SA 4.0",
+        "attr_mapbiomas": f"MapBiomas Project, Collection {_MB} — CC BY-SA 4.0",
         "attr_hansen": "Hansen/UMD/Google/USGS/NASA, Global Forest Change — CC BY 4.0",
         "attr_glad": "GLAD/UMD, GLCLU2020 — CC BY 4.0",
         "attr_ti": "Indigenous Land boundaries and attributes: FUNAI",
@@ -269,7 +270,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "legend_boundary": "Limite do território",
         "legend_buffer": "Buffer ({km} km)",
         "legend_loss": "Perda {a}–{b}",
-        "lc_intro": "A Coleção 10.1 do MapBiomas classifica cada pixel de 30 m do Brasil em classes de cobertura e uso do solo para cada ano desde 1985.",
+        "lc_intro": f"A Coleção {_MB} do MapBiomas classifica cada pixel de 30 m do Brasil em classes de cobertura e uso do solo para cada ano desde 1985.",
         "lc_fig_caption": "Área por classe de cobertura do solo dentro do território, {y1} e {y2}.",
         "lc_table_caption": "Classes de cobertura do solo dentro do território, {y1} vs {y2}.",
         "lc_reading": "Entre {y1} e {y2}, {cls} dentro do território passou de {a1} ({p1}) para {a2} ({p2}), {direction}.",
@@ -341,7 +342,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "prov_note_timeline": "Perda Hansen por ano, mais as séries MapBiomas de desmatamento, vegetação secundária e fogo.",
         "prov_note_imagery": "Usadas apenas como fundo dos mapas, em nenhum número.",
         "prov_note_transitions": "Apenas mudanças: pixels que mantiveram a classe são excluídos.",
-        "attr_mapbiomas": "Projeto MapBiomas, Coleção 10.1 — CC BY-SA 4.0",
+        "attr_mapbiomas": f"Projeto MapBiomas, Coleção {_MB} — CC BY-SA 4.0",
         "attr_hansen": "Hansen/UMD/Google/USGS/NASA, Global Forest Change — CC BY 4.0",
         "attr_glad": "GLAD/UMD, GLCLU2020 — CC BY 4.0",
         "attr_ti": "Limites e atributos das Terras Indígenas: FUNAI",
@@ -424,7 +425,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "legend_boundary": "Límite del territorio",
         "legend_buffer": "Zona de amortiguamiento ({km} km)",
         "legend_loss": "Pérdida {a}–{b}",
-        "lc_intro": "La Colección 10.1 de MapBiomas clasifica cada píxel de 30 m de Brasil en clases de cobertura y uso del suelo para cada año desde 1985.",
+        "lc_intro": f"La Colección {_MB} de MapBiomas clasifica cada píxel de 30 m de Brasil en clases de cobertura y uso del suelo para cada año desde 1985.",
         "lc_fig_caption": "Superficie por clase de cobertura del suelo dentro del territorio, {y1} y {y2}.",
         "lc_table_caption": "Clases de cobertura del suelo dentro del territorio, {y1} vs {y2}.",
         "lc_reading": "Entre {y1} y {y2}, {cls} dentro del territorio pasó de {a1} ({p1}) a {a2} ({p2}), {direction}.",
@@ -496,7 +497,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "prov_note_timeline": "Pérdida Hansen por año, más las series de MapBiomas de deforestación, vegetación secundaria y fuego.",
         "prov_note_imagery": "Solo como fondo de los mapas, en ninguna cifra.",
         "prov_note_transitions": "Solo cambios: se excluyen los píxeles que mantuvieron su clase.",
-        "attr_mapbiomas": "Proyecto MapBiomas, Colección 10.1 — CC BY-SA 4.0",
+        "attr_mapbiomas": f"Proyecto MapBiomas, Colección {_MB} — CC BY-SA 4.0",
         "attr_hansen": "Hansen/UMD/Google/USGS/NASA, Global Forest Change — CC BY 4.0",
         "attr_glad": "GLAD/UMD, GLCLU2020 — CC BY 4.0",
         "attr_ti": "Límites y atributos de las Tierras Indígenas: FUNAI",
@@ -579,7 +580,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "legend_boundary": "Limite du territoire",
         "legend_buffer": "Zone tampon ({km} km)",
         "legend_loss": "Perte {a}–{b}",
-        "lc_intro": "La Collection 10.1 de MapBiomas classe chaque pixel de 30 m du Brésil en classes d'occupation et d'usage du sol pour chaque année depuis 1985.",
+        "lc_intro": f"La Collection {_MB} de MapBiomas classe chaque pixel de 30 m du Brésil en classes d'occupation et d'usage du sol pour chaque année depuis 1985.",
         "lc_fig_caption": "Superficie par classe d'occupation du sol dans le territoire, {y1} et {y2}.",
         "lc_table_caption": "Classes d'occupation du sol dans le territoire, {y1} vs {y2}.",
         "lc_reading": "Entre {y1} et {y2}, {cls} dans le territoire est passée de {a1} ({p1}) à {a2} ({p2}), {direction}.",
@@ -651,7 +652,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "prov_note_timeline": "Perte Hansen par année, plus les séries MapBiomas de déforestation, de végétation secondaire et de feu.",
         "prov_note_imagery": "Utilisées uniquement comme fond de carte, dans aucun chiffre.",
         "prov_note_transitions": "Changements seulement : les pixels qui ont gardé leur classe sont exclus.",
-        "attr_mapbiomas": "Projet MapBiomas, Collection 10.1 — CC BY-SA 4.0",
+        "attr_mapbiomas": f"Projet MapBiomas, Collection {_MB} — CC BY-SA 4.0",
         "attr_hansen": "Hansen/UMD/Google/USGS/NASA, Global Forest Change — CC BY 4.0",
         "attr_glad": "GLAD/UMD, GLCLU2020 — CC BY 4.0",
         "attr_ti": "Limites et attributs des Terres indigènes : FUNAI",

@@ -15,6 +15,7 @@ for.
 
 import reflex as rx
 from ..state import AppState
+from ..config import MAPBIOMAS_YEARS
 from .batch_shared import ORANGE_BORDER, _label, _section_card, batch_groups_root
 from .layout import group, info_icon
 
@@ -58,7 +59,7 @@ def _years_group() -> rx.Component:
                     rx.text(AppState.tr["batch_year1_label"], font_size="xs",
                             color="#6B7280"),
                     rx.select(
-                        [str(y) for y in range(2024, 1984, -1)],
+                        [str(y) for y in reversed(MAPBIOMAS_YEARS)],
                         value=AppState.batch_year,
                         on_change=AppState.batch_set_year,
                         size="2", width="110px",
@@ -70,7 +71,7 @@ def _years_group() -> rx.Component:
                     rx.text(AppState.tr["batch_year2_label"], font_size="xs",
                             color="#6B7280"),
                     rx.select(
-                        [str(y) for y in range(2024, 1984, -1)],
+                        [str(y) for y in reversed(MAPBIOMAS_YEARS)],
                         value=AppState.batch_year2,
                         on_change=AppState.batch_set_year2,
                         size="2", width="110px",
@@ -261,7 +262,7 @@ def _multiwindow_group() -> rx.Component:
                             rx.input(
                                 value=AppState.batch_multi_window_custom_years,
                                 on_change=AppState.batch_set_multi_window_custom_years,
-                                placeholder="1985, 1994, 2004, 2014, 2024",
+                                placeholder=f"1985, 1995, 2005, 2015, {MAPBIOMAS_YEARS[-1]}",
                                 size="2", width="100%",
                             ),
                             spacing="1", width="100%",

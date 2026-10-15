@@ -46,7 +46,7 @@ APP_NAME = "Yvynation"
 APP_URL = os.getenv("YVY_PUBLIC_URL", "https://yvynation.umaterra.com.br")
 BRAND = Brand(accent="#2f7d4f", app_line="umaterra · Yvynation")
 
-#: MapBiomas natural forest classes (level-4 IDs of Collection 10.1): forest
+#: MapBiomas natural forest classes (level-4 IDs, Collection 10.1/11): forest
 #: formation, savanna formation, mangrove, floodable forest, wooded sandbank
 #: vegetation. Used only for the territory-vs-buffer forest share.
 FOREST_IDS = frozenset({3, 4, 5, 6, 49})
@@ -802,7 +802,8 @@ def fetch_report_maps(snap: Dict[str, Any], lang: str) -> Dict[str, Any]:
     elif view_full.longest_side_km > kmaps.IMAGERY_MAX_KM:
         out["no_imagery"] = True
 
-    mb_attr = "MapBiomas Collection 10.1 (CC BY-SA 4.0)"
+    from ..config.config import MAPBIOMAS_COLLECTION_LABEL
+    mb_attr = f"MapBiomas Collection {MAPBIOMAS_COLLECTION_LABEL} (CC BY-SA 4.0)"
     for key, year, recs in (("mb_y1", y1, snap.get("t_y1")), ("mb_y2", y2, snap.get("t_y2"))):
         png = results.get(key)
         if key == "mb_y2" and y2 == y1:

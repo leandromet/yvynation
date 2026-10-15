@@ -8,7 +8,7 @@ territory stay low (≤ 4 + one cheap ``bandNames`` probe per asset, cached).
 
 Indicators (all aggregated as area in hectares per calendar year):
   * ``hansen_loss``        — Hansen GFC ``lossyear`` band, per-year area.
-  * ``mb_defor_primary``   — MapBiomas Coll. 10.1 deforestation/secondary
+  * ``mb_defor_primary``   — MapBiomas Coll. 11 (or 10.1) deforestation/secondary
                              dataset. Two value semantics are auto-detected:
                              "year_value" (single band, pixel value = year of
                              event) or "class_value" (per-year band whose
@@ -122,7 +122,7 @@ def _reduce_stacked(bands, ee_geometry, scale: int = 30) -> Dict[str, float]:
 # ---------------------------------------------------------------------------
 
 # Class codes used when the asset has per-year class-coded bands.
-# MapBiomas Deforestation & Secondary Vegetation Collection 10.1
+# MapBiomas Deforestation & Secondary Vegetation (Collection 11 v5 / 10.1 v3, same classes)
 # (per the official MapBiomas spec — confirmed by upstream JS palette):
 #   0 = Other / Não aplicável
 #   1 = Anthropic / Antrópico (stable)

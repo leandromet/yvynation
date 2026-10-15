@@ -6,6 +6,7 @@ Similar to the Streamlit render_polygon_selector() function.
 
 import reflex as rx
 from ..state import AppState
+from ..config import MAPBIOMAS_YEARS
 
 
 def geometry_selector() -> rx.Component:
@@ -133,7 +134,7 @@ def geometry_selector() -> rx.Component:
                             rx.vstack(
                                 rx.text("MapBiomas Year", font_size="xs", font_weight="bold"),
                                 rx.select(
-                                    [str(y) for y in range(1985, 2024)],
+                                    [str(y) for y in MAPBIOMAS_YEARS],
                                     value=AppState.geometry_analysis_year_str,
                                     on_change=AppState.set_geometry_analysis_year,
                                     size="2",

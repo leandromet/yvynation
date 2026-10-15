@@ -75,7 +75,7 @@ def add_mapbiomas_layer(m, mapbiomas, year, opacity=1.0, shown=True):
         print(f"Adding MapBiomas {year} layer...")
         band = f'classification_{year}'
         
-        vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+        vis_params = {'min': 0, 'max': len(MAPBIOMAS_PALETTE) - 1, 'palette': MAPBIOMAS_PALETTE}
         tile_url = _cached_get_map_id(
             f'mapbiomas_{year}',
             lambda: mapbiomas.select(band),

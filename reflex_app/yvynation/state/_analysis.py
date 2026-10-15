@@ -396,7 +396,7 @@ class AnalysisMixin(rx.State, mixin=True):
                     year = self.mapbiomas_current_year
                     territory = self.selected_territory
                     clipped = mapbiomas_img.select(f"classification_{year}").clip(ee_geom)
-                    vis_params = {"min": 0, "max": 62, "palette": MAPBIOMAS_PALETTE}
+                    vis_params = {"min": 0, "max": len(MAPBIOMAS_PALETTE) - 1, "palette": MAPBIOMAS_PALETTE}
                     tile_url = _cached_get_map_id(
                         f"analysis_mapbiomas_{territory}_{year}", lambda: clipped, vis_params
                     )

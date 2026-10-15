@@ -256,7 +256,7 @@ def ee_layer_image(layer_type: str = 'mapbiomas',
             asset = MAPBIOMAS_COLLECTIONS.get(MAPBIOMAS_DEFAULT_COLLECTION, MAPBIOMAS_COLLECTIONS['v10_1'])
             image = ee.Image(asset).select(f'classification_{year}')
             if vis_params is None:
-                vis_params = {'min': 0, 'max': 62, 'palette': MAPBIOMAS_PALETTE}
+                vis_params = {'min': 0, 'max': len(MAPBIOMAS_PALETTE) - 1, 'palette': MAPBIOMAS_PALETTE}
         elif layer_type == 'hansen':
             from ..config.config import HANSEN_DATASETS
             year_str = str(year)

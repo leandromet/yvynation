@@ -6,6 +6,13 @@ All text uses AppState.tr for i18n support.
 
 import reflex as rx
 from ..state import AppState
+from ..config.config import (
+    MAPBIOMAS_COLLECTION_ASSET as _MB_ASSET,
+    MAPBIOMAS_COLLECTION_LABEL as _MB,
+    MAPBIOMAS_YEARS as _MB_YEARS,
+)
+
+_MB_Y0, _MB_Y1 = _MB_YEARS[0], _MB_YEARS[-1]
 
 
 def _no_data_placeholder(message: str = "Run analysis to see results") -> rx.Component:
@@ -1678,8 +1685,8 @@ def about_tab() -> rx.Component:
                 rx.text(AppState.tr["data_sources_title"], font_weight="bold", font_size="sm"),
                 rx.vstack(
                     rx.hstack(
-                        rx.badge("MapBiomas 10.1", color_scheme="green"),
-                        rx.text("Land cover 1985–2024 (Brazil)", font_size="xs"),
+                        rx.badge(f"MapBiomas {_MB}", color_scheme="green"),
+                        rx.text(f"Land cover {_MB_Y0}–{_MB_Y1} (Brazil)", font_size="xs"),
                         spacing="2",
                     ),
                     rx.hstack(
@@ -1748,12 +1755,12 @@ def about_tab() -> rx.Component:
             rx.heading(AppState.tr["data_sources_title"], size="3"),
             rx.vstack(
                 rx.hstack(
-                    rx.badge("MapBiomas 10.1", color_scheme="green", variant="solid"),
+                    rx.badge(f"MapBiomas {_MB}", color_scheme="green", variant="solid"),
                     rx.vstack(
                         rx.text(AppState.tr["mapbiomas_desc"], font_size="xs"),
                         rx.text(
-                            "Collection 10.1 · Resolution: 30 m · Period: 1985–2024 · Brazil coverage · "
-                            "Asset: mapbiomas-public/assets/brazil/lulc/collection10_1/…coverage_v1",
+                            f"Collection {_MB} · Resolution: 30 m · Period: {_MB_Y0}–{_MB_Y1} · Brazil coverage · "
+                            f"Asset: {_MB_ASSET.split('projects/', 1)[-1]}",
                             font_size="xs", color="gray",
                         ),
                         spacing="0",
@@ -1876,7 +1883,7 @@ def about_tab() -> rx.Component:
                 rx.badge("Plotly", color_scheme="red", variant="surface"),
                 rx.badge("Folium / Leaflet", color_scheme="teal", variant="surface"),
                 rx.badge("Pandas", color_scheme="orange", variant="surface"),
-                rx.badge("MapBiomas Collection 10.1", color_scheme="green", variant="surface"),
+                rx.badge(f"MapBiomas Collection {_MB}", color_scheme="green", variant="surface"),
                 flex_wrap="wrap",
                 gap="2",
             ),
@@ -2050,16 +2057,16 @@ def multi_window_tab() -> rx.Component:
                                 width="100px"),
                         rx.select(["1", "2", "4", "5", "8"], value=AppState.mw_step,
                                   on_change=AppState.set_mw_step, size="2", width="80px"),
-                        rx.text("1985 → 2024 forced as last year", font_size="xs",
+                        rx.text(f"{_MB_Y0} → {_MB_Y1} forced as last year", font_size="xs",
                                 color="#9CA3AF"),
                         spacing="2", align_items="center",
                     ),
                     rx.vstack(
-                        rx.text("Custom years (3 to 10, comma-separated, 1985–2024)",
+                        rx.text(f"Custom years (3 to 10, comma-separated, {_MB_Y0}–{_MB_Y1})",
                                 font_size="xs", color="#6B7280"),
                         rx.input(value=AppState.mw_custom_years,
                                  on_change=AppState.set_mw_custom_years,
-                                 placeholder="1985, 1994, 2004, 2014, 2024", size="2",
+                                 placeholder=f"1985, 1995, 2005, 2015, {_MB_Y1}", size="2",
                                  width="100%"),
                         spacing="1", width="100%",
                     ),

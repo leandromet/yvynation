@@ -22,6 +22,8 @@ import reflex as rx
 import plotly.graph_objects as pgo
 from plotly.graph_objs import Figure
 
+from ..config.config import MAPBIOMAS_YEARS
+
 # BufferGeometry lives in _geometry.py so it's available without circular imports
 from ._geometry import BufferGeometry, GeometryMixin
 from ._ui import UIMixin
@@ -121,7 +123,7 @@ class AppState(
     # Layer configuration
     # ====================================================================
     mapbiomas_years_enabled: Dict[int, bool] = {}
-    mapbiomas_current_year: int = 2024  # Collection 10.1 adds 2024
+    mapbiomas_current_year: int = MAPBIOMAS_YEARS[-1]  # latest year of the active collection
     mapbiomas_displayed_years: List[int] = []
 
     hansen_years_enabled: Dict[str, bool] = {}
@@ -229,7 +231,7 @@ class AppState(
 
     # Comparison year selection
     comparison_year1: int = 1985
-    comparison_year2: int = 2024  # Collection 10.1 includes 2024
+    comparison_year2: int = MAPBIOMAS_YEARS[-1]
 
     # Territory analysis storage
     territory_result: Optional[Dict[str, Any]] = None

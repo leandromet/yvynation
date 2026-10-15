@@ -137,7 +137,7 @@ class ExtendedEarthEngineService:
         return None
 
     def get_mapbiomas(self) -> ee.Image:
-        """Get or load MapBiomas Image (default: Collection 10.1)."""
+        """Get or load MapBiomas Image (default: the configured collection, Collection 11)."""
         if self.mapbiomas is None:
             from ..config.config import MAPBIOMAS_COLLECTIONS, MAPBIOMAS_DEFAULT_COLLECTION
             asset = MAPBIOMAS_COLLECTIONS.get(
@@ -159,7 +159,7 @@ class ExtendedEarthEngineService:
             DataFrame with land cover breakdown
         """
         try:
-            # MapBiomas Collection 10.1 is a single multi-band Image with bands like 'classification_2024', 'classification_2023', etc
+            # MapBiomas coverage is a single multi-band Image with bands like 'classification_2025', 'classification_2024', etc
             mapbiomas = self.get_mapbiomas()
 
             # Select the specific year band

@@ -148,9 +148,8 @@ class EarthEngineService:
     """Service for Earth Engine operations."""
     
     _initialized: bool = False
-    _mapbiomas_v10_1: Optional[ee.Image] = None
-    _mapbiomas_v9: Optional[ee.Image] = None
-    _mapbiomas_v8: Optional[ee.Image] = None
+    #: One ee.Image per collection key ("v11", "v10_1", …), built on first use.
+    _mapbiomas_images: dict = {}
     _territories: Optional[ee.FeatureCollection] = None
     
     @classmethod
@@ -180,8 +179,9 @@ class EarthEngineService:
     def load_mapbiomas(cls, version: str = None) -> Optional[ee.Image]:
         """Load MapBiomas dataset.
 
-        ``version`` defaults to ``MAPBIOMAS_DEFAULT_COLLECTION`` (currently 'v10_1').
-        Pass 'v9' or 'v8' explicitly for older collections.
+        ``version`` defaults to ``MAPBIOMAS_DEFAULT_COLLECTION`` ('v11' unless
+        YVY_MAPBIOMAS_COLLECTION says otherwise). Any key of
+        ``MAPBIOMAS_COLLECTIONS`` works ('v10_1', 'v9', 'v8' for older collections).
         """
         if not cls._initialized:
             logger.error("Earth Engine not initialized")
@@ -192,25 +192,13 @@ class EarthEngineService:
             version = MAPBIOMAS_DEFAULT_COLLECTION
 
         try:
-            if version == 'v10_1':
-                if cls._mapbiomas_v10_1 is None:
-                    cls._mapbiomas_v10_1 = ee.Image(MAPBIOMAS_COLLECTIONS['v10_1'])
-                return cls._mapbiomas_v10_1
-            elif version == 'v9':
-                if cls._mapbiomas_v9 is None:
-                    cls._mapbiomas_v9 = ee.Image(MAPBIOMAS_COLLECTIONS['v9'])
-                return cls._mapbiomas_v9
-            elif version == 'v8':
-                if cls._mapbiomas_v8 is None:
-                    cls._mapbiomas_v8 = ee.Image(MAPBIOMAS_COLLECTIONS['v8'])
-                return cls._mapbiomas_v8
-            else:
-                # Arbitrary version key passed — look it up in config
-                asset = MAPBIOMAS_COLLECTIONS.get(version)
-                if asset:
-                    return ee.Image(asset)
+            asset = MAPBIOMAS_COLLECTIONS.get(version)
+            if asset is None:
                 logger.warning(f"Unknown MapBiomas version '{version}', falling back to default")
                 return cls.load_mapbiomas(MAPBIOMAS_DEFAULT_COLLECTION)
+            if version not in cls._mapbiomas_images:
+                cls._mapbiomas_images[version] = ee.Image(asset)
+            return cls._mapbiomas_images[version]
         except Exception as e:
             logger.error(f"Error loading MapBiomas {version}: {e}")
         return None
