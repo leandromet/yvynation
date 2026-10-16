@@ -1284,6 +1284,16 @@ _IDEOLOGY_COLOR = {
      2: "#e0e0e0",  # right      → near-white grey
 }
 
+
+def _ideology_color(ideo) -> str:
+    """Stripe colour for an ideology code; uncoded years (None/NaN) fall back.
+
+    The context tables leave the newest year uncoded until its governor is
+    entered, and ``NaN or 0`` is still NaN, so ``int()`` on it raised and took
+    the whole timeline chart (and every buffer timeline after it) down.
+    """
+    return _IDEOLOGY_COLOR.get(0 if pd.isna(ideo) else int(ideo), "#bdbdbd")
+
 # Regime → fill colour for the policy bar (uses the regime labels from
 # policy_context_brazil.build_combined_context).
 _REGIME_COLOR = {
@@ -1410,7 +1420,7 @@ def _political_shapes_and_annots(
             groups.append(cur)
 
         for g in groups:
-            color = _IDEOLOGY_COLOR.get(int(g["ideo"] or 0), "#bdbdbd")
+            color = _ideology_color(g["ideo"])
             shapes.append({
                 "type": "rect", "xref": "x", "yref": "paper",
                 "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,
@@ -1452,7 +1462,7 @@ def _political_shapes_and_annots(
             groups.append(cur)
 
         for g in groups:
-            color = _IDEOLOGY_COLOR.get(int(g["ideo"] or 0), "#bdbdbd")
+            color = _ideology_color(g["ideo"])
             shapes.append({
                 "type": "rect", "xref": "x", "yref": "paper",
                 "x0": g["start"] - 0.5, "x1": g["end"] + 0.5,

@@ -64,7 +64,7 @@ class MapBiomasAnalyzer:
         
         Args:
             geometry: Area of interest
-            year: Year to analyze (1985-2024)
+            year: Year to analyze (within the active collection's MAPBIOMAS_YEARS)
             scale: Analysis scale in meters
         
         Returns:
@@ -75,8 +75,12 @@ class MapBiomasAnalyzer:
                 logger.error("MapBiomas dataset not available")
                 return pd.DataFrame()
             
-            if year < 1985 or year > 2024:
-                logger.error(f"Year {year} out of range (1985-2024)")
+            # Bounds follow the active collection (C11 ends 2025, C10.1 in 2024).
+            if year not in MAPBIOMAS_YEARS:
+                logger.error(
+                    f"Year {year} out of range "
+                    f"({MAPBIOMAS_YEARS[0]}-{MAPBIOMAS_YEARS[-1]})"
+                )
                 return pd.DataFrame()
             
             # Extract band for year
