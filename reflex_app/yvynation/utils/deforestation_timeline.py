@@ -14,7 +14,7 @@ Indicators (all aggregated as area in hectares per calendar year):
                              event) or "class_value" (per-year band whose
                              pixel is class code 100).
   * ``mb_secondary_growth``— same dataset, class 200 / regrowth-year band.
-  * ``mb_fire_scar``       — MapBiomas Fire Coll. 4 annual burned area
+  * ``mb_fire_scar``       — MapBiomas Fire Coll. 5 annual burned area
                              (any non-zero pixel in the per-year band).
 
 All return values are dicts ``{int_year: float_ha}``; years with no
@@ -477,10 +477,10 @@ def mapbiomas_secondary_regrowth_series(
 def mapbiomas_fire_scar_series(
     ee_geometry, year_start: int, year_end: int,
 ) -> Dict[int, float]:
-    """Per-year burned area (ha) from MapBiomas Fire Coll. 4 scar-size dataset.
+    """Per-year burned area (ha) from MapBiomas Fire Coll. 5 scar-size dataset.
     
     Uses resolve_aux_band() to match the correct band template (e.g., scar_area_ha_{year})
-    and respects the fire collection's year range (1987-2024, not 1985).
+    and respects the fire collection's year range (1985-2025 in Coll. 5).
     """
     from ..config.config import MAPBIOMAS_AUX_DATASETS, resolve_aux_band
     spec = MAPBIOMAS_AUX_DATASETS.get("fire_scar_size") or {}
@@ -493,8 +493,8 @@ def mapbiomas_fire_scar_series(
         return {y: 0.0 for y in range(year_start, year_end + 1)}
 
     # Fire collection has different year ranges — respect them
-    collection_year_start = spec.get("year_start", 1987)
-    collection_year_end = spec.get("year_end", 2024)
+    collection_year_start = spec.get("year_start", 1985)
+    collection_year_end = spec.get("year_end", 2025)
     
     # Clamp the year range to the collection's valid range
     clamped_start = max(year_start, collection_year_start)

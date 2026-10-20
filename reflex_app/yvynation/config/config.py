@@ -138,7 +138,7 @@ HANSEN_COLOR_MAP = {
 }
 
 # ==============================================================================
-# MAPBIOMAS AUXILIARY RASTERS (collection 10 / 10.1 / fire collection 4)
+# MAPBIOMAS AUXILIARY RASTERS (collection 10 / 10.1 / 11, fire collection 5)
 # ------------------------------------------------------------------------------
 # Each entry describes one EE Image that can be rendered as an additional PNG
 # in the batch map output. Fields:
@@ -190,41 +190,43 @@ MAPBIOMAS_AUX_DATASETS = {
         },
     },
     "fire_scar_size": {
-        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
-                 "mapbiomas_fire_collection4_annual_burned_scar_size_range_v1",
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection5/"
+                 "mapbiomas_fire_collection5_annual_burned_scar_size_range_v1",
         "label": "Annual Burned Area (scar size)",
         "value_semantics": "class_value",  # It's a class value (1-5), not raw area
         "band_candidates": [
             "scar_area_ha_{year}",  # Correct band pattern from error
         ],
         "per_year": True,
-        "year_start": 1987,  # Changed from 1985 - error shows collection starts 1987
-        "year_end": 2024,
+        # Fire Coll. 5 has scar_area_ha_1985 … scar_area_ha_2025 with real
+        # burned area from 1985 (the old 1987 start zeroed two real years).
+        "year_start": 1985,
+        "year_end": 2025,
         "vis": {
             "min": 1, "max": 5,  # Classes: 1=<10ha, 2=10-100, 3=100-1000, 4=1000-10000, 5=>10000
             "palette": ["fee08b", "fdae61", "f46d43", "d73027", "7f0000"],
         },
     },
     "fire_frequency": {
-        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
-                 "mapbiomas_fire_collection4_fire_frequency_v1",
-        "label": "Fire Frequency (1985–2024)",
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection5/"
+                 "mapbiomas_fire_collection5_fire_frequency_v1",
+        "label": "Fire Frequency (1985–2025)",
         "value_semantics": "class_value",
         "band_candidates": [
-            "fire_frequency_1985_2024",  # Single band for the whole period
+            "fire_frequency_1985_2025",  # Single band for the whole period
             "fire_frequency",
         ],
         "per_year": False,
         "year_start": 1985,
-        "year_end": 2024,
+        "year_end": 2025,
         "vis": {
             "min": 0, "max": 20,
             "palette": ["ffffff", "ffffb2", "fecc5c", "fd8d3c", "f03b20", "bd0026"],
         },
     },
     "fire_year_last": {
-        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection4/"
-                 "mapbiomas_fire_collection4_year_last_fire_v1",
+        "asset": "projects/mapbiomas-public/assets/brazil/fire/collection5/"
+                 "mapbiomas_fire_collection5_year_last_fire_v1",
         "label": "Year of Last Fire",
         "value_semantics": "year_value",
         "band_candidates": [
@@ -234,9 +236,9 @@ MAPBIOMAS_AUX_DATASETS = {
         ],
         "per_year": False,
         "year_start": 1987,
-        "year_end": 2024,
+        "year_end": 2025,
         "vis": {
-            "min": 1985, "max": 2024,
+            "min": 1985, "max": 2025,
             "palette": ["440154", "3b528b", "21918c", "5ec962", "fde725"],
         },
     },

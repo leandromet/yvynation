@@ -484,7 +484,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_aux_rasters_label": "Rásteres MapBiomas extra (año 2)",
     "batch_aux_deforestation": "🌳 Deforestación y vegetación secundaria",
     "batch_aux_fire_scar": "🔥 Área quemada anual (tamaño de la cicatriz)",
-    "batch_aux_fire_frequency": "📊 Frecuencia de fuego (período completo 1985–2024)",
+    "batch_aux_fire_frequency": "📊 Frecuencia de fuego (período completo 1985–2025)",
     "batch_aux_fire_year_last": "📅 Año del último fuego",
     "batch_aux_mining": "⛏️ Sustancias de minería",
     "batch_aux_agriculture": "🌾 Agricultura — número de ciclos",

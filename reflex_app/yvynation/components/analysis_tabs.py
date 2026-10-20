@@ -1949,7 +1949,7 @@ def maps_tab() -> rx.Component:
          AppState.toggle_map_aux_deforestation),
         ("🔥 Annual burned area", AppState.map_aux_fire_scar,
          AppState.toggle_map_aux_fire_scar),
-        ("📊 Fire frequency (1985–2024)", AppState.map_aux_fire_frequency,
+        ("📊 Fire frequency (1985–2025)", AppState.map_aux_fire_frequency,
          AppState.toggle_map_aux_fire_frequency),
         ("📅 Year of last fire", AppState.map_aux_fire_year_last,
          AppState.toggle_map_aux_fire_year_last),
