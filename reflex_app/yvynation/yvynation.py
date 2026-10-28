@@ -4,6 +4,7 @@ This module is discovered by Reflex's module loading system.
 """
 import reflex as rx
 from yvynation.config import GA_MEASUREMENT_ID
+from yvynation.pages.demonstracao import PAGINAS as DEMONSTRACOES
 from yvynation.pages.index import index
 from yvynation.state import AppState
 from yvynation.utils.download_routes import download_app
@@ -108,15 +109,24 @@ app = rx.App(
         # on AppState.idle_guard_busy (via #idle-guard-marker in
         # pages/index.py) so it never fires mid-batch-run — see
         # assets/idle_guard.js and assets/paused.html.
-        rx.el.script(src="/assets/idle_guard.js", defer=True),
+        # Reflex serves the app-root assets/ folder at the site root, so the
+        # file is /idle_guard.js — the old /assets/idle_guard.js fell through
+        # to the SPA's HTML ("Unexpected token '<'") and the guard never ran.
+        rx.el.script(src="/idle_guard.js", defer=True),
     ],
 )
 app.add_page(
     index,
     route="/",
     title="Yvynation - Land Monitoring Platform",
-    on_load=AppState.adopt_lang_param,
+    on_load=AppState.adopt_url_params,
 )
+
+# The scrolling walkthroughs, one per way in from the portal (pages/
+# demonstracao.py). Their numbers come over HTTP from /_demonstracao/
+# yvynation.json, so the pages have no state of their own and no on_load.
+for _route, _page, _title in DEMONSTRACOES:
+    app.add_page(_page, route=_route, title=_title)
 
 # The Canada page: its own state, sidebar, results and native Leaflet map
 # (canada/, ported from camposcope's Canada page), so Brazil-only datasets and

@@ -160,6 +160,8 @@ def download_app() -> Starlette:
     """
     # The Canada page's geometry routes ride on the same app (canada/api.py).
     from ..canada.api import routes as canada_routes
+    # So does the demonstrations' data route (api/demonstracao.py).
+    from ..api.demonstracao import routes as demo_routes
 
     return Starlette(
         routes=[
@@ -169,6 +171,7 @@ def download_app() -> Starlette:
                 methods=["GET"],
             ),
             *canada_routes(),
+            *demo_routes(),
         ]
     )
 

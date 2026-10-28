@@ -1,0 +1,164 @@
+<header class="rp-topo" data-modo="desenho">
+  <span class="marca"><a href="/">Yvynation</a> · demonstração</span>
+  <span class="rp-exemplo" id="topo-exemplo"></span>
+  <span class="sp"></span>
+  <a href="/" id="link-app" class="rp-link-forte">abrir no aplicativo →</a>
+</header>
+
+<section class="rp-abertura">
+  <div class="rp-chapeu">Área desenhada · uso da terra · passo a passo</div>
+  <h1>Desenhe a área: a pergunta que nenhum mapa oficial faz</h1>
+  <p class="rp-linha-fina">Nem toda pergunta cabe numa terra indígena ou numa unidade de conservação. Desenhe um polígono, ou envie um arquivo, e o Yvynation roda nele as mesmas análises: MapBiomas, Hansen, a linha do tempo e a zona em volta. Esta demonstração usa uma área desenhada ao longo do rio Madeira, onde duas usinas formaram reservatórios a partir de 2011.</p>
+  <p class="rp-cred" id="abertura-exemplo">Carregando o exemplo no Earth Engine (a primeira visita pode levar até um minuto)…</p>
+  <div class="rp-numeros" aria-live="polite">
+    <div><b data-campo="n-area">—</b><small>área do polígono desenhado <span class="selo real">real</span></small></div>
+    <div><b data-campo="n-dentro">—</b><small data-campo="n-dentro-rot">vegetação nativa dentro, no último ano</small></div>
+    <div><b data-campo="n-fora">—</b><small data-campo="n-fora-rot">vegetação nativa em volta</small></div>
+    <div><b data-campo="n-perda">—</b><small>de cobertura arbórea perdida dentro, 2001–2024 (Hansen) <span class="selo real">real</span></small></div>
+  </div>
+  <p class="rp-legenda-selos">
+    <span class="selo real">real</span> calculado agora, a partir de dado de satélite ou da geometria do catálogo.
+    <span class="selo ausente">ausente</span> análise que não respondeu neste cálculo.
+  </p>
+</section>
+
+<section class="rp-scrolly">
+  <div class="rp-passos">
+
+    <article class="rp-passo" data-passo="area" data-camada="area" data-mapa="grande" data-bloco="area" data-titulo="Área de estudo" data-selo="real">
+      <div class="num">1</div>
+      <h2>Desenhar, ou enviar um arquivo</h2>
+      <p>Na análise por geometria, a barra de ferramentas do mapa desenha polígonos, retângulos e pontos; o painel de envio aceita GeoJSON, shapefile (zipado) e KML. Várias áreas podem ser guardadas e comparadas. A pergunta deste exemplo só uma área desenhada responde: o que os reservatórios do Madeira inundaram?</p>
+      <p id="t-area"></p>
+      <p class="como"><b>No aplicativo:</b> na portada, o cartão <b>Análise de Geometria</b>; no mapa, as ferramentas de desenho e o botão <b>Salvar Desenho</b>. Link direto: <code>/?modo=desenho</code>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="buffer" data-camada="buffer" data-mapa="grande" data-bloco="area" data-titulo="Zona em volta" data-selo="real">
+      <div class="num">2</div>
+      <h2>Dez quilômetros em volta, para comparar</h2>
+      <p>Um número dentro da área só ganha sentido ao lado do que acontece fora dela. Ao escolher a área, o Yvynation cria
+        sozinho um anel de 10 km para fora da divisa, que exclui a própria área, e roda nele as mesmas análises.</p>
+      <p id="t-buffer"></p>
+      <p class="como"><b>No aplicativo:</b> painel <b>Buffer Zone</b> na barra lateral: o anel de 10 km é criado ao escolher a área, e outro raio pode ser pedido em <b>Create</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="cobertura" data-camada="cobertura" data-mapa="meio" data-bloco="mapbiomas" data-titulo="MapBiomas · último ano" data-selo="real">
+      <div class="num">3</div>
+      <h2>Dentro e fora, no último ano</h2>
+      <p>O MapBiomas Coleção 11 classifica cada pixel de 30 m do Brasil todo ano. A área de cada classe é calculada com o
+        tamanho real de cada pixel, não com 900 m² fixos. As barras comparam a parte de cada classe dentro e em volta.</p>
+      <p id="t-cobertura"></p>
+      <p class="como"><b>No aplicativo:</b> botão <b>Executar todas as análises</b> depois de salvar o desenho, aba <b>MapBiomas</b> em <b>Resultados</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="tempo" data-camada="tempo" data-mapa="meio" data-bloco="comparar" data-titulo="Vegetação nativa · 1985, 2005, 2025" data-selo="real">
+      <div class="num">4</div>
+      <h2>Quarenta anos em três fotografias</h2>
+      <p>A mesma conta em 1985, 2005 e 2025: a parte de cada zona que é vegetação nativa (floresta, savana e campos). No
+        mapa, o primeiro ano da série, para comparar com o passo anterior.</p>
+      <p id="t-tempo"></p>
+      <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b> (dois anos lado a lado) e aba <b>Multi-window</b> (vários anos de uma vez).</p>
+    </article>
+
+    <article class="rp-passo" data-passo="transicoes" data-camada="transicoes" data-mapa="pequeno" data-bloco="comparar" data-titulo="Transições 1985 → 2025" data-selo="real">
+      <div class="num">5</div>
+      <h2>O que virou o quê</h2>
+      <p>O diagrama liga cada classe de 1985 à classe que o mesmo pixel tinha em 2025. A faixa que liga uma classe a ela
+        mesma é o que não mudou; as que cruzam são a mudança.</p>
+      <p id="t-transicoes"></p>
+      <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b>, com a matriz de transições, e aba <b>Treemaps</b>, uma por classe.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="hansen" data-camada="hansen" data-mapa="meio" data-bloco="hansen" data-titulo="Hansen · Global Forest Change" data-selo="real">
+      <div class="num">6</div>
+      <h2>Uma segunda opinião sobre a floresta</h2>
+      <p>O Hansen/UMD mede outra coisa: cobertura de árvores, não classes de uso. Parte da copa de 2000, marca o ano em que
+        cada pixel perdeu as árvores e um ganho sem data. Quando MapBiomas e Hansen contam a mesma história, ela fica mais firme.</p>
+      <p id="t-hansen"></p>
+      <p class="como"><b>No aplicativo:</b> aba <b>Hansen GFC</b>, e aba <b>Hansen/GLAD</b> para a cobertura de um ano.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="linha" data-camada="linha" data-mapa="oculto" data-bloco="timeline" data-titulo="Linha do tempo" data-selo="real">
+      <div class="num">7</div>
+      <h2>Ano a ano: desmatamento, regeneração e fogo</h2>
+      <p>A linha do tempo junta quatro séries anuais: o desmatamento de vegetação primária e a regeneração (MapBiomas
+        Desmatamento e Vegetação Secundária), a perda de copa (Hansen) e as cicatrizes de fogo (MapBiomas Fogo).</p>
+      <p id="t-linha"></p>
+      <p>Nos reservatórios, boa parte da mudança depois de 2011 não é desmatamento para uso: é floresta que virou água. O diagrama de transições do passo 5 separa uma coisa da outra.</p>
+      <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, que pode sobrepor o contexto político (governos federal e estadual) e o ENSO.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="contraste" data-camada="contraste" data-mapa="oculto" data-bloco="timeline" data-titulo="Dentro × em volta" data-selo="real">
+      <div class="num">8</div>
+      <h2>A mesma linha, dentro e fora</h2>
+      <p>Para comparar zonas de tamanhos diferentes, o desmatamento vira hectares por 1.000 hectares de cada zona. Se a
+        linha de fora sobe e a de dentro não, a divisa está segurando; se as duas sobem juntas, a pressão já atravessou.</p>
+      <p id="t-contraste"></p>
+      <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, com a zona de amortecimento ligada.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="exportar" data-camada="exportar" data-mapa="oculto" data-bloco="exportar" data-titulo="Exportar e citar" data-selo="real">
+      <div class="num">9</div>
+      <h2>Relatório, tabelas e mapas para levar</h2>
+      <p>Tudo o que aparece nas abas sai do aplicativo: relatório em PDF, tabelas em CSV, mapas e gráficos em PNG, num ZIP só.
+        Os dados gerados no Yvynation são abertos (CC BY 4.0), com a fonte de cada camada.</p>
+      <p class="como"><b>No aplicativo:</b> painel <b>Export &amp; Download</b> abaixo dos resultados, e <b>Como Citar</b> no topo.</p>
+    </article>
+
+  </div>
+
+  <div class="rp-figura" aria-live="polite">
+    <div class="rp-moldura">
+      <div class="rp-barra-janela"><i></i><i></i><i></i><span id="rp-fig-url">yvynation.umaterra.com.br</span></div>
+      <div class="rp-fig-corpo">
+        <nav class="rp-pagina" aria-label="Onde fica no aplicativo">
+          <div class="pg-rot">no aplicativo</div>
+          <div class="pg-b alto" data-bloco="area">área de estudo · buffer</div>
+          <div class="pg-b" data-bloco="mapa">mapa</div>
+          <div class="pg-par"><div class="pg-b" data-bloco="mapbiomas">MapBiomas</div><div class="pg-b" data-bloco="hansen">Hansen</div></div>
+          <div class="pg-par"><div class="pg-b" data-bloco="comparar">comparar</div><div class="pg-b" data-bloco="timeline">timeline</div></div>
+          <div class="pg-b" data-bloco="exportar">export &amp; download</div>
+        </nav>
+        <div class="rp-fig-principal">
+          <div class="rp-fig-cab"><span id="rp-fig-titulo">Carregando…</span><span id="rp-fig-selo" class="selo real">real</span></div>
+          <div class="rp-fig-area" data-mapa="grande">
+            <div class="rp-mapa-caixa"><div id="rp-mapa"></div><div class="rp-mapa-legenda" id="rp-mapa-legenda"></div></div>
+            <div class="rp-painel">
+              <div id="rp-fig-estado" class="rp-fig-estado">Calculando o exemplo no Earth Engine (a primeira visita pode levar até um minuto)…</div>
+              <div class="rp-camada" id="camada-area"><div id="fig-area"></div></div>
+              <div class="rp-camada" id="camada-buffer"><div id="fig-buffer"></div></div>
+              <div class="rp-camada" id="camada-cobertura"><div id="fig-cobertura"></div></div>
+              <div class="rp-camada" id="camada-tempo"><div id="fig-tempo"></div></div>
+              <div class="rp-camada" id="camada-transicoes"><div id="fig-transicoes"></div></div>
+              <div class="rp-camada" id="camada-hansen"><div id="fig-hansen"></div></div>
+              <div class="rp-camada" id="camada-linha"><div id="fig-linha"></div></div>
+              <div class="rp-camada" id="camada-contraste"><div id="fig-contraste"></div></div>
+              <div class="rp-camada" id="camada-exportar">
+                <img class="rp-print" id="fig-exportar-print" src="/demo_prints/desenho_madeira.jpg" alt="A análise por geometria, com as ferramentas de desenho à esquerda do mapa." loading="lazy">
+                <p class="rp-print-cap">A análise por geometria, com as ferramentas de desenho à esquerda do mapa. <span class="selo print">print</span></p>
+                <div id="fig-exportar" style="margin-top:8px"></div>
+              </div>
+              <p class="rp-fig-legenda" id="rp-fig-legenda"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rp-fim">
+  <h2>O que o Yvynation não diz</h2>
+  <ul class="rp-limites">
+    <li><b>A área desenhada não tem valor legal.</b> É a pergunta de quem desenhou. Os números valem para aquele polígono, não para um imóvel, um município ou uma bacia.</li>
+    <li><b>O traço importa.</b> Desenhado em escala regional, o polígono inclui margens e ilhas que um desenho fino deixaria de fora; a conta é exata para o polígono, não para a intenção.</li>
+    <li><b>Inundação não é desmatamento para uso.</b> O satélite vê floresta virar água; o licenciamento, a compensação e a supressão autorizada ficam fora.</li>
+    <li><b>A zona de 10 km é só comparação.</b> É um anel igual para qualquer área, para ver se a mudança é do polígono ou da região.</li>
+    <li><b>Não enxerga abaixo de 30 m.</b> Clareiras pequenas e degradação sob a copa escapam do MapBiomas e do Hansen.</li>
+  </ul>
+  <p class="rp-fim-extra" id="fim-extra"></p>
+  <a class="rp-cta" id="cta-app" href="/">Abrir no Yvynation →</a>
+  <a class="rp-cta sec" href="/canada">Yvynation Canadá</a>
+  <p class="rp-rodape">Os números vêm das mesmas funções do aplicativo: o exemplo fica guardado com a página, e outra área é calculada na hora.</p>
+  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> · <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a> · <a href="/demonstracao/lote">várias áreas em lote</a>.</p>
+</section>

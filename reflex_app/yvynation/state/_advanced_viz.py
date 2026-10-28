@@ -253,7 +253,8 @@ class AdvancedVizMixin(rx.State, mixin=True):
         """Active year list for the multi-window analysis.
 
         Constant mode: start at 1985, step by ``mw_step`` years, always include
-        2024.  Custom mode: parse 3–10 valid comma-separated years (1985–2024).
+        the collection's last year (END_YEAR).  Custom mode: parse 3–10 valid
+        comma-separated years within the collection.
         Returns an empty list when the input is invalid.
         """
         try:

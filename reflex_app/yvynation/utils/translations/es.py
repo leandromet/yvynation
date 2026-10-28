@@ -197,6 +197,12 @@ TRANSLATIONS_ES = {
     "getting_started_header": "Como Usar Esta Plataforma",
     "getting_started_title": "Primeros Pasos",
     "getting_started_intro": "Esta plataforma permite análisis integral de cobertura del suelo para Brasil y monitoreo forestal global. Puede analizar áreas personalizadas, territorios indígenas y zonas de amortiguamiento externas.",
+    "demo_links_title": "¿Prefiere verlo funcionando? Demostraciones paso a paso con ejemplos reales (en portugués):",
+    "demo_link_ti": "una tierra indígena",
+    "demo_link_uc": "una unidad de conservación",
+    "demo_link_draw": "un área dibujada",
+    "demo_link_batch": "varias áreas en lote",
+    "batch_demo_link": "Demostración paso a paso de un lote real (en portugués) →",
 
     "step_language_region": "Paso 0: Selección de Idioma y Región",
     "step0_language_region_intro": "Configure su idioma y seleccione su región de interes:",

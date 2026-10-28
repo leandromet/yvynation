@@ -12,6 +12,6 @@ config = rx.Config(
     disable_plugins=["reflex.plugins.sitemap.SitemapPlugin"],
     # Ports: frontend uses $PORT (Cloud Run's injected port), backend uses $BACKEND_PORT.
     # Keeping them separate prevents both from binding to the same port on Cloud Run.
-    frontend_port=int(os.environ.get("PORT", 3000)),
+    frontend_port=int(os.environ.get("PORT", 3008)),
     backend_port=int(os.environ.get("BACKEND_PORT", 8000)),
 )

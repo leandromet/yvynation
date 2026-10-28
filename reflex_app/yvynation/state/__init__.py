@@ -184,7 +184,7 @@ class AppState(
     # Per-geometry analysis cache
     geometry_analysis_results: Dict[int, Dict[str, Any]] = {}
     geometry_analysis_type: str = "mapbiomas"   # "mapbiomas" | "hansen_glad" | "hansen_gfc"
-    geometry_analysis_year: Union[int, str] = 2023
+    geometry_analysis_year: Union[int, str] = MAPBIOMAS_YEARS[-1]
     geometry_hansen_glad_year: str = "2020"  # For Hansen GLAD (forest cover) analysis on geometry - year options: 2000, 2005, 2010, 2015, 2020
     geometry_analysis_pending: bool = False
 
@@ -220,7 +220,7 @@ class AppState(
     result_keys_list: List[str] = []
 
     # Territory display info
-    territory_analysis_year: int = 2024
+    territory_analysis_year: int = MAPBIOMAS_YEARS[-1]
     territory_geometry_displayed: bool = False
     territory_geojson_features: List[Dict[str, Any]] = []
 
@@ -237,7 +237,7 @@ class AppState(
     territory_result: Optional[Dict[str, Any]] = None
     territory_result_year2: Optional[Dict[str, Any]] = None
     territory_name: str = ""
-    territory_year: int = 2024
+    territory_year: int = MAPBIOMAS_YEARS[-1]
     territory_year2: Optional[int] = None
     territory_source: str = "MapBiomas"
     territory_transitions: Optional[Dict[str, Any]] = None
@@ -248,7 +248,7 @@ class AppState(
     show_geometries_on_map: bool = True
     show_change_mask: bool = False
     change_mask_year1: int = 2018
-    change_mask_year2: int = 2024
+    change_mask_year2: int = MAPBIOMAS_YEARS[-1]
     #: Incremented to force map HTML rebuild
     geometry_version: int = 0
     analysis_tile_layers: List[Dict[str, str]] = []
@@ -998,11 +998,11 @@ class AppState(
 
     @rx.var(auto_deps=False, deps=["mapbiomas_current_year"])
     def mapbiomas_current_year_str(self) -> str:
-        return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else "2024"
+        return str(self.mapbiomas_current_year) if self.mapbiomas_current_year > 0 else str(MAPBIOMAS_YEARS[-1])
 
     @rx.var(auto_deps=False, deps=["geometry_analysis_year"])
     def geometry_analysis_year_str(self) -> str:
-        return str(self.geometry_analysis_year) if self.geometry_analysis_year else "2024"
+        return str(self.geometry_analysis_year) if self.geometry_analysis_year else str(MAPBIOMAS_YEARS[-1])
 
     @rx.var(auto_deps=False, deps=["change_mask_year1"])
     def change_mask_year1_str(self) -> str:

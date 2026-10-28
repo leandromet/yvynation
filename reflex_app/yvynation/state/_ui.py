@@ -241,6 +241,32 @@ class UIMixin(rx.State, mixin=True):
 
     # ---- Navigation (analysis mode) ------------------------------------------
 
+    def adopt_url_params(self):
+        """``on_load`` of ``/``: ``?lang=``, then ``?modo=`` and ``?busca=``.
+
+        ``modo`` opens one of the four ways in straight from a link —
+        ``desenho``, ``terra-indigena``, ``unidade-conservacao`` or ``lote`` —
+        through the same navigation handler as the portal card; ``busca``
+        pre-fills the territory search so the list opens filtered to one name.
+        This is what the demonstration pages (``/demonstracao/...``) link to.
+        Anything unrecognised leaves the portal as it would load.
+        """
+        self.adopt_lang_param()
+        q = self.router.url.query_parameters
+        modo = q.get("modo", "")
+        busca = q.get("busca", "")
+        if busca:
+            self.territory_search_query = busca
+        if modo == "desenho":
+            return self.__class__.go_to_geometry_analysis
+        if modo == "terra-indigena":
+            return self.__class__.go_to_territory_analysis("indigenous")
+        if modo == "unidade-conservacao":
+            return self.__class__.go_to_territory_analysis("conservation")
+        if modo == "lote":
+            return self.__class__.go_to_batch_processing
+        return None
+
     def go_to_geometry_analysis(self):
         """Navigate to geometry analysis page, then kick off background EE load.
 

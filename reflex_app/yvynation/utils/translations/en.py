@@ -197,6 +197,12 @@ TRANSLATIONS_EN = {
     "getting_started_header": "How to Use This Platform",
     "getting_started_title": "Getting Started",
     "getting_started_intro": "This platform enables comprehensive land cover analysis for Brazil and global forest monitoring. You can analyze custom areas, indigenous territories, and external buffer zones.",
+    "demo_links_title": "Rather see it working? Step-by-step walkthroughs with real examples (in Portuguese):",
+    "demo_link_ti": "an Indigenous land",
+    "demo_link_uc": "a conservation unit",
+    "demo_link_draw": "an area you draw",
+    "demo_link_batch": "many areas in one batch",
+    "batch_demo_link": "Step-by-step walkthrough of a real batch run (in Portuguese) →",
 
     "step_language_region": "Step 0: Language & Region Selection",
     "step0_language_region_intro": "Configure your language and select your region of interest:",

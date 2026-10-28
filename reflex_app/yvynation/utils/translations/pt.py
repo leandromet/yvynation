@@ -197,6 +197,12 @@ TRANSLATIONS_PT = {
     "getting_started_header": "Como Usar Esta Plataforma",
     "getting_started_title": "Primeiros Passos",
     "getting_started_intro": "Esta plataforma permite análise abrangente de cobertura do solo para o Brasil e monitoramento florestal global. Você pode analisar áreas personalizadas, territórios indígenas e zonas de amortecimento externas.",
+    "demo_links_title": "Prefere ver funcionando? Demonstrações passo a passo com exemplos reais:",
+    "demo_link_ti": "uma terra indígena",
+    "demo_link_uc": "uma unidade de conservação",
+    "demo_link_draw": "uma área desenhada",
+    "demo_link_batch": "várias áreas em lote",
+    "batch_demo_link": "Demonstração passo a passo de um lote real →",
 
     "step_language_region": "Passo 0: Seleção de Idioma e Região",
     "step0_language_region_intro": "Configure seu idioma e selecione sua região de interesse:",

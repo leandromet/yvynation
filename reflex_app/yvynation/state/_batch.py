@@ -39,6 +39,8 @@ from typing import Any, Dict, List, Optional
 
 import reflex as rx
 
+from ..config.config import MAPBIOMAS_YEARS
+
 logger = logging.getLogger(__name__)
 
 # NOTE: the batch ZIP used to be held here as a module-level bytes blob and
@@ -490,7 +492,7 @@ class BatchMixin(rx.State, mixin=True):
     # ``int_var.to(str)`` does not reactively update the displayed dropdown
     # value in Reflex 0.8.27 — use a direct string var instead.
     batch_year: str = "1985"      # single-year MapBiomas
-    batch_year2: str = "2024"     # comparison year
+    batch_year2: str = str(MAPBIOMAS_YEARS[-1])  # comparison year: the active collection's last
     batch_hansen_year: str = "2020"
     batch_buffer_km: str = "10"
     batch_buffer_enabled: bool = True
@@ -533,13 +535,13 @@ class BatchMixin(rx.State, mixin=True):
     batch_png_high_res: bool = False
     # ── Multiple time-window MapBiomas (off by default) ───────────────────
     batch_run_multi_window: bool = False
-    # "constant" → step list from 1985, force-end on 2024
+    # "constant" → step list from 1985, force-end on the collection's last year
     # "custom"   → user-supplied comma-separated year list
     batch_multi_window_mode: str = "constant"
     # Step in years for the constant mode (one of 1, 2, 4, 5, 8).
     batch_multi_window_step: str = "8"
     # Custom mode: 3 to 10 user-selected years, comma-separated.
-    batch_multi_window_custom_years: str = "1985, 1994, 2004, 2014, 2024"
+    batch_multi_window_custom_years: str = f"1985, 1995, 2005, 2015, {MAPBIOMAS_YEARS[-1]}"
     batch_territory_search: str = ""
     # Which GeoPackage backs the territory list view — always exactly one
     # entry ("indigenous" or "conservation"; kept as a list so the existing
@@ -1397,11 +1399,12 @@ class BatchMixin(rx.State, mixin=True):
         """Compute the active year list for the multi-window analysis.
 
         Constant mode: start at 1985, take steps of ``batch_multi_window_step``
-        years, always include 2024 as the final year. Custom mode: parse the
-        comma-separated text and keep 3 to 10 valid years between 1985 and 2024.
+        years, always include the collection's last year as the final one. Custom
+        mode: parse the comma-separated text and keep 3 to 10 valid years within
+        the collection.
         Returns an empty list when the input is invalid.
         """
-        START, END = 1985, 2024
+        START, END = MAPBIOMAS_YEARS[0], MAPBIOMAS_YEARS[-1]
         try:
             if self.batch_multi_window_mode == "custom":
                 raw = [p.strip() for p in self.batch_multi_window_custom_years.split(",") if p.strip()]

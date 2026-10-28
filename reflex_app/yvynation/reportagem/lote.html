@@ -1,0 +1,138 @@
+<header class="rp-topo" data-modo="lote">
+  <span class="marca"><a href="/">Yvynation</a> · demonstração</span>
+  <span class="rp-exemplo" id="topo-exemplo">processamento em lote</span>
+  <span class="sp"></span>
+  <a href="/?modo=lote&amp;lang=pt" id="link-app" class="rp-link-forte">abrir o processamento em lote →</a>
+</header>
+
+<section class="rp-abertura">
+  <div class="rp-chapeu">Processamento em lote · passo a passo</div>
+  <h1>Cem territórios numa tarde: o processamento em lote, passo a passo</h1>
+  <p class="rp-linha-fina">Quando a pergunta não é sobre uma terra, mas sobre muitas — todas as terras indígenas de um
+    estado, as reservas extrativistas de um bioma —, o Yvynation roda a análise completa em até cem territórios de uma vez
+    e entrega um ZIP só. Esta demonstração mostra cada tela de uma execução real e, no fim, o que um lote pequeno já responde.</p>
+  <p class="rp-cred" id="abertura-exemplo">Carregando o lote de exemplo no Earth Engine…</p>
+  <div class="rp-numeros" aria-live="polite">
+    <div><b data-campo="n-ti">—</b><small>terras indígenas no catálogo da FUNAI</small></div>
+    <div><b data-campo="n-uc">—</b><small>unidades de conservação no CNUC</small></div>
+    <div><b>100</b><small>territórios por execução, no máximo</small></div>
+    <div><b data-campo="n-lote">—</b><small data-campo="n-lote-rot">territórios no lote de exemplo</small></div>
+  </div>
+  <p class="rp-legenda-selos">
+    <span class="selo print">print</span> captura de tela de uma execução real do aplicativo.
+    <span class="selo real">real</span> calculado agora pelas mesmas funções que o lote usa.
+  </p>
+</section>
+
+<section class="rp-scrolly">
+  <div class="rp-passos">
+
+    <article class="rp-passo" data-passo="selecionar" data-camada="selecionar" data-mapa="oculto" data-bloco="selecionar" data-titulo="1 · Selecionar" data-selo="print">
+      <div class="num">1</div>
+      <h2>Escolher muitas áreas de uma vez</h2>
+      <p>O lote começa pela lista: terras indígenas ou unidades de conservação, com povo, fase, estado e área de cada uma.
+        A busca e os <b>filtros</b> (estado, fase, modalidade, categoria, esfera, grupo, faixa de área) recortam a lista;
+        <b>Selecionar todos os filtrados</b> leva o recorte inteiro. Também dá para colar ou enviar uma lista de nomes.</p>
+      <p>Nesta execução de exemplo, duas terras pequenas de Mato Grosso do Sul: Jaguari (405 ha) e Guaimbé (717 ha).
+        Áreas pequenas calculam em minutos; um lote de cem terras grandes leva horas.</p>
+      <p class="como"><b>No aplicativo:</b> portada → cartão <b>Processamento em Lote</b>, etapa <b>Selecionar</b>.
+        Link direto: <code>/?modo=lote</code>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="revisar" data-camada="revisar" data-mapa="oculto" data-bloco="selecionar" data-titulo="Revisar a seleção" data-selo="print">
+      <div class="num">2</div>
+      <h2>Conferir antes de gastar uma tarde</h2>
+      <p>Um lote grande leva tempo e cota do Earth Engine. O botão <b>Revisar</b> mostra a seleção inteira, com área e
+        estado de cada território, antes de qualquer cálculo. Ao iniciar, o aplicativo ainda pede confirmação.</p>
+      <p class="como"><b>No aplicativo:</b> botão <b>Revisar</b>, ao lado da contagem <b>n/100 selecionado(s)</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="configurar" data-camada="configurar" data-mapa="oculto" data-bloco="configurar" data-titulo="2 · Configurar" data-selo="print">
+      <div class="num">3</div>
+      <h2>Anos, análises, figuras e a zona em volta</h2>
+      <p>A configuração vale para todos os territórios do lote: os anos do MapBiomas (um ano, ou dois para comparar), o ano
+        do Hansen GLAD, quais análises rodar (MapBiomas, comparação entre anos, treemaps de transição, Hansen GLAD e GFC,
+        mapas em PNG), as figuras, a multi-janela de anos, a linha do tempo e a zona de amortecimento.</p>
+      <p>Cada território recebe exatamente as mesmas contas, o que torna o lote comparável linha a linha.</p>
+      <p class="como"><b>No aplicativo:</b> etapa <b>Configurar</b>, grupos <b>Anos</b>, <b>Análises</b>, <b>Figuras e imagens</b>,
+        <b>Multi-janela</b>, <b>Linha do tempo</b> e <b>Zona de amortecimento</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="executar" data-camada="executar" data-mapa="oculto" data-bloco="executar" data-titulo="3 · Executar" data-selo="print">
+      <div class="num">4</div>
+      <h2>Rodar sem supervisão</h2>
+      <p>Iniciado o lote, o aplicativo processa os territórios em paralelo, com um registro de cada etapa e novas tentativas
+        automáticas quando o Earth Engine recusa um pedido. A aba pode ficar aberta sozinha: o lote não é pausado enquanto roda.</p>
+      <p id="t-executar"></p>
+      <p class="como"><b>No aplicativo:</b> botão <b>Iniciar Processamento em Lote</b> na barra de baixo; etapa <b>Executar</b>, com o progresso por território.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="zip" data-camada="zip" data-mapa="oculto" data-bloco="executar" data-titulo="Um ZIP por lote" data-selo="print">
+      <div class="num">5</div>
+      <h2>Um arquivo só, com tudo dentro</h2>
+      <p>No fim, um ZIP reúne uma pasta por território: o leia-me, os metadados da execução (anos, análises, versões das
+        fontes), as tabelas e as figuras. O mesmo pacote fica guardado em <b>Execuções Anteriores</b>, para baixar de novo depois.</p>
+      <p class="como"><b>No aplicativo:</b> botão de download ao fim da etapa <b>Executar</b>, e <b>Execuções Anteriores</b> no topo.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="comparar" data-camada="comparar" data-mapa="meio" data-bloco="resultado" data-titulo="O que um lote responde" data-selo="real">
+      <div class="num">6</div>
+      <h2>O que um lote pequeno já responde</h2>
+      <p>Com as mesmas contas em todas as linhas, a pergunta passa a ser comparativa. Aqui, as oito terras indígenas
+        regularizadas de Mato Grosso do Sul com 200 a 1.000 ha, cada uma com a vegetação nativa dentro e nos 10 km em volta, no último ano do MapBiomas.</p>
+      <p id="t-comparar"></p>
+      <p class="como"><b>No aplicativo:</b> a tabela de cada território vai no ZIP; o lote inteiro cabe numa planilha.</p>
+    </article>
+
+  </div>
+
+  <div class="rp-figura" aria-live="polite">
+    <div class="rp-moldura">
+      <div class="rp-barra-janela"><i></i><i></i><i></i><span id="rp-fig-url">yvynation.umaterra.com.br/?modo=lote</span></div>
+      <div class="rp-fig-corpo">
+        <nav class="rp-pagina" aria-label="Onde fica no aplicativo">
+          <div class="pg-rot">no aplicativo</div>
+          <div class="pg-b alto" data-bloco="selecionar">1 · selecionar</div>
+          <div class="pg-b alto" data-bloco="configurar">2 · configurar</div>
+          <div class="pg-b" data-bloco="executar">3 · executar · ZIP</div>
+          <div class="pg-b" data-bloco="resultado">resultado</div>
+        </nav>
+        <div class="rp-fig-principal">
+          <div class="rp-fig-cab"><span id="rp-fig-titulo">Carregando…</span><span id="rp-fig-selo" class="selo real">real</span></div>
+          <div class="rp-fig-area" data-mapa="oculto">
+            <div class="rp-mapa-caixa"><div id="rp-mapa"></div><div class="rp-mapa-legenda" id="rp-mapa-legenda"></div></div>
+            <div class="rp-painel">
+              <div id="rp-fig-estado" class="rp-fig-estado">Carregando o lote de exemplo…</div>
+              <div class="rp-camada" id="camada-selecionar"><img class="rp-print" src="/demo_prints/lote_2_selecionados.jpg" alt="Etapa Selecionar com duas terras escolhidas" loading="lazy"><p class="rp-print-cap">Etapa <b>Selecionar</b>, com Jaguari e Guaimbé marcadas.</p></div>
+              <div class="rp-camada" id="camada-revisar"><img class="rp-print" src="/demo_prints/lote_3_revisar.jpg" alt="Janela Revisar" loading="lazy"><p class="rp-print-cap">A janela <b>Revisar</b>, antes de qualquer cálculo.</p><img class="rp-print" style="margin-top:8px" src="/demo_prints/lote_4b_confirmar.jpg" alt="Confirmação antes de iniciar" loading="lazy"><p class="rp-print-cap">A confirmação, ao iniciar.</p></div>
+              <div class="rp-camada" id="camada-configurar"><img class="rp-print" src="/demo_prints/lote_4_configurar.jpg" alt="Etapa Configurar" loading="lazy"><p class="rp-print-cap">Etapa <b>Configurar</b>, com as análises do lote.</p></div>
+              <div class="rp-camada" id="camada-executar"><img class="rp-print" src="/demo_prints/lote_5_executando.jpg" alt="Etapa Executar em andamento" loading="lazy"><p class="rp-print-cap">Etapa <b>Executar</b> em andamento.</p></div>
+              <div class="rp-camada" id="camada-zip"><img class="rp-print" src="/demo_prints/lote_6_concluido.jpg" alt="Lote concluído" loading="lazy"><p class="rp-print-cap">O lote concluído, com o ZIP para baixar.</p><div id="fig-zip" style="margin-top:8px"></div><img class="rp-print" style="margin-top:8px" src="/demo_prints/lote_mapa_jaguari.jpg" alt="Mapa MapBiomas 2024 da TI Jaguari, tirado do ZIP" loading="lazy"><p class="rp-print-cap">Um dos mapas do ZIP, sem retoque: <code>territory/Jaguari/maps/Jaguari_MapBiomas_2024.png</code>.</p></div>
+              <div class="rp-camada" id="camada-comparar"><div id="fig-comparar"></div></div>
+              <p class="rp-fig-legenda" id="rp-fig-legenda"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rp-fim">
+  <h2>O que o lote não diz</h2>
+  <ul class="rp-limites">
+    <li><b>Não ordena territórios por mérito.</b> A tabela compara cobertura; a situação de cada terra ou unidade depende de
+      história, povo, categoria e pressão, que não cabem numa coluna.</li>
+    <li><b>Não junta áreas sobrepostas.</b> Cada território é analisado com o próprio contorno; terras e unidades que se
+      sobrepõem contam a mesma área duas vezes, e a soma do lote não é a área do conjunto.</li>
+    <li><b>Não substitui a leitura de cada um.</b> O lote é o primeiro passo; uma terra que chama atenção merece a análise
+      individual, com o mapa e a linha do tempo.</li>
+    <li><b>Não roda o Canadá.</b> O processamento em lote cobre o Brasil; as áreas protegidas do Canadá têm a página própria.</li>
+  </ul>
+  <p class="rp-fim-extra" id="fim-extra"></p>
+  <a class="rp-cta" id="cta-app" href="/?modo=lote&amp;lang=pt">Abrir o processamento em lote →</a>
+  <a class="rp-cta sec" href="/demonstracao/terra-indigena">Ver uma terra em detalhe</a>
+  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> ·
+    <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a>.
+    Os prints e a lista de arquivos são de uma execução real; a tabela do passo 6 vem das mesmas funções do lote e fica guardada com a página.</p>
+</section>

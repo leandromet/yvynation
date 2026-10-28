@@ -72,6 +72,28 @@ def _tutorial_step(
     )
 
 
+_DEMOS = (("demo_link_ti", "/demonstracao/terra-indigena"),
+          ("demo_link_uc", "/demonstracao/unidade-conservacao"),
+          ("demo_link_draw", "/demonstracao/desenho"),
+          ("demo_link_batch", "/demonstracao/lote"))
+
+
+def _demo_links() -> rx.Component:
+    """The four scrolling walkthroughs (pages/demonstracao.py), one per way in
+    from the portal, on real examples with the app's own maps and numbers."""
+    return rx.box(
+        rx.text(AppState.tr["demo_links_title"], font_size="sm", font_weight="600",
+                color="#1a472a"),
+        rx.hstack(
+            *[rx.link(AppState.tr[key], href=href, font_size="sm", color="#1f6f4a",
+                      font_weight="500") for key, href in _DEMOS],
+            spacing="3", wrap="wrap", margin_top="0.25rem",
+        ),
+        background="#e9f6ee", border="1px solid #b9e0c8", border_radius="8px",
+        padding="0.5rem 0.75rem", margin="0.25rem 1rem 0.5rem",
+    )
+
+
 def tutorial_steps() -> rx.Component:
     """The intro and the seven collapsible steps, without the outer toggle —
     shared by the sidebar's Help group (below) and the navbar's full how-to
@@ -87,6 +109,7 @@ def tutorial_steps() -> rx.Component:
             ),
             padding="0.5rem 1rem",
         ),
+        _demo_links(),
         _tutorial_step("step_language_region", "step0_language_region_intro", "step0_content", 0),
         _tutorial_step("step_custom_polygon", "step1_draw_intro", "step1_content", 1),
         _tutorial_step("step_territory", "step2_territory_intro", "step2_content", 2),

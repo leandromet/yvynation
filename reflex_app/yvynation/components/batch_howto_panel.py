@@ -35,6 +35,10 @@ def howto_panel() -> rx.Component:
             AppState.tr["batch_about_text"],
             font_size="sm", color="#374151", line_height="1.6",
         ),
+        rx.link(
+            AppState.tr["batch_demo_link"], href="/demonstracao/lote",
+            font_size="sm", font_weight="600", color=ORANGE,
+        ),
         rx.divider(border_color="#F3F4F6"),
 
         rx.hstack(
