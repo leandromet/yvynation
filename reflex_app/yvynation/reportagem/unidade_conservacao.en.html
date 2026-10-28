@@ -1,0 +1,167 @@
+<header class="rp-topo" data-modo="unidade-conservacao">
+  <span class="marca"><a href="/">Yvynation</a> · walkthrough</span>
+  <span class="rp-exemplo" id="topo-exemplo"></span>
+  <span class="sp"></span>
+  <a href="/" id="link-app" class="rp-link-forte">open in the app →</a>
+</header>
+
+<section class="rp-abertura">
+  <div class="rp-chapeu">Conservation units · land use · step by step</div>
+  <h1>How to read a conservation unit in Yvynation, from the inside out</h1>
+  <p class="rp-linha-fina">Pick a unit from Brazil's National Register of Conservation Units and Yvynation returns forty years of MapBiomas, the forest loss measured by Hansen, a timeline of clearing, regrowth and fire, and the same reading for the 10 km around it. This walkthrough opens a real unit and follows where each number comes from.</p>
+  <p class="rp-cred" id="abertura-exemplo">Loading the example from Earth Engine (the first visit can take up to a minute)…</p>
+  <div class="rp-numeros" aria-live="polite">
+    <div><b data-campo="n-area">—</b><small>area of the unit (CNUC geometry) <span class="selo real">measured</span></small></div>
+    <div><b data-campo="n-dentro">—</b><small data-campo="n-dentro-rot">native vegetation inside, latest year</small></div>
+    <div><b data-campo="n-fora">—</b><small data-campo="n-fora-rot">native vegetation around</small></div>
+    <div><b data-campo="n-perda">—</b><small>of tree cover lost inside, 2001–2024 (Hansen) <span class="selo real">measured</span></small></div>
+  </div>
+  <p class="rp-legenda-selos">
+    <span class="selo real">measured</span> computed from satellite data or from the catalogue's geometry.
+    <span class="selo ausente">missing</span> an analysis that did not respond this time.
+  </p>
+</section>
+
+<section class="rp-scrolly">
+  <div class="rp-passos">
+
+    <article class="rp-passo" data-passo="area" data-camada="area" data-mapa="grande" data-bloco="area" data-titulo="Study area" data-selo="real">
+      <div class="num">1</div>
+      <h2>Pick the unit from the CNUC catalogue</h2>
+      <p>Yvynation holds the 3,247 conservation units in the CNUC — federal, state and municipal — with category, group and level. The group changes the reading: under <b>strict protection</b> no direct use is expected; under <b>sustainable use</b>, as in extractive reserves and national forests, the management plan says which uses belong there.<button type="button" class="rp-nota" data-nota="1" aria-label="note 1">1</button></p>
+      <p id="t-area"></p>
+      <p class="como"><b>In the app:</b> on the home page, the <b>Conservation Units Analysis</b> card; in the sidebar, <b>Study area</b>, with the search and the list. Direct link: <code>/?modo=unidade-conservacao&amp;busca=…</code>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="buffer" data-camada="buffer" data-mapa="grande" data-bloco="area" data-titulo="Surrounding zone" data-selo="real">
+      <div class="num">2</div>
+      <h2>Ten kilometres around, for comparison</h2>
+      <p>A number inside the area only means something next to what happens outside it. As soon as the area is chosen, Yvynation builds a 10 km ring outward from the boundary on its own and runs the same analyses in it.<button type="button" class="rp-nota" data-nota="2" aria-label="note 2">2</button></p>
+      <p id="t-buffer"></p>
+      <p class="como"><b>In the app:</b> the <b>Buffer Zone</b> panel in the sidebar: the 10 km ring comes with the area, and another radius can be requested under <b>Create</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="cobertura" data-camada="cobertura" data-mapa="meio" data-bloco="mapbiomas" data-titulo="MapBiomas · latest year" data-selo="real">
+      <div class="num">3</div>
+      <h2>Inside and out, in the latest year</h2>
+      <p>MapBiomas Collection 11 classifies every 30 m pixel in Brazil every year. Each class's area comes from each pixel's true size, not a fixed 900 m². The bars compare each class's share inside and around.<button type="button" class="rp-nota" data-nota="3" aria-label="note 3">3</button></p>
+      <p id="t-cobertura"></p>
+      <p class="como"><b>In the app:</b> the <b>Run all analyses</b> button at the top, and the <b>MapBiomas</b> tab under <b>Results</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="tempo" data-camada="tempo" data-mapa="meio" data-bloco="comparar" data-titulo="Native vegetation · 1985, 2005, 2025" data-selo="real">
+      <div class="num">4</div>
+      <h2>Forty years in three snapshots</h2>
+      <p>The same sum in 1985, 2005 and 2025: how much of each zone is native vegetation (forest, savanna and grassland). The map shows the series' first year, to compare with the previous step.</p>
+      <p id="t-tempo"></p>
+      <p class="como"><b>In the app:</b> the <b>Compare</b> tab (two years side by side) and the <b>Multi-window</b> tab (several years at once).</p>
+    </article>
+
+    <article class="rp-passo" data-passo="transicoes" data-camada="transicoes" data-mapa="pequeno" data-bloco="comparar" data-titulo="Transitions 1985 → 2025" data-selo="real">
+      <div class="num">5</div>
+      <h2>What became what</h2>
+      <p>The diagram links each 1985 class to the class the same pixel had in 2025. A band linking a class to itself is what stayed the same; the bands that cross are the change.</p>
+      <p id="t-transicoes"></p>
+      <p class="como"><b>In the app:</b> the <b>Compare</b> tab, with the transition matrix, and the <b>Treemaps</b> tab, one per class.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="hansen" data-camada="hansen" data-mapa="meio" data-bloco="hansen" data-titulo="Hansen · Global Forest Change" data-selo="real">
+      <div class="num">6</div>
+      <h2>A second opinion on the forest</h2>
+      <p>Hansen/UMD measures something else: tree cover, not land-use classes. It starts from the 2000 canopy, dates the year each pixel lost its trees and adds an undated gain. When MapBiomas and Hansen tell the same story, the story is firmer.<button type="button" class="rp-nota" data-nota="4" aria-label="note 4">4</button></p>
+      <p id="t-hansen"></p>
+      <p class="como"><b>In the app:</b> the <b>Hansen GFC</b> tab, and the <b>Hansen/GLAD</b> tab for a single year's cover.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="linha" data-camada="linha" data-mapa="oculto" data-bloco="timeline" data-titulo="Timeline" data-selo="real">
+      <div class="num">7</div>
+      <h2>Year by year: clearing, regrowth and fire</h2>
+      <p>The timeline brings together four yearly series: primary vegetation clearing and regrowth (MapBiomas Deforestation and Secondary Vegetation), canopy loss (Hansen) and fire scars (MapBiomas Fire).</p>
+      <p id="t-linha"></p>
+      <p>In a sustainable-use unit, part of the change may be use the management plan allows. Large-scale pasture inside an extractive reserve is not.</p>
+      <p class="como"><b>In the app:</b> the <b>Timeline</b> tab, which can overlay the political context (federal and state governments) and ENSO.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="contraste" data-camada="contraste" data-mapa="oculto" data-bloco="timeline" data-titulo="Inside × around" data-selo="real">
+      <div class="num">8</div>
+      <h2>The same line, inside and out</h2>
+      <p>To compare zones of different sizes, clearing becomes hectares per 1,000 hectares of each zone. If the outside line rises and the inside one does not, the boundary is holding; if both rise together, the pressure has already crossed it.</p>
+      <p id="t-contraste"></p>
+      <p class="como"><b>In the app:</b> the <b>Timeline</b> tab, with the buffer zone switched on.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="exportar" data-camada="exportar" data-mapa="oculto" data-bloco="exportar" data-titulo="Export and cite" data-selo="real">
+      <div class="num">9</div>
+      <h2>Report, tables and maps to take away</h2>
+      <p>Everything in the tabs can leave the app: a PDF report, CSV tables, PNG maps and charts, all in one ZIP. The data Yvynation produces are open (CC BY 4.0), with the source of each layer.<button type="button" class="rp-nota" data-nota="5" aria-label="note 5">5</button></p>
+      <p class="como"><b>In the app:</b> the <b>Export &amp; Download</b> panel below the results, and <b>How to Cite</b> at the top.</p>
+    </article>
+
+  </div>
+
+  <div class="rp-figura" aria-live="polite">
+    <div class="rp-moldura">
+      <div class="rp-barra-janela"><i></i><i></i><i></i><span id="rp-fig-url">yvynation.umaterra.com.br</span></div>
+      <div class="rp-fig-corpo">
+        <nav class="rp-pagina" aria-label="Where it is in the app">
+          <div class="pg-rot">in the app</div>
+          <div class="pg-b alto" data-bloco="area">study area · buffer</div>
+          <div class="pg-b" data-bloco="mapa">map</div>
+          <div class="pg-par"><div class="pg-b" data-bloco="mapbiomas">MapBiomas</div><div class="pg-b" data-bloco="hansen">Hansen</div></div>
+          <div class="pg-par"><div class="pg-b" data-bloco="comparar">compare</div><div class="pg-b" data-bloco="timeline">timeline</div></div>
+          <div class="pg-b" data-bloco="exportar">export &amp; download</div>
+        </nav>
+        <div class="rp-fig-principal">
+          <div class="rp-fig-cab"><span id="rp-fig-titulo">Loading…</span><span id="rp-fig-selo" class="selo real">measured</span></div>
+          <div class="rp-fig-area" data-mapa="grande">
+            <div class="rp-mapa-caixa"><div id="rp-mapa"></div><div class="rp-mapa-legenda" id="rp-mapa-legenda"></div></div>
+            <div class="rp-painel">
+              <div id="rp-fig-estado" class="rp-fig-estado">Computing the example in Earth Engine (the first visit can take up to a minute)…</div>
+              <div class="rp-camada" id="camada-area"><div id="fig-area"></div></div>
+              <div class="rp-camada" id="camada-buffer"><div id="fig-buffer"></div></div>
+              <div class="rp-camada" id="camada-cobertura"><div id="fig-cobertura"></div></div>
+              <div class="rp-camada" id="camada-tempo"><div id="fig-tempo"></div></div>
+              <div class="rp-camada" id="camada-transicoes"><div id="fig-transicoes"></div></div>
+              <div class="rp-camada" id="camada-hansen"><div id="fig-hansen"></div></div>
+              <div class="rp-camada" id="camada-linha"><div id="fig-linha"></div></div>
+              <div class="rp-camada" id="camada-contraste"><div id="fig-contraste"></div></div>
+              <div class="rp-camada" id="camada-exportar">
+                <img class="rp-print" id="fig-exportar-print" src="/demo_prints/uc_jaci_parana.jpg" alt="The app with the Jaci-Paraná extractive reserve selected and its 10 km zone." loading="lazy">
+                <p class="rp-print-cap">The app with the Jaci-Paraná extractive reserve selected and its 10 km zone. <span class="selo print">screenshot</span></p>
+                <div id="fig-exportar" style="margin-top:8px"></div>
+              </div>
+              <p class="rp-fig-legenda" id="rp-fig-legenda"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rp-fim">
+  <h2>What Yvynation does not say</h2>
+  <ul class="rp-limites">
+    <li><b>It does not judge the management plan.</b> The satellite shows cover; whether a use is allowed depends on the category, the management plan and permits, none of which are here.</li>
+    <li><b>It does not say who cleared.</b> Embargoes, fines and lawsuits are left out. For IBAMA embargoes, see Naturametrics.</li>
+    <li><b>The 10 km zone is not the legal buffer zone.</b> It is a comparison ring, the same for every unit. The official buffer zone, where there is one, comes from the management plan.</li>
+    <li><b>The boundary is the CNUC's.</b> Units that were recategorised, degazetted or had their limits changed by law may be drawn differently today.</li>
+    <li><b>It cannot see below 30 m.</b> Selective logging and degradation under the canopy escape both MapBiomas and Hansen.</li>
+  </ul>
+  <p class="rp-fim-extra" id="fim-extra"></p>
+  <a class="rp-cta" id="cta-app" href="/">Open in Yvynation →</a>
+  <a class="rp-cta sec" href="/canada">Yvynation Canada</a>
+  <p class="rp-rodape">More examples: <a href="?area=FLORESTA%20NACIONAL%20DO%20JAMANXIM">Jamanxim National Forest (PA)</a> · <a href="?area=RESERVA%20BIOL%C3%93GICA%20DO%20GURUPI">Gurupi Biological Reserve (MA)</a> · <a href="?area=%C3%81REA%20DE%20PROTE%C3%87%C3%83O%20AMBIENTAL%20TRIUNFO%20DO%20XINGU">Triunfo do Xingu EPA (PA)</a> · <a href="?">Jaci-Paraná extractive reserve (RO), this page's example</a>. Change the area in the address (<code>?area=…</code>, with the name as the catalogue spells it). The numbers come from the app's own functions: the example is stored with the page, and any other area is computed on the spot.</p>
+  <p class="rp-rodape">Other Yvynation walkthroughs: <a href="/walkthrough/indigenous-land">an Indigenous land</a> · <a href="/walkthrough/conservation-unit">a conservation unit</a> · <a href="/walkthrough/drawn-area">a drawn area</a> · <a href="/walkthrough/batch">many areas in one batch</a>. <a href="/demonstracao/unidade-conservacao" lang="pt-BR">Versão em português</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notes">
+  <h3>Notes</h3>
+  <ol>
+    <li id="nota-1">The CNUC is the national register of the units created under Brazil's National System of Conservation Units (SNUC, Law 9,985/2000), published by the Ministry of the Environment with ICMBio, which manages the federal ones. It also lists state and municipal units. Like the Indigenous lands' layer, it is an official, enumerable boundary: units can be compared across the country and run in batch. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-2">The ring is <i>exclusive</i>: it starts at the boundary and leaves the area itself out, so no hectare is counted in both zones. Even so, it is a comparison region, not a counterfactual. Clearing pushed from inside to outside (leakage) inflates the contrast, and protected areas tend to be placed on land that was less threatened to begin with (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009). So the screen compares, but does not credit the difference to the boundary. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-3">Area comes from <code>pixelArea()</code>, each pixel's true area, not from the pixel count times 0.09 ha. MapBiomas pixels are measured in degrees, and their area shrinks away from the Equator. The convention started in Naturametrics and reached Yvynation in August 2026, one of the modules that move between the suite's three tools. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-4">MapBiomas and Hansen have to stay separate because they measure different things. An April 2026 export put 305,250 ha of Hansen loss in 2024 inside the Kayapó Indigenous Land, about two-thirds of all the 2001–2023 loss in a single year. It was a wildfire scar, not clearing: Hansen's loss layer records canopy loss from any cause (Curtis et al., 2018). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-5">Very large units take a detour. Above 1,000,000 ha, Yvynation splits the geometry into four quadrants, because Earth Engine timed out computing the ring for areas above about 2 million ha. Before building the PDF, the batch adds the four pieces' classes, transitions and yearly loss back together and recomputes the percentages, so the report describes the unit the register names. The per-quadrant tables stay in the ZIP. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+  </ol>
+</section>

@@ -115,6 +115,7 @@ def _classes(df, ano: int) -> List[Dict[str, Any]]:
     if df is None or df.empty:
         return []
     return [{"id": int(r.Class_ID), "nome": leg.label(int(r.Class_ID), "pt"),
+             "nome_en": leg.label(int(r.Class_ID), "en"),
              "cor": leg.color(int(r.Class_ID)), "ha": round(float(r.Area_ha), 1)}
             for r in df.sort_values("Area_ha", ascending=False).itertuples()]
 
@@ -208,10 +209,14 @@ def _calcular(modo: str, chave: Optional[str]) -> Dict[str, Any]:
                       for serie, valores in (r[f"linha_{z}"] or {}).items()}
                   for z in ("area", "buffer")},
         "procedencia": [
-            {"nome": "MapBiomas", "dataset": f"MapBiomas Brasil, coleção {MAPBIOMAS_DEFAULT_COLLECTION}", "escala_m": 30},
-            {"nome": "Hansen GFC", "dataset": "UMD/hansen/global_forest_change", "escala_m": 30},
-            {"nome": "Desmatamento e vegetação secundária", "dataset": "MapBiomas DSV", "escala_m": 30},
-            {"nome": "Cicatrizes de fogo", "dataset": "MapBiomas Fogo", "escala_m": 30},
+            {"nome": "MapBiomas", "nome_en": "MapBiomas",
+             "dataset": f"MapBiomas Brasil, coleção {MAPBIOMAS_DEFAULT_COLLECTION}",
+             "dataset_en": f"MapBiomas Brazil, collection {MAPBIOMAS_DEFAULT_COLLECTION}", "escala_m": 30},
+            {"nome": "Hansen GFC", "nome_en": "Hansen GFC", "dataset": "UMD/hansen/global_forest_change", "escala_m": 30},
+            {"nome": "Desmatamento e vegetação secundária", "nome_en": "Deforestation and secondary vegetation",
+             "dataset": "MapBiomas DSV", "escala_m": 30},
+            {"nome": "Cicatrizes de fogo", "nome_en": "Fire scars", "dataset": "MapBiomas Fogo",
+             "dataset_en": "MapBiomas Fire", "escala_m": 30},
         ],
         "erros": erros,
         "gerado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),

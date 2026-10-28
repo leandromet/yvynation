@@ -1,0 +1,170 @@
+<header class="rp-topo" data-modo="lote">
+  <span class="marca"><a href="/">Yvynation</a> · walkthrough</span>
+  <span class="rp-exemplo" id="topo-exemplo">batch processing</span>
+  <span class="sp"></span>
+  <a href="/?modo=lote&amp;lang=en" id="link-app" class="rp-link-forte">open batch processing →</a>
+</header>
+
+<section class="rp-abertura">
+  <div class="rp-chapeu">Batch processing · step by step</div>
+  <h1>A hundred territories in an afternoon: batch processing, step by step</h1>
+  <p class="rp-linha-fina">Sometimes the question is not about one land but about many: every Indigenous land in a state,
+    every extractive reserve in a biome. For that, Yvynation runs the full analysis on up to a hundred territories at once
+    and hands everything back in a single ZIP. This walkthrough goes through each screen of a real run and ends with what
+    even a small batch can answer.</p>
+  <p class="rp-cred" id="abertura-exemplo">Loading the example batch from Earth Engine…</p>
+  <div class="rp-numeros" aria-live="polite">
+    <div><b data-campo="n-ti">—</b><small>Indigenous lands in FUNAI's catalogue</small></div>
+    <div><b data-campo="n-uc">—</b><small>conservation units in the CNUC</small></div>
+    <div><b>100</b><small>territories per run, at most</small></div>
+    <div><b data-campo="n-lote">—</b><small data-campo="n-lote-rot">territories in the example batch</small></div>
+  </div>
+  <p class="rp-legenda-selos">
+    <span class="selo print">screenshot</span> a screen capture from a real run of the app.
+    <span class="selo real">measured</span> computed by the same functions the batch uses.
+  </p>
+</section>
+
+<section class="rp-scrolly">
+  <div class="rp-passos">
+
+    <article class="rp-passo" data-passo="selecionar" data-camada="selecionar" data-mapa="oculto" data-bloco="selecionar" data-titulo="1 · Select" data-selo="print">
+      <div class="num">1</div>
+      <h2>Pick many areas at once</h2>
+      <p>The batch starts from the list: Indigenous lands or conservation units, with each one's people, phase, state and
+        area. The search and the <b>filters</b> (state, phase, modality, category, level, group, area range) narrow the list;
+        <b>Select all filtered</b> takes the whole cut. You can also paste or upload a list of names.<button type="button" class="rp-nota" data-nota="1" aria-label="note 1">1</button></p>
+      <p>This example run uses two small lands in Mato Grosso do Sul: Jaguari (405 ha) and Guaimbé (717 ha). Small areas
+        finish in minutes; a batch of a hundred large lands takes hours.</p>
+      <p class="como"><b>In the app:</b> home page → the <b>Batch Processing</b> card, <b>Select</b> step.
+        Direct link: <code>/?modo=lote</code>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="revisar" data-camada="revisar" data-mapa="oculto" data-bloco="selecionar" data-titulo="Review the selection" data-selo="print">
+      <div class="num">2</div>
+      <h2>Check before spending an afternoon</h2>
+      <p>A large batch takes time and Earth Engine quota. The <b>Review</b> button shows the whole selection, with each
+        territory's area and state, before anything is computed. When you start, the app asks for confirmation once more.</p>
+      <p class="como"><b>In the app:</b> the <b>Review</b> button, next to the <b>n/100 selected</b> count.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="configurar" data-camada="configurar" data-mapa="oculto" data-bloco="configurar" data-titulo="2 · Configure" data-selo="print">
+      <div class="num">3</div>
+      <h2>Years, analyses, figures and the surrounding zone</h2>
+      <p>The settings apply to every territory in the batch: the MapBiomas years (one, or two to compare), the Hansen GLAD
+        year, which analyses to run (MapBiomas, comparison between years, transition treemaps, Hansen GLAD and GFC, PNG
+        maps), the figures, the multi-year window, the timeline and the buffer zone.</p>
+      <p>Every territory gets exactly the same sums, which makes the batch comparable row by row.</p>
+      <p class="como"><b>In the app:</b> the <b>Configure</b> step, groups <b>Years</b>, <b>Analyses</b>, <b>Figures and images</b>,
+        <b>Multi-window</b>, <b>Timeline</b> and <b>Buffer zone</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="executar" data-camada="executar" data-mapa="oculto" data-bloco="executar" data-titulo="3 · Run" data-selo="print">
+      <div class="num">4</div>
+      <h2>Running unattended</h2>
+      <p>Once started, the app processes the territories in parallel, logs each stage and retries automatically when Earth
+        Engine turns a request down. You can leave the tab open and go do something else: the batch is not paused while it runs.<button type="button" class="rp-nota" data-nota="2" aria-label="note 2">2</button></p>
+      <p id="t-executar"></p>
+      <p class="como"><b>In the app:</b> the <b>Start Batch Processing</b> button in the bottom bar; the <b>Run</b> step, with progress per territory.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="zip" data-camada="zip" data-mapa="oculto" data-bloco="executar" data-titulo="One ZIP per batch" data-selo="print">
+      <div class="num">5</div>
+      <h2>One file, with everything inside</h2>
+      <p>At the end, one ZIP holds a folder per territory: the readme, the run's metadata (years, analyses, source
+        versions), the tables and the figures. The same package is kept under <b>Previous Runs</b>, to download again later.<button type="button" class="rp-nota" data-nota="3" aria-label="note 3">3</button></p>
+      <p class="como"><b>In the app:</b> the download button at the end of the <b>Run</b> step, and <b>Previous Runs</b> at the top.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="comparar" data-camada="comparar" data-mapa="meio" data-bloco="resultado" data-titulo="What a batch answers" data-selo="real">
+      <div class="num">6</div>
+      <h2>What even a small batch can answer</h2>
+      <p>With the same sums in every row, the question becomes comparative. Here, the eight registered Indigenous lands of
+        Mato Grosso do Sul between 200 and 1,000 ha, each with its native vegetation inside and in the 10 km around it, in the
+        latest MapBiomas year.<button type="button" class="rp-nota" data-nota="4" aria-label="note 4">4</button></p>
+      <p id="t-comparar"></p>
+      <p class="como"><b>In the app:</b> each territory's table goes into the ZIP; the whole batch fits in one spreadsheet.</p>
+    </article>
+
+  </div>
+
+  <div class="rp-figura" aria-live="polite">
+    <div class="rp-moldura">
+      <div class="rp-barra-janela"><i></i><i></i><i></i><span id="rp-fig-url">yvynation.umaterra.com.br/?modo=lote</span></div>
+      <div class="rp-fig-corpo">
+        <nav class="rp-pagina" aria-label="Where it is in the app">
+          <div class="pg-rot">in the app</div>
+          <div class="pg-b alto" data-bloco="selecionar">1 · select</div>
+          <div class="pg-b alto" data-bloco="configurar">2 · configure</div>
+          <div class="pg-b" data-bloco="executar">3 · run · ZIP</div>
+          <div class="pg-b" data-bloco="resultado">result</div>
+        </nav>
+        <div class="rp-fig-principal">
+          <div class="rp-fig-cab"><span id="rp-fig-titulo">Loading…</span><span id="rp-fig-selo" class="selo real">measured</span></div>
+          <div class="rp-fig-area" data-mapa="oculto">
+            <div class="rp-mapa-caixa"><div id="rp-mapa"></div><div class="rp-mapa-legenda" id="rp-mapa-legenda"></div></div>
+            <div class="rp-painel">
+              <div id="rp-fig-estado" class="rp-fig-estado">Loading the example batch…</div>
+              <div class="rp-camada" id="camada-selecionar"><img class="rp-print" src="/demo_prints/lote_2_selecionados.jpg" alt="The Select step with two lands chosen" loading="lazy"><p class="rp-print-cap">The <b>Select</b> step, with Jaguari and Guaimbé ticked (the app was in Portuguese for this run).</p></div>
+              <div class="rp-camada" id="camada-revisar"><img class="rp-print" src="/demo_prints/lote_3_revisar.jpg" alt="The Review window" loading="lazy"><p class="rp-print-cap">The <b>Review</b> window, before anything is computed.</p><img class="rp-print" style="margin-top:8px" src="/demo_prints/lote_4b_confirmar.jpg" alt="Confirmation before starting" loading="lazy"><p class="rp-print-cap">The confirmation, on start.</p></div>
+              <div class="rp-camada" id="camada-configurar"><img class="rp-print" src="/demo_prints/lote_4_configurar.jpg" alt="The Configure step" loading="lazy"><p class="rp-print-cap">The <b>Configure</b> step, with the batch's analyses.</p></div>
+              <div class="rp-camada" id="camada-executar"><img class="rp-print" src="/demo_prints/lote_5_executando.jpg" alt="The Run step in progress" loading="lazy"><p class="rp-print-cap">The <b>Run</b> step in progress.</p></div>
+              <div class="rp-camada" id="camada-zip"><img class="rp-print" src="/demo_prints/lote_6_concluido.jpg" alt="The finished batch" loading="lazy"><p class="rp-print-cap">The finished batch, with the ZIP ready to download.</p><div id="fig-zip" style="margin-top:8px"></div><img class="rp-print" style="margin-top:8px" src="/demo_prints/lote_mapa_jaguari.jpg" alt="MapBiomas 2024 map of the Jaguari Indigenous land, taken from the ZIP" loading="lazy"><p class="rp-print-cap">One of the ZIP's maps, untouched: <code>territory/Jaguari/maps/Jaguari_MapBiomas_2024.png</code>.</p></div>
+              <div class="rp-camada" id="camada-comparar"><div id="fig-comparar"></div></div>
+              <p class="rp-fig-legenda" id="rp-fig-legenda"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rp-fim">
+  <h2>What the batch does not say</h2>
+  <ul class="rp-limites">
+    <li><b>It does not rank territories by merit.</b> The table compares cover; each land's or unit's situation depends on
+      history, people, category and pressure, which do not fit in a column.<button type="button" class="rp-nota" data-nota="5" aria-label="note 5">5</button></li>
+    <li><b>It does not merge overlapping areas.</b> Each territory is analysed with its own outline; lands and units that
+      overlap count the same area twice, and the batch total is not the area of the set.</li>
+    <li><b>It does not replace reading each one.</b> The batch is a first pass; a land that stands out deserves the
+      individual analysis, with the map and the timeline.</li>
+    <li><b>It does not run Canada.</b> Batch processing covers Brazil; Canada's protected areas have their own page.</li>
+  </ul>
+  <p class="rp-fim-extra" id="fim-extra"></p>
+  <a class="rp-cta" id="cta-app" href="/?modo=lote&amp;lang=en">Open batch processing →</a>
+  <a class="rp-cta sec" href="/walkthrough/indigenous-land">See one land in detail</a>
+  <p class="rp-rodape">Other Yvynation walkthroughs: <a href="/walkthrough/indigenous-land">an Indigenous land</a> ·
+    <a href="/walkthrough/conservation-unit">a conservation unit</a> · <a href="/walkthrough/drawn-area">a drawn area</a>.
+    The screenshots and file list come from a real run; the step 6 table comes from the batch's own functions and is stored with the page.
+    <a href="/demonstracao/lote" lang="pt-BR">Versão em português</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notes">
+  <h3>Notes</h3>
+  <ol>
+    <li id="nota-1">The territories processed so far range from 4,282 ha (Krenak) to 3,283,191 ha (Kayapó), a factor of
+      about 770. So the batch does not split the list into fixed chunks: each worker takes the next territory from a shared
+      queue (<code>asyncio.Queue</code>), and no one sits idle on small lands while another is still on the largest.
+      <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-2">The batch works on three levels: territories in parallel, taken from the queue; each territory's analyses
+      sent to Earth Engine together, up to 11 requests at once; and maps and charts through one drawing lane per plotting
+      library. Measured on a 31-territory run with 2 vCPU and 8 GiB, Earth Engine was busy 9.8% of the time and the drawing
+      lane 80.1%: a 644 MB archive in 10.6 minutes. More cores would barely help; the next gain is in drawing faster.
+      <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-3">Areas above 1,000,000 ha are split into four quadrants, because Earth Engine timed out on the ring for
+      areas above about 2 million ha. Before building the PDF, the batch adds the four pieces' classes, transitions and yearly
+      loss back together and recomputes the percentages, so the report describes the land the catalogue names. If a report
+      fails, the batch logs the failure and keeps that area's analysis.
+      <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-4">The surrounding ring is exclusive (it leaves the land itself out) and is there to compare, not to prove an
+      effect. Clearing pushed outside the boundary inflates the contrast, and protected areas tend to be placed on land that
+      was less threatened to begin with (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009).
+      <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-5">Statistics about named Indigenous lands, published under an open licence, can be quoted in contexts the
+      communities did not choose. The CARE principles for Indigenous data governance (Carroll et al., 2020) ask more than
+      that, and the suite does not yet consult Indigenous organisations on how results are presented. The paper records this
+      as a gap, not a completed obligation.
+      <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+  </ol>
+</section>

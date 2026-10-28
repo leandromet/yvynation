@@ -5,6 +5,7 @@ Bilingual Getting Started guide with 7 collapsible steps.
 
 import reflex as rx
 from ..state import AppState
+from ..pages.demonstracao import ROTA_EN
 
 
 def _tutorial_step(
@@ -78,6 +79,12 @@ _DEMOS = (("demo_link_ti", "/demonstracao/terra-indigena"),
           ("demo_link_batch", "/demonstracao/lote"))
 
 
+def demo_href(rota_pt: str):
+    """The walkthrough in the app's language: Portuguese for pt and es, English
+    for en and fr (the walkthroughs exist in those two)."""
+    return rx.cond((AppState.language == "pt") | (AppState.language == "es"), rota_pt, ROTA_EN[rota_pt])
+
+
 def _demo_links() -> rx.Component:
     """The four scrolling walkthroughs (pages/demonstracao.py), one per way in
     from the portal, on real examples with the app's own maps and numbers."""
@@ -86,12 +93,30 @@ def _demo_links() -> rx.Component:
                 color="#1a472a"),
         rx.hstack(
             *[rx.link(AppState.tr[key], href=href, font_size="sm", color="#1f6f4a",
-                      font_weight="500") for key, href in _DEMOS],
+                      font_weight="500") for key, href in ((k, demo_href(h)) for k, h in _DEMOS)],
             spacing="3", wrap="wrap", margin_top="0.25rem",
         ),
         background="#e9f6ee", border="1px solid #b9e0c8", border_radius="8px",
         padding="0.5rem 0.75rem", margin="0.25rem 1rem 0.5rem",
     )
+
+
+#: Less invasive guide (as in Camposcope's and Naturametrics'): step 1 in full,
+#: step 2 fading out, the rest opening on hover, or on focus, which a click or
+#: tap gives (tabIndex -1 keeps the list out of the dialog's autofocus). The
+#: open height is generous because each step also expands on click. The
+#: collapse waits a moment so nothing jumps away from the pointer.
+_ABERTO = {"maxHeight": "120em", "opacity": 1, "maskImage": "none", "WebkitMaskImage": "none",
+           "transition": "max-height .35s ease, opacity .25s ease"}
+_DESBOTA = "linear-gradient(to bottom, black 15%, transparent 95%)"
+PASSOS_RECOLHIDOS = {
+    "outline": "none",
+    "& > *": {"overflow": "hidden", "flexShrink": 0,
+              "transition": "max-height .35s ease .4s, opacity .25s ease .4s"},
+    "& > :nth-child(2)": {"maxHeight": "2.6em", "maskImage": _DESBOTA, "WebkitMaskImage": _DESBOTA},
+    "& > :nth-child(n+3)": {"maxHeight": "0", "opacity": 0},
+    "&:hover > *, &:focus-within > *, &:focus > *": _ABERTO,
+}
 
 
 def tutorial_steps() -> rx.Component:
@@ -110,13 +135,18 @@ def tutorial_steps() -> rx.Component:
             padding="0.5rem 1rem",
         ),
         _demo_links(),
-        _tutorial_step("step_language_region", "step0_language_region_intro", "step0_content", 0),
-        _tutorial_step("step_custom_polygon", "step1_draw_intro", "step1_content", 1),
-        _tutorial_step("step_territory", "step2_territory_intro", "step2_content", 2),
-        _tutorial_step("step_comparison", "step3_comparison_intro", "step3_content", 3),
-        _tutorial_step("step_export", "step4_export_intro", "step4_content", 4),
-        _tutorial_step("step_map_controls", "step5_map_controls_intro", "step5_content", 5),
-        _tutorial_step("step_data_understanding", "step6_data_understanding_intro", "step6_content", 6),
+        rx.vstack(
+            _tutorial_step("step_language_region", "step0_language_region_intro", "step0_content", 0),
+            _tutorial_step("step_custom_polygon", "step1_draw_intro", "step1_content", 1),
+            _tutorial_step("step_territory", "step2_territory_intro", "step2_content", 2),
+            _tutorial_step("step_comparison", "step3_comparison_intro", "step3_content", 3),
+            _tutorial_step("step_export", "step4_export_intro", "step4_content", 4),
+            _tutorial_step("step_map_controls", "step5_map_controls_intro", "step5_content", 5),
+            _tutorial_step("step_data_understanding", "step6_data_understanding_intro", "step6_content", 6),
+            spacing="0", width="100%",
+            custom_attrs={"tabIndex": "-1"},
+            style=PASSOS_RECOLHIDOS,
+        ),
         spacing="0",
         width="100%",
     )

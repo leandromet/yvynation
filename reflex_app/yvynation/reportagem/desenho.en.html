@@ -1,0 +1,167 @@
+<header class="rp-topo" data-modo="desenho">
+  <span class="marca"><a href="/">Yvynation</a> · walkthrough</span>
+  <span class="rp-exemplo" id="topo-exemplo"></span>
+  <span class="sp"></span>
+  <a href="/" id="link-app" class="rp-link-forte">open in the app →</a>
+</header>
+
+<section class="rp-abertura">
+  <div class="rp-chapeu">Drawn area · land use · step by step</div>
+  <h1>Draw the area: the question no official map asks</h1>
+  <p class="rp-linha-fina">Not every question fits an Indigenous land or a conservation unit. Draw a polygon, or upload a file, and Yvynation runs the same analyses on it: MapBiomas, Hansen, the timeline and the zone around it. The example here is a strip drawn along the Madeira river, where two dams filled their reservoirs from 2011 on.</p>
+  <p class="rp-cred" id="abertura-exemplo">Loading the example from Earth Engine (the first visit can take up to a minute)…</p>
+  <div class="rp-numeros" aria-live="polite">
+    <div><b data-campo="n-area">—</b><small>area of the drawn polygon <span class="selo real">measured</span></small></div>
+    <div><b data-campo="n-dentro">—</b><small data-campo="n-dentro-rot">native vegetation inside, latest year</small></div>
+    <div><b data-campo="n-fora">—</b><small data-campo="n-fora-rot">native vegetation around</small></div>
+    <div><b data-campo="n-perda">—</b><small>of tree cover lost inside, 2001–2024 (Hansen) <span class="selo real">measured</span></small></div>
+  </div>
+  <p class="rp-legenda-selos">
+    <span class="selo real">measured</span> computed from satellite data or from the catalogue's geometry.
+    <span class="selo ausente">missing</span> an analysis that did not respond this time.
+  </p>
+</section>
+
+<section class="rp-scrolly">
+  <div class="rp-passos">
+
+    <article class="rp-passo" data-passo="area" data-camada="area" data-mapa="grande" data-bloco="area" data-titulo="Study area" data-selo="real">
+      <div class="num">1</div>
+      <h2>Draw, or upload a file</h2>
+      <p>In the geometry analysis, the map's toolbar draws polygons, rectangles and points, and the upload panel takes GeoJSON, zipped shapefiles and KML. Several areas can be saved and compared. Only a drawn area answers this example's question: what did the Madeira reservoirs flood?<button type="button" class="rp-nota" data-nota="1" aria-label="note 1">1</button></p>
+      <p id="t-area"></p>
+      <p class="como"><b>In the app:</b> on the home page, the <b>Geometry Analysis</b> card; on the map, the drawing tools and the <b>Save Drawing</b> button. Direct link: <code>/?modo=desenho</code>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="buffer" data-camada="buffer" data-mapa="grande" data-bloco="area" data-titulo="Surrounding zone" data-selo="real">
+      <div class="num">2</div>
+      <h2>Ten kilometres around, for comparison</h2>
+      <p>A number inside the area only means something next to what happens outside it. As soon as the area is chosen, Yvynation builds a 10 km ring outward from the boundary on its own and runs the same analyses in it.<button type="button" class="rp-nota" data-nota="2" aria-label="note 2">2</button></p>
+      <p id="t-buffer"></p>
+      <p class="como"><b>In the app:</b> the <b>Buffer Zone</b> panel in the sidebar: the 10 km ring comes with the area, and another radius can be requested under <b>Create</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="cobertura" data-camada="cobertura" data-mapa="meio" data-bloco="mapbiomas" data-titulo="MapBiomas · latest year" data-selo="real">
+      <div class="num">3</div>
+      <h2>Inside and out, in the latest year</h2>
+      <p>MapBiomas Collection 11 classifies every 30 m pixel in Brazil every year. Each class's area comes from each pixel's true size, not a fixed 900 m². The bars compare each class's share inside and around.<button type="button" class="rp-nota" data-nota="3" aria-label="note 3">3</button></p>
+      <p id="t-cobertura"></p>
+      <p class="como"><b>In the app:</b> the <b>Run all analyses</b> button after saving the drawing, and the <b>MapBiomas</b> tab under <b>Results</b>.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="tempo" data-camada="tempo" data-mapa="meio" data-bloco="comparar" data-titulo="Native vegetation · 1985, 2005, 2025" data-selo="real">
+      <div class="num">4</div>
+      <h2>Forty years in three snapshots</h2>
+      <p>The same sum in 1985, 2005 and 2025: how much of each zone is native vegetation (forest, savanna and grassland). The map shows the series' first year, to compare with the previous step.</p>
+      <p id="t-tempo"></p>
+      <p class="como"><b>In the app:</b> the <b>Compare</b> tab (two years side by side) and the <b>Multi-window</b> tab (several years at once).</p>
+    </article>
+
+    <article class="rp-passo" data-passo="transicoes" data-camada="transicoes" data-mapa="pequeno" data-bloco="comparar" data-titulo="Transitions 1985 → 2025" data-selo="real">
+      <div class="num">5</div>
+      <h2>What became what</h2>
+      <p>The diagram links each 1985 class to the class the same pixel had in 2025. A band linking a class to itself is what stayed the same; the bands that cross are the change.</p>
+      <p id="t-transicoes"></p>
+      <p class="como"><b>In the app:</b> the <b>Compare</b> tab, with the transition matrix, and the <b>Treemaps</b> tab, one per class.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="hansen" data-camada="hansen" data-mapa="meio" data-bloco="hansen" data-titulo="Hansen · Global Forest Change" data-selo="real">
+      <div class="num">6</div>
+      <h2>A second opinion on the forest</h2>
+      <p>Hansen/UMD measures something else: tree cover, not land-use classes. It starts from the 2000 canopy, dates the year each pixel lost its trees and adds an undated gain. When MapBiomas and Hansen tell the same story, the story is firmer.<button type="button" class="rp-nota" data-nota="4" aria-label="note 4">4</button></p>
+      <p id="t-hansen"></p>
+      <p class="como"><b>In the app:</b> the <b>Hansen GFC</b> tab, and the <b>Hansen/GLAD</b> tab for a single year's cover.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="linha" data-camada="linha" data-mapa="oculto" data-bloco="timeline" data-titulo="Timeline" data-selo="real">
+      <div class="num">7</div>
+      <h2>Year by year: clearing, regrowth and fire</h2>
+      <p>The timeline brings together four yearly series: primary vegetation clearing and regrowth (MapBiomas Deforestation and Secondary Vegetation), canopy loss (Hansen) and fire scars (MapBiomas Fire).</p>
+      <p id="t-linha"></p>
+      <p>In the reservoirs, much of the change after 2011 is not clearing for use: it is forest that became water. The transitions diagram in step 5 tells the two apart.</p>
+      <p class="como"><b>In the app:</b> the <b>Timeline</b> tab, which can overlay the political context (federal and state governments) and ENSO.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="contraste" data-camada="contraste" data-mapa="oculto" data-bloco="timeline" data-titulo="Inside × around" data-selo="real">
+      <div class="num">8</div>
+      <h2>The same line, inside and out</h2>
+      <p>To compare zones of different sizes, clearing becomes hectares per 1,000 hectares of each zone. If the outside line rises and the inside one does not, the boundary is holding; if both rise together, the pressure has already crossed it.</p>
+      <p id="t-contraste"></p>
+      <p class="como"><b>In the app:</b> the <b>Timeline</b> tab, with the buffer zone switched on.</p>
+    </article>
+
+    <article class="rp-passo" data-passo="exportar" data-camada="exportar" data-mapa="oculto" data-bloco="exportar" data-titulo="Export and cite" data-selo="real">
+      <div class="num">9</div>
+      <h2>Report, tables and maps to take away</h2>
+      <p>Everything in the tabs can leave the app: a PDF report, CSV tables, PNG maps and charts, all in one ZIP. The data Yvynation produces are open (CC BY 4.0), with the source of each layer.<button type="button" class="rp-nota" data-nota="5" aria-label="note 5">5</button></p>
+      <p class="como"><b>In the app:</b> the <b>Export &amp; Download</b> panel below the results, and <b>How to Cite</b> at the top.</p>
+    </article>
+
+  </div>
+
+  <div class="rp-figura" aria-live="polite">
+    <div class="rp-moldura">
+      <div class="rp-barra-janela"><i></i><i></i><i></i><span id="rp-fig-url">yvynation.umaterra.com.br</span></div>
+      <div class="rp-fig-corpo">
+        <nav class="rp-pagina" aria-label="Where it is in the app">
+          <div class="pg-rot">in the app</div>
+          <div class="pg-b alto" data-bloco="area">study area · buffer</div>
+          <div class="pg-b" data-bloco="mapa">map</div>
+          <div class="pg-par"><div class="pg-b" data-bloco="mapbiomas">MapBiomas</div><div class="pg-b" data-bloco="hansen">Hansen</div></div>
+          <div class="pg-par"><div class="pg-b" data-bloco="comparar">compare</div><div class="pg-b" data-bloco="timeline">timeline</div></div>
+          <div class="pg-b" data-bloco="exportar">export &amp; download</div>
+        </nav>
+        <div class="rp-fig-principal">
+          <div class="rp-fig-cab"><span id="rp-fig-titulo">Loading…</span><span id="rp-fig-selo" class="selo real">measured</span></div>
+          <div class="rp-fig-area" data-mapa="grande">
+            <div class="rp-mapa-caixa"><div id="rp-mapa"></div><div class="rp-mapa-legenda" id="rp-mapa-legenda"></div></div>
+            <div class="rp-painel">
+              <div id="rp-fig-estado" class="rp-fig-estado">Computing the example in Earth Engine (the first visit can take up to a minute)…</div>
+              <div class="rp-camada" id="camada-area"><div id="fig-area"></div></div>
+              <div class="rp-camada" id="camada-buffer"><div id="fig-buffer"></div></div>
+              <div class="rp-camada" id="camada-cobertura"><div id="fig-cobertura"></div></div>
+              <div class="rp-camada" id="camada-tempo"><div id="fig-tempo"></div></div>
+              <div class="rp-camada" id="camada-transicoes"><div id="fig-transicoes"></div></div>
+              <div class="rp-camada" id="camada-hansen"><div id="fig-hansen"></div></div>
+              <div class="rp-camada" id="camada-linha"><div id="fig-linha"></div></div>
+              <div class="rp-camada" id="camada-contraste"><div id="fig-contraste"></div></div>
+              <div class="rp-camada" id="camada-exportar">
+                <img class="rp-print" id="fig-exportar-print" src="/demo_prints/desenho_madeira.jpg" alt="The geometry analysis, with the drawing tools to the left of the map." loading="lazy">
+                <p class="rp-print-cap">The geometry analysis, with the drawing tools to the left of the map. <span class="selo print">screenshot</span></p>
+                <div id="fig-exportar" style="margin-top:8px"></div>
+              </div>
+              <p class="rp-fig-legenda" id="rp-fig-legenda"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="rp-fim">
+  <h2>What Yvynation does not say</h2>
+  <ul class="rp-limites">
+    <li><b>A drawn area has no legal standing.</b> It is the question of whoever drew it. The numbers hold for that polygon, not for a property, a municipality or a watershed.</li>
+    <li><b>The line matters.</b> Drawn at regional scale, the polygon takes in banks and islands a finer drawing would leave out. The sum is exact for the polygon, not for the intent.</li>
+    <li><b>Flooding is not clearing for use.</b> The satellite sees forest turn into water; licensing, offsets and authorised clearing are left out.</li>
+    <li><b>The 10 km zone is only for comparison.</b> It is the same ring for any area, to see whether the change belongs to the polygon or to the region.</li>
+    <li><b>It cannot see below 30 m.</b> Small clearings and degradation under the canopy escape both MapBiomas and Hansen.</li>
+  </ul>
+  <p class="rp-fim-extra" id="fim-extra"></p>
+  <a class="rp-cta" id="cta-app" href="/">Open in Yvynation →</a>
+  <a class="rp-cta sec" href="/canada">Yvynation Canada</a>
+  <p class="rp-rodape">The numbers come from the app's own functions: the example is stored with the page, and any other area is computed on the spot.</p>
+  <p class="rp-rodape">Other Yvynation walkthroughs: <a href="/walkthrough/indigenous-land">an Indigenous land</a> · <a href="/walkthrough/conservation-unit">a conservation unit</a> · <a href="/walkthrough/drawn-area">a drawn area</a> · <a href="/walkthrough/batch">many areas in one batch</a>. <a href="/demonstracao/desenho" lang="pt-BR">Versão em português</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notes">
+  <h3>Notes</h3>
+  <ol>
+    <li id="nota-1">The UmaTerra suite is organised by who draws the boundary being analysed: the state (Indigenous lands and conservation units), the analyst (a point, in Naturametrics) or the landholder (the CAR, in Camposcope). A drawn area sits with the analyst, since the boundary does not exist until someone draws it. Yvynation still gives it the official areas' treatment, with the exclusive 10 km ring, so the numbers stay comparable. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-2">The ring is <i>exclusive</i>: it starts at the boundary and leaves the area itself out, so no hectare is counted in both zones. Even so, it is a comparison region, not a counterfactual. Clearing pushed from inside to outside (leakage) inflates the contrast, and protected areas tend to be placed on land that was less threatened to begin with (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009). So the screen compares, but does not credit the difference to the boundary. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-3">Area comes from <code>pixelArea()</code>, each pixel's true area, not from the pixel count times 0.09 ha. MapBiomas pixels are measured in degrees, and their area shrinks away from the Equator. The convention started in Naturametrics and reached Yvynation in August 2026, one of the modules that move between the suite's three tools. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-4">MapBiomas and Hansen have to stay separate because they measure different things. An April 2026 export put 305,250 ha of Hansen loss in 2024 inside the Kayapó Indigenous Land, about two-thirds of all the 2001–2023 loss in a single year. It was a wildfire scar, not clearing: Hansen's loss layer records canopy loss from any cause (Curtis et al., 2018). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+    <li id="nota-5">This page's numbers come from MapBiomas Collection 11 (1985–2025), the default in all three tools since 14 October 2026. Earlier exports, made with Collections 9 and 10, keep their original collection. Do not compare them class by class: Collection 11 recoded some classes (77 replaces 13, herbaceous and shrubby formation). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscript in preparation, 2026).</span></li>
+  </ol>
+</section>

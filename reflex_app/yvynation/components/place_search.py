@@ -189,6 +189,9 @@ def howto_dialog() -> rx.Component:
                 align="center", margin_top="1rem", wrap="wrap", gap="2",
             ),
             max_width=["94vw", "94vw", "640px", "640px"],
+            # Radix would focus the first step's button on open, and focus
+            # inside the folded step list (tutorial.py) unfolds it at once.
+            on_open_auto_focus=rx.prevent_default,
         ),
         open=AppState.howto_open,
         on_open_change=AppState.set_howto_open,

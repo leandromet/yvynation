@@ -8,9 +8,10 @@
 <section class="rp-abertura">
   <div class="rp-chapeu">Processamento em lote · passo a passo</div>
   <h1>Cem territórios numa tarde: o processamento em lote, passo a passo</h1>
-  <p class="rp-linha-fina">Quando a pergunta não é sobre uma terra, mas sobre muitas — todas as terras indígenas de um
-    estado, as reservas extrativistas de um bioma —, o Yvynation roda a análise completa em até cem territórios de uma vez
-    e entrega um ZIP só. Esta demonstração mostra cada tela de uma execução real e, no fim, o que um lote pequeno já responde.</p>
+  <p class="rp-linha-fina">Às vezes a pergunta não é sobre uma terra, e sim sobre muitas: todas as terras indígenas de um
+    estado, as reservas extrativistas de um bioma. Para isso o Yvynation roda a análise completa em até cem territórios de
+    uma vez e entrega tudo num ZIP só. Aqui a gente passa por cada tela de uma execução real e, no fim, vê o que um lote
+    pequeno já consegue responder.</p>
   <p class="rp-cred" id="abertura-exemplo">Carregando o lote de exemplo no Earth Engine…</p>
   <div class="rp-numeros" aria-live="polite">
     <div><b data-campo="n-ti">—</b><small>terras indígenas no catálogo da FUNAI</small></div>
@@ -32,9 +33,9 @@
       <h2>Escolher muitas áreas de uma vez</h2>
       <p>O lote começa pela lista: terras indígenas ou unidades de conservação, com povo, fase, estado e área de cada uma.
         A busca e os <b>filtros</b> (estado, fase, modalidade, categoria, esfera, grupo, faixa de área) recortam a lista;
-        <b>Selecionar todos os filtrados</b> leva o recorte inteiro. Também dá para colar ou enviar uma lista de nomes.</p>
+        <b>Selecionar todos os filtrados</b> leva o recorte inteiro. Também dá para colar ou enviar uma lista de nomes.<button type="button" class="rp-nota" data-nota="1" aria-label="nota 1">1</button></p>
       <p>Nesta execução de exemplo, duas terras pequenas de Mato Grosso do Sul: Jaguari (405 ha) e Guaimbé (717 ha).
-        Áreas pequenas calculam em minutos; um lote de cem terras grandes leva horas.</p>
+        Áreas pequenas saem em minutos; um lote de cem terras grandes leva horas.</p>
       <p class="como"><b>No aplicativo:</b> portada → cartão <b>Processamento em Lote</b>, etapa <b>Selecionar</b>.
         Link direto: <code>/?modo=lote</code>.</p>
     </article>
@@ -62,7 +63,7 @@
       <div class="num">4</div>
       <h2>Rodar sem supervisão</h2>
       <p>Iniciado o lote, o aplicativo processa os territórios em paralelo, com um registro de cada etapa e novas tentativas
-        automáticas quando o Earth Engine recusa um pedido. A aba pode ficar aberta sozinha: o lote não é pausado enquanto roda.</p>
+        automáticas quando o Earth Engine recusa um pedido. Pode deixar a aba aberta e ir fazer outra coisa: o lote não é pausado enquanto roda.<button type="button" class="rp-nota" data-nota="2" aria-label="nota 2">2</button></p>
       <p id="t-executar"></p>
       <p class="como"><b>No aplicativo:</b> botão <b>Iniciar Processamento em Lote</b> na barra de baixo; etapa <b>Executar</b>, com o progresso por território.</p>
     </article>
@@ -71,7 +72,7 @@
       <div class="num">5</div>
       <h2>Um arquivo só, com tudo dentro</h2>
       <p>No fim, um ZIP reúne uma pasta por território: o leia-me, os metadados da execução (anos, análises, versões das
-        fontes), as tabelas e as figuras. O mesmo pacote fica guardado em <b>Execuções Anteriores</b>, para baixar de novo depois.</p>
+        fontes), as tabelas e as figuras. O mesmo pacote fica guardado em <b>Execuções Anteriores</b>, para baixar de novo depois.<button type="button" class="rp-nota" data-nota="3" aria-label="nota 3">3</button></p>
       <p class="como"><b>No aplicativo:</b> botão de download ao fim da etapa <b>Executar</b>, e <b>Execuções Anteriores</b> no topo.</p>
     </article>
 
@@ -79,7 +80,7 @@
       <div class="num">6</div>
       <h2>O que um lote pequeno já responde</h2>
       <p>Com as mesmas contas em todas as linhas, a pergunta passa a ser comparativa. Aqui, as oito terras indígenas
-        regularizadas de Mato Grosso do Sul com 200 a 1.000 ha, cada uma com a vegetação nativa dentro e nos 10 km em volta, no último ano do MapBiomas.</p>
+        regularizadas de Mato Grosso do Sul com 200 a 1.000 ha, cada uma com a vegetação nativa dentro e nos 10 km em volta, no último ano do MapBiomas.<button type="button" class="rp-nota" data-nota="4" aria-label="nota 4">4</button></p>
       <p id="t-comparar"></p>
       <p class="como"><b>No aplicativo:</b> a tabela de cada território vai no ZIP; o lote inteiro cabe numa planilha.</p>
     </article>
@@ -122,7 +123,7 @@
   <h2>O que o lote não diz</h2>
   <ul class="rp-limites">
     <li><b>Não ordena territórios por mérito.</b> A tabela compara cobertura; a situação de cada terra ou unidade depende de
-      história, povo, categoria e pressão, que não cabem numa coluna.</li>
+      história, povo, categoria e pressão, que não cabem numa coluna.<button type="button" class="rp-nota" data-nota="5" aria-label="nota 5">5</button></li>
     <li><b>Não junta áreas sobrepostas.</b> Cada território é analisado com o próprio contorno; terras e unidades que se
       sobrepõem contam a mesma área duas vezes, e a soma do lote não é a área do conjunto.</li>
     <li><b>Não substitui a leitura de cada um.</b> O lote é o primeiro passo; uma terra que chama atenção merece a análise
@@ -134,5 +135,17 @@
   <a class="rp-cta sec" href="/demonstracao/terra-indigena">Ver uma terra em detalhe</a>
   <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> ·
     <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a>.
-    Os prints e a lista de arquivos são de uma execução real; a tabela do passo 6 vem das mesmas funções do lote e fica guardada com a página.</p>
+    Os prints e a lista de arquivos são de uma execução real; a tabela do passo 6 vem das mesmas funções do lote e fica guardada com a página.
+    <a href="/walkthrough/batch" lang="en">English version</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notas">
+  <h3>Notas</h3>
+  <ol>
+    <li id="nota-1">Os territórios já processados vão de 4.282 ha (Krenak) a 3.283.191 ha (Kayapó), uma diferença de umas 770 vezes. Por isso o lote não divide a lista em blocos fixos: cada trabalhador puxa o próximo território de uma fila compartilhada (<code>asyncio.Queue</code>), e ninguém fica parado com terras pequenas enquanto outro ainda processa a maior. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-2">O lote trabalha em três níveis: territórios em paralelo, tirados da fila; as análises de cada território disparadas juntas no Earth Engine, até 11 pedidos de uma vez; e os mapas e gráficos numa fila de desenho por biblioteca. Medido numa execução de 31 territórios em 2 vCPU e 8 GiB, o Earth Engine ficou ocupado 9,8% do tempo e a fila de desenho 80,1%: 644 MB de arquivo em 10,6 minutos. Mais núcleos quase não ajudariam; o próximo ganho está em desenhar mais rápido. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-3">Áreas acima de 1.000.000 ha são divididas em quatro quadrantes, porque o Earth Engine estourava o tempo no anel de terras com mais de uns 2 milhões de ha. Antes de montar o PDF, o lote soma de volta as classes, as transições e a perda anual dos quatro pedaços e refaz os percentuais, para o relatório descrever a terra que o catálogo nomeia. Se um relatório falha, o lote registra a falha e mantém a análise daquela área. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-4">O anel em volta é exclusivo (não inclui a própria terra) e serve para comparar, não para provar efeito. O desmatamento empurrado para fora da divisa aumenta o contraste, e áreas protegidas costumam ser criadas em terras já menos ameaçadas (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-5">Estatísticas sobre terras indígenas com nome, publicadas com licença aberta, podem ser citadas em contextos que as comunidades não escolheram. Os princípios CARE de governança de dados indígenas (Carroll et al., 2020) pedem mais do que isso, e a suíte ainda não consulta organizações indígenas sobre como apresentar os resultados. O artigo registra isso como lacuna, não como obrigação cumprida. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+  </ol>
 </section>

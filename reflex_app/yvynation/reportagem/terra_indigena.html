@@ -8,7 +8,7 @@
 <section class="rp-abertura">
   <div class="rp-chapeu">Terras indígenas · uso da terra · passo a passo</div>
   <h1>Como ler uma terra indígena no Yvynation, de dentro para fora</h1>
-  <p class="rp-linha-fina">Uma terra do catálogo da FUNAI vira quarenta anos de MapBiomas, a perda de floresta do Hansen, uma linha do tempo de desmatamento, regeneração e fogo, e a mesma leitura para os 10 km em volta. Esta demonstração abre uma terra indígena de verdade e mostra, na ordem do aplicativo, de onde sai cada número e o que ele não diz.</p>
+  <p class="rp-linha-fina">Escolha uma terra do catálogo da FUNAI e o Yvynation devolve quarenta anos de MapBiomas, a perda de floresta medida pelo Hansen, uma linha do tempo de desmatamento, regeneração e fogo, e a mesma leitura para os 10 km em volta. Aqui a gente abre uma terra indígena de verdade e segue, na ordem do aplicativo, de onde vem cada número e o que ele não diz.</p>
   <p class="rp-cred" id="abertura-exemplo">Carregando o exemplo no Earth Engine (a primeira visita pode levar até um minuto)…</p>
   <div class="rp-numeros" aria-live="polite">
     <div><b data-campo="n-area">—</b><small>área da terra indígena (geometria da FUNAI) <span class="selo real">real</span></small></div>
@@ -28,34 +28,31 @@
     <article class="rp-passo" data-passo="area" data-camada="area" data-mapa="grande" data-bloco="area" data-titulo="Área de estudo" data-selo="real">
       <div class="num">1</div>
       <h2>Escolher a terra no catálogo da FUNAI</h2>
-      <p>O Yvynation traz as 657 terras indígenas do catálogo da FUNAI, com povo, fase e datas de demarcação. Busque pelo nome, filtre por estado ou clique numa terra no mapa: o contorno vem do próprio catálogo, sem passar pelo Earth Engine.</p>
+      <p>O Yvynation traz as 657 terras indígenas do catálogo da FUNAI, com povo, fase e datas de demarcação. Dá para buscar pelo nome, filtrar por estado ou clicar numa terra no mapa. O contorno vem do próprio catálogo, sem passar pelo Earth Engine.<button type="button" class="rp-nota" data-nota="1" aria-label="nota 1">1</button></p>
       <p id="t-area"></p>
-      <p class="como"><b>No aplicativo:</b> na portada, o cartão <b>Análise de Terras Indígenas</b>; na barra lateral, <b>Área de estudo</b> com a busca e a lista. Link direto: <code>/?modo=terra-indigena&amp;busca=…</code>.</p>
+      <p class="como"><b>No aplicativo:</b> na portada, o cartão <b>Análise de Terras Indígenas</b>; na barra lateral, <b>Área de estudo</b>, com a busca e a lista. Link direto: <code>/?modo=terra-indigena&amp;busca=…</code>.</p>
     </article>
 
     <article class="rp-passo" data-passo="buffer" data-camada="buffer" data-mapa="grande" data-bloco="area" data-titulo="Zona em volta" data-selo="real">
       <div class="num">2</div>
       <h2>Dez quilômetros em volta, para comparar</h2>
-      <p>Um número dentro da área só ganha sentido ao lado do que acontece fora dela. Ao escolher a área, o Yvynation cria
-        sozinho um anel de 10 km para fora da divisa, que exclui a própria área, e roda nele as mesmas análises.</p>
+      <p>Um número dentro da área só ganha sentido ao lado do que acontece fora dela. Assim que a área é escolhida, o Yvynation cria sozinho um anel de 10 km para fora da divisa e roda nele as mesmas análises.<button type="button" class="rp-nota" data-nota="2" aria-label="nota 2">2</button></p>
       <p id="t-buffer"></p>
-      <p class="como"><b>No aplicativo:</b> painel <b>Buffer Zone</b> na barra lateral: o anel de 10 km é criado ao escolher a área, e outro raio pode ser pedido em <b>Create</b>.</p>
+      <p class="como"><b>No aplicativo:</b> painel <b>Buffer Zone</b> na barra lateral: o anel de 10 km nasce junto com a área, e outro raio pode ser pedido em <b>Create</b>.</p>
     </article>
 
     <article class="rp-passo" data-passo="cobertura" data-camada="cobertura" data-mapa="meio" data-bloco="mapbiomas" data-titulo="MapBiomas · último ano" data-selo="real">
       <div class="num">3</div>
       <h2>Dentro e fora, no último ano</h2>
-      <p>O MapBiomas Coleção 11 classifica cada pixel de 30 m do Brasil todo ano. A área de cada classe é calculada com o
-        tamanho real de cada pixel, não com 900 m² fixos. As barras comparam a parte de cada classe dentro e em volta.</p>
+      <p>O MapBiomas Coleção 11 classifica todo ano cada pixel de 30 m do Brasil. A área de cada classe sai do tamanho real de cada pixel, não de 900 m² fixos. As barras comparam a fatia de cada classe dentro e em volta.<button type="button" class="rp-nota" data-nota="3" aria-label="nota 3">3</button></p>
       <p id="t-cobertura"></p>
-      <p class="como"><b>No aplicativo:</b> botão <b>Executar todas as análises</b> no topo, aba <b>MapBiomas</b> em <b>Resultados</b>.</p>
+      <p class="como"><b>No aplicativo:</b> botão <b>Executar todas as análises</b> no topo e aba <b>MapBiomas</b> em <b>Resultados</b>.</p>
     </article>
 
     <article class="rp-passo" data-passo="tempo" data-camada="tempo" data-mapa="meio" data-bloco="comparar" data-titulo="Vegetação nativa · 1985, 2005, 2025" data-selo="real">
       <div class="num">4</div>
       <h2>Quarenta anos em três fotografias</h2>
-      <p>A mesma conta em 1985, 2005 e 2025: a parte de cada zona que é vegetação nativa (floresta, savana e campos). No
-        mapa, o primeiro ano da série, para comparar com o passo anterior.</p>
+      <p>A mesma conta em 1985, 2005 e 2025: quanto de cada zona é vegetação nativa (floresta, savana e campos). No mapa, o primeiro ano da série, para comparar com o passo anterior.</p>
       <p id="t-tempo"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b> (dois anos lado a lado) e aba <b>Multi-window</b> (vários anos de uma vez).</p>
     </article>
@@ -63,8 +60,7 @@
     <article class="rp-passo" data-passo="transicoes" data-camada="transicoes" data-mapa="pequeno" data-bloco="comparar" data-titulo="Transições 1985 → 2025" data-selo="real">
       <div class="num">5</div>
       <h2>O que virou o quê</h2>
-      <p>O diagrama liga cada classe de 1985 à classe que o mesmo pixel tinha em 2025. A faixa que liga uma classe a ela
-        mesma é o que não mudou; as que cruzam são a mudança.</p>
+      <p>O diagrama liga cada classe de 1985 à classe que o mesmo pixel tinha em 2025. A faixa que liga uma classe a ela mesma é o que ficou igual; as que cruzam são a mudança.</p>
       <p id="t-transicoes"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b>, com a matriz de transições, e aba <b>Treemaps</b>, uma por classe.</p>
     </article>
@@ -72,8 +68,7 @@
     <article class="rp-passo" data-passo="hansen" data-camada="hansen" data-mapa="meio" data-bloco="hansen" data-titulo="Hansen · Global Forest Change" data-selo="real">
       <div class="num">6</div>
       <h2>Uma segunda opinião sobre a floresta</h2>
-      <p>O Hansen/UMD mede outra coisa: cobertura de árvores, não classes de uso. Parte da copa de 2000, marca o ano em que
-        cada pixel perdeu as árvores e um ganho sem data. Quando MapBiomas e Hansen contam a mesma história, ela fica mais firme.</p>
+      <p>O Hansen/UMD mede outra coisa: cobertura de árvores, não classes de uso. Parte da copa de 2000, marca o ano em que cada pixel perdeu as árvores e soma um ganho sem data. Quando MapBiomas e Hansen contam a mesma história, ela fica mais firme.<button type="button" class="rp-nota" data-nota="4" aria-label="nota 4">4</button></p>
       <p id="t-hansen"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Hansen GFC</b>, e aba <b>Hansen/GLAD</b> para a cobertura de um ano.</p>
     </article>
@@ -81,18 +76,16 @@
     <article class="rp-passo" data-passo="linha" data-camada="linha" data-mapa="oculto" data-bloco="timeline" data-titulo="Linha do tempo" data-selo="real">
       <div class="num">7</div>
       <h2>Ano a ano: desmatamento, regeneração e fogo</h2>
-      <p>A linha do tempo junta quatro séries anuais: o desmatamento de vegetação primária e a regeneração (MapBiomas
-        Desmatamento e Vegetação Secundária), a perda de copa (Hansen) e as cicatrizes de fogo (MapBiomas Fogo).</p>
+      <p>A linha do tempo junta quatro séries anuais: o desmatamento de vegetação primária e a regeneração (MapBiomas Desmatamento e Vegetação Secundária), a perda de copa (Hansen) e as cicatrizes de fogo (MapBiomas Fogo).</p>
       <p id="t-linha"></p>
-      <p>A linha verde marca a homologação. A série não diz o que a homologação causou, mas mostra o antes e o depois na mesma escala.</p>
+      <p>A linha verde marca a homologação. A série não diz o que a homologação provocou, mas põe o antes e o depois na mesma escala.</p>
       <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, que pode sobrepor o contexto político (governos federal e estadual) e o ENSO.</p>
     </article>
 
     <article class="rp-passo" data-passo="contraste" data-camada="contraste" data-mapa="oculto" data-bloco="timeline" data-titulo="Dentro × em volta" data-selo="real">
       <div class="num">8</div>
       <h2>A mesma linha, dentro e fora</h2>
-      <p>Para comparar zonas de tamanhos diferentes, o desmatamento vira hectares por 1.000 hectares de cada zona. Se a
-        linha de fora sobe e a de dentro não, a divisa está segurando; se as duas sobem juntas, a pressão já atravessou.</p>
+      <p>Para comparar zonas de tamanhos diferentes, o desmatamento vira hectares por 1.000 hectares de cada zona. Se a linha de fora sobe e a de dentro não, a divisa está segurando; se as duas sobem juntas, a pressão já atravessou.</p>
       <p id="t-contraste"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, com a zona de amortecimento ligada.</p>
     </article>
@@ -100,8 +93,7 @@
     <article class="rp-passo" data-passo="exportar" data-camada="exportar" data-mapa="oculto" data-bloco="exportar" data-titulo="Exportar e citar" data-selo="real">
       <div class="num">9</div>
       <h2>Relatório, tabelas e mapas para levar</h2>
-      <p>Tudo o que aparece nas abas sai do aplicativo: relatório em PDF, tabelas em CSV, mapas e gráficos em PNG, num ZIP só.
-        Os dados gerados no Yvynation são abertos (CC BY 4.0), com a fonte de cada camada.</p>
+      <p>Tudo o que aparece nas abas sai do aplicativo: relatório em PDF, tabelas em CSV, mapas e gráficos em PNG, num ZIP só. Os dados gerados no Yvynation são abertos (CC BY 4.0), com a fonte de cada camada.<button type="button" class="rp-nota" data-nota="5" aria-label="nota 5">5</button></p>
       <p class="como"><b>No aplicativo:</b> painel <b>Export &amp; Download</b> abaixo dos resultados, e <b>Como Citar</b> no topo.</p>
     </article>
 
@@ -150,15 +142,26 @@
 <section class="rp-fim">
   <h2>O que o Yvynation não diz</h2>
   <ul class="rp-limites">
-    <li><b>Não diz quem desmatou nem por quê.</b> A série mostra onde e quando a cobertura mudou; invasão, garimpo, arrendamento ou fogo de manejo só se distinguem com informação de campo.</li>
-    <li><b>Não fala pelo povo.</b> Cobertura do solo não é território vivido. Roças, caminhos e fogo de manejo tradicional aparecem como uso; a leitura certa desses números depende de quem vive ali.</li>
+    <li><b>Não diz quem desmatou nem por quê.</b> A série mostra onde e quando a cobertura mudou. Invasão, garimpo, arrendamento ou fogo de manejo só se distinguem com informação de campo.</li>
+    <li><b>Não fala pelo povo.</b> Cobertura do solo não é território vivido. Roças, caminhos e o fogo de manejo tradicional aparecem como uso, e quem sabe ler esses números é quem vive ali.</li>
     <li><b>A zona de 10 km não é zona de amortecimento legal.</b> É um anel de comparação, igual para toda terra, para ver se a pressão de fora chega até a divisa.</li>
-    <li><b>A divisa é a do catálogo.</b> O contorno é o publicado pela FUNAI; terras em estudo ou com limites contestados podem ter outro desenho em campo.</li>
+    <li><b>A divisa é a do catálogo.</b> O contorno é o que a FUNAI publica. Terras em estudo ou com limites contestados podem ter outro desenho em campo.</li>
     <li><b>Não enxerga abaixo de 30 m.</b> Clareiras pequenas e degradação sob a copa escapam do MapBiomas e do Hansen.</li>
   </ul>
   <p class="rp-fim-extra" id="fim-extra"></p>
   <a class="rp-cta" id="cta-app" href="/">Abrir no Yvynation →</a>
   <a class="rp-cta sec" href="/canada">Yvynation Canadá</a>
   <p class="rp-rodape">Outros exemplos: <a href="?area=Uru-Eu-Wau-Wau">Uru-Eu-Wau-Wau (RO)</a> · <a href="?area=Apyterewa">Apyterewa (PA)</a> · <a href="?area=Cachoeira%20Seca">Cachoeira Seca (PA)</a> · <a href="?">Karipuna (RO), o exemplo desta página</a>. Troque a área no endereço (<code>?area=…</code>, com o nome como aparece no catálogo). Os números vêm das mesmas funções do aplicativo: o exemplo fica guardado com a página, e outra área é calculada na hora.</p>
-  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> · <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a> · <a href="/demonstracao/lote">várias áreas em lote</a>.</p>
+  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> · <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a> · <a href="/demonstracao/lote">várias áreas em lote</a>. <a href="/walkthrough/indigenous-land" lang="en">English version</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notas">
+  <h3>Notas</h3>
+  <ol>
+    <li id="nota-1">A FUNAI identifica e demarca as terras que a Constituição de 1988 reconhece como tradicionalmente ocupadas pelos povos indígenas. O limite de cada terra passa por fases legais, do estudo à delimitação, à declaração e à homologação por decreto presidencial, e a camada pública da FUNAI registra essa fase. Um limite oficial, estável e enumerável é o que permite comparar terras no país inteiro e rodar todas de uma vez, em lote. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-2">O anel é <i>exclusivo</i>: começa na divisa e deixa a própria área de fora, para que nenhum hectare entre nas duas contas. Mesmo assim, ele é uma região de comparação, não um contrafactual. O desmatamento empurrado de dentro para fora (o chamado vazamento) aumenta o contraste, e áreas protegidas costumam ser criadas em terras que já eram menos ameaçadas (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009). Por isso a tela compara, mas não credita à divisa a diferença. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-3">A área vem de <code>pixelArea()</code>, a área de verdade de cada pixel, e não do número de pixels vezes 0,09 ha. O pixel do MapBiomas é medido em graus, e sua área encolhe à medida que se afasta do Equador. A convenção nasceu no Naturametrics e chegou ao Yvynation em agosto de 2026, um dos módulos que circulam entre as três ferramentas da suíte. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-4">MapBiomas e Hansen precisam ficar separados porque medem coisas diferentes. Uma exportação de abril de 2026 atribuía 305.250 ha de perda Hansen a 2024 na Terra Indígena Kayapó, cerca de dois terços de toda a perda de 2001–2023 num único ano. Era a cicatriz de um incêndio, não desmatamento: a perda do Hansen registra a queda da copa por qualquer causa (Curtis et al., 2018). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-5">Os dados saem com licença aberta, e é aí que mora um problema que o artigo registra como lacuna. Estatísticas sobre terras indígenas com nome podem ser citadas em contextos que as comunidades não escolheram: o fogo mais reativo dentro das áreas protegidas do que em volta, por exemplo, pode ser lido como efeito da vegetação nativa conservada ou como má gestão. Os princípios CARE de governança de dados indígenas (Carroll et al., 2020) pedem mais do que uma licença aberta, e a suíte ainda não consulta organizações indígenas sobre como apresentar esses resultados. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+  </ol>
 </section>

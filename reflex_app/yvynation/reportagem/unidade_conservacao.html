@@ -8,7 +8,7 @@
 <section class="rp-abertura">
   <div class="rp-chapeu">Unidades de conservação · uso da terra · passo a passo</div>
   <h1>Como ler uma unidade de conservação no Yvynation, de dentro para fora</h1>
-  <p class="rp-linha-fina">Uma unidade do Cadastro Nacional de Unidades de Conservação vira quarenta anos de MapBiomas, a perda de floresta do Hansen, uma linha do tempo de desmatamento, regeneração e fogo, e a mesma leitura para os 10 km em volta. Esta demonstração abre uma unidade de verdade e mostra de onde sai cada número.</p>
+  <p class="rp-linha-fina">Escolha uma unidade do Cadastro Nacional de Unidades de Conservação e o Yvynation devolve quarenta anos de MapBiomas, a perda de floresta medida pelo Hansen, uma linha do tempo de desmatamento, regeneração e fogo, e a mesma leitura para os 10 km em volta. Aqui a gente abre uma unidade de verdade e segue de onde vem cada número.</p>
   <p class="rp-cred" id="abertura-exemplo">Carregando o exemplo no Earth Engine (a primeira visita pode levar até um minuto)…</p>
   <div class="rp-numeros" aria-live="polite">
     <div><b data-campo="n-area">—</b><small>área da unidade (geometria do CNUC) <span class="selo real">real</span></small></div>
@@ -28,34 +28,31 @@
     <article class="rp-passo" data-passo="area" data-camada="area" data-mapa="grande" data-bloco="area" data-titulo="Área de estudo" data-selo="real">
       <div class="num">1</div>
       <h2>Escolher a unidade no catálogo do CNUC</h2>
-      <p>O Yvynation traz as 3.247 unidades de conservação do CNUC, federais, estaduais e municipais, com categoria, grupo e esfera. O grupo importa para a leitura: em <b>proteção integral</b> não se espera uso direto; em <b>uso sustentável</b>, como reservas extrativistas e florestas nacionais, o plano de manejo diz que uso cabe ali.</p>
+      <p>O Yvynation traz as 3.247 unidades de conservação do CNUC, federais, estaduais e municipais, com categoria, grupo e esfera. O grupo muda a leitura: na <b>proteção integral</b> não se espera uso direto; no <b>uso sustentável</b>, caso das reservas extrativistas e das florestas nacionais, é o plano de manejo que diz que uso cabe ali.<button type="button" class="rp-nota" data-nota="1" aria-label="nota 1">1</button></p>
       <p id="t-area"></p>
-      <p class="como"><b>No aplicativo:</b> na portada, o cartão <b>Análise de Unidades de Conservação</b>; na barra lateral, <b>Área de estudo</b> com a busca e a lista. Link direto: <code>/?modo=unidade-conservacao&amp;busca=…</code>.</p>
+      <p class="como"><b>No aplicativo:</b> na portada, o cartão <b>Análise de Unidades de Conservação</b>; na barra lateral, <b>Área de estudo</b>, com a busca e a lista. Link direto: <code>/?modo=unidade-conservacao&amp;busca=…</code>.</p>
     </article>
 
     <article class="rp-passo" data-passo="buffer" data-camada="buffer" data-mapa="grande" data-bloco="area" data-titulo="Zona em volta" data-selo="real">
       <div class="num">2</div>
       <h2>Dez quilômetros em volta, para comparar</h2>
-      <p>Um número dentro da área só ganha sentido ao lado do que acontece fora dela. Ao escolher a área, o Yvynation cria
-        sozinho um anel de 10 km para fora da divisa, que exclui a própria área, e roda nele as mesmas análises.</p>
+      <p>Um número dentro da área só ganha sentido ao lado do que acontece fora dela. Assim que a área é escolhida, o Yvynation cria sozinho um anel de 10 km para fora da divisa e roda nele as mesmas análises.<button type="button" class="rp-nota" data-nota="2" aria-label="nota 2">2</button></p>
       <p id="t-buffer"></p>
-      <p class="como"><b>No aplicativo:</b> painel <b>Buffer Zone</b> na barra lateral: o anel de 10 km é criado ao escolher a área, e outro raio pode ser pedido em <b>Create</b>.</p>
+      <p class="como"><b>No aplicativo:</b> painel <b>Buffer Zone</b> na barra lateral: o anel de 10 km nasce junto com a área, e outro raio pode ser pedido em <b>Create</b>.</p>
     </article>
 
     <article class="rp-passo" data-passo="cobertura" data-camada="cobertura" data-mapa="meio" data-bloco="mapbiomas" data-titulo="MapBiomas · último ano" data-selo="real">
       <div class="num">3</div>
       <h2>Dentro e fora, no último ano</h2>
-      <p>O MapBiomas Coleção 11 classifica cada pixel de 30 m do Brasil todo ano. A área de cada classe é calculada com o
-        tamanho real de cada pixel, não com 900 m² fixos. As barras comparam a parte de cada classe dentro e em volta.</p>
+      <p>O MapBiomas Coleção 11 classifica todo ano cada pixel de 30 m do Brasil. A área de cada classe sai do tamanho real de cada pixel, não de 900 m² fixos. As barras comparam a fatia de cada classe dentro e em volta.<button type="button" class="rp-nota" data-nota="3" aria-label="nota 3">3</button></p>
       <p id="t-cobertura"></p>
-      <p class="como"><b>No aplicativo:</b> botão <b>Executar todas as análises</b> no topo, aba <b>MapBiomas</b> em <b>Resultados</b>.</p>
+      <p class="como"><b>No aplicativo:</b> botão <b>Executar todas as análises</b> no topo e aba <b>MapBiomas</b> em <b>Resultados</b>.</p>
     </article>
 
     <article class="rp-passo" data-passo="tempo" data-camada="tempo" data-mapa="meio" data-bloco="comparar" data-titulo="Vegetação nativa · 1985, 2005, 2025" data-selo="real">
       <div class="num">4</div>
       <h2>Quarenta anos em três fotografias</h2>
-      <p>A mesma conta em 1985, 2005 e 2025: a parte de cada zona que é vegetação nativa (floresta, savana e campos). No
-        mapa, o primeiro ano da série, para comparar com o passo anterior.</p>
+      <p>A mesma conta em 1985, 2005 e 2025: quanto de cada zona é vegetação nativa (floresta, savana e campos). No mapa, o primeiro ano da série, para comparar com o passo anterior.</p>
       <p id="t-tempo"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b> (dois anos lado a lado) e aba <b>Multi-window</b> (vários anos de uma vez).</p>
     </article>
@@ -63,8 +60,7 @@
     <article class="rp-passo" data-passo="transicoes" data-camada="transicoes" data-mapa="pequeno" data-bloco="comparar" data-titulo="Transições 1985 → 2025" data-selo="real">
       <div class="num">5</div>
       <h2>O que virou o quê</h2>
-      <p>O diagrama liga cada classe de 1985 à classe que o mesmo pixel tinha em 2025. A faixa que liga uma classe a ela
-        mesma é o que não mudou; as que cruzam são a mudança.</p>
+      <p>O diagrama liga cada classe de 1985 à classe que o mesmo pixel tinha em 2025. A faixa que liga uma classe a ela mesma é o que ficou igual; as que cruzam são a mudança.</p>
       <p id="t-transicoes"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Comparar</b>, com a matriz de transições, e aba <b>Treemaps</b>, uma por classe.</p>
     </article>
@@ -72,8 +68,7 @@
     <article class="rp-passo" data-passo="hansen" data-camada="hansen" data-mapa="meio" data-bloco="hansen" data-titulo="Hansen · Global Forest Change" data-selo="real">
       <div class="num">6</div>
       <h2>Uma segunda opinião sobre a floresta</h2>
-      <p>O Hansen/UMD mede outra coisa: cobertura de árvores, não classes de uso. Parte da copa de 2000, marca o ano em que
-        cada pixel perdeu as árvores e um ganho sem data. Quando MapBiomas e Hansen contam a mesma história, ela fica mais firme.</p>
+      <p>O Hansen/UMD mede outra coisa: cobertura de árvores, não classes de uso. Parte da copa de 2000, marca o ano em que cada pixel perdeu as árvores e soma um ganho sem data. Quando MapBiomas e Hansen contam a mesma história, ela fica mais firme.<button type="button" class="rp-nota" data-nota="4" aria-label="nota 4">4</button></p>
       <p id="t-hansen"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Hansen GFC</b>, e aba <b>Hansen/GLAD</b> para a cobertura de um ano.</p>
     </article>
@@ -81,8 +76,7 @@
     <article class="rp-passo" data-passo="linha" data-camada="linha" data-mapa="oculto" data-bloco="timeline" data-titulo="Linha do tempo" data-selo="real">
       <div class="num">7</div>
       <h2>Ano a ano: desmatamento, regeneração e fogo</h2>
-      <p>A linha do tempo junta quatro séries anuais: o desmatamento de vegetação primária e a regeneração (MapBiomas
-        Desmatamento e Vegetação Secundária), a perda de copa (Hansen) e as cicatrizes de fogo (MapBiomas Fogo).</p>
+      <p>A linha do tempo junta quatro séries anuais: o desmatamento de vegetação primária e a regeneração (MapBiomas Desmatamento e Vegetação Secundária), a perda de copa (Hansen) e as cicatrizes de fogo (MapBiomas Fogo).</p>
       <p id="t-linha"></p>
       <p>Numa unidade de uso sustentável, parte da mudança pode ser uso previsto no plano de manejo. Pasto em larga escala dentro de uma reserva extrativista, não.</p>
       <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, que pode sobrepor o contexto político (governos federal e estadual) e o ENSO.</p>
@@ -91,8 +85,7 @@
     <article class="rp-passo" data-passo="contraste" data-camada="contraste" data-mapa="oculto" data-bloco="timeline" data-titulo="Dentro × em volta" data-selo="real">
       <div class="num">8</div>
       <h2>A mesma linha, dentro e fora</h2>
-      <p>Para comparar zonas de tamanhos diferentes, o desmatamento vira hectares por 1.000 hectares de cada zona. Se a
-        linha de fora sobe e a de dentro não, a divisa está segurando; se as duas sobem juntas, a pressão já atravessou.</p>
+      <p>Para comparar zonas de tamanhos diferentes, o desmatamento vira hectares por 1.000 hectares de cada zona. Se a linha de fora sobe e a de dentro não, a divisa está segurando; se as duas sobem juntas, a pressão já atravessou.</p>
       <p id="t-contraste"></p>
       <p class="como"><b>No aplicativo:</b> aba <b>Timeline</b>, com a zona de amortecimento ligada.</p>
     </article>
@@ -100,8 +93,7 @@
     <article class="rp-passo" data-passo="exportar" data-camada="exportar" data-mapa="oculto" data-bloco="exportar" data-titulo="Exportar e citar" data-selo="real">
       <div class="num">9</div>
       <h2>Relatório, tabelas e mapas para levar</h2>
-      <p>Tudo o que aparece nas abas sai do aplicativo: relatório em PDF, tabelas em CSV, mapas e gráficos em PNG, num ZIP só.
-        Os dados gerados no Yvynation são abertos (CC BY 4.0), com a fonte de cada camada.</p>
+      <p>Tudo o que aparece nas abas sai do aplicativo: relatório em PDF, tabelas em CSV, mapas e gráficos em PNG, num ZIP só. Os dados gerados no Yvynation são abertos (CC BY 4.0), com a fonte de cada camada.<button type="button" class="rp-nota" data-nota="5" aria-label="nota 5">5</button></p>
       <p class="como"><b>No aplicativo:</b> painel <b>Export &amp; Download</b> abaixo dos resultados, e <b>Como Citar</b> no topo.</p>
     </article>
 
@@ -151,8 +143,8 @@
   <h2>O que o Yvynation não diz</h2>
   <ul class="rp-limites">
     <li><b>Não julga o plano de manejo.</b> O satélite mostra a cobertura; se um uso é permitido depende da categoria, do plano de manejo e das autorizações, que não estão aqui.</li>
-    <li><b>Não diz quem desmatou.</b> Embargos, autos e processos ficam fora; para isso, veja os embargos do IBAMA no Naturametrics.</li>
-    <li><b>A zona de 10 km não é a zona de amortecimento legal.</b> É um anel de comparação, igual para toda unidade; a zona de amortecimento oficial, quando existe, é definida no plano de manejo.</li>
+    <li><b>Não diz quem desmatou.</b> Embargos, autos e processos ficam de fora. Para os embargos do IBAMA, veja o Naturametrics.</li>
+    <li><b>A zona de 10 km não é a zona de amortecimento legal.</b> É um anel de comparação, igual para toda unidade. A zona de amortecimento oficial, quando existe, vem do plano de manejo.</li>
     <li><b>A divisa é a do CNUC.</b> Unidades recategorizadas, desafetadas ou com limites alterados por lei podem ter outro desenho hoje.</li>
     <li><b>Não enxerga abaixo de 30 m.</b> Extração seletiva de madeira e degradação sob a copa escapam do MapBiomas e do Hansen.</li>
   </ul>
@@ -160,5 +152,16 @@
   <a class="rp-cta" id="cta-app" href="/">Abrir no Yvynation →</a>
   <a class="rp-cta sec" href="/canada">Yvynation Canadá</a>
   <p class="rp-rodape">Outros exemplos: <a href="?area=FLORESTA%20NACIONAL%20DO%20JAMANXIM">Flona do Jamanxim (PA)</a> · <a href="?area=RESERVA%20BIOL%C3%93GICA%20DO%20GURUPI">Rebio do Gurupi (MA)</a> · <a href="?area=%C3%81REA%20DE%20PROTE%C3%87%C3%83O%20AMBIENTAL%20TRIUNFO%20DO%20XINGU">APA Triunfo do Xingu (PA)</a> · <a href="?">Resex Jaci-Paraná (RO), o exemplo desta página</a>. Troque a área no endereço (<code>?area=…</code>, com o nome como aparece no catálogo). Os números vêm das mesmas funções do aplicativo: o exemplo fica guardado com a página, e outra área é calculada na hora.</p>
-  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> · <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a> · <a href="/demonstracao/lote">várias áreas em lote</a>.</p>
+  <p class="rp-rodape">Outras demonstrações do Yvynation: <a href="/demonstracao/terra-indigena">uma terra indígena</a> · <a href="/demonstracao/unidade-conservacao">uma unidade de conservação</a> · <a href="/demonstracao/desenho">uma área desenhada</a> · <a href="/demonstracao/lote">várias áreas em lote</a>. <a href="/walkthrough/conservation-unit" lang="en">English version</a>.</p>
+</section>
+
+<section class="rp-notas" aria-label="Notas">
+  <h3>Notas</h3>
+  <ol>
+    <li id="nota-1">O CNUC é o cadastro nacional das unidades criadas sob o Sistema Nacional de Unidades de Conservação (SNUC, Lei 9.985/2000), publicado pelo Ministério do Meio Ambiente com o ICMBio, que administra as federais. Ele também lista as unidades estaduais e municipais. Como o das terras indígenas, é um limite oficial e enumerável: dá para comparar unidades no país inteiro e rodá-las em lote. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-2">O anel é <i>exclusivo</i>: começa na divisa e deixa a própria área de fora, para que nenhum hectare entre nas duas contas. Mesmo assim, ele é uma região de comparação, não um contrafactual. O desmatamento empurrado de dentro para fora (o chamado vazamento) aumenta o contraste, e áreas protegidas costumam ser criadas em terras que já eram menos ameaçadas (Ewers &amp; Rodrigues, 2008; Joppa &amp; Pfaff, 2009). Por isso a tela compara, mas não credita à divisa a diferença. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-3">A área vem de <code>pixelArea()</code>, a área de verdade de cada pixel, e não do número de pixels vezes 0,09 ha. O pixel do MapBiomas é medido em graus, e sua área encolhe à medida que se afasta do Equador. A convenção nasceu no Naturametrics e chegou ao Yvynation em agosto de 2026, um dos módulos que circulam entre as três ferramentas da suíte. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-4">MapBiomas e Hansen precisam ficar separados porque medem coisas diferentes. Uma exportação de abril de 2026 atribuía 305.250 ha de perda Hansen a 2024 na Terra Indígena Kayapó, cerca de dois terços de toda a perda de 2001–2023 num único ano. Era a cicatriz de um incêndio, não desmatamento: a perda do Hansen registra a queda da copa por qualquer causa (Curtis et al., 2018). <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+    <li id="nota-5">Unidades muito grandes passam por um desvio. Acima de 1.000.000 ha, o Yvynation divide a geometria em quatro quadrantes, porque o Earth Engine estourava o tempo ao calcular o anel de terras com mais de uns 2 milhões de ha. Antes de montar o PDF, o lote soma de novo as classes, as transições e a perda anual dos quatro pedaços e refaz os percentuais, para que o relatório descreva a unidade que o cadastro nomeia. As tabelas por quadrante ficam no ZIP. <span class="rp-pop-fonte">Biondo et al., <i>Registry, coordinate, cadastre</i> (manuscrito em preparação, 2026).</span></li>
+  </ol>
 </section>

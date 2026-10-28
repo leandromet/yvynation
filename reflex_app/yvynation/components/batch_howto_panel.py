@@ -3,6 +3,7 @@
 import reflex as rx
 from ..state import AppState
 from .batch_shared import ORANGE, _section_card
+from .tutorial import demo_href
 
 
 def _howto_step(n: int, title: str, body: str) -> rx.Component:
@@ -36,7 +37,7 @@ def howto_panel() -> rx.Component:
             font_size="sm", color="#374151", line_height="1.6",
         ),
         rx.link(
-            AppState.tr["batch_demo_link"], href="/demonstracao/lote",
+            AppState.tr["batch_demo_link"], href=demo_href("/demonstracao/lote"),
             font_size="sm", font_weight="600", color=ORANGE,
         ),
         rx.divider(border_color="#F3F4F6"),
