@@ -91,7 +91,7 @@ def land_cover_history(zones: Sequence[Zone], *, years: List[int] | None = None
         try:
             with ThreadPoolExecutor(max_workers=2) as ex:
                 f_hist = ex.submit(_histogram_call, fc, image, s, ts)
-                f_area = ex.submit(mean_pixel_area, fc, s, ts)
+                f_area = ex.submit(mean_pixel_area, fc, s, ts, image)
                 hist, areas = f_hist.result(), f_area.result()
             if attempt > 0:
                 prov.degrade(f"Retried at scale={s} m, tileScale={ts} after a "

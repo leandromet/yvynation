@@ -67,7 +67,8 @@ def test_english_routes_mirror_the_portuguese_ones():
     from yvynation.pages.demonstracao import PAGINAS, ROTA_EN
 
     rotas = [r for r, _p, _t in PAGINAS]
-    assert sorted(rotas) == sorted(list(ROTA_EN) + list(ROTA_EN.values()))
+    # plus the English conservation walkthrough on a Kelowna park, which has no pt twin
+    assert sorted(rotas) == sorted(list(ROTA_EN) + list(ROTA_EN.values()) + ["/walkthrough/conservation-unit"])
     assert all(r.startswith("/walkthrough/") for r in ROTA_EN.values())
 
 

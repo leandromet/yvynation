@@ -90,7 +90,7 @@ class AAFCAnalyzer:
                 return None
 
             # Convert histogram to DataFrame
-            area_per_px_ha = mean_pixel_area_ha(geometry, scale=30)
+            area_per_px_ha = mean_pixel_area_ha(geometry, scale=30, like=landcover)
             records = []
             for value_str, count in histogram.items():
                 try:

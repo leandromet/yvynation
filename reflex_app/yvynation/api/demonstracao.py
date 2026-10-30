@@ -18,6 +18,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from ..canada.services import demonstracao as demonstracao_ca
 from ..utils import demonstracao
 
 logger = logging.getLogger(__name__)
@@ -46,5 +47,20 @@ async def demonstracao_json(request: Request) -> Response:
     return JSONResponse(payload, headers={"Cache-Control": "public, max-age=600"})
 
 
+async def demonstracao_ca_json(request: Request) -> Response:
+    """The Canada conservation walkthrough (Okanagan Mountain Park); ``?area=``
+    swaps in another BC area by its CPCAD name."""
+    area = request.query_params.get("area") or None
+    try:
+        payload = await _run_blocking(lambda: demonstracao_ca.pacote(area))
+    except demonstracao_ca.AreaInvalida as exc:
+        return JSONResponse({"error": "unknown area", "detail": str(exc)}, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Canada walkthrough could not be built")
+        return JSONResponse({"error": "walkthrough unavailable", "detail": str(exc)}, status_code=503)
+    return JSONResponse(payload, headers={"Cache-Control": "public, max-age=600"})
+
+
 def routes() -> list:
-    return [Route(demonstracao.ROTA, demonstracao_json, methods=["GET"])]
+    return [Route(demonstracao.ROTA, demonstracao_json, methods=["GET"]),
+            Route(demonstracao_ca.ROTA, demonstracao_ca_json, methods=["GET"])]

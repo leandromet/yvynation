@@ -291,6 +291,7 @@ TRANSLATIONS_FR: dict[str, str] = {
     "export_table_label": "Télécharger le tableau (CSV)",
     "help_trigger": "Mode d'emploi",
     "help_dialog_title": "Comment utiliser Yvynation Canada",
+    "help_demo_link": "Envie de le voir à l'œuvre ? Ouvrez la visite guidée du parc Okanagan Mountain (en anglais) →",
     "help_dialog_desc": "Sept étapes pour aller d'une aire protégée à une analyse, et "
         "ce que cette page ne peut pas dire.",
     "help_step1_title": "1. Trouvez une aire protégée",

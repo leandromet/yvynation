@@ -115,7 +115,7 @@ def get_ee() -> ee.Image.__class__:
     return ee
 
 
-def mean_pixel_area_ha(geometry: "ee.Geometry", scale: int = 30, max_pixels: float = 1e9) -> float:
+def mean_pixel_area_ha(geometry: "ee.Geometry", scale: int = 30, max_pixels: float = 1e9, like=None) -> float:
     """True mean pixel area (ha) inside ``geometry``, in place of a flat 0.09 ha/pixel
     (30 m) assumption that drifts with latitude — Earth Engine pixels are only exactly
     ``scale``x``scale`` metres at the equator.
@@ -124,8 +124,14 @@ def mean_pixel_area_ha(geometry: "ee.Geometry", scale: int = 30, max_pixels: flo
     convert counts with ``count * mean_pixel_area_ha(...)`` instead of ``count * 0.09``.
     Falls back to the nominal 0.09 ha (900 m² at 30 m) if the call fails, so callers
     never need their own except-branch for this.
+
+    Pass ``like`` (the counted image) when it is not on a lat/long grid: the
+    AAFC inventory is Albers, and its true 900 m² pixels paired with the
+    lat/long area (580 m² at 50°N) understated Canadian areas by a third.
     """
     try:
+        # a stacked image carries one projection per band (all the same grid): read the first
+        kwargs = {"crs": like.select(0).projection()} if like is not None else {}
         stats = (
             ee.Image.pixelArea()
             .reduceRegion(
@@ -133,6 +139,7 @@ def mean_pixel_area_ha(geometry: "ee.Geometry", scale: int = 30, max_pixels: flo
                 geometry=geometry,
                 scale=scale,
                 maxPixels=max_pixels,
+                **kwargs,
             )
             .getInfo()
         )
