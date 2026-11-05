@@ -73,7 +73,7 @@ YVY_EN: dict[str, str] = {
     "cobertura_empty": "No data yet — select a protected area.",
     "cobertura_out_of_range": "The AAFC crop inventory has no coverage this "
         "far north — expected above roughly 54–58°N, not a failure. The Land "
-        "cover, Forest, Biomass and Fire tabs still answer.",
+        "cover, Forest, Biomass and Fire tabs still work.",
     "fogo_aci_empty": "No Crops (AAFC) data yet for this zone — open that tab, or "
         "wait for it to finish loading. The burnt-area class comes from that same "
         "fetch, at no extra cost.",

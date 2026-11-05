@@ -10,6 +10,7 @@ from ..state import AppState
 from ..config import MAPBIOMAS_YEARS, HANSEN_YEARS
 from .geometry_upload import geometry_file_upload
 from .analysis_controls import analysis_controls
+from .indigenous_notice import indigenous_notice
 from .geometry_selector import geometry_selector, drawing_instructions
 
 
@@ -267,6 +268,7 @@ def territory_section() -> rx.Component:
             AppState.selected_territory != "",
             rx.vstack(
                 rx.badge(AppState.selected_territory, color_scheme="green", variant="solid", size="1"),
+                indigenous_notice(),
                 # MapBiomas analysis
                 rx.hstack(
                     rx.select(

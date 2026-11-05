@@ -13,7 +13,7 @@ TRANSLATIONS_ES = {
     "app_title": "Yvynation",
     "app_subtitle": "Plataforma de Monitoreo de Territorios Indígenas",
     "app_description": "Plataforma Global de Monitoreo Forestal",
-    "author": "Leandro M. Biondo - Candidato de PhD - IGS/UBCO",
+    "author": "Leandro M. Biondo - Doctorando - IGS/UBCO",
 
     # Navigation
     "map_tab": "Mapa",
@@ -69,7 +69,7 @@ TRANSLATIONS_ES = {
     "territory_section_title": "Análisis de Territorio",
     "select_territory": "Seleccionar Territorio",
     "territory_by_country": "Filtrar por País",
-    "territory_by_state": "Filtrar por Departamento",
+    "territory_by_state": "Filtrar por Estado",
     "selected_territory": "Territorio Seleccionado",
     "no_territory_selected": "Ningún territorio seleccionado",
     "search_territories": "Buscar territorios...",
@@ -194,7 +194,7 @@ TRANSLATIONS_ES = {
     # =====================================================================
     # Tutorial / Getting Started
     # =====================================================================
-    "getting_started_header": "Como Usar Esta Plataforma",
+    "getting_started_header": "Cómo Usar Esta Plataforma",
     "getting_started_title": "Primeros Pasos",
     "getting_started_intro": "Esta plataforma permite análisis integral de cobertura del suelo para Brasil y monitoreo forestal global. Puede analizar áreas personalizadas, territorios indígenas y zonas de amortiguamiento externas.",
     "demo_links_title": "¿Prefiere verlo funcionando? Demostraciones paso a paso con ejemplos reales (en portugués):",
@@ -205,7 +205,7 @@ TRANSLATIONS_ES = {
     "batch_demo_link": "Demostración paso a paso de un lote real (en portugués) →",
 
     "step_language_region": "Paso 0: Selección de Idioma y Región",
-    "step0_language_region_intro": "Configure su idioma y seleccione su región de interes:",
+    "step0_language_region_intro": "Configure su idioma y seleccione su región de interés:",
     "step0_content": """**Autodetección en la Primera Visita**
 
 En su primera visita, la app puede detectar su ubicación para configurar la región correcta:
@@ -215,12 +215,12 @@ En su primera visita, la app puede detectar su ubicación para configurar la reg
 
 **Selección Manual de Idioma**
 
-Use los botones de idioma (EN / PT / ES) en la barra lateral. Su elección se guarda para su sesion.
+Use los botones de idioma (EN / PT / ES / FR) en la barra lateral. Su elección se guarda para su sesión.
 
 **Selección Manual de Región**
 
 Use los botones de región (Brasil / Canadá) en la barra lateral:
-- **Brasil**: Cobertura completa MapBiomas (1985-2024) + datos globales Hansen/GLAD
+- **Brasil**: Cobertura completa MapBiomas (1985-2025) + datos globales Hansen/GLAD
 - **Canadá**: Inventario de cultivos AAFC + datos globales Hansen/GLAD""",
 
     "step_custom_polygon": "Paso 1: Analizar un Polígono Personalizado",
@@ -231,7 +231,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
    - Doble clic o clic en el primer punto para completar
 
 2. **Seleccione Capas de Datos** (barra lateral):
-   - **MapBiomas**: Cobertura del suelo brasileña (1985-2024, 62 clases, 30m)
+   - **MapBiomas**: Cobertura del suelo brasileña (1985-2025, 62 clases, 30m)
    - **Hansen/GLAD**: Cambios forestales globales (2000-2020, 256 clases, 30m)
    - **Hansen GFC**: Cambios Forestales Globales (2000-2024, 30m)
 
@@ -240,12 +240,12 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
 4. **Análisis de Zona de Buffer**: Cree buffers de 2km, 5km o 10km alrededor de polígonos""",
 
     "step_territory": "Paso 2: Analizar un Territorio Indígena",
-    "step2_territory_intro": "Limites predefinidos de territorios indígenas con análisis histórico:",
-    "step2_content": """1. **Seleccionar Territorio** (seccion Análisis de Territorio):
+    "step2_territory_intro": "Límites predefinidos de territorios indígenas con análisis histórico:",
+    "step2_content": """1. **Seleccionar Territorio** (sección Análisis de Territorio):
    - Busque entre 400+ tierras indígenas reconocidas
    - Vea metadatos: área, ubicación, estado
 
-2. **Características del Análisis**: Cambios historicos (1985-2024), diagramas Sankey, exportación
+2. **Características del Análisis**: Cambios históricos (1985-2025), diagramas Sankey, exportación
 
 3. **Zona de Amortiguamiento**: Cree zonas externas, compare uso del suelo dentro vs fuera""",
 
@@ -255,22 +255,22 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
 
     "step_export": "Paso 4: Exportar y Descargar Resultados",
     "step4_export_intro": "Guarde sus resultados para informes:",
-    "step4_content": """Downloads CSV, exportaciones PNG, y reportes PDF (futuro).""",
+    "step4_content": """Descargas CSV, exportaciones PNG e informes PDF (futuro).""",
 
     "step_map_controls": "Paso 5: Controles del Mapa",
     "step5_map_controls_intro": "Navegue e interactúe con el mapa:",
-    "step5_content": """Zoom, pan, herramientas de dibujo, controles de capas, y superposiciones de territorio.""",
+    "step5_content": """Zoom, desplazamiento, herramientas de dibujo, controles de capas y superposiciones de territorio.""",
 
     "step_data_understanding": "Paso 6: Entendiendo los Datos",
-    "step6_data_understanding_intro": "Fuentes de datos e interpretacion de resultados:",
-    "step6_content": """MapBiomas Collection 10 (Brasil, 1985-2024, 30m, 62 clases). Hansen/GLAD (Global, 30m, 256 clases). Área en hectáreas, píxeles de 900m2, cambios positivos/negativos.""",
+    "step6_data_understanding_intro": "Fuentes de datos e interpretación de resultados:",
+    "step6_content": """MapBiomas Collection 11 (Brasil, 1985-2025, 30m, 62 clases). Hansen/GLAD (Global, 30m, 256 clases). Área en hectáreas, píxeles de 900m2, cambios positivos/negativos.""",
 
     # About section
     "about_title": "Acerca de",
     "about_overview": "Visión General del Proyecto",
     "about_desc": "Esta herramienta de análisis de uso y cobertura del suelo es parte de un proyecto de investigación que estudia cambios ambientales en Territorios Indígenas Brasileños usando Google Earth Engine y datos MapBiomas.",
     "about_author": "Leandro Meneguelli Biondo",
-    "about_role": "Candidato de PhD en Sostenibilidad",
+    "about_role": "Doctorando en Sostenibilidad",
     "about_university": "IGS/UBCO",
     "about_supervisor": "Director: Dr. Jon Corbett",
     "about_app_name": "Yvynation",
@@ -278,10 +278,10 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "yvynation_meaning": '"Yvy" (Tupí-Guaraní) significa tierra, suelo o territorio.',
     "nation_meaning": '"Nación" se refiere a una comunidad autogobernada con cultura, historia, lengua y tierra compartidas.',
     "data_sources_title": "Fuentes de Datos",
-    "mapbiomas_desc": "MapBiomas Collection 10 - Resolución: 30m, Período: 1985-2024, 62 categorías, CC BY 4.0",
+    "mapbiomas_desc": "MapBiomas Collection 11 - Resolución: 30m, Período: 1985-2025, 62 categorías, CC BY 4.0",
     "territories_desc": "700+ territorios brasileños con límites vectoriales - Proyecto Territorios MapBiomas",
     "features_title": "Características",
-    "tech_title": "Tecnologias",
+    "tech_title": "Tecnologías",
 
     # Layer Reference Guide
     "layer_reference": "Guía de Referencia de Capas",
@@ -300,7 +300,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
 
     # Portal page
     "about_section": "Acerca de Yvynation",
-    "about_description": "Yvynation es una plataforma integral para el monitoreo y análisis de tierras indígenas. Combina imágenes de satélite, herramientas de análisis geoespacial y deteccion de cambios forestales para proporcionar información sobre cambios en el uso del suelo y dinámicas de ecosistemas.",
+    "about_description": "Yvynation es una plataforma integral para el monitoreo y análisis de tierras indígenas. Combina imágenes de satélite, herramientas de análisis geoespacial y detección de cambios forestales para proporcionar información sobre cambios en el uso del suelo y dinámicas de ecosistemas.",
     
     # Sidebar sections
     "geometry_tools": "Herramientas de Geometría",
@@ -361,7 +361,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     # =====================================================================
     # Página del portal (portal.py)
     # =====================================================================
-    "portal_ds_mapbiomas": "MapBiomas: cobertura del suelo de Brasil (1985-2024, resolución de 30m)",
+    "portal_ds_mapbiomas": "MapBiomas: cobertura del suelo de Brasil (1985-2025, resolución de 30m)",
     "portal_ds_hansen": "Hansen/GFC: detección global de cambios forestales",
     "portal_ds_aafc": "AAFC: clasificación agrícola y forestal de Canadá",
     "portal_ds_gee": "Google Earth Engine: análisis geoespacial en la nube",
@@ -378,14 +378,14 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "portal_indigenous_sub": "Monitoree tierras indígenas",
     "portal_indigenous_i1": "Seleccione entre 650+ tierras indígenas",
     "portal_indigenous_i2": "Busque por nombre",
-    "portal_indigenous_i3": "Siga los cambios forestales (1985-2024)",
+    "portal_indigenous_i3": "Siga los cambios forestales (1985-2025)",
     "portal_indigenous_i4": "Compare múltiples años",
     "portal_indigenous_btn": "→ Iniciar Análisis de Tierras Indígenas",
     "conservation_analysis_label": "🌿 Análisis de Unidades de Conservación",
     "portal_conservation_sub": "Monitoree unidades de conservación",
     "portal_conservation_i1": "Seleccione entre 3.200+ unidades de conservación",
     "portal_conservation_i2": "Busque por nombre",
-    "portal_conservation_i3": "Siga los cambios forestales (1985-2024)",
+    "portal_conservation_i3": "Siga los cambios forestales (1985-2025)",
     "portal_conservation_i4": "Compare múltiples años",
     "portal_conservation_btn": "→ Iniciar Análisis de Unidades de Conservación",
     "portal_batch_sub": "Procese varios territorios a la vez",
@@ -423,10 +423,12 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "citation_howto_title": "Cita sugerida",
     "citation_platform_text": "Biondo, L. M. (2026). Yvynation: plataforma de monitoreo geoespacial de Tierras Indígenas y Unidades de Conservación [Software]. Interdisciplinary Graduate Studies – Sustainability Theme (IGS), UBC Okanagan. Datos procesados mediante Google Earth Engine (proyecto ProtectedLandsYvynation-EE).",
     "citation_datasets_title": "Cite también las fuentes de datos utilizadas:",
-    "citation_ds_mapbiomas": "Proyecto MapBiomas — Colección 10 de la Serie de Mapas de Cobertura y Uso del Suelo de Brasil, mapbiomas.org",
+    "citation_ds_mapbiomas": "Proyecto MapBiomas — Colección 11 de la Serie de Mapas de Cobertura y Uso del Suelo de Brasil, mapbiomas.org",
     "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
     "citation_ds_aafc": "Agriculture and Agri-Food Canada (AAFC) — Annual Crop Inventory",
     "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "indigenous_data_notice_title": 'Sobre las estadísticas de tierras indígenas',
+    "indigenous_data_notice_body": 'Los límites provienen de datos abiertos del gobierno nacional (el catálogo de la FUNAI en Brasil; los datos federales de PAD-US en Estados Unidos). Las cifras describen la cobertura del suelo dentro y alrededor de cada límite: no son declaraciones de los pueblos que viven allí ni sobre ellos, y Yvynation no habla en su nombre. Las estadísticas abiertas sobre tierras indígenas con nombre pueden citarse en contextos que las comunidades no eligieron. Los principios CARE de gobernanza de datos indígenas piden más que una licencia abierta, y aún no hemos consultado a organizaciones indígenas sobre cómo presentar los resultados.',
     "citation_hide": "Ocultar",
 
     # =====================================================================
@@ -483,9 +485,9 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_chk_png_high_res": "Resolución completa (archivos más grandes)",
     "batch_timeline_bands_label": "BANDAS DE CONTEXTO DE LA LÍNEA DE TIEMPO",
     "batch_chk_timeline_political": "Franja de presidentes / gobernadores",
-    "batch_chk_timeline_policy": "Filas de políticas + hitos",
+    "batch_chk_timeline_policy": "Líneas de políticas + hitos",
     "batch_chk_timeline_enso": "Franja El Niño / La Niña (ENSO)",
-    "batch_timeline_bands_hint": "Cada banda que quites también libera el espacio reservado, acortando el gráfico.",
+    "batch_timeline_bands_hint": "Quitar una banda también libera el espacio reservado y acorta el gráfico.",
     "batch_chk_pdf_maps": "🗺️ Mapas PNG y Gráficos (satélite + MapBiomas año1/año2)",
     "batch_aux_rasters_label": "Rásteres MapBiomas extra (año 2)",
     "batch_aux_deforestation": "🌳 Deforestación y vegetación secundaria",
@@ -497,8 +499,8 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_chk_multi_window": "🌀 MapBiomas en múltiples ventanas de tiempo (Sankey + Sunburst + Treemaps)",
     "batch_mw_mode": "Modo:",
     "batch_mw_step": "Paso (años):",
-    "batch_mw_forced_note": "1985 → 2024 forzado como último año",
-    "batch_mw_custom_label": "Años personalizados (3 a 10, separados por comas, 1985–2024)",
+    "batch_mw_forced_note": "1985 → 2025 forzado como último año",
+    "batch_mw_custom_label": "Años personalizados (3 a 10, separados por comas, 1985–2025)",
     "batch_mw_active_years": "Años activos: ",
     "batch_chk_timeline": "📈 Línea de tiempo de deforestación (Hansen + MapBiomas + Fuego) con contexto político",
     "batch_buffer_zone": "Zona de amortiguamiento",
@@ -534,7 +536,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "batch_howto_1_title": "Seleccione los territorios",
     "batch_howto_1_body": "Elija el tipo de fuente (Indígenas o Unidades de Conservación), use el buscador para filtrar y marque los territorios que desea incluir. 'Seleccionar todos los filtrados' agrega cada coincidencia de la búsqueda actual; 'Limpiar todo' reinicia. Cambiar el tipo borra la selección actual.",
     "batch_howto_2_title": "Elija los años MapBiomas",
-    "batch_howto_2_body": "Defina el año inicial (instantánea única) y el año final (para la comparación entre años). Rango: 1985–2024.",
+    "batch_howto_2_body": "Defina el año inicial (instantánea única) y el año final (para la comparación entre años). Rango: 1985–2025.",
     "batch_howto_3_title": "Elija el año Hansen GLAD",
     "batch_howto_3_body": "Año de referencia (2000/2005/2010/2015/2020) usado para la instantánea de cobertura forestal Hansen GLAD.",
     "batch_howto_4_title": "Elija los tipos de análisis",
@@ -587,7 +589,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "export_tab_maps": "Mapas en PDF",
     "export_tab_report": "Informe",
     "report_heading": "Informe",
-    "report_intro": "Un documento maquetado: identificación, mapas, gráficos y tablas con explicaciones breves. Idioma = el de la interfaz.",
+    "report_intro": "Un documento maquetado: identificación, mapas, gráficos y tablas con explicaciones breves. Idioma: el de la interfaz.",
     "report_chk_maps": "Mapas",
     "report_chk_figures": "Gráficos",
     "report_chk_tables": "Tablas resumen",
@@ -595,9 +597,9 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "report_btn_pdf": "PDF",
     "report_btn_html": "HTML",
     "report_stage_snapshot": "Reuniendo resultados…",
-    "report_stage_maps": "Mapas: obteniendo de Earth Engine…",
+    "report_stage_maps": "Mapas: consultando Earth Engine…",
     "report_stage_charts": "Gráficos {n}/{total}",
-    "report_stage_compose": "Componiendo {fmt}…",
+    "report_stage_compose": "Montando {fmt}…",
     "report_stage_done": "Informe listo — descarga iniciada.",
     "report_disabled_no_result": "Analice primero una Tierra Indígena o Unidad de Conservación. Los informes cubren territorios, no polígonos dibujados.",
     "report_disabled_busy": "Se está generando un informe…",
@@ -635,7 +637,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "qs_step1_lead": 'Busque',
     "qs_step1_body": 'una dirección, CEP o código postal, coordenada o nombre de territorio — o simplemente recorra el mapa.',
     "qs_step2_lead": 'Elija un área:',
-    "qs_step2_body": 'haga clic en un territorio en el mapa o en la lista, o dibuje o suba su propio polígono.',
+    "qs_step2_body": 'haga clic en un territorio en el mapa o en la lista, o dibuje o cargue su propio polígono.',
     "qs_step3_lead": 'Ejecute el análisis:',
     "qs_step3_body": "el historial de cobertura del suelo (MapBiomas) y la pérdida forestal de Hansen aparecen debajo del mapa.",
     "qs_step4_lead": 'Exporte',
@@ -646,6 +648,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "qs_close_aria": 'Cerrar el inicio rápido',
     "help_show_quickstart": 'Mostrar de nuevo el inicio rápido',
     "go_to_canada_page": 'Canadá: áreas protegidas →',
+    "go_to_usa_page": 'EE. UU.: áreas protegidas →',
     "region_brazil": "Brasil",
     "region_canada": "Canadá",
     "region_label": "Región",

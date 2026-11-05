@@ -10,6 +10,8 @@ from yvynation.state import AppState
 from yvynation.utils.download_routes import download_app
 from yvynation.canada.pages.index import canada_index
 from yvynation.canada.state import CanadaState
+from yvynation.usa.pages.index import usa_index
+from yvynation.usa.state import USState
 
 
 def _ga_head_components() -> list[rx.Component]:
@@ -137,4 +139,13 @@ app.add_page(
     route="/canada",
     title="Yvynation — Canada protected areas",
     on_load=CanadaState.on_load,
+)
+
+# The USA page: protected areas from PAD-US (USGS, queried live), land cover from Annual
+# NLCD, forest change from Hansen. Its own state root, like the Canada page.
+app.add_page(
+    usa_index,
+    route="/usa",
+    title="Yvynation — USA protected areas",
+    on_load=USState.adopt_on_load,
 )

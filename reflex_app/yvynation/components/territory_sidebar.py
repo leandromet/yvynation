@@ -11,6 +11,7 @@ from .sidebar import _active_count_badge
 from .layout import group, sidebar_groups_root, sidebar_shell
 from .tutorial import tutorial_section
 from .layer_reference import layer_reference_guide
+from .indigenous_notice import indigenous_notice
 
 
 def _territory_tools_section() -> rx.Component:
@@ -166,6 +167,7 @@ def _territory_analysis_section() -> rx.Component:
             rx.vstack(
                 # Selected territory badge
                 rx.badge(AppState.selected_territory, color_scheme="green", variant="solid", size="1"),
+                indigenous_notice(),
 
                 # ---- Year comparison ----------------------------------------
                 rx.vstack(

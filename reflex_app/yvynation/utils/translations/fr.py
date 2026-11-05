@@ -187,7 +187,7 @@ TRANSLATIONS_FR = {
     # Help & Info
     "help": "Aide",
     "documentation": "Documentation",
-    "about": "À propos de Yvynation",
+    "about": "À propos d'Yvynation",
     "version": "Version",
     "powered_by": "Propulsé par",
 
@@ -220,7 +220,7 @@ Utilisez les boutons de langue (EN / PT / ES / FR) dans la barre latérale. Votr
 **Choix Manuel de la Région**
 
 Utilisez les boutons de région (Brésil / Canada) dans la barre latérale :
-- **Brésil** : Couverture complète MapBiomas (1985-2024) + données mondiales Hansen/GLAD
+- **Brésil** : Couverture complète MapBiomas (1985-2025) + données mondiales Hansen/GLAD
 - **Canada** : Inventaire des cultures AAFC + données mondiales Hansen/GLAD
 
 La carte sera centrée sur la région sélectionnée.""",
@@ -233,7 +233,7 @@ La carte sera centrée sur la région sélectionnée.""",
    - Double-cliquez ou cliquez sur le premier point pour terminer
 
 2. **Sélectionnez les Couches de Données** (barre latérale) :
-   - **MapBiomas** : couverture terrestre du Brésil (1985-2024, 62 classes, 30 m)
+   - **MapBiomas** : couverture terrestre du Brésil (1985-2025, 62 classes, 30 m)
    - **Hansen/GLAD** : changements forestiers mondiaux (2000-2020, 256 classes, 30 m)
    - **Hansen GFC** : changement forestier mondial (2000-2024, 30 m)
 
@@ -247,7 +247,7 @@ La carte sera centrée sur la région sélectionnée.""",
    - Recherchez parmi 400+ terres autochtones reconnues
    - Consultez les métadonnées : superficie, localisation, statut
 
-2. **Fonctionnalités de l'Analyse** : changements historiques (1985-2024), diagrammes de Sankey, exportation
+2. **Fonctionnalités de l'Analyse** : changements historiques (1985-2025), diagrammes de Sankey, exportation
 
 3. **Zone Tampon** : créez des zones externes, comparez l'usage des terres à l'intérieur et à l'extérieur""",
 
@@ -265,12 +265,12 @@ La carte sera centrée sur la région sélectionnée.""",
 
     "step_data_understanding": "Étape 6 : Comprendre les Données",
     "step6_data_understanding_intro": "Sources de données et interprétation des résultats :",
-    "step6_content": """MapBiomas Collection 10 (Brésil, 1985-2024, 30 m, 62 classes). Hansen/GLAD (mondial, 30 m, 256 classes). Superficie en hectares, pixels de 900 m2, changements positifs/négatifs.""",
+    "step6_content": """MapBiomas Collection 11 (Brésil, 1985-2025, 30 m, 62 classes). Hansen/GLAD (mondial, 30 m, 256 classes). Superficie en hectares, pixels de 900 m2, changements positifs/négatifs.""",
 
     # About section
     "about_title": "À propos",
     "about_overview": "Aperçu du Projet",
-    "about_desc": "Cet outil d'analyse de l'usage et de la couverture des terres fait partie d'un projet de recherche qui étudie les changements environnementaux dans les Territoires Autochtones Brésiliens à l'aide de Google Earth Engine et des données MapBiomas. Ces données sont comparées aux changements de politiques et aux tendances de déforestation pour comprendre les impacts sur ces terres essentielles.",
+    "about_desc": "Cet outil d'analyse de l'usage et de la couverture des terres fait partie d'un projet de recherche qui étudie les changements environnementaux dans les territoires autochtones brésiliens à l'aide de Google Earth Engine et des données MapBiomas. Ces données sont comparées aux changements de politiques et aux tendances de déforestation pour comprendre les impacts sur ces terres essentielles.",
     "about_author": "Leandro Meneguelli Biondo",
     "about_role": "Doctorant en Durabilité",
     "about_university": "IGS/UBCO",
@@ -280,7 +280,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "yvynation_meaning": "« Yvy » (tupi-guarani) signifie terre, sol ou territoire — soulignant le sol que nous foulons et notre lien sacré avec la nature. Ce mot se rattache souvent au concept de « Yvy marae'y » (Terre sans mal).",
     "nation_meaning": "« Nation » désigne une communauté autonome ou un peuple partageant culture, histoire, langue et terre. Il évoque l'autodétermination et la gouvernance.",
     "data_sources_title": "Sources de Données",
-    "mapbiomas_desc": "MapBiomas Collection 10 - Résolution : 30 m, Période : 1985-2024 (annuel), 62 catégories de couverture, CC BY 4.0",
+    "mapbiomas_desc": "MapBiomas Collection 11 - Résolution : 30 m, Période : 1985-2025 (annuel), 62 catégories de couverture, CC BY 4.0",
     "territories_desc": "700+ territoires brésiliens avec limites vectorielles et attributs - Projet Territoires MapBiomas",
     "features_title": "Fonctionnalités",
     "tech_title": "Technologies",
@@ -301,7 +301,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "draw_polygon_instruction": "Dessinez un polygone sur la carte pour commencer à analyser la couverture terrestre de cette zone. Utilisez les outils de dessin dans le coin supérieur gauche de la carte.",
 
     # Portal page
-    "about_section": "À propos de Yvynation",
+    "about_section": "À propos d'Yvynation",
     "about_description": "Yvynation est une plateforme complète de surveillance et d'analyse des terres autochtones. Elle combine imagerie satellitaire, outils d'analyse géospatiale et détection des changements forestiers pour éclairer les changements d'usage des terres et la dynamique des écosystèmes.",
 
     # Sidebar sections
@@ -363,7 +363,7 @@ La carte sera centrée sur la région sélectionnée.""",
     # =====================================================================
     # Portal page (portal.py)
     # =====================================================================
-    "portal_ds_mapbiomas": "MapBiomas : couverture terrestre du Brésil (1985-2024, résolution 30 m)",
+    "portal_ds_mapbiomas": "MapBiomas : couverture terrestre du Brésil (1985-2025, résolution 30 m)",
     "portal_ds_hansen": "Hansen/GFC : détection mondiale des changements forestiers",
     "portal_ds_aafc": "AAFC : classification agricole et forestière du Canada",
     "portal_ds_gee": "Google Earth Engine : analyse géospatiale infonuagique",
@@ -380,14 +380,14 @@ La carte sera centrée sur la région sélectionnée.""",
     "portal_indigenous_sub": "Surveillez les terres autochtones",
     "portal_indigenous_i1": "Choisissez parmi 650+ terres autochtones",
     "portal_indigenous_i2": "Recherchez par nom",
-    "portal_indigenous_i3": "Suivez les changements forestiers (1985-2024)",
+    "portal_indigenous_i3": "Suivez les changements forestiers (1985-2025)",
     "portal_indigenous_i4": "Comparez plusieurs années",
     "portal_indigenous_btn": "→ Démarrer l'Analyse des Terres Autochtones",
     "conservation_analysis_label": "🌿 Analyse des Unités de Conservation",
     "portal_conservation_sub": "Surveillez les unités de conservation",
     "portal_conservation_i1": "Choisissez parmi 3 200+ unités de conservation",
     "portal_conservation_i2": "Recherchez par nom",
-    "portal_conservation_i3": "Suivez les changements forestiers (1985-2024)",
+    "portal_conservation_i3": "Suivez les changements forestiers (1985-2025)",
     "portal_conservation_i4": "Comparez plusieurs années",
     "portal_conservation_btn": "→ Démarrer l'Analyse des Unités de Conservation",
     "portal_batch_sub": "Traitez plusieurs territoires à la fois",
@@ -425,10 +425,12 @@ La carte sera centrée sur la région sélectionnée.""",
     "citation_howto_title": "Citation suggérée",
     "citation_platform_text": "Biondo, L. M. (2026). Yvynation : une plateforme de surveillance géospatiale des Terres Indigènes et des Unités de Conservation [Logiciel]. Interdisciplinary Graduate Studies – Sustainability Theme (IGS), UBC Okanagan. Données traitées via Google Earth Engine (projet ProtectedLandsYvynation-EE).",
     "citation_datasets_title": "Veuillez également citer les sources de données utilisées :",
-    "citation_ds_mapbiomas": "Projet MapBiomas — Collection 10 de la série de cartes d'occupation du sol du Brésil, mapbiomas.org",
+    "citation_ds_mapbiomas": "Projet MapBiomas — Collection 11 de la série de cartes d'occupation du sol du Brésil, mapbiomas.org",
     "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
     "citation_ds_aafc": "Agriculture et Agroalimentaire Canada (AAFC) — Inventaire annuel des cultures",
     "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "indigenous_data_notice_title": 'À propos des statistiques sur les terres autochtones',
+    "indigenous_data_notice_body": "Les limites proviennent des données ouvertes du gouvernement national (le catalogue de la FUNAI au Brésil ; les données fédérales PAD-US aux États-Unis). Les chiffres décrivent l'occupation du sol à l'intérieur et autour de chaque limite : ce ne sont pas des déclarations des peuples qui y vivent ni à leur sujet, et Yvynation ne parle pas en leur nom. Des statistiques ouvertes sur des terres autochtones nommées peuvent être citées dans des contextes que les communautés n'ont pas choisis. Les principes CARE de gouvernance des données autochtones demandent plus qu'une licence ouverte, et nous n'avons pas encore consulté d'organisations autochtones sur la manière de présenter les résultats.",
     "citation_hide": "Masquer",
 
     # =====================================================================
@@ -499,8 +501,8 @@ La carte sera centrée sur la région sélectionnée.""",
     "batch_chk_multi_window": "🌀 MapBiomas en fenêtres temporelles multiples (Sankey + Sunburst + Treemaps)",
     "batch_mw_mode": "Mode :",
     "batch_mw_step": "Pas (années) :",
-    "batch_mw_forced_note": "1985 → 2024 imposé comme dernière année",
-    "batch_mw_custom_label": "Années personnalisées (3 à 10, séparées par des virgules, 1985–2024)",
+    "batch_mw_forced_note": "1985 → 2025 imposé comme dernière année",
+    "batch_mw_custom_label": "Années personnalisées (3 à 10, séparées par des virgules, 1985–2025)",
     "batch_mw_active_years": "Années actives : ",
     "batch_chk_timeline": "📈 Chronologie de la déforestation (Hansen + MapBiomas + Feux) avec contexte politique",
     "batch_buffer_zone": "Zone tampon",
@@ -536,7 +538,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "batch_howto_1_title": "Sélectionnez les territoires",
     "batch_howto_1_body": "Choisissez le type de source (Autochtones ou Unités de Conservation), utilisez la recherche pour filtrer et cochez les territoires à inclure. « Sélectionner tous les filtrés » ajoute chaque correspondance de la recherche en cours ; « Tout effacer » repart de zéro. Changer de type efface la sélection en cours.",
     "batch_howto_2_title": "Choisissez les années MapBiomas",
-    "batch_howto_2_body": "Définissez l'année initiale (instantané unique) et l'année finale (pour la comparaison d'une année à l'autre). Plage : 1985–2024.",
+    "batch_howto_2_body": "Définissez l'année initiale (instantané unique) et l'année finale (pour la comparaison d'une année à l'autre). Plage : 1985–2025.",
     "batch_howto_3_title": "Choisissez l'année Hansen GLAD",
     "batch_howto_3_body": "Année de référence (2000/2005/2010/2015/2020) utilisée pour l'instantané du couvert forestier Hansen GLAD.",
     "batch_howto_4_title": "Choisissez les types d'analyse",
@@ -589,7 +591,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "export_tab_maps": "Cartes PDF",
     "export_tab_report": "Rapport",
     "report_heading": "Rapport",
-    "report_intro": "Un document mis en page : identification, cartes, graphiques et tableaux avec de courtes explications. Langue = celle de l'interface.",
+    "report_intro": "Un document mis en page : identification, cartes, graphiques et tableaux avec de courtes explications. Langue : celle de l'interface.",
     "report_chk_maps": "Cartes",
     "report_chk_figures": "Graphiques",
     "report_chk_tables": "Tableaux de synthèse",
@@ -597,7 +599,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "report_btn_pdf": "PDF",
     "report_btn_html": "HTML",
     "report_stage_snapshot": "Collecte des résultats…",
-    "report_stage_maps": "Cartes : récupération depuis Earth Engine…",
+    "report_stage_maps": "Cartes : interrogation d'Earth Engine…",
     "report_stage_charts": "Graphiques {n}/{total}",
     "report_stage_compose": "Mise en page {fmt}…",
     "report_stage_done": "Rapport prêt — téléchargement lancé.",
@@ -648,6 +650,7 @@ La carte sera centrée sur la région sélectionnée.""",
     "qs_close_aria": 'Fermer le démarrage rapide',
     "help_show_quickstart": 'Revoir le démarrage rapide',
     "go_to_canada_page": 'Canada : aires protégées →',
+    "go_to_usa_page": 'États-Unis : aires protégées →',
     "region_brazil": "Brésil",
     "region_canada": "Canada",
     "region_label": "Région",

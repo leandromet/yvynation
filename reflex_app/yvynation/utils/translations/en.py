@@ -196,7 +196,7 @@ TRANSLATIONS_EN = {
     # =====================================================================
     "getting_started_header": "How to Use This Platform",
     "getting_started_title": "Getting Started",
-    "getting_started_intro": "This platform enables comprehensive land cover analysis for Brazil and global forest monitoring. You can analyze custom areas, indigenous territories, and external buffer zones.",
+    "getting_started_intro": "This platform enables comprehensive land cover analysis for Brazil and global forest monitoring. You can analyze custom areas, Indigenous territories, and external buffer zones.",
     "demo_links_title": "Rather see it working? Step-by-step walkthroughs with real examples:",
     "demo_link_ti": "an Indigenous land",
     "demo_link_uc": "a conservation unit",
@@ -215,12 +215,12 @@ On your first visit, the app can detect your location to set the right region:
 
 **Manual Language Selection**
 
-Use the language buttons (EN / PT / ES) in the sidebar to switch languages. Your choice is saved for your session.
+Use the language buttons (EN / PT / ES / FR) in the sidebar to switch languages. Your choice is saved for your session.
 
 **Manual Region Selection**
 
 Use the region buttons (Brazil / Canada) in the sidebar to choose between:
-- **Brazil**: Full MapBiomas coverage (1985-2024) + Hansen/GLAD global data
+- **Brazil**: Full MapBiomas coverage (1985-2025) + Hansen/GLAD global data
 - **Canada**: AAFC crop inventory + Hansen/GLAD global data
 
 The map will center on your selected region.""",
@@ -233,7 +233,7 @@ The map will center on your selected region.""",
    - Double-click or click the first point again to complete a polygon
 
 2. **Select Data Layers** (left sidebar):
-   - **MapBiomas**: Brazilian land cover (1985-2024, 62 classes, 30m resolution)
+   - **MapBiomas**: Brazilian land cover (1985-2025, 62 classes, 30m resolution)
    - **Hansen/GLAD**: Global forest change (2000-2020, 256 classes, 30m resolution)
    - **Hansen GFC**: Global Forest Change (2000-2024, 30m resolution)
    - Toggle multiple years to enable comparisons
@@ -253,14 +253,14 @@ The map will center on your selected region.""",
 **Tips**: Delete unwanted polygons with the trash icon. Use buffer zones to understand edge effects and surrounding land use.""",
 
     "step_territory": "Step 2: Analyze an Indigenous Territory",
-    "step2_territory_intro": "Pre-defined indigenous territory boundaries with historical analysis:",
+    "step2_territory_intro": "Pre-defined Indigenous territory boundaries with historical analysis:",
     "step2_content": """1. **Select Territory** (Territory Analysis section in sidebar):
    - Search or browse all territories
-   - Choose from 400+ officially recognized indigenous lands
+   - Choose from 400+ officially recognized Indigenous lands
    - View territory metadata: area, location, recognition status
 
 2. **Territory Analysis Features**:
-   - Historical land cover changes (1985-2024)
+   - Historical land cover changes (1985-2025)
    - Area changes by land cover class
    - Deforestation and regeneration trends
    - Transition diagrams (Sankey charts) showing conversions between classes
@@ -272,7 +272,7 @@ The map will center on your selected region.""",
    - Identify pressure zones and encroachment patterns
    - Results appear in separate tabs
 
-**Tips**: Compare multiple territories in the same state. Long-term comparisons (1985 vs 2023) reveal protection effectiveness.""",
+**Tips**: Compare multiple territories in the same state. Long-term comparisons (1985 vs 2025) reveal protection effectiveness.""",
 
     "step_comparison": "Step 3: Multi-Year Comparison",
     "step3_comparison_intro": "Compare land cover changes between any two years:",
@@ -292,7 +292,7 @@ The map will center on your selected region.""",
    - **Sankey Diagram**: Flow chart showing land cover transitions
    - **Summary Metrics**: Total change, loss, and gain values
 
-**Tips**: Compare 1985 vs 2023 for 38 years of change. Use 5-year intervals to identify major deforestation events.""",
+**Tips**: Compare 1985 vs 2025 for 40 years of change. Use 5-year intervals to identify major deforestation events.""",
 
     "step_export": "Step 4: Export and Download Results",
     "step4_export_intro": "Save your analysis results for reports and further analysis:",
@@ -325,19 +325,19 @@ The map will center on your selected region.""",
 **Layer Controls** (top-right corner):
 - Base Layers: Switch between OpenStreetMap, Satellite, Terrain views
 - Overlays: Toggle MapBiomas and Hansen layers on/off
-- Territory Boundaries: Show/hide indigenous territory outlines
+- Territory Boundaries: Show/hide Indigenous territory outlines
 
 **Map Features:**
 - Blue rings: External buffer zones (when created)
 - Colored polygons: Your drawn analysis areas
-- Territory boundaries: Pre-loaded indigenous land boundaries""",
+- Territory boundaries: Pre-loaded Indigenous land boundaries""",
 
     "step_data_understanding": "Step 6: Understanding Data & Results",
     "step6_data_understanding_intro": "Learn about data sources and how to interpret results:",
     "step6_content": """**Data Sources:**
 
-**MapBiomas Collection 10** (Brazil):
-- Coverage: All of Brazil, 1985-2024
+**MapBiomas Collection 11** (Brazil):
+- Coverage: All of Brazil, 1985-2025
 - Resolution: 30 meters (Landsat-based)
 - Classes: 62 land cover types (forest, savanna, agriculture, urban, etc.)
 - Accuracy: ~90% overall (varies by class and region)
@@ -365,11 +365,11 @@ The map will center on your selected region.""",
     "about_university": "IGS/UBCO",
     "about_supervisor": "Supervisor: Dr. Jon Corbett",
     "about_app_name": "Yvynation",
-    "about_app_note": "is a name for this app, as it is not the full project content.",
+    "about_app_note": "is just a name for this app, not the full project content.",
     "yvynation_meaning": '"Yvy" (Tupi-Guarani) means land, earth, or territory - emphasizing the ground we walk on and our sacred connection to nature. It often relates to the concept of "Yvy marae\'y" (Land without evil).',
     "nation_meaning": '"Nation" refers to a self-governing community or people with shared culture, history, language, and land. It signifies self-determination and governance.',
     "data_sources_title": "Data Sources",
-    "mapbiomas_desc": "MapBiomas Collection 10 - Resolution: 30m, Period: 1985-2024 (annual), 62 land cover categories, CC BY 4.0",
+    "mapbiomas_desc": "MapBiomas Collection 11 - Resolution: 30m, Period: 1985-2025 (annual), 62 land cover categories, CC BY 4.0",
     "territories_desc": "700+ Brazilian territories with vector boundaries and attributes - MapBiomas Territories Project",
     "features_title": "Features",
     "tech_title": "Technologies",
@@ -391,7 +391,7 @@ The map will center on your selected region.""",
 
     # Portal page
     "about_section": "About Yvynation",
-    "about_description": "Yvynation is a comprehensive platform for indigenous land monitoring and analysis. It combines satellite imagery, geospatial analysis tools, and forest change detection to provide insights into land use changes and ecosystem dynamics.",
+    "about_description": "Yvynation is a comprehensive platform for Indigenous land monitoring and analysis. It combines satellite imagery, geospatial analysis tools, and forest change detection to provide insights into land use changes and ecosystem dynamics.",
     
     # Sidebar sections
     "geometry_tools": "Geometry Tools",
@@ -452,7 +452,7 @@ The map will center on your selected region.""",
     # =====================================================================
     # Portal page (portal.py)
     # =====================================================================
-    "portal_ds_mapbiomas": "MapBiomas: Brazilian land cover (1985-2024, 30m resolution)",
+    "portal_ds_mapbiomas": "MapBiomas: Brazilian land cover (1985-2025, 30m resolution)",
     "portal_ds_hansen": "Hansen/GFC: Global forest change detection",
     "portal_ds_aafc": "AAFC: Canadian agricultural and forest classification",
     "portal_ds_gee": "Google Earth Engine: Cloud-based geospatial analysis",
@@ -466,21 +466,21 @@ The map will center on your selected region.""",
     "portal_geometry_i4": "Analyze land cover changes",
     "portal_geometry_btn": "→ Start Geometry Analysis",
     "indigenous_analysis_label": "🪶 Indigenous Lands Analysis",
-    "portal_indigenous_sub": "Monitor indigenous lands",
-    "portal_indigenous_i1": "Select from 650+ indigenous lands",
+    "portal_indigenous_sub": "Monitor Indigenous lands",
+    "portal_indigenous_i1": "Select from 650+ Indigenous lands",
     "portal_indigenous_i2": "Search by name",
-    "portal_indigenous_i3": "Track forest changes (1985-2024)",
+    "portal_indigenous_i3": "Track forest changes (1985-2025)",
     "portal_indigenous_i4": "Compare multiple years",
     "portal_indigenous_btn": "→ Start Indigenous Lands",
     "conservation_analysis_label": "🌿 Conservation Units Analysis",
     "portal_conservation_sub": "Monitor conservation units",
     "portal_conservation_i1": "Select from 3,200+ conservation units",
     "portal_conservation_i2": "Search by name",
-    "portal_conservation_i3": "Track forest changes (1985-2024)",
+    "portal_conservation_i3": "Track forest changes (1985-2025)",
     "portal_conservation_i4": "Compare multiple years",
-    "portal_conservation_btn": "→ Start Cons. Units Analysis",
+    "portal_conservation_btn": "→ Start Conservation Units Analysis",
     "portal_batch_sub": "Process multiple territories at once",
-    "portal_batch_i1": "Select up to a 100 territories",
+    "portal_batch_i1": "Select up to 100 territories",
     "portal_batch_i2": "Run MapBiomas, Hansen GLAD & GFC",
     "portal_batch_i3": "Territory + buffer automatically",
     "portal_batch_i4": "Download one ZIP with all data",
@@ -514,10 +514,12 @@ The map will center on your selected region.""",
     "citation_howto_title": "Suggested citation",
     "citation_platform_text": "Biondo, L. M. (2026). Yvynation: a geospatial monitoring platform for Indigenous Lands and Conservation Units [Software]. Interdisciplinary Graduate Studies – Sustainability Theme (IGS), UBC Okanagan. Data processed via Google Earth Engine (project ProtectedLandsYvynation-EE).",
     "citation_datasets_title": "Please also cite the underlying data sources you used:",
-    "citation_ds_mapbiomas": "MapBiomas Project — Collection 10 of the Brazilian Land Cover & Use Map Series, mapbiomas.org",
+    "citation_ds_mapbiomas": "MapBiomas Project — Collection 11 of the Brazilian Land Cover & Use Map Series, mapbiomas.org",
     "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
     "citation_ds_aafc": "Agriculture and Agri-Food Canada (AAFC) — Annual Crop Inventory",
     "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "indigenous_data_notice_title": 'About Indigenous land statistics',
+    "indigenous_data_notice_body": "The boundaries come from the national government's open data (FUNAI's catalogue in Brazil; the federal PAD-US data in the United States). The numbers describe land cover inside and around each boundary: they are not statements by or about the peoples who live there, and Yvynation does not speak for them. Open statistics about named Indigenous lands can be quoted in contexts the communities did not choose. The CARE principles for Indigenous data governance ask for more than an open licence, and we have not yet consulted Indigenous organisations on how results are presented.",
     "citation_hide": "Hide",
 
     # =====================================================================
@@ -588,8 +590,8 @@ The map will center on your selected region.""",
     "batch_chk_multi_window": "🌀 Multiple time-window MapBiomas (Sankey + Sunburst + Treemaps)",
     "batch_mw_mode": "Mode:",
     "batch_mw_step": "Step (years):",
-    "batch_mw_forced_note": "1985 → 2024 forced as last year",
-    "batch_mw_custom_label": "Custom years (3 to 10, comma-separated, 1985–2024)",
+    "batch_mw_forced_note": "1985 → 2025 forced as last year",
+    "batch_mw_custom_label": "Custom years (3 to 10, comma-separated, 1985–2025)",
     "batch_mw_active_years": "Active years: ",
     "batch_chk_timeline": "📈 Deforestation timeline (Hansen + MapBiomas + Fire) with political/policy context",
     "batch_buffer_zone": "Buffer zone",
@@ -621,13 +623,13 @@ The map will center on your selected region.""",
     "batch_errors_suffix": " errors)",
     "batch_processing_log": "Processing log",
     "batch_about_title": "📖 About Batch Processing",
-    "batch_about_text": "Run the full Yvynation analysis pipeline (MapBiomas land cover, year-over-year change, Hansen GLAD forest cover, and Hansen GFC loss/gain) across many territories in one unattended run. Supports both FUNAI indigenous territories (657) and CNUC conservation units (3,247). Each territory — and its optional external buffer — is processed via Google Earth Engine and packaged into a single ZIP archive containing CSV tables, transition matrices, and chart figures (HTML + PNG) per territory.",
+    "batch_about_text": "Run the full Yvynation analysis pipeline (MapBiomas land cover, year-over-year change, Hansen GLAD forest cover, and Hansen GFC loss/gain) across many territories in one unattended run. Supports both FUNAI Indigenous territories (657) and CNUC conservation units (3,247). Each territory — and its optional external buffer — is processed via Google Earth Engine and packaged into a single ZIP archive containing CSV tables, transition matrices, and chart figures (HTML + PNG) per territory.",
     "batch_time_note": "Expect 2–10 minutes per territory depending on which analyses are enabled. The tab can stay open in the background.",
     "batch_howto": "How to use",
     "batch_howto_1_title": "Select territories",
     "batch_howto_1_body": "Choose the source type (Indigenous or Conservation Units) then use the search box to filter, and tick the territories you want to include. 'Select all filtered' adds every match of the current search; 'Clear all' starts over. Switching type clears the current selection.",
     "batch_howto_2_title": "Pick MapBiomas years",
-    "batch_howto_2_body": "Set the initial year (single snapshot) and the final year (for the year-over-year comparison). Range: 1985–2024.",
+    "batch_howto_2_body": "Set the initial year (single snapshot) and the final year (for the year-over-year comparison). Range: 1985–2025.",
     "batch_howto_3_title": "Pick the Hansen GLAD year",
     "batch_howto_3_body": "Reference year (2000/2005/2010/2015/2020) used for the Hansen GLAD forest-cover snapshot.",
     "batch_howto_4_title": "Choose analysis types",
@@ -739,6 +741,7 @@ The map will center on your selected region.""",
     "qs_close_aria": 'Close the quick start',
     "help_show_quickstart": 'Show the quick start again',
     "go_to_canada_page": 'Canada: protected areas →',
+    "go_to_usa_page": 'USA: protected areas →',
     "region_brazil": "Brazil",
     "region_canada": "Canada",
     "region_label": "Region",

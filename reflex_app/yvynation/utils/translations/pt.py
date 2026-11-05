@@ -13,7 +13,7 @@ TRANSLATIONS_PT = {
     "app_title": "Yvynation",
     "app_subtitle": "Plataforma de Monitoramento Territorial",
     "app_description": "Plataforma Global de Monitoramento Florestal",
-    "author": "Leandro M. Biondo - Candidato de PhD - IGS/UBCO",
+    "author": "Leandro M. Biondo - Doutorando - IGS/UBCO",
 
     # Navigation
     "map_tab": "Mapa",
@@ -94,7 +94,7 @@ TRANSLATIONS_PT = {
     # Map controls
     "draw_polygon": "Desenhar Polígono",
     "clear_drawings": "Limpar Tudo",
-    "upload_geojson": "Upload GeoJSON",
+    "upload_geojson": "Enviar GeoJSON",
 
     # Analysis
     "run_analysis": "Executar Análise",
@@ -139,7 +139,7 @@ TRANSLATIONS_PT = {
     "change": "Mudança",
     "from_class": "De Classe",
     "to_class": "Para Classe",
-    "area_changed": "Área Mudada",
+    "area_changed": "Área Alterada",
 
     # File upload
     "upload_file": "Enviar Arquivo",
@@ -162,7 +162,7 @@ TRANSLATIONS_PT = {
     "export_as_pdf": "Exportar como PDF",
     "export_as_zip": "Exportar como ZIP",
     "exporting": "Exportando...",
-    "export_complete": "Exportação concluida",
+    "export_complete": "Exportação concluída",
     "export_analysis": "Exportar Análise",
 
     # MapBiomas specific
@@ -215,25 +215,25 @@ Na sua primeira visita, o aplicativo pode detectar sua localização para defini
 
 **Seleção Manual de Idioma**
 
-Use os botões de idioma (EN / PT / ES) na barra lateral para trocar o idioma. Sua escolha é salva para sua sessão.
+Use os botões de idioma (EN / PT / ES / FR) na barra lateral para trocar o idioma. Sua escolha é salva para sua sessão.
 
 **Seleção Manual de Região**
 
 Use os botões de região (Brasil / Canadá) na barra lateral para escolher entre:
-- **Brasil**: Cobertura completa MapBiomas (1985-2024) + dados globais Hansen/GLAD
-- **Canadá**: Inventário de cultivos AAFC + dados globais Hansen/GLAD
+- **Brasil**: Cobertura completa MapBiomas (1985-2025) + dados globais Hansen/GLAD
+- **Canadá**: Inventário Anual de Culturas (AAFC) + dados globais Hansen/GLAD
 
 O mapa será centralizado na região selecionada.""",
 
     "step_custom_polygon": "Passo 1: Analisar um Polígono Personalizado",
-    "step1_draw_intro": "Desenhe e análise qualquer área no mapa:",
+    "step1_draw_intro": "Desenhe e analise qualquer área no mapa:",
     "step1_content": """1. **Ferramentas de Desenho** (canto superior esquerdo do mapa):
    - Clique na ferramenta **Retângulo** para seleções retangulares rápidas
    - Clique na ferramenta **Polígono** para formas personalizadas
    - Clique duplo ou clique no primeiro ponto novamente para completar
 
 2. **Selecione Camadas de Dados** (barra lateral esquerda):
-   - **MapBiomas**: Cobertura do solo brasileira (1985-2024, 62 classes, 30m)
+   - **MapBiomas**: Cobertura do solo brasileira (1985-2025, 62 classes, 30m)
    - **Hansen/GLAD**: Mudanças florestais globais (2000-2020, 256 classes, 30m)
    - **Hansen GFC**: Mudanças Florestais Globais (2000-2024, 30m)
    - Alterne vários anos para habilitar comparações
@@ -248,7 +248,7 @@ O mapa será centralizado na região selecionada.""",
    - Após desenhar, clique em "Criar Buffer"
    - Escolha a distância: 2km, 5km ou 10km
    - Cria uma zona em forma de anel ao redor do polígono
-   - Análise ambas as áreas lado a lado
+   - Analise as duas áreas lado a lado
 
 **Dicas**: Exclua polígonos indesejados com o ícone de lixeira. Use zonas de buffer para entender efeitos de borda.""",
 
@@ -260,7 +260,7 @@ O mapa será centralizado na região selecionada.""",
    - Veja metadados do território: área, localização, status
 
 2. **Recursos de Análise de Território**:
-   - Mudanças históricas de cobertura do solo (1985-2024)
+   - Mudanças históricas de cobertura do solo (1985-2025)
    - Mudanças de área por classe de cobertura
    - Tendências de desmatamento e regeneração
    - Diagramas de transição (Sankey) mostrando conversões entre classes
@@ -272,7 +272,7 @@ O mapa será centralizado na região selecionada.""",
    - Identifique zonas de pressão e padrões de invasão
    - Resultados aparecem em abas separadas
 
-**Dicas**: Compare múltiplos territórios. Comparações de longo prazo (1985 vs 2023) revelam efetividade da proteção.""",
+**Dicas**: Compare múltiplos territórios. Comparações de longo prazo (1985 vs 2025) revelam efetividade da proteção.""",
 
     "step_comparison": "Passo 3: Comparação Multi-Anual",
     "step3_comparison_intro": "Compare mudanças de cobertura do solo entre quaisquer dois anos:",
@@ -281,38 +281,38 @@ O mapa será centralizado na região selecionada.""",
    - Desenhe um polígono ou selecione um território
    - Escolha Ano 1 (linha de base) e Ano 2 (comparação)
 
-2. **Clique nos Botoes de Comparação**:
+2. **Clique nos Botões de Comparação**:
    - **Comparar Anos MapBiomas**: Mudanças de cobertura do solo
    - **Comparar Anos Hansen**: Mudanças de floresta global
 
 3. **Ver Resultados**:
-   - **Tabela de Dados**: Valores de área lado a lado com calculos de mudança
-   - **Gráficos lado a lado**: Distribuição visual para cada ano
-   - **Ganhos e Perdas**: Gráfico de barras horizontal
+   - **Tabela de Dados**: Valores de área lado a lado com cálculos de mudança
+   - **Gráficos lado a lado**: distribuição visual de cada ano
+   - **Ganhos e Perdas**: gráfico de barras horizontais
    - **Diagrama Sankey**: Fluxo de transições de cobertura
    - **Métricas de Resumo**: Valores totais de mudança, perda e ganho
 
-**Dicas**: Compare 1985 vs 2023 para 38 anos de mudança. Use intervalos de 5 anos para identificar grandes eventos.""",
+**Dicas**: Compare 1985 vs 2025 para 40 anos de mudança. Use intervalos de 5 anos para identificar grandes eventos.""",
 
     "step_export": "Passo 4: Exportar e Baixar Resultados",
     "step4_export_intro": "Salve seus resultados para relatórios e análise adicional:",
     "step4_content": """- **Downloads CSV**: Clique nos botões "Baixar CSV" em cada aba de análise
   - Dados de ano individual com estatísticas de área
-  - Tabelas de comparação com calculos de mudança
+  - Tabelas de comparação com cálculos de mudança
 
-- **Exportações PNG**: Imagens de alta resolucao do Earth Engine
-  - Exporte regioes de análise como imagens georreferenciadas
-  - Adequado para software SIG e publicacoes
+- **Exportações PNG**: Imagens de alta resolução do Earth Engine
+  - Exporte regiões de análise como imagens georreferenciadas
+  - Adequado para software SIG e publicações
 
 - **Relatórios PDF** (futuro): Resumos de análise abrangentes
 
-**Dica**: Todos os downloads usam convenções de nomenclatura consistentes para facil organização.""",
+**Dica**: Todos os downloads usam convenções de nomenclatura consistentes para fácil organização.""",
 
     "step_map_controls": "Passo 5: Controles do Mapa e Navegação",
     "step5_map_controls_intro": "Navegue e interaja com o mapa:",
     "step5_content": """**Navegação Básica:**
-- **Zoom In/Out**: Roda de scroll do mouse, botões +/-, ou clique duplo
-- **Pan**: Clique e arraste em qualquer lugar do mapa
+- **Zoom (aproximar/afastar)**: roda do mouse, botões +/− ou clique duplo
+- **Mover o mapa**: clique e arraste em qualquer lugar
 - **Tela Cheia**: Clique no botão de tela cheia para vista maior
 
 **Ferramentas de Desenho** (canto superior esquerdo):
@@ -336,14 +336,14 @@ O mapa será centralizado na região selecionada.""",
     "step6_data_understanding_intro": "Saiba sobre as fontes de dados e como interpretar resultados:",
     "step6_content": """**Fontes de Dados:**
 
-**MapBiomas Collection 10** (Brasil):
-- Cobertura: Todo o Brasil, 1985-2024
+**MapBiomas Collection 11** (Brasil):
+- Cobertura: Todo o Brasil, 1985-2025
 - Resolução: 30 metros (baseado em Landsat)
 - Classes: 62 tipos de cobertura (floresta, savana, agricultura, urbano, etc.)
 - Precisão: ~90% no geral (varia por classe e região)
 
 **Hansen/GLAD Global Forest Change**:
-- Cobertura: Global (todos os continentes)
+- Cobertura: global (todos os continentes)
 - Resolução: 30 metros (baseado em Landsat)
 - Classes: 256 classes combinando cobertura florestal, ano de perda (2000-2020), ganho (2000-2012)
 - Melhor para: Detecção e monitoramento de mudanças florestais
@@ -351,7 +351,7 @@ O mapa será centralizado na região selecionada.""",
 **Interpretação de Resultados:**
 - **Área (ha)**: Hectares = 10.000 m2 (cerca de 2,5 acres)
 - **Pixels**: Cada pixel = 900 m2 (30m x 30m)
-- **Percentagens**: Calculadas a partir da área total analisada
+- **Percentuais**: calculados a partir da área total analisada
 - **Valores de mudança**: Positivo = aumento, Negativo = diminuição
 
 **Gráficos**: Gráficos de barras mostram as 15 principais classes. Diagramas Sankey mostram transições. Barras de Ganhos e Perdas mostram aumentos (direita) e diminuições (esquerda).""",
@@ -359,17 +359,17 @@ O mapa será centralizado na região selecionada.""",
     # About section
     "about_title": "Sobre",
     "about_overview": "Visão Geral do Projeto",
-    "about_desc": "Esta ferramenta de análise de uso e cobertura do solo faz parte de um projeto de pesquisa que estuda mudanças ambientais em Territórios Indígenas Brasileiros usando Google Earth Engine e dados MapBiomas. Estes dados sao comparados com mudanças de políticas e tendências de desmatamento para entender os impactos nestas terras críticas.",
+    "about_desc": "Esta ferramenta de análise de uso e cobertura do solo faz parte de um projeto de pesquisa que estuda mudanças ambientais em Territórios Indígenas Brasileiros usando Google Earth Engine e dados MapBiomas. Estes dados são comparados com mudanças de políticas e tendências de desmatamento para entender os impactos nestas terras críticas.",
     "about_author": "Leandro Meneguelli Biondo",
-    "about_role": "Candidato de PhD em Sustentabilidade",
+    "about_role": "Doutorando em Sustentabilidade",
     "about_university": "IGS/UBCO",
     "about_supervisor": "Orientador: Dr. Jon Corbett",
     "about_app_name": "Yvynation",
     "about_app_note": "é um nome para este aplicativo, não é o conteúdo completo do projeto.",
-    "yvynation_meaning": '"Yvy" (Tupi-Guarani) significa terra, solo ou território - enfatizando o chao que pisamos e nossa conexao sagrada com a natureza. Frequentemente se relaciona ao conceito de "Yvy marae\'y" (Terra sem mal).',
-    "nation_meaning": '"Nação" refere-se a uma comunidade auto-governada ou povo com cultura, história, língua e terra compartilhadas. Significa autodeterminacao e governança.',
+    "yvynation_meaning": '"Yvy" (Tupi-Guarani) significa terra, solo ou território - enfatizando o chão que pisamos e nossa conexão sagrada com a natureza. Frequentemente se relaciona ao conceito de "Yvy marae\'y" (Terra sem mal).',
+    "nation_meaning": '"Nação" refere-se a uma comunidade auto-governada ou povo com cultura, história, língua e terra compartilhadas. Significa autodeterminação e governança.',
     "data_sources_title": "Fontes de Dados",
-    "mapbiomas_desc": "MapBiomas Collection 10 - Resolução: 30m, Período: 1985-2024 (anual), 62 categorias de cobertura, CC BY 4.0",
+    "mapbiomas_desc": "MapBiomas Collection 11 - Resolução: 30m, Período: 1985-2025 (anual), 62 categorias de cobertura, CC BY 4.0",
     "territories_desc": "700+ territórios brasileiros com limites vetoriais e atributos - Projeto Territórios MapBiomas",
     "features_title": "Funcionalidades",
     "tech_title": "Tecnologias",
@@ -383,7 +383,7 @@ O mapa será centralizado na região selecionada.""",
     "mapbiomas_legend": "Classes de Cobertura MapBiomas",
     "hansen_legend": "Classes de Cobertura Hansen/GLAD",
     "gfc_legend": "Hansen Global Forest Change (UMD 2024)",
-    "aafc_legend": "Inventário Anual de Cultivos AAFC (Canadá)",
+    "aafc_legend": "Inventário Anual de Culturas AAFC (Canadá)",
 
     # Polygon analysis
     "polygon_analysis_header": "Análise de Polígono e Estatísticas",
@@ -452,7 +452,7 @@ O mapa será centralizado na região selecionada.""",
     # =====================================================================
     # Página do portal (portal.py)
     # =====================================================================
-    "portal_ds_mapbiomas": "MapBiomas: cobertura do solo do Brasil (1985-2024, resolução de 30m)",
+    "portal_ds_mapbiomas": "MapBiomas: cobertura do solo do Brasil (1985-2025, resolução de 30m)",
     "portal_ds_hansen": "Hansen/GFC: detecção global de mudanças florestais",
     "portal_ds_aafc": "AAFC: classificação agrícola e florestal do Canadá",
     "portal_ds_gee": "Google Earth Engine: análise geoespacial na nuvem",
@@ -464,27 +464,27 @@ O mapa será centralizado na região selecionada.""",
     "portal_geometry_i2": "Envie GeoJSON/Shapefiles/KML",
     "portal_geometry_i3": "Crie zonas de amortecimento (buffer)",
     "portal_geometry_i4": "Analise mudanças de cobertura do solo",
-    "portal_geometry_btn": "→ Inicia Geometria",
+    "portal_geometry_btn": "→ Iniciar Geometria",
     "indigenous_analysis_label": "🪶 Análise de Terras Indígenas",
     "portal_indigenous_sub": "Monitore terras indígenas",
     "portal_indigenous_i1": "Selecione entre 650+ terras indígenas",
     "portal_indigenous_i2": "Pesquise por nome",
-    "portal_indigenous_i3": "Acompanhe mudanças florestais (1985-2024)",
+    "portal_indigenous_i3": "Acompanhe mudanças florestais (1985-2025)",
     "portal_indigenous_i4": "Compare múltiplos anos",
-    "portal_indigenous_btn": "→ Inicia Terras Indígenas",
+    "portal_indigenous_btn": "→ Iniciar Terras Indígenas",
     "conservation_analysis_label": "🌿 Análise de Unidades de Conservação",
     "portal_conservation_sub": "Monitore unidades de conservação",
     "portal_conservation_i1": "Selecione entre 3.200+ unidades de conservação",
     "portal_conservation_i2": "Pesquise por nome",
-    "portal_conservation_i3": "Acompanhe mudanças florestais (1985-2024)",
+    "portal_conservation_i3": "Acompanhe mudanças florestais (1985-2025)",
     "portal_conservation_i4": "Compare múltiplos anos",
-    "portal_conservation_btn": "→Inicia Un. Conservação",
+    "portal_conservation_btn": "→ Iniciar Unid. de Conservação",
     "portal_batch_sub": "Processe vários territórios de uma vez",
     "portal_batch_i1": "Selecione até 100 territórios",
     "portal_batch_i2": "Execute MapBiomas, Hansen GLAD e GFC",
     "portal_batch_i3": "Território + buffer automaticamente",
     "portal_batch_i4": "Baixe um ZIP com todos os dados",
-    "portal_batch_btn": "→ Iniciar Process. em Lote",
+    "portal_batch_btn": "→ Iniciar Processamento em Lote",
     "portal_resources": "📚 Recursos",
     "portal_footer_data": "Dados",
     "portal_footer_contact": "Contato",
@@ -514,10 +514,12 @@ O mapa será centralizado na região selecionada.""",
     "citation_howto_title": "Sugestão de citação",
     "citation_platform_text": "Biondo, L. M. (2026). Yvynation: plataforma de monitoramento geoespacial de Terras Indígenas e Unidades de Conservação [Software]. Interdisciplinary Graduate Studies – Sustainability Theme (IGS), UBC Okanagan. Dados processados via Google Earth Engine (projeto ProtectedLandsYvynation-EE).",
     "citation_datasets_title": "Cite também as fontes de dados utilizadas:",
-    "citation_ds_mapbiomas": "Projeto MapBiomas — Coleção 10 da Série de Mapas de Uso e Cobertura da Terra do Brasil, mapbiomas.org",
+    "citation_ds_mapbiomas": "Projeto MapBiomas — Coleção 11 da Série de Mapas de Uso e Cobertura da Terra do Brasil, mapbiomas.org",
     "citation_ds_hansen": "Hansen, M.C. et al. (2013). High-Resolution Global Maps of 21st-Century Forest Cover Change. Science. (Global Forest Change / GLAD, UMD)",
     "citation_ds_aafc": "Agriculture and Agri-Food Canada (AAFC) — Annual Crop Inventory",
     "citation_ds_gee": "Gorelick, N. et al. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment.",
+    "indigenous_data_notice_title": 'Sobre as estatísticas de terras indígenas',
+    "indigenous_data_notice_body": 'Os limites vêm de dados abertos do governo nacional (o catálogo da FUNAI no Brasil; os dados federais do PAD-US nos Estados Unidos). Os números descrevem a cobertura do solo dentro e em volta de cada limite: não são declarações dos povos que vivem ali nem sobre eles, e o Yvynation não fala por eles. Estatísticas abertas sobre terras indígenas com nome podem ser citadas em contextos que as comunidades não escolheram. Os princípios CARE de governança de dados indígenas pedem mais do que uma licença aberta, e ainda não consultamos organizações indígenas sobre como apresentar os resultados.',
     "citation_hide": "Ocultar",
 
     # =====================================================================
@@ -588,8 +590,8 @@ O mapa será centralizado na região selecionada.""",
     "batch_chk_multi_window": "🌀 MapBiomas em múltiplas janelas de tempo (Sankey + Sunburst + Treemaps)",
     "batch_mw_mode": "Modo:",
     "batch_mw_step": "Passo (anos):",
-    "batch_mw_forced_note": "1985 → 2024 forçado como último ano",
-    "batch_mw_custom_label": "Anos personalizados (3 a 10, separados por vírgula, 1985–2024)",
+    "batch_mw_forced_note": "1985 → 2025 forçado como último ano",
+    "batch_mw_custom_label": "Anos personalizados (3 a 10, separados por vírgula, 1985–2025)",
     "batch_mw_active_years": "Anos ativos: ",
     "batch_chk_timeline": "📈 Linha do tempo de desmatamento (Hansen + MapBiomas + Fogo) com contexto político",
     "batch_buffer_zone": "Zona de amortecimento",
@@ -625,7 +627,7 @@ O mapa será centralizado na região selecionada.""",
     "batch_howto_1_title": "Selecione os territórios",
     "batch_howto_1_body": "Escolha o tipo de fonte (Indígenas ou Unidades de Conservação), use a busca para filtrar e marque os territórios que deseja incluir. 'Selecionar todos os filtrados' adiciona todas as correspondências da busca atual; 'Limpar tudo' recomeça. Trocar o tipo limpa a seleção atual.",
     "batch_howto_2_title": "Escolha os anos MapBiomas",
-    "batch_howto_2_body": "Defina o ano inicial (retrato único) e o ano final (para a comparação entre anos). Intervalo: 1985–2024.",
+    "batch_howto_2_body": "Defina o ano inicial (retrato único) e o ano final (para a comparação entre anos). Intervalo: 1985–2025.",
     "batch_howto_3_title": "Escolha o ano Hansen GLAD",
     "batch_howto_3_body": "Ano de referência (2000/2005/2010/2015/2020) usado para o retrato de cobertura florestal Hansen GLAD.",
     "batch_howto_4_title": "Escolha os tipos de análise",
@@ -678,7 +680,7 @@ O mapa será centralizado na região selecionada.""",
     "export_tab_maps": "Mapas em PDF",
     "export_tab_report": "Relatório",
     "report_heading": "Relatório",
-    "report_intro": "Um documento diagramado: identificação, mapas, gráficos e tabelas com explicações curtas. Idioma = o da interface.",
+    "report_intro": "Um documento diagramado: identificação, mapas, gráficos e tabelas com explicações curtas. Idioma: o da interface.",
     "report_chk_maps": "Mapas",
     "report_chk_figures": "Gráficos",
     "report_chk_tables": "Tabelas-resumo",
@@ -737,6 +739,7 @@ O mapa será centralizado na região selecionada.""",
     "qs_close_aria": 'Fechar o início rápido',
     "help_show_quickstart": 'Mostrar o início rápido de novo',
     "go_to_canada_page": 'Canadá: áreas protegidas →',
+    "go_to_usa_page": 'EUA: áreas protegidas →',
     "region_brazil": "Brasil",
     "region_canada": "Canadá",
     "region_label": "Região",

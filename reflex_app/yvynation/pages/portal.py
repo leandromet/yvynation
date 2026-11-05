@@ -323,6 +323,19 @@ def analysis_choice_section() -> rx.Component:
                             href=f"/canada?lang={AppState.language}",
                             width="100%",
                         ),
+                        # The lower 48's protected areas, from PAD-US (/usa), tribal lands
+                        # included with the Indigenous-lands notice.
+                        rx.link(
+                            rx.button(
+                                AppState.tr["go_to_usa_page"],
+                                size="2",
+                                variant="soft",
+                                color_scheme="teal",
+                                width="100%",
+                            ),
+                            href=f"/usa?lang={AppState.language}",
+                            width="100%",
+                        ),
                         spacing="2",
                     ),
                     padding="1.5rem",

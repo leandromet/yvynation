@@ -10,6 +10,7 @@ figures and data.
 
 import reflex as rx
 from ..state import AppState
+from .indigenous_notice import indigenous_notice
 
 
 def cite_trigger(color_scheme: str = "green", variant: str = "ghost") -> rx.Component:
@@ -61,6 +62,7 @@ def citation_modal() -> rx.Component:
                         line_height="1.7",
                         color="#333",
                     ),
+                    indigenous_notice(compact=False, always=True),
                     rx.box(
                         rx.vstack(
                             rx.heading(

@@ -65,7 +65,7 @@ YVY_PT: dict[str, str] = {
     "cobertura_out_of_range": "O inventário agrícola da AAFC não cobre esta "
         "latitude — esperado acima de cerca de 54–58°N, não é uma falha. As "
         "abas Cobertura do solo, Floresta, Biomassa e Fogo continuam "
-        "respondendo.",
+        "funcionando.",
     "fogo_aci_empty": "Ainda sem dados de Culturas (AAFC) para esta zona — abra essa "
         "aba, ou aguarde o carregamento terminar. A classe de área queimada vem "
         "dessa mesma busca, sem custo adicional.",
@@ -147,7 +147,7 @@ YVY_PT: dict[str, str] = {
         "antes, vermelho depois — se o desmate continuou depois que a área "
         "foi protegida.\n"
         "Quadros — perda total em cada período, e ganho (2000–2012, sem data, "
-        "por isso nunca subtraído de 25 anos de perda).\n"
+        "por isso nunca é subtraído de 25 anos de perda).\n"
         "Idade do povoamento — idade medida da floresta em 2019 (NTEMS): "
         "média, mediana e a parte da zona que é floresta.\n"
         "Mapa — os pixels de perda, coloridos pela mesma divisão.\n"
@@ -161,7 +161,7 @@ YVY_PT: dict[str, str] = {
         "por outro sensor.\n"
         "Tabela — os valores anuais e o total da zona.\n"
         "Mapa — a biomassa no ano selecionado; verde mais escuro tem mais.\n"
-        "Limites — pixels de 100 m; a estimativa é mais fraca sobre neve "
+        "Limites — pixels de 100 m; a estimativa é menos precisa sobre neve "
         "persistente e florestas esparsas do norte, então pequenas variações "
         "entre anos estão dentro da incerteza do produto."),
     "read_paisagem": (
@@ -181,8 +181,8 @@ YVY_PT: dict[str, str] = {
     "read_fogo": (
         "Gráfico — parte da zona que queimou a cada ano, pelo MODIS (500 m, "
         "desde 2001) ou pela classe de área queimada do inventário agrícola "
-        "(30 m, desde 2009); o seletor escolhe a fonte. Barra hachurada é o "
-        "ano corrente, ainda incompleto.\n"
+        "(30 m, desde 2009); o seletor escolhe a fonte. A barra hachurada é o "
+        "ano em curso, ainda incompleto.\n"
         "Quadros — anos com alguma queima, frequência média e a queima mais "
         "recente.\n"
         "Mapa — todos os anos somados: vermelho mais escuro queimou mais "
@@ -198,8 +198,8 @@ YVY_PT: dict[str, str] = {
         "Concordância — a parte da zona em que os dois indicam o mesmo grupo; "
         "a tabela traz a área e a concordância de cada grupo do inventário.\n"
         "Mapa — os dois produtos lado a lado; arraste o divisor.\n"
-        "Limites — dois produtos independentes discordarem é informação, não "
-        "erro de um deles; parte da discordância vem das duas grades não se "
+        "Limites — a discordância entre dois produtos independentes é informação, "
+        "não erro de um deles; parte da discordância vem das duas grades não se "
         "alinharem nas bordas das classes."),
 
     "qs_title": "Comece em 30 segundos",
