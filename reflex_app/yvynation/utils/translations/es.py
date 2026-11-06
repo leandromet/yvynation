@@ -349,6 +349,7 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "geometry_analysis_label": "🔷 Análisis de Geometría",
     "territory_analysis_label": "🗺️ Análisis de Territorio",
     "back_to_portal": "← Volver al Portal",
+    "yvynation_home_btn": "← Inicio Yvynation",
     "back_to_batch": "← Volver al Lote",
     "clear_btn": "🔄 Limpiar",
     "clear_btn_title": "Limpiar todos los datos de análisis y empezar de nuevo",

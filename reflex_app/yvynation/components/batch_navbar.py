@@ -11,7 +11,7 @@ def batch_navbar() -> rx.Component:
     return rx.hstack(
         rx.hstack(
             rx.button(
-                AppState.tr["back_to_portal"],
+                AppState.tr["yvynation_home_btn"],
                 on_click=AppState.go_to_portal,
                 size="1",
                 variant="outline",

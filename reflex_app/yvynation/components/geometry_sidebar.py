@@ -499,6 +499,8 @@ def _hansen_layers_section() -> rx.Component:
         rx.hstack(
             rx.button(
                 AppState.tr["tree_cover_btn"],
+                white_space="nowrap",
+                min_width="0",
                 on_click=lambda: AppState.add_hansen_layer("cover"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("cover"), "solid", "outline"),
@@ -507,6 +509,8 @@ def _hansen_layers_section() -> rx.Component:
             ),
             rx.button(
                 AppState.tr["loss_btn"],
+                white_space="nowrap",
+                min_width="0",
                 on_click=lambda: AppState.add_hansen_layer("loss"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("loss"), "solid", "outline"),
@@ -515,6 +519,8 @@ def _hansen_layers_section() -> rx.Component:
             ),
             rx.button(
                 AppState.tr["gain_btn"],
+                white_space="nowrap",
+                min_width="0",
                 on_click=lambda: AppState.add_hansen_layer("gain"),
                 size="1",
                 variant=rx.cond(AppState.hansen_displayed_layers.contains("gain"), "solid", "outline"),
@@ -522,6 +528,7 @@ def _hansen_layers_section() -> rx.Component:
                 flex="1",
             ),
             spacing="1",
+            width="100%",
         ),
         rx.text(AppState.tr["year_layers"], font_size="xs", font_weight="600", color="gray"),
         rx.hstack(

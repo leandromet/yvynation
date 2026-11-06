@@ -711,6 +711,18 @@ def navbar() -> rx.Component:
                 rx.hstack(
                     rx.heading(AppState.tr["app_title"], size="3",
                                white_space="nowrap"),
+                    # Back to the Yvynation tool selection, next to the title.
+                    rx.cond(
+                        AppState.analysis_mode != "portal",
+                        rx.button(
+                            AppState.tr["yvynation_home_btn"],
+                            on_click=AppState.go_to_portal,
+                            size="1", variant="soft", color_scheme=ACCENT,
+                            aria_label=AppState.tr["yvynation_home_btn"],
+                            flex_shrink="0",
+                        ),
+                        rx.box(),
+                    ),
                     rx.cond(
                         AppState.analysis_mode != "portal",
                         rx.hstack(
@@ -784,7 +796,6 @@ def navbar() -> rx.Component:
             header_menu(AppState.tr["header_more"], [
                 (AppState.tr["ps_howto_title"], AppState.set_howto_open(True)),
                 (AppState.tr["portal_link_cite"], AppState.toggle_citation),
-                (AppState.tr["back_to_portal"], lambda: AppState.go_to_portal()),
                 (AppState.tr["clear_btn"], AppState.clear_all_state()),
             ]),
             rx.cond(
