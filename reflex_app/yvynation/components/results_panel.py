@@ -19,22 +19,13 @@ def _result_nav_tabs() -> rx.Component:
         AppState.result_keys_list.length() > 1,
         rx.hstack(
             rx.foreach(
-                AppState.result_keys_list,
-                lambda key: rx.button(
-                    # Display label: extract name from "territory::Xingu" or "geometry::0"
-                    rx.cond(
-                        key.contains("territory"),
-                        key.split("::")[1],
-                        rx.cond(
-                            key.contains("geometry"),
-                            "Geom " + key.split("::")[1],
-                            key,
-                        ),
-                    ),
-                    on_click=AppState.switch_result(key),
+                AppState.result_tabs,
+                lambda tab: rx.button(
+                    tab["label"],
+                    on_click=AppState.select_result_tab(tab["key"]),
                     size="1",
-                    variant=rx.cond(AppState.active_result_key == key, "solid", "outline"),
-                    color_scheme=rx.cond(key.contains("territory"), "green", "purple"),
+                    variant=rx.cond(AppState.active_result_key == tab["key"], "solid", "outline"),
+                    color_scheme=rx.cond(tab["key"].contains("territory"), "green", "purple"),
                 ),
             ),
             spacing="1",

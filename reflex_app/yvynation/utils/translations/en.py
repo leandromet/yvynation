@@ -7,6 +7,10 @@ Check coverage with:  python -m yvynation.utils.translations
 """
 
 TRANSLATIONS_EN = {
+    "header_more": "More",
+    "go_to_usa": "Go to USA",
+    "go_to_canada": "Go to Canada",
+    "go_to_brazil": "Go to Brazil",
         # Page
     "page_title": "Yvynation - Indigenous Land Monitoring",
     "main_page_title": "Yvynation - Land Monitoring Platform",
@@ -744,5 +748,6 @@ The map will center on your selected region.""",
     "go_to_usa_page": 'USA: protected areas →',
     "region_brazil": "Brazil",
     "region_canada": "Canada",
+    "region_usa": "USA",
     "region_label": "Region",
 }

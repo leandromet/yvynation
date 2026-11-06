@@ -692,15 +692,10 @@ def build_map(
                             fc.features.push(layer.toGeoJSON());
                         }
                     });
-                    // Also check for any draw layers on the map directly
-                    map.eachLayer(function(layer) {
-                        if (layer instanceof L.Path && layer.toGeoJSON && !drawnItems.hasLayer(layer)) {
-                            // Check if it's a user-drawn layer (not a tile or base layer)
-                            if (layer._leaflet_id && layer.editing) {
-                                fc.features.push(layer.toGeoJSON());
-                            }
-                        }
-                    });
+                    // Only the draw group is exported. Leaflet.draw gives every
+                    // polygon and polyline an `editing` handler, so scanning the
+                    // map for paths also picked up saved drawings and their
+                    // buffer rings, which then came back as new drawings.
                     window._yvyDrawnFeatures = fc;
                     console.log('[YvyBridge] Features exported:', fc.features.length);
                     return fc;

@@ -52,6 +52,9 @@ class USState(rx.State):
     # --- chrome -----------------------------------------------------------
     language: str = DEFAULT_LANGUAGE
     help_open: bool = False
+    #: "1" once this tab dismissed the quick-start card. Session storage: the card
+    #: shows again in each new browser tab, like the other pages'.
+    quickstart_seen: str = rx.SessionStorage("", name="yvynation_usa_quickstart_v1")
     results_tab: str = "cover"
 
     # --- search / selection ----------------------------------------------
@@ -226,13 +229,21 @@ class USState(rx.State):
     # Chrome
     # ----------------------------------------------------------------------- #
     def set_language(self, lang: str | list[str]):
+        from ...utils.language_routes import replace_url_script
+
         raw = lang[0] if isinstance(lang, (list, tuple)) and lang else lang
         if raw in ("en", "pt"):
             self.language = raw
             self._rebuild_zone_labels()
+            return rx.call_script(replace_url_script(self.router.url.path, raw))
 
     def adopt_on_load(self):
         self._refresh_layers()          # the base map must be there before any selection
+        from ...utils.language_routes import language_from_path
+
+        path_lang = language_from_path(self.router.url.path)
+        if path_lang in ("en", "pt"):
+            self.language = path_lang
         q = self.router.url.query_parameters or {}
         if q.get("lang") in ("en", "pt"):
             self.language = q["lang"]
@@ -243,16 +254,31 @@ class USState(rx.State):
     def set_help_open(self, value: bool):
         self.help_open = value
 
+    @rx.var
+    def show_quickstart(self) -> bool:
+        return self.quickstart_seen != "1"
+
+    def dismiss_quickstart(self):
+        self.quickstart_seen = "1"
+
+    def open_full_howto(self):
+        self.quickstart_seen = "1"
+        self.help_open = True
+
+    def reset_quickstart(self):
+        self.quickstart_seen = ""
+        self.help_open = False
+
     def set_results_tab(self, tab: str):
         self.results_tab = tab
 
     @rx.var
     def brazil_href(self) -> str:
-        return f"/?lang={self.language}"
+        return f"/{self.language}/"
 
     @rx.var
     def canada_href(self) -> str:
-        return f"/canada?lang={self.language}"
+        return f"/canada/{self.language}/"
 
     # ----------------------------------------------------------------------- #
     # Search and selection

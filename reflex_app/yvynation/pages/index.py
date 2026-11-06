@@ -29,6 +29,7 @@ from ..components.language_selector import language_selector
 from ..components.citation import citation_modal, cite_trigger
 from ..components.place_search import howto_dialog, howto_trigger, place_search
 from ..components.quickstart import quickstart_card
+from ..components.header_menu import header_menu
 from ..components.region_toggle import region_toggle
 from ..components.suite_links import suite_links
 from .portal import portal
@@ -586,24 +587,34 @@ def active_target_bar() -> rx.Component:
                 rx.menu.trigger(
                     rx.button(
                         rx.hstack(
-                            rx.text("🎯", font_size="md"),
+                            rx.text("🎯", font_size="md", flex_shrink="0"),
+                            # min_width 0 + nowrap + ellipsis: a long name is cut
+                            # inside the box, never pushed out of it.
                             rx.vstack(
                                 rx.text(
                                     AppState.active_target_label,
                                     font_size="sm", font_weight="700",
-                                    color="#1a472a", no_of_lines=1,
+                                    color="#1a472a", no_of_lines=1, line_height="1.15",
+                                    white_space="nowrap", overflow="hidden",
+                                    text_overflow="ellipsis", max_width="100%",
                                 ),
                                 rx.text(
                                     AppState.active_target_kind_label
                                     + "  ·  🔵 " + AppState.active_buffer_label,
-                                    font_size="xs", color="gray",
+                                    font_size="xs", color="gray", line_height="1.15",
+                                    white_space="nowrap", overflow="hidden",
+                                    text_overflow="ellipsis", max_width="100%",
                                 ),
                                 spacing="0", align_items="flex-start",
+                                min_width="0", flex="1", max_width="100%",
                             ),
-                            rx.icon("chevron-down", size=14),
-                            spacing="2", align_items="center",
+                            rx.icon("chevron-down", size=14, flex_shrink="0"),
+                            spacing="2", align_items="center", width="100%", min_width="0",
                         ),
                         variant="outline", color_scheme="green", size="2",
+                        height="2.5rem", padding_y="0",
+                        max_width="min(240px, 20vw)", width="100%",
+                        white_space="normal",
                     ),
                 ),
                 rx.menu.content(
@@ -632,7 +643,8 @@ def active_target_bar() -> rx.Component:
                 "MapBiomas " + AppState.comparison_year1.to(str)
                 + " → " + AppState.comparison_year2.to(str),
                 color_scheme="green", variant="soft", size="2",
-                display=["none", "none", "none", "inline-flex"],
+                # Hidden in the bar: the years are in the results, and the bar has no room.
+                display="none",
             ),
             # Run-all button
             rx.button(
@@ -660,7 +672,7 @@ def active_target_bar() -> rx.Component:
                 ),
                 rx.fragment(),
             ),
-            spacing="3", align_items="center", wrap="wrap",
+            spacing="3", align_items="center", wrap="nowrap",
         ),
         rx.fragment(),
     )
@@ -715,18 +727,20 @@ def navbar() -> rx.Component:
                             ),
                             spacing="1",
                             align_items="center",
-                            display=["none", "none", "flex", "flex"],
+                            # Hidden: the target switcher in the middle says what is analysed.
+                            display="none",
                         ),
                         rx.box(),
                     ),
                     spacing="2",
                     align_items="center",
                 ),
+                # Hidden here: the analysis bar needs the room, and the portal keeps the subtitle.
                 rx.text(
                     AppState.tr["app_subtitle"],
                     font_size="xs",
                     color="gray",
-                    display=["none", "none", "none", "block"],
+                    display="none",
                 ),
                 spacing="0",
                 margin="0",
@@ -751,33 +765,28 @@ def navbar() -> rx.Component:
             # utils/map_builder.py — and the bottom belongs to the results
             # drawer. There is no free corner, and this is a status readout
             # that never needed to be on the map to begin with.
+            # The layer counts are not in the bar any more: it is full. They stay
+            # in the results panel's summary.
             rx.box(
                 map_metrics(),
-                display=["none", "none", "none", "flex"],
+                display="none",
             ),
             # compact: this navbar is already full (target switcher, counts, actions).
             suite_links("yvynation", region="brazil", language=AppState.language,
                         accent=ACCENT, compact=True),
             region_toggle("brazil", language=AppState.language,
-                          labels=(AppState.tr["region_brazil"], AppState.tr["region_canada"]),
+                          names=(AppState.tr["region_brazil"], AppState.tr["region_canada"], AppState.tr["region_usa"]),
+                          goto=(AppState.tr["go_to_brazil"], AppState.tr["go_to_canada"], AppState.tr["go_to_usa"]),
                           aria_label=AppState.tr["region_label"], accent=ACCENT),
             language_selector(),
-            howto_trigger(),
-            cite_trigger(),
-            rx.button(
-                AppState.tr["back_to_portal"],
-                on_click=lambda: AppState.go_to_portal(),
-                size="1",
-                variant="outline",
-                color_scheme="green",
-            ),
-            rx.button(
-                AppState.tr["clear_btn"],
-                on_click=AppState.clear_all_state(),
-                size="1",
-                variant="outline",
-                color_scheme="red",
-            ),
+            # The less-used actions live in one menu, so the bar keeps the
+            # region and the language in view.
+            header_menu(AppState.tr["header_more"], [
+                (AppState.tr["ps_howto_title"], AppState.set_howto_open(True)),
+                (AppState.tr["portal_link_cite"], AppState.toggle_citation),
+                (AppState.tr["back_to_portal"], lambda: AppState.go_to_portal()),
+                (AppState.tr["clear_btn"], AppState.clear_all_state()),
+            ]),
             rx.cond(
                 (AppState.analysis_results != {}) & (AppState.analysis_results != None),
                 rx.badge(

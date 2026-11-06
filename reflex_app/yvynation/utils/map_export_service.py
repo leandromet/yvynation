@@ -592,10 +592,12 @@ def create_pdf_map(
                 geom = feat.get('geometry', feat)
                 _plot_geojson(ax, geom, color='#2196F3', linewidth=1.5,
                               fill_alpha=0.15, zorder=6)
-                # Add number label at centroid
+                # Number label at centroid: the drawing's own number, so a map
+                # of one drawing reads "2", not "1".
                 centroid = _geojson_centroid(geom)
                 if centroid:
-                    ax.annotate(str(i + 1), xy=centroid, fontsize=9,
+                    number = feat.get('_display_idx', i + 1)
+                    ax.annotate(str(number), xy=centroid, fontsize=9,
                                 fontweight='bold', color='white', ha='center', va='center',
                                 bbox=dict(boxstyle='circle,pad=0.3', facecolor='#2196F3', alpha=0.9),
                                 zorder=7)

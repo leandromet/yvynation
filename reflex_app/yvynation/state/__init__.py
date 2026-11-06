@@ -297,7 +297,7 @@ class AppState(
     #: "1" once this browser dismissed the quick-start card. Browser storage:
     #: a per-viewer convenience that must survive a reload and never follow a
     #: user to someone else's screen.
-    quickstart_seen: str = rx.LocalStorage("", name="yvynation_quickstart_v1")
+    quickstart_seen: str = rx.SessionStorage("", name="yvynation_quickstart_v1")
 
     @rx.var
     def show_quickstart(self) -> bool:
@@ -975,16 +975,24 @@ class AppState(
     def comparison_available(self) -> bool:
         return self.mapbiomas_comparison_result is not None and bool(self.mapbiomas_comparison_result)
 
-    @rx.var(auto_deps=False, deps=["result_keys_list"])
-    def result_tab_labels(self) -> List[str]:
-        labels = []
+    @rx.var(auto_deps=False, deps=["result_keys_list", "drawn_features"])
+    def result_tabs(self) -> List[Dict[str, str]]:
+        """One tab per stored result: its key and its label. A drawing is labelled
+        with its own number ("Drawing 3"), found through its stable ``_idx``."""
+        by_idx = {str(f.get("_idx")): f for f in self.drawn_features}
+        tabs = []
         for key in self.result_keys_list:
-            if "::" in key:
-                prefix, name = key.split("::", 1)
-                labels.append(name if prefix == "territory" else f"Geom {name}")
+            prefix, _, name = key.partition("::")
+            if prefix == "geometry":
+                feat = by_idx.get(name) or {}
+                number = feat.get("_display_idx")
+                label = f"Drawing {number}" if number else (feat.get("name") or key)
+            elif prefix == "territory":
+                label = name
             else:
-                labels.append(key)
-        return labels
+                label = key
+            tabs.append({"key": key, "label": label})
+        return tabs
 
     # ---- Year string helpers for UI binding ----------------------------
 

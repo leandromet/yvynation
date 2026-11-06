@@ -3,6 +3,8 @@ Yvynation Reflex app definition.
 This module is discovered by Reflex's module loading system.
 """
 import reflex as rx
+from yvynation import seo
+from yvynation.utils.language_routes import TOOLS, redirect_script, variant_routes
 from yvynation.config import GA_MEASUREMENT_ID
 from yvynation.pages.demonstracao import PAGINAS as DEMONSTRACOES
 from yvynation.pages.index import index
@@ -32,6 +34,41 @@ def _ga_head_components() -> list[rx.Component]:
             function gtag(){{ dataLayer.push(arguments); }}
             gtag('js', new Date());
             gtag('config', '{GA_MEASUREMENT_ID}');
+        """),
+        # The app is a single-page app: moving between /, /canada/ and /usa/ (the
+        # region toggles, the portal cards) changes the route without a page load,
+        # so gtag's own page_view fires once per visit. Send one for each route
+        # change instead. Only the path is compared: ?lang= and the other query
+        # changes the app makes are not new pages.
+        rx.el.script("""
+            (function () {
+              if (window._yvyPageViewInit) return;
+              window._yvyPageViewInit = true;
+              var last = location.pathname;
+              function track() {
+                if (location.pathname === last) return;
+                last = location.pathname;
+                // Give the new page a moment to set its title before reading it.
+                window.setTimeout(function () {
+                  if (typeof window.gtag === 'function') {
+                    window.gtag('event', 'page_view', {
+                      page_location: location.href,
+                      page_path: location.pathname,
+                      page_title: document.title
+                    });
+                  }
+                }, 300);
+              }
+              ['pushState', 'replaceState'].forEach(function (name) {
+                var original = history[name];
+                history[name] = function () {
+                  var result = original.apply(this, arguments);
+                  track();
+                  return result;
+                };
+              });
+              window.addEventListener('popstate', track);
+            })();
         """),
     ]
 
@@ -117,35 +154,36 @@ app = rx.App(
         rx.el.script(src="/idle_guard.js", defer=True),
     ],
 )
-app.add_page(
-    index,
-    route="/",
-    title="Yvynation - Land Monitoring Platform",
-    on_load=AppState.adopt_url_params,
-)
+# The three country tools, one route per language (/pt, /canada/fr, /usa/en…).
+# The bare /, /canada and /usa are answered with a redirect by the ASGI layer
+# (utils/language_routes.py), so they have no route of their own here.
+_TOOLS = {
+    "/": (index, AppState.adopt_url_params),
+    # The Canada page: its own state, sidebar, results and native Leaflet map
+    # (canada/, ported from camposcope's Canada page), so Brazil-only datasets
+    # and controls never appear where they cannot answer. CPCAD, BC first.
+    "/canada": (canada_index, CanadaState.on_load),
+    # The USA page: PAD-US (USGS, queried live), Annual NLCD, Hansen. Its own
+    # state root, like the Canada page.
+    "/usa": (usa_index, USState.adopt_on_load),
+}
+for _base, _lang, _route in variant_routes():
+    _component, _on_load = _TOOLS[_base]
+    app.add_page(_component, route=_route, on_load=_on_load, **seo.page_kwargs(_route))
+
+# The bare tool URLs (/, /canada, /usa) as app routes: the dev server serves the
+# frontend itself and never reaches the ASGI redirect, and in-app navigation
+# lands here too. Each one runs the same language redirect in the browser.
+for _base in TOOLS:
+    app.add_page(
+        rx.center(rx.text("Yvynation…"), min_height="60vh"),
+        route=_base,
+        title="Yvynation",
+        on_load=rx.call_script(redirect_script(_base)),
+    )
 
 # The scrolling walkthroughs, one per way in from the portal (pages/
 # demonstracao.py). Their numbers come over HTTP from /_demonstracao/
 # yvynation.json, so the pages have no state of their own and no on_load.
 for _route, _page, _title in DEMONSTRACOES:
-    app.add_page(_page, route=_route, title=_title)
-
-# The Canada page: its own state, sidebar, results and native Leaflet map
-# (canada/, ported from camposcope's Canada page), so Brazil-only datasets and
-# controls never appear where they cannot answer. Protected areas from CPCAD,
-# BC first.
-app.add_page(
-    canada_index,
-    route="/canada",
-    title="Yvynation — Canada protected areas",
-    on_load=CanadaState.on_load,
-)
-
-# The USA page: protected areas from PAD-US (USGS, queried live), land cover from Annual
-# NLCD, forest change from Hansen. Its own state root, like the Canada page.
-app.add_page(
-    usa_index,
-    route="/usa",
-    title="Yvynation — USA protected areas",
-    on_load=USState.adopt_on_load,
-)
+    app.add_page(_page, route=_route, **seo.page_kwargs(_route))

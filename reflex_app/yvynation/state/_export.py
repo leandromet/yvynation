@@ -335,7 +335,7 @@ class ExportMixin(rx.State, mixin=True):
             ]
 
             maps = create_map_set(
-                drawn_features=self.drawn_features,
+                drawn_features=self._map_drawn_features(),
                 territory_name=self.territory_name or self.selected_territory,
                 active_mapbiomas_years=self.mapbiomas_displayed_years,
                 active_hansen_layers=self.hansen_displayed_layers,

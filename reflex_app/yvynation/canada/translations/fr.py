@@ -13,9 +13,12 @@ Coverage and placeholder parity with English are checked by
 from __future__ import annotations
 
 TRANSLATIONS_FR: dict[str, str] = {
+    "header_more": "Plus",
+    "go_to_usa": "Aller aux États-Unis",
+    "go_to_canada": "Aller au Canada",
     # --- shell -----------------------------------------------------------------
     "app_name": "Yvynation Canada — aires protégées",
-    "go_to_brazil": "Brésil",
+    "go_to_brazil": "Aller au Brésil",
     "language_label": "Langue",
     "start_hint": "Cliquez n'importe où au Canada pour commencer",
     "sidebar_show_aria": "Afficher le panneau latéral",
@@ -509,6 +512,7 @@ TRANSLATIONS_FR: dict[str, str] = {
     "qs_close_aria": "Fermer le démarrage rapide",
     "region_brazil": "Brésil",
     "region_canada": "Canada",
+    "region_usa": "États-Unis",
     "region_label": "Région",
 }
 

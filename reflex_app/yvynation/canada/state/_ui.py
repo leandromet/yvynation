@@ -46,10 +46,13 @@ class CanadaUIMixin(rx.State, mixin=True):
     #: field — same role as the Brazil page's ``toast``.
     toast: str = ""
 
-    def set_language(self, lang: str | list[str]) -> None:
+    def set_language(self, lang: str | list[str]):
+        from ...utils.language_routes import replace_url_script
+
         raw = lang[0] if isinstance(lang, (list, tuple)) and lang else lang
         if raw in SUPPORTED_LANGUAGES:
             self.language = raw
+            return rx.call_script(replace_url_script(self.router.url.path, raw))
 
     def adopt_lang_param(self) -> None:
         """Honour ``?lang=`` on page load.
@@ -58,6 +61,12 @@ class CanadaUIMixin(rx.State, mixin=True):
         than the app-wide Portuguese one — arriving bare at ``/canada`` reads
         as English, exactly as arriving bare at ``/`` reads as Portuguese.
         """
+        from ...utils.language_routes import language_from_path
+
+        path_lang = language_from_path(self.router.url.path)
+        if path_lang:
+            self.language = path_lang
+            return
         requested = self.router.url.query_parameters.get("lang", "")
         if requested in SUPPORTED_LANGUAGES:
             self.language = requested
@@ -89,7 +98,7 @@ class CanadaUIMixin(rx.State, mixin=True):
     #: a per-viewer convenience (see the Brazil page's ``UIMixin``). Its own
     #: key: the Canada card says different things and deserves its own first
     #: read.
-    quickstart_seen: str = rx.LocalStorage("", name="yvynation_canada_quickstart_v1")
+    quickstart_seen: str = rx.SessionStorage("", name="yvynation_canada_quickstart_v1")
 
     @rx.var
     def show_quickstart(self) -> bool:
@@ -122,4 +131,4 @@ class CanadaUIMixin(rx.State, mixin=True):
     @rx.var
     def brazil_href(self) -> str:
         """Link back to the Brazil page, carrying the current language."""
-        return f"/?lang={self.language}"
+        return f"/{self.language}/"

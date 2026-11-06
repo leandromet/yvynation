@@ -173,6 +173,21 @@ class GeometryMixin(rx.State, mixin=True):
                 )
         return None
 
+    def _map_drawn_features(self) -> list:
+        """Drawings to draw on a map for the active subject.
+
+        When a drawing is the active target, only that drawing is returned:
+        each drawing's map is centred on it and labelled with its own number,
+        not with every drawing the session holds. A territory target keeps all
+        drawings as context.
+        """
+        if self.active_target_kind == "drawing":
+            entry = self.analysis_targets.get(self.active_target_id) or {}
+            gj = entry.get("geojson")
+            if gj:
+                return [gj]
+        return list(self.drawn_features)
+
     def _buffer_distance_km(self) -> float:
         raw = (self.buffer_distance_input or "").strip()
         try:
@@ -239,8 +254,33 @@ class GeometryMixin(rx.State, mixin=True):
         self.geometry_version += 1
         logger.info(f"Removed geometry _idx={idx}")
 
+    def _forget_drawings(self):
+        """Drop registry entries and cached buffers of the drawings being cleared.
+
+        Drawing ids (``drawing::<idx>``) and names (``Drawing <n>``) restart from
+        1 after a clear, so a surviving entry or buffer would be picked up by the
+        next drawing with the same number.
+        """
+        names = {
+            f.get("name") or (f.get("properties") or {}).get("name") or f"Drawing {i + 1}"
+            for i, f in enumerate(self.drawn_features)
+        }
+        self.buffer_overlays_by_source = {
+            k: v for k, v in self.buffer_overlays_by_source.items() if k not in names
+        }
+        self.analysis_targets = {
+            k: v for k, v in self.analysis_targets.items() if v.get("kind") != "drawing"
+        }
+        if (self.active_target_kind == "drawing"
+                and self.active_target_id not in self.analysis_targets):
+            self.active_target_id = ""
+            self.active_target_kind = ""
+            self.buffer_geojson_features = []
+            self.current_buffer_for_analysis = None
+
     def clear_geometries(self):
         """Clear all drawn geometries and reset selection."""
+        self._forget_drawings()
         self.drawn_features = []
         self.selected_geometry_idx = None
         self._processed_geometry_hashes = set()
@@ -249,6 +289,7 @@ class GeometryMixin(rx.State, mixin=True):
 
     # kept as alias for backward compatibility
     def clear_drawn_features(self):
+        self._forget_drawings()
         self.drawn_features = []
         self._processed_geometry_hashes = set()
         self.geometry_version += 1
@@ -580,7 +621,9 @@ class GeometryMixin(rx.State, mixin=True):
 
             # 2. Search drawn features
             if not ee_geom:
-                for feat in self.all_drawn_features + self.drawn_features:
+                # Current drawings first: all_drawn_features keeps shapes from
+                # before a clear, whose names ("Drawing 1") can repeat.
+                for feat in self.drawn_features + self.all_drawn_features:
                     name = feat.get("name") or feat.get("properties", {}).get("name", "")
                     if name == geometry_name:
                         ee_geom = convert_geojson_to_ee_geometry(feat)

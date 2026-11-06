@@ -358,6 +358,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 active_feature = self.active_geometry_feature
                 terr_feats = list(self.territory_geojson_features)
                 drawn = list(self.drawn_features)
+                map_drawn = self._map_drawn_features()
                 buf_feats = list(self.buffer_geojson_features)
                 y1, y2 = int(self.comparison_year1), int(self.comparison_year2)
                 hansen_layers = list(self.hansen_displayed_layers)
@@ -385,7 +386,7 @@ class AdvancedVizMixin(rx.State, mixin=True):
                 mb_years = [y1] if y1 == y2 else sorted({y1, y2})
                 aux_layers = [(k, y2) for k in aux_keys]
                 return create_map_set(
-                    drawn_features=drawn,
+                    drawn_features=map_drawn,
                     territory_name=name,
                     active_mapbiomas_years=mb_years,
                     active_hansen_layers=hansen_layers or None,

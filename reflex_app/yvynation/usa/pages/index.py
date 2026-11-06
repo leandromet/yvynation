@@ -5,6 +5,7 @@ from __future__ import annotations
 import reflex as rx
 
 from ...canada._shared.map.leaflet_map import leaflet_map
+from ...components.quickstart import quickstart_card
 from ..config import nlcd
 from ..state import USState as S
 
@@ -22,7 +23,7 @@ def _section(title, *children) -> rx.Component:
 
 # --------------------------------------------------------------------------- header
 def _link(flag: str, label, href) -> rx.Component:
-    return rx.link(rx.button(rx.text(flag), rx.text(label, display=["none", "none", "block", "block"]),
+    return rx.link(rx.button(rx.text(label, display=["none", "none", "block", "block"]),
                              size="1", variant="soft", color_scheme="gray"), href=href)
 
 
@@ -41,8 +42,8 @@ def header() -> rx.Component:
         rx.text(S.tr["nav_subtitle"], size="1", color_scheme="gray",
                 display=["none", "none", "none", "block"], max_width="520px", no_of_lines=2),
         rx.spacer(),
-        _link("🇧🇷", S.tr["go_to_brazil"], S.brazil_href),
-        _link("🇨🇦", S.tr["go_to_canada"], S.canada_href),
+        _link(None, S.tr["go_to_brazil"], S.brazil_href),
+        _link(None, S.tr["go_to_canada"], S.canada_href),
         _lang(),
         rx.dialog.root(
             rx.dialog.trigger(rx.button(rx.icon("circle-help", size=15),
@@ -283,7 +284,8 @@ def usa_index() -> rx.Component:
                    flex_shrink="0", height=["auto", "auto", "auto", "100%"],
                    max_height=["46vh", "46vh", "46vh", "none"], overflow_y="auto",
                    border_right="1px solid var(--gray-5)", background="var(--color-panel-solid)"),
-            rx.vstack(rx.box(_map(), position="relative", flex="1 1 auto", min_height="320px", width="100%"),
+            rx.vstack(rx.box(_map(), quickstart_card(S, accent=ACCENT, desktop_from=2),
+                             position="relative", flex="1 1 auto", min_height="320px", width="100%"),
                       results(), spacing="0", width="100%", height="100%", align_items="stretch",
                       min_width="0"),
             direction=rx.breakpoints(initial="column", lg="row"),

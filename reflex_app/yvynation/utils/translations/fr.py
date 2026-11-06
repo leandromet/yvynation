@@ -7,6 +7,10 @@ Check coverage with:  python -m yvynation.utils.translations
 """
 
 TRANSLATIONS_FR = {
+    "header_more": "Plus",
+    "go_to_usa": "Aller aux États-Unis",
+    "go_to_canada": "Aller au Canada",
+    "go_to_brazil": "Aller au Brésil",
     # Page
     "page_title": "Yvynation - Surveillance des Territoires Autochtones",
     "main_page_title": "Yvynation - Plateforme de Surveillance des Territoires Autochtones",
@@ -653,5 +657,6 @@ La carte sera centrée sur la région sélectionnée.""",
     "go_to_usa_page": 'États-Unis : aires protégées →',
     "region_brazil": "Brésil",
     "region_canada": "Canada",
+    "region_usa": "États-Unis",
     "region_label": "Région",
 }

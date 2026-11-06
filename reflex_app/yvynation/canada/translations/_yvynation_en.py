@@ -7,12 +7,15 @@ explanation per results tab.
 """
 
 YVY_EN: dict[str, str] = {
+    "header_more": "More",
+    "go_to_usa": "Go to USA",
+    "go_to_canada": "Go to Canada",
     # --- header / shell ----------------------------------------------------
     "app_name": "Yvynation Canada — protected areas",
     "nav_subtitle": "Land-cover history of Canada's protected and conserved "
         "areas (CPCAD), British Columbia first",
     "mobile_parcel_zones_toggle": "Area & zones",
-    "go_to_brazil": "Brazil",
+    "go_to_brazil": "Go to Brazil",
 
     # --- search -------------------------------------------------------------
     "search_placeholder": "protected-area name, address, postal code, coordinate…",
@@ -268,5 +271,6 @@ YVY_EN: dict[str, str] = {
     "cite_dialog_desc": "Yvynation Canada and the datasets it draws on.",
     "region_brazil": "Brazil",
     "region_canada": "Canada",
+    "region_usa": "USA",
     "region_label": "Region",
 }

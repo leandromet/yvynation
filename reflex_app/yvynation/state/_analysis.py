@@ -75,15 +75,40 @@ class AnalysisMixin(rx.State, mixin=True):
         entry = self.analysis_targets.get(self.active_target_id) or {}
         if not key:
             key = entry.get("result_key") or ""
-        if not key and entry.get("label"):
-            kind = "geometry" if entry.get("kind") == "drawing" else "territory"
-            key = f"{kind}::{entry['label']}"
+        if not key and entry.get("kind") == "drawing":
+            key = "geometry::" + str((entry.get("geojson") or {}).get("_idx", ""))
+        elif not key and entry.get("label"):
+            key = f"territory::{entry['label']}"
         if not key:
             return
         bundle = dict(self.all_analysis_results.get(key) or {})
         bundle[field] = payload
         self.all_analysis_results[key] = bundle
         self._mark_target_analyzed(key)
+
+    def _drawing_result_key(self) -> str:
+        """Result key of the selected drawing: ``geometry::<_idx>``.
+
+        Keyed by the drawing's stable ``_idx`` (the same id its registry entry
+        uses), not its list position, which shifts when a drawing is removed.
+        """
+        idx = self.selected_geometry_idx
+        feat = self.drawn_features[idx]
+        return f"geometry::{feat.get('_idx', idx)}"
+
+    def select_result_tab(self, key: str):
+        """A results tab was clicked: make its area the active target, then show
+        its stored results. Drawings switch the drawing (so the map, buffer and
+        analysis target follow); territories switch the territory."""
+        if key.startswith("geometry::"):
+            tid = "drawing::" + key.split("::", 1)[1]
+        elif key.startswith("territory::"):
+            tid = key
+        else:
+            tid = ""
+        if tid and tid in self.analysis_targets:
+            self.set_active_target(tid)
+        self.switch_result(key)
 
     def _save_area_fields(self, key: str):
         """Copy the per-area flat fields (AREA_RESULT_FIELDS + labels) into the
@@ -854,7 +879,7 @@ class AnalysisMixin(rx.State, mixin=True):
                         "top_class": result_df.iloc[0]["Class_Name"] if len(result_df) > 0 else "Unknown",
                     },
                 }
-                key = f"geometry::{self.selected_geometry_idx}"
+                key = self._drawing_result_key()
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
                 self._save_area_fields(key)
@@ -910,7 +935,7 @@ class AnalysisMixin(rx.State, mixin=True):
                         "total_area_ha": float(result_df["Area_ha"].sum()),
                     },
                 }
-                key = f"geometry::{self.selected_geometry_idx}"
+                key = self._drawing_result_key()
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
                 # Store in dedicated GLAD var so GFC tab results are not overwritten
@@ -962,7 +987,7 @@ class AnalysisMixin(rx.State, mixin=True):
                 result_dict["geometry_name"] = geom_name
                 # Store in dedicated GFC var so GLAD tab results are not overwritten
                 self.geometry_gfc_result = result_dict
-                key = f"geometry::{self.selected_geometry_idx}"
+                key = self._drawing_result_key()
                 feat = self.drawn_features[self.selected_geometry_idx]
                 self._store_result(key, result_dict, geojson_feature=feat)
                 self._save_area_fields(key)
@@ -1039,7 +1064,7 @@ class AnalysisMixin(rx.State, mixin=True):
                     "data": comparison_df.to_dict("records"),
                 }
 
-            key = f"geometry::{self.selected_geometry_idx}"
+            key = self._drawing_result_key()
             feat = self.drawn_features[self.selected_geometry_idx]
             self._store_result(key, result_dict, comparison=comparison_dict, geojson_feature=feat)
             self._save_area_fields(key)

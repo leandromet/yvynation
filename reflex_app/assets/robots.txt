@@ -1,0 +1,9 @@
+# Yvynation: public and free to read and cite (CC BY 4.0).
+User-agent: *
+Allow: /
+# Reflex's live-session socket and upload endpoints, and the export downloads.
+Disallow: /_event
+Disallow: /_upload
+Disallow: /download/
+
+Sitemap: https://yvynation.umaterra.com.br/sitemap.xml

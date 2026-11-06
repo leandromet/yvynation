@@ -14,9 +14,16 @@ class UIMixin(rx.State, mixin=True):
     # ---- Language -------------------------------------------------------
 
     def set_language(self, lang: str):
-        """Change application language (manual choice wins over auto-detect)."""
+        """Change application language (manual choice wins over auto-detect).
+
+        The address bar follows (``/pt/``…) without a reload, so the URL on
+        screen is always the language on screen. The analysis itself stays put.
+        """
+        from ..utils.language_routes import replace_url_script
+
         self.language = lang
         self.language_user_set = True
+        return rx.call_script(replace_url_script(self.router.url.path, lang))
 
     def adopt_lang_param(self):
         """Honour an explicit ``?lang=`` on load — and nothing else.
@@ -29,8 +36,15 @@ class UIMixin(rx.State, mixin=True):
         turning it on would silently change the language existing visitors
         see. An explicit parameter is a choice somebody made.
         """
+        from ..utils.language_routes import language_from_path
         from ..utils.translations import TRANSLATIONS
 
+        # The path names the language (/pt/, /canada/fr/…): it is authoritative.
+        path_lang = language_from_path(self.router.url.path)
+        if path_lang:
+            self.language = path_lang
+            self.language_user_set = True
+            return
         requested = self.router.url.query_parameters.get("lang", "")
         if requested in TRANSLATIONS:
             self.language = requested

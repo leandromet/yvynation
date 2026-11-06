@@ -1,11 +1,14 @@
 """Portuguese text specific to Yvynation's Canada page (see _yvynation_en)."""
 
 YVY_PT: dict[str, str] = {
+    "header_more": "Mais",
+    "go_to_usa": "Ir para os EUA",
+    "go_to_canada": "Ir para o Canadá",
     "app_name": "Yvynation Canadá — áreas protegidas",
     "nav_subtitle": "Histórico da cobertura do solo nas áreas protegidas e "
         "conservadas do Canadá (CPCAD), começando pela Colúmbia Britânica",
     "mobile_parcel_zones_toggle": "Área e zonas",
-    "go_to_brazil": "Brasil",
+    "go_to_brazil": "Ir para o Brasil",
 
     "search_placeholder": "nome da área protegida, endereço, código postal, coordenada…",
     "search_areas_heading": "Áreas protegidas",
@@ -266,5 +269,6 @@ YVY_PT: dict[str, str] = {
     "cite_dialog_desc": "O Yvynation Canadá e os dados que ele usa.",
     "region_brazil": "Brasil",
     "region_canada": "Canadá",
+    "region_usa": "EUA",
     "region_label": "Região",
 }

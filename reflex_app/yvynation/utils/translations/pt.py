@@ -7,6 +7,10 @@ Check coverage with:  python -m yvynation.utils.translations
 """
 
 TRANSLATIONS_PT = {
+    "header_more": "Mais",
+    "go_to_usa": "Ir para os EUA",
+    "go_to_canada": "Ir para o Canadá",
+    "go_to_brazil": "Ir para o Brasil",
         # Page
     "page_title": "Yvynation - Monitoramento Territorial Indígena",
     "main_page_title": "Yvynation - Plataforma de Monitoramento Territorial",
@@ -742,5 +746,6 @@ O mapa será centralizado na região selecionada.""",
     "go_to_usa_page": 'EUA: áreas protegidas →',
     "region_brazil": "Brasil",
     "region_canada": "Canadá",
+    "region_usa": "EUA",
     "region_label": "Região",
 }

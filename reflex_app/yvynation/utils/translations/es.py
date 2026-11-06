@@ -7,6 +7,10 @@ Check coverage with:  python -m yvynation.utils.translations
 """
 
 TRANSLATIONS_ES = {
+    "header_more": "Más",
+    "go_to_usa": "Ir a EE. UU.",
+    "go_to_canada": "Ir a Canadá",
+    "go_to_brazil": "Ir a Brasil",
         # Page
     "page_title": "Yvynation - Monitoreo de Territorios Indígenas",
     "main_page_title": "Yvynation - Plataforma de Monitoreo de Territorios Indígenas",
@@ -651,5 +655,6 @@ Use los botones de región (Brasil / Canadá) en la barra lateral:
     "go_to_usa_page": 'EE. UU.: áreas protegidas →',
     "region_brazil": "Brasil",
     "region_canada": "Canadá",
+    "region_usa": "EE. UU.",
     "region_label": "Región",
 }

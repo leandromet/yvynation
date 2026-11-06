@@ -392,11 +392,12 @@ def test_ecozone_features_carry_a_french_zone_name():
 def test_region_toggle_links_carry_the_language_and_mark_the_current_region():
     from yvynation.components.region_toggle import region_toggle
     import reflex as rx
-    html = str(region_toggle("canada", language="fr", labels=("Brésil", "Canada"),
+    html = str(region_toggle("canada", language="fr", names=("Brésil", "Canada", "États-Unis"),
+                             goto=("Aller au Brésil", "Aller au Canada", "Aller aux États-Unis"),
                              aria_label="Région"))
-    assert "/?lang=fr" in html                       # Brazil is a link …
+    assert "/fr/" in html                            # Brazil is a link …
     assert "aria_current" in html or "aria-current" in html   # … Canada is current
-    assert "/canada?lang=fr" not in html             # the current region is not a link
+    assert "/canada/fr/" not in html                 # the current region is not a link
 
 
 def test_translations_exist_for_the_toggle_everywhere():

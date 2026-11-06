@@ -103,6 +103,7 @@ def section(title: str, *children, info=None, **props) -> rx.Component:
 
 
 def header() -> rx.Component:
+    from ...components.header_menu import header_menu
     from ...components.region_toggle import region_toggle
     from ...components.suite_links import suite_links
     from .help import header_actions
@@ -131,9 +132,17 @@ def header() -> rx.Component:
         rx.spacer(),
         suite_links("yvynation", region="canada", language=S.language, accent=ACCENT),
         region_toggle("canada", language=S.language,
-                      labels=(S.tr["region_brazil"], S.tr["region_canada"]),
+                      names=(S.tr["region_brazil"], S.tr["region_canada"], S.tr["region_usa"]),
+                      goto=(S.tr["go_to_brazil"], S.tr["go_to_canada"], S.tr["go_to_usa"]),
                       aria_label=S.tr["region_label"], accent=ACCENT),
-        header_actions(),
+        # The export and help dialogs are opened from the menu below; their own
+        # triggers are not shown.
+        rx.box(header_actions(), display="none"),
+        header_menu(S.tr["header_more"], [
+            (S.tr["download_button"], S.set_export_open(True)),
+            (S.tr["help_trigger"], S.set_help_open(True)),
+            (S.tr["cite_trigger"], S.set_cite_open(True)),
+        ]),
         rx.segmented_control.root(
             # Plain text: the region toggle is the only flagged control.
             rx.segmented_control.item("EN", value="en"),

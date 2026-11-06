@@ -7,7 +7,7 @@ Allows users to choose between geometry or indigenous territory analysis.
 import reflex as rx
 from ..state import AppState
 from ..components.language_selector import language_selector
-from ..components.region_toggle import region_toggle
+from ..components.region_toggle import region_toggle, tool_href
 from ..components.suite_links import suite_links
 from ..components.citation import citation_modal, cite_trigger
 
@@ -29,9 +29,10 @@ def portal_navbar() -> rx.Component:
         rx.hstack(
             suite_links("yvynation", region="brazil", language=AppState.language,
                         accent="green"),
-            # Brazil and Canada are separate pages; the portal is Brazil's door.
+            # Brazil, Canada and the USA are separate pages; the portal is Brazil's door.
             region_toggle("brazil", language=AppState.language,
-                          labels=(AppState.tr["region_brazil"], AppState.tr["region_canada"]),
+                          names=(AppState.tr["region_brazil"], AppState.tr["region_canada"], AppState.tr["region_usa"]),
+                          goto=(AppState.tr["go_to_brazil"], AppState.tr["go_to_canada"], AppState.tr["go_to_usa"]),
                           aria_label=AppState.tr["region_label"], accent="green"),
             language_selector(),
             spacing="3",
@@ -320,7 +321,7 @@ def analysis_choice_section() -> rx.Component:
                                 color_scheme="teal",
                                 width="100%",
                             ),
-                            href=f"/canada?lang={AppState.language}",
+                            href=tool_href("/canada", AppState.language),
                             width="100%",
                         ),
                         # The lower 48's protected areas, from PAD-US (/usa), tribal lands
@@ -333,7 +334,7 @@ def analysis_choice_section() -> rx.Component:
                                 color_scheme="teal",
                                 width="100%",
                             ),
-                            href=f"/usa?lang={AppState.language}",
+                            href=tool_href("/usa", AppState.language),
                             width="100%",
                         ),
                         spacing="2",

@@ -163,6 +163,8 @@ def download_app() -> Starlette:
     # So does the demonstrations' data route (api/demonstracao.py).
     from ..api.demonstracao import routes as demo_routes
 
+    from .language_routes import language_redirect_routes
+
     return Starlette(
         routes=[
             Route(
@@ -170,6 +172,8 @@ def download_app() -> Starlette:
                 _download_export,
                 methods=["GET"],
             ),
+            # Bare tool URLs (/, /canada, /usa) → their language-prefixed page.
+            *language_redirect_routes(),
             *canada_routes(),
             *demo_routes(),
         ]
